@@ -1151,7 +1151,7 @@ pub(crate) mod machine {
             lowerer
                 .typed_trees
                 .machine_owned_data
-                .get_mut(typed_machine.owned_data.handle_at(ordinal as u32))
+                .get_span_member_mut(typed_machine.owned_data, ordinal)
                 .initial_value = initial_value;
         }
         let conformances = lowerer

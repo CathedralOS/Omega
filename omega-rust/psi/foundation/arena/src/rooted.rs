@@ -542,6 +542,29 @@ impl<T: Default> RootedArena<T> {
 }
 
 impl<T: Clone> RootedArena<T> {
+    /// Write one member after validating its complete span and position.
+    #[track_caller]
+    pub fn get_span_member_mut(&mut self, span: HandleSpan<T>, position: usize) -> &mut T {
+        // A live neighboring slot is not a member of this span. Validate before
+        // detaching a page or record; fresh spans use the existing O(1) path.
+        assert!(
+            position < self.span_or_empty(span).len(),
+            "declaration write position out of bounds"
+        );
+        self.get_mut(span.handle_at(position as u32))
+    }
+
+    /// Mutate span members after validating the entire span once.
+    #[track_caller]
+    pub fn for_each_span_mut(&mut self, span: HandleSpan<T>, mut apply: impl FnMut(&mut T)) {
+        let _ = self.span_or_empty(span);
+        // The exclusive arena borrow prevents retirement while callbacks hold
+        // one record at a time. Each write still uses scalar generation checks.
+        for handle in span.handles() {
+            apply(self.get_mut(handle));
+        }
+    }
+
     #[track_caller]
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
         let Some(mut address) = self.address(handle) else {
@@ -968,6 +991,88 @@ mod tests {
                 value: self.value,
             }
         }
+    }
+
+    #[test]
+    fn span_member_writes_check_the_entire_span_before_detaching() {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let mut rows = RootedArena::new();
+        let roots = rows.insert_many((0..3).map(|value| Tracked {
+            copies: Arc::clone(&copies),
+            value,
+        }));
+        let predecessor = rows.clone();
+        let first = HandleSpan::from_parts(roots.start(), 1);
+        let oversized = HandleSpan::from_parts(roots.start(), 4);
+        let mut callbacks = 0;
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                rows.for_each_span_mut(oversized, |row| {
+                    callbacks += 1;
+                    row.value = 900;
+                });
+            }))
+            .is_err()
+        );
+        assert_eq!(callbacks, 0);
+        assert_eq!(copies.load(Ordering::Relaxed), 0);
+        assert!(Arc::ptr_eq(
+            &rows.associations[0],
+            &predecessor.associations[0]
+        ));
+        assert!(Arc::ptr_eq(&rows.batches[0], &predecessor.batches[0]));
+        let wrong_generation = HandleSpan::from_parts(
+            Handle::from_parts(roots.start().arena_index(), roots.start().generation() + 1),
+            1,
+        );
+        for (span, position) in [
+            (first, 1),
+            (first, usize::MAX),
+            (oversized, 0),
+            (wrong_generation, 0),
+            (HandleSpan::empty(), 0),
+        ] {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    rows.get_span_member_mut(span, position).value = 900;
+                }))
+                .is_err()
+            );
+            assert!(Arc::ptr_eq(
+                &rows.associations[0],
+                &predecessor.associations[0]
+            ));
+            assert!(Arc::ptr_eq(&rows.batches[0], &predecessor.batches[0]));
+            assert_eq!(copies.load(Ordering::Relaxed), 0);
+            assert_eq!(rows.get(roots.handle_at(1)).value, 1);
+        }
+        rows.get_span_member_mut(first, 0).value = 901;
+        assert_eq!(copies.load(Ordering::Relaxed), 1);
+        assert_eq!(rows.get(roots.start()).value, 901);
+        assert_eq!(predecessor.get(roots.start()).value, 0);
+        assert_eq!(rows.get(roots.handle_at(1)).value, 1);
+
+        let retired = roots.handle_at(1);
+        assert!(rows.free(retired));
+        let reused = rows.insert(Tracked {
+            copies: Arc::clone(&copies),
+            value: 902,
+        });
+        let copies_before = copies.load(Ordering::Relaxed);
+        // The selected first slot is live, but another slot in the requested
+        // span retired. A scalar check on that first handle is insufficient.
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                rows.get_span_member_mut(roots, 0).value = 903;
+            }))
+            .is_err()
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), copies_before);
+        assert_eq!(rows.get(roots.start()).value, 901);
+        rows.get_span_member_mut(HandleSpan::from_parts(reused, 1), 0)
+            .value = 904;
+        assert_eq!(rows.get(reused).value, 904);
+        assert_eq!(predecessor.get(retired).value, 1);
     }
 
     #[test]

@@ -371,17 +371,19 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
         }
         self.parameters(signature.parameters);
         self.ty(signature.return_type);
-        for handle in signature.invokes.handles() {
-            let invocation = self.target.signature_invokes.get_mut(handle);
-            match &mut invocation.target {
-                crate::signature::AuthoredInvocationTarget::Parameter { symbol, .. }
-                | crate::signature::AuthoredInvocationTarget::Service(symbol) => {
-                    *symbol = remapped(*symbol, self.symbols)
+        let symbols = self.symbols;
+        self.target
+            .signature_invokes
+            .for_each_span_mut(signature.invokes, |invocation| {
+                match &mut invocation.target {
+                    crate::signature::AuthoredInvocationTarget::Parameter { symbol, .. }
+                    | crate::signature::AuthoredInvocationTarget::Service(symbol) => {
+                        *symbol = remapped(*symbol, symbols)
+                    }
+                    crate::signature::AuthoredInvocationTarget::Unresolved
+                    | crate::signature::AuthoredInvocationTarget::Undeclared => {}
                 }
-                crate::signature::AuthoredInvocationTarget::Unresolved
-                | crate::signature::AuthoredInvocationTarget::Undeclared => {}
-            }
-        }
+            });
         for handle in signature.contracts.handles() {
             let mut contract = self.target.signature_contracts.get(handle).clone();
             if let SignatureContractKind::EnsuresForResultCase {
@@ -755,6 +757,59 @@ mod build_request_copy_tests {
         ProductDeclarationOperand, ProviderReadinessRequest,
     };
     use symbols::SymbolHandle;
+
+    #[test]
+    fn signature_invocation_remapping_refuses_a_bad_tail_before_changing_its_prefix() {
+        use crate::signature::{AuthoredInvocation, AuthoredInvocationTarget};
+
+        let old = SymbolHandle::from_parts(7, 1);
+        let new = SymbolHandle::from_parts(8, 1);
+        let substitutions = [(old, new)];
+        for retired_tail in [false, true] {
+            let mut target = TypedTreeTables::default();
+            let first = target.signature_invokes.insert(AuthoredInvocation {
+                target: AuthoredInvocationTarget::Service(old),
+                ..Default::default()
+            });
+            if retired_tail {
+                let last = target
+                    .signature_invokes
+                    .insert(AuthoredInvocation::default());
+                assert!(target.signature_invokes.free(last));
+            }
+            let predecessor = target.clone();
+            let mut signature = StateSignature {
+                invokes: HandleSpan::from_parts(first, 2),
+                ..Default::default()
+            };
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    TypeRemap::new(&mut target, SymbolRebinding::new(&substitutions, &[]))
+                        .signature(&mut signature);
+                }))
+                .is_err()
+            );
+            assert_eq!(
+                target.signature_invokes.get(first).target,
+                AuthoredInvocationTarget::Service(old)
+            );
+            assert!(std::ptr::eq(
+                target.signature_invokes.get(first),
+                predecessor.signature_invokes.get(first)
+            ));
+            signature.invokes = HandleSpan::from_parts(first, 1);
+            TypeRemap::new(&mut target, SymbolRebinding::new(&substitutions, &[]))
+                .signature(&mut signature);
+            assert_eq!(
+                target.signature_invokes.get(first).target,
+                AuthoredInvocationTarget::Service(new)
+            );
+            assert_eq!(
+                predecessor.signature_invokes.get(first).target,
+                AuthoredInvocationTarget::Service(old)
+            );
+        }
+    }
 
     #[test]
     fn provider_readiness_copies_and_rebinds_its_exact_requirement_type_once() {

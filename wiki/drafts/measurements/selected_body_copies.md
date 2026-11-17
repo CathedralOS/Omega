@@ -316,7 +316,7 @@ unchanged. The first native harness attempt expected two work-counter events
 where `measure()` records one before host execution; it failed before execution
 and remains a failed receipt. Only corrected fresh runs contribute acceptance.
 
-An unpatched `orchestration::package_batch` producer on the rebased Rust source
+An initial unpatched `orchestration::package_batch` producer on the rebased Rust source
 also accepts both unchanged original programs: Linux native exit zero and
 canonical reloaded Psi Unit, with empty stderr. Its executable SHA256 is
 `1b34d2a3f0a3636598137b0424ff1e7757ed5ba5043c48b85bd790bfe06a62eb`.
@@ -324,7 +324,7 @@ The build uses qualified mbx `1.29.2-omega.1`, SHA256
 `5c19a1a26f866928efcd2ccbb7d61ae1d39f01f762a49de361d91ff32aaf1e60`,
 with the same optimized development profile and resource limits. This default
 route qualification is separate from the frozen-source performance data;
-exact-squash replay belongs to post-merge qualification.
+the final span-fixed producer and exact-squash replay are qualified separately.
 Parent and child table observations overlap and must never be summed. Existing
 key probes isolate the actual recorder but repeat it artificially; their call
 counts are not production call counts. Keep payload copies, directory metadata,
@@ -356,6 +356,16 @@ source: `generic_arguments_visit_type_and_const_owners_without_widening_type_roo
 and `dynamic_trait_identity_reads_generic_arguments`. Their parser and test
 files are byte-identical to baseline; the other 76 language-semantics tests
 pass. No program assertion or parser rule was changed to conceal them.
+
+Mutable span access also retains its original bounds behavior. A checked member
+write validates the complete span and ordinal before detaching a record; batch
+remapping validates the full span once before any callback. The actual callable
+remapping regression first reproduced a changed live prefix before rejection of
+a malformed tail, then passed with the shared checked visitor. The controls cover
+out-of-span live neighbors, empty and oversized spans, wrong/reused generations,
+no detachment on refusal, and unchanged predecessors. These final review repairs
+are qualification changes after the frozen performance sources, not new timing
+observations.
 
 The real two-helper completion regression failed at the old source and passes
 with retained owners. Its exact request ledger, unchanged predecessor, and
