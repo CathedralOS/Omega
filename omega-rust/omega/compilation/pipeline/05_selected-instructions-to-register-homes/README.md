@@ -29,11 +29,12 @@ that combines its phases with each other or with a recovery rule.
 ## Current facts and evidence
 
 [RetainedAllocation](src/output.rs) holds the current program and the facts
-this stage produced for it. Building it checks that the recovery rule that ran
-is exactly the declared allocation-recovery selection, and that the manifest
-carries the program's Omega 04 record unchanged, then drops the producer.
-Later stages never replay allocation history, because each fact was checked
-when produced ([verification placement](../../../../pipeline.md#verification-placement)).
+this stage produced for it. Building it retains the manifest, selections and
+recovery decision without replaying the producer. On an explicit validator
+request, `validate_publication` checks the recovery decision against the declared
+selection and compares the manifest with the retained Omega 04 history.
+Later stages consume current facts; the native driver's explicit audit owns
+replay ([verification placement](../../../../pipeline.md#verification-placement)).
 Plain, fixed-view-copy, rematerialization and executable-spill results share
 one allocation view.
 

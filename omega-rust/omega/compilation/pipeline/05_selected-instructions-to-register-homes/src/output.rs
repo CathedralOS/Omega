@@ -1,10 +1,9 @@
 /*
 We project the staged result of whichever allocation procedure ran
 (`StagedAllocation`) into one `AllocationOutput` borrow and admit it as
-`RetainedAllocation`. Admission checks that the recovery rule that ran is
-exactly the build's `AllocationRecovery` selection, and that the manifest
-carries the program's Omega 04 record unchanged, before capturing current
-allocation facts for `Omega 06`.
+`RetainedAllocation`. The handoff retains the producer's manifest and decisions without replaying
+them. Explicit validation checks the recovery selection and manifest history;
+current allocation facts are captured once for `Omega 06`.
 */
 
 macro_rules! allocation_output {
@@ -194,6 +193,7 @@ pub(crate) mod retained {
     pub struct RetainedAllocation {
         current: Arc<super::current::CurrentAllocation>,
         requirements: crate::ValidatedAllocatedCalleeSavedRequirements,
+        recovery: Option<Optimization>,
     }
 
     impl RetainedAllocation {
@@ -217,6 +217,13 @@ pub(crate) mod retained {
             self.current.publication()
         }
 
+        /// Check the retained producer evidence only on an explicit replay request.
+        pub fn validate_publication(
+            &self,
+        ) -> Result<(), crate::AllocationPublicationValidationError> {
+            crate::publication_validation::validate(&self.current(), self.recovery)
+        }
+
         /// Admit the result of the allocation procedure that ran. `recovery`
         /// is the allocation-recovery rule that procedure carried out, if any.
         pub(crate) fn admit(
@@ -224,8 +231,11 @@ pub(crate) mod retained {
             recovery: Option<Optimization>,
         ) -> Result<Self, AllocationAdmissionError> {
             let current = staged.project();
-            validate_recovery_selection(&current, recovery)?;
-            let publication = capture_publication_facts(&current)?;
+            let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
+                current.post_allocation_manifest().record().clone(),
+                current.selections().clone(),
+                current.budget_per_pass(),
+            ));
             // Recovery has finished changing instructions and homes. Derive the
             // preservation facts here, once, before physical lowering starts.
             let requirements = crate::stage_allocated_callee_saved_requirements(
@@ -236,87 +246,13 @@ pub(crate) mod retained {
             .map_err(AllocationAdmissionError::Preservation)?;
             Ok(Self {
                 requirements,
+                recovery,
                 current: Arc::new(
                     super::current::CurrentAllocation::capture(&current, publication)
                         .map_err(AllocationAdmissionError::MachineEffects)?,
                 ),
             })
         }
-    }
-
-    /// The manifest must carry the program's Omega 04 record unchanged, then
-    /// exactly the recovery rewrites this allocation applied; the record's
-    /// completions must agree with which Omega 04 phases the build selected.
-    fn capture_publication_facts(
-        current: &AllocationOutput<'_>,
-    ) -> Result<Arc<register_homes::AllocationPublicationFacts>, AllocationAdmissionError> {
-        use super::AllocationEvidence;
-        use crate::PostAllocationSelectedTransformation;
-        use optimization_core::OptimizationExecutionPhase;
-
-        let post = current.post_allocation_manifest().record();
-        let history = current.history();
-        let expected_transformations = match current.evidence() {
-            AllocationEvidence::RegisterHomes(_) => history.transformations.clone(),
-            AllocationEvidence::FixedViewCopies(receipt) => {
-                history.followed_by(&[PostAllocationSelectedTransformation::FixedViewCopy(
-                    receipt.source().source().transformation(),
-                )])
-            }
-            AllocationEvidence::ActiveResidentRematerialization(receipt) => history.followed_by(&[
-                PostAllocationSelectedTransformation::PressureRematerialization(
-                    receipt.rematerialization(),
-                ),
-            ]),
-            AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
-                if !post
-                    .selected_transformations
-                    .starts_with(&history.transformations)
-                {
-                    return Err(AllocationAdmissionError::PublicationMismatch);
-                }
-                post.selected_transformations.clone()
-            }
-            AllocationEvidence::RuntimeSpill(_) => {
-                return Err(AllocationAdmissionError::PublicationMismatch);
-            }
-        };
-        let selected = |phase| !current.selections().for_phase(phase).is_empty();
-        if post.selected_transformations != expected_transformations
-            || post.selected_lowering_completion != history.selected_lowering_completion
-            || post.pre_allocation_completion != history.pre_allocation_completion
-            || history.selected_lowering_completion.is_some()
-                != selected(OptimizationExecutionPhase::SelectedLowering)
-            || history.pre_allocation_completion.is_some()
-                != selected(OptimizationExecutionPhase::PreAllocation)
-        {
-            return Err(AllocationAdmissionError::PublicationMismatch);
-        }
-        Ok(Arc::new(
-            register_homes::AllocationPublicationFacts::retain(
-                post.clone(),
-                current.selections().clone(),
-                current.budget_per_pass(),
-            ),
-        ))
-    }
-
-    /// The recovery rule that ran must be exactly the build's
-    /// allocation-recovery selection: none when nothing is selected.
-    fn validate_recovery_selection(
-        current: &AllocationOutput<'_>,
-        recovery: Option<Optimization>,
-    ) -> Result<(), AllocationAdmissionError> {
-        use optimization_core::OptimizationExecutionPhase;
-        if current
-            .selections()
-            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
-            .as_slice()
-            != recovery.as_slice()
-        {
-            return Err(AllocationAdmissionError::SelectionMismatch);
-        }
-        Ok(())
     }
 }
 pub(crate) mod runtime_spill {
@@ -454,8 +390,6 @@ pub enum AllocationEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationAdmissionError {
-    SelectionMismatch,
-    PublicationMismatch,
     MachineEffects(selected_instruction_analyses::MachineEffectStageError),
     Preservation(crate::AllocatedCalleeSavedRequirementError),
 }
