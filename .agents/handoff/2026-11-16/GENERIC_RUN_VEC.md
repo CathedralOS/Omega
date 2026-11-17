@@ -2,11 +2,11 @@
 
 PR #3764 is merged at `9afd8469a55b9a8f522aa320a940f6b5d277bcd8`. The original also ran on the landed source: native exit 0 and Psi exit 0 in 52.04 seconds, using optimized CLI `d7cf92c3a4df853898a0b1e56153f8fa2d956b87738cc4ffcc109a6c68a7bd18`. Worktree commit `37c2dfda95c` has the published tree. Receipts are in `build/ownership/landed-main-run/`; the kept program is `/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-73621-0`. Ordinary ownership is complete; the full Run/Vec outcome continues below.
 
-Root owns PR #3764 and the full Run/Vec outcome under claim `18e89b4f6d3691480000000018e98a76`, in `worker-2`. The current landing covers ordinary linear records and calls. Run/Vec acceptance remains open and stays with this session after that milestone lands.
+Root owns the full Run/Vec outcome under claim `18e89b4f6d3691480000000018e98a76`, in `worker-2`. PR #3764 landed ordinary linear records and calls. Run/Vec acceptance remains open and stays with this session.
 
 Checkpoint `41867a04b2c` includes the tested source-context and proof-lookup fixes after merge `fbfa28c5048df86750d31039c2067a44921b9fb6` integrated main `a3c0c319802`. The earlier integrated base was `d3deb345653b9812607155ff4b51e17db35ca520`. Checkpoint `a9a15989799b2c8083f9966dae946c1a97c84de6` preserves all source before extraction, including the original Run fixture, unfinished native Run paths and the pending address-predicate repair. It is an ancestor of this work, not a completed implementation.
 
-## Current landing
+## Merged ownership change
 
 Record metadata distinguishes copyable, affine and linear values. Separate claims identify the obligations owned by a value's fields. Construction, moves, ordinary calls and returns transport those claims; receiving reconstructs the transfer instead of trusting supplied rows. A linear leaf still owes its claim when a producer erases every claim flag and row. Declaration lookup allocates scratch by actual rows, not the largest supplied ID.
 
@@ -14,7 +14,7 @@ Bodyless requirements have no activation to walk, but their parameter claims sti
 
 The unfinished Run split/merge paths were removed from this landing, including their native operations and unwired source-identity validator. Existing empty-run release remains. General bodyless-header fixes and ordinary ownership code remain. No new Split/Merge capability is claimed.
 
-## Current acceptance and landing
+## Ownership validation before merge
 
 The unchanged ownership program runs on macOS arm64 at `99ed232d072dce66c1722323b1adf7b09281aef3`: native exit 0 and Psi exit 0. The run took 52.36 seconds and peaked at 1.65 GB RSS. Its duplicate-transfer twin rejects the second use of `input` with ``claim transport observes unavailable owned storage in machine `main` `` at line 17. That check took 30.80 seconds. The negative previously stopped for an unrelated linear value left at a normal return; it now duplicates the call in `main`, where successful process exit permits the remaining values to be abandoned. This isolates the forbidden second transfer.
 
@@ -42,7 +42,7 @@ Results below belong to their recorded source revisions. They do not establish a
 
 - The indexed-case chain passed four controls and affected-crate Clippy on producer `0bf6da5beb4f86c9f6941bd788cb34ea67a87b753ccf6c4d06acf99cef25b564`. `/tmp/omega-3764-indexed-case-retry.json` records the frozen patch, 183-second test build, 189-second CLI build, 67-second lint run and interrupted package attempt (2.48 GB peak RSS). The first attempt stopped at test compilation because its setup tried to clone a non-cloneable graph; the retry constructs that graph directly. No package or runtime success is claimed.
 
-The executable fixtures are `tests/fixtures/{run,fail}/ownership/linear_sibling_call`. Successful process exit explicitly abandons remaining obligations; this witness does not prove resource release. Source review found no blocker in the ordinary claims and empty-result repairs. Formatting, repository rules and dependency boundaries passed at their recorded checkpoints. Runtime acceptance and the intended duplicate-transfer refusal are now recorded above. Local checks on the integrated candidate pass; admission and publication remain open.
+The executable fixtures are `tests/fixtures/{run,fail}/ownership/linear_sibling_call`. Successful process exit explicitly abandons remaining obligations; this witness does not prove resource release. Source review found no blocker in the ordinary claims and empty-result repairs. Formatting, repository rules and dependency boundaries passed at their recorded checkpoints. Admission passed and publication completed; the first paragraph records the subsequent run on landed source.
 
 ## Resume Run/Vec after the ownership milestone
 
@@ -62,4 +62,8 @@ The existing `tests/fixtures/run/collections/generic_run_vec` and its duplicate-
 
 The old nongeneric alloc Vec implementation is replaced, while its VecCell/layout/policy declarations remain for the tracked source-job controls. A tracked-tree search found no callers of its old open/push/get/grow/close API outside the declaration file. Bump and the separate core Vec remain unchanged. Reconcile that core placeholder before claiming full acceptance.
 
-No compiler WIP was restored. The source is unvalidated. Core source bytes are compiled into the identity catalog, so the first baseline needs a fresh optimized producer; reusing the earlier compiler would test mismatched source identities. Freeze this source, run the existing executable, record its first actual failure, and repair the general mechanism it needs.
+At `849dc367b3952f2e2e6145f7fd104d178ea01bf1`, no compiler WIP had been restored. A fresh optimized build took 343.56 seconds and produced CLI `0cded39b7b4ba2b2a6b31c164279ddc4d67d9bbb13de4a32d71e4d565efc5cab`. The original `omega run --both --keep tests/fixtures/run/collections/generic_run_vec/main.omg` exited 200 before either engine ran. Source discovery refused `Run::retire_empty` at `source/library/core/run.omg:37:9`: it has no body and is absent from the compiler's catalog of supplied operations. Exact receipts and output are in `build/generic-run-vec/restored-source-baseline/`.
+
+The next repair restores catalog recognition of the exact bundled Run declarations. That recognition supplies identity only; checking and execution must still implement their complete contracts. The original program and its oracle remain unchanged. Full Run/Vec execution is unvalidated.
+
+The bump regression named by TASKS was deleted with the old corpus in `f4c7a70beb6f349b42aada02506fa8651c8d436b`. Its original two-resident, exhaustion, return/reset and reuse checks are now restored under `tests/fixtures/run/collections/bump_allocator_canary`, using current access APIs. Execution remains unverified. The migration record is `/tmp/omega-3764-bump-allocator-canary.json`; the original values and conditions remain unchanged. The unused empty `source/library/core/vec.omg` carrier and stub operations are removed in favor of the single library implementation. A source search found no callers of those stubs. Alloc's test reference and comments that described a separate Core vector now point to the actual library arrangement.

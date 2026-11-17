@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Editing bundled Core source recompiles most of the Rust compiler
+- Category: Verifying costs more than writing
+- Where: [bundled source in language-core](omega-rust/psi/foundation/language-core/src/sealed_intrinsics.rs#L221), [core vocabulary sources](omega-rust/psi/foundation/language-core/src/core_vocabulary.rs)
+- Saw: Restoring Run/Vec library source at `849dc367b3952f2e2e6145f7fd104d178ea01bf1` changed no Rust code after the warm landed-source build at `37c2dfda95c`. Because `language-core` embeds the source bytes, the next optimized CLI build rebuilt 93 packages and took 343.56 seconds. The original program then refused during source discovery in 0.15 seconds. Cargo artifact records, source identities and timings are in `worker-2/build/generic-run-vec/restored-source-baseline/`.
+- Cost: Each library repair invalidates Rust consumers that need vocabulary types but do not inspect bundled source. Separate immutable vocabulary from source-catalog data while preserving exact toolchain-source authentication; do not work around this by using a compiler with mismatched embedded source.
+- Reported: 2026-11-16, Codex, while completing the generic library Vec
+
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
 - Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter

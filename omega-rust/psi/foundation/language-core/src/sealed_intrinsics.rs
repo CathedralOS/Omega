@@ -88,6 +88,34 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+    RunCustody(RunCustodyOperation),
+}
+
+/// A total transfer of existing ordered run custody, without a provider call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RunCustodyOperation {
+    ReleaseEmpty,
+    Split,
+    Merge,
+}
+
+impl RunCustodyOperation {
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::ReleaseEmpty => 0,
+            Self::Split => 1,
+            Self::Merge => 2,
+        }
+    }
+
+    pub const fn from_tag(tag: u8) -> Option<Self> {
+        match tag {
+            0 => Some(Self::ReleaseEmpty),
+            1 => Some(Self::Split),
+            2 => Some(Self::Merge),
+            _ => None,
+        }
+    }
 }
 
 /// The operation supplied by one exact generic core collection declaration.
@@ -463,6 +491,30 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "run.omg",
+        "Run::retire_empty",
+        CORE_RUN,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunCustody(
+            RunCustodyOperation::ReleaseEmpty,
+        )),
+    ),
+    row(
+        "run.omg",
+        "Run::split",
+        CORE_RUN,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunCustody(
+            RunCustodyOperation::Split,
+        )),
+    ),
+    row(
+        "run.omg",
+        "Run::merge",
+        CORE_RUN,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunCustody(
+            RunCustodyOperation::Merge,
+        )),
+    ),
+    row(
+        "run.omg",
         "Run::initialize_from_profile",
         CORE_RUN,
         lifecycle(PlacementOperation::Initialize, PlacementContent::Run),
@@ -478,6 +530,18 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "Run::relocate_from_profiles",
         CORE_RUN,
         lifecycle(PlacementOperation::Relocate, PlacementContent::Run),
+    ),
+    row(
+        "run.omg",
+        "Run::view_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::View, PlacementContent::Run),
+    ),
+    row(
+        "run.omg",
+        "Run::view_mut_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::View, PlacementContent::Run),
     ),
     row(
         "layout.omg",
@@ -620,6 +684,17 @@ pub fn float_operations_source() -> (&'static str, &'static [u8]) {
     ("float_operations.omg", CORE_FLOAT_OPERATIONS)
 }
 
+/// Exact bundled source whose declarations own the dense-run custody rules.
+/// Consumers still authenticate the complete declaration and closed signature.
+pub fn run_source() -> (&'static str, &'static [u8]) {
+    ("run.omg", CORE_RUN)
+}
+
+/// Exact bundled source for the backing qualifications used by run contracts.
+pub fn extent_source() -> (&'static str, &'static [u8]) {
+    ("extent.omg", CORE_EXTENT)
+}
+
 /// Exact source coordinates for the hosted primitive and its public contract.
 /// Consumers still authenticate source custody and the complete signature.
 pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [u8]); 3] {
@@ -670,6 +745,35 @@ mod tests {
                     &requirement,
                     STD_CONSOLE
                 )),
+                None,
+            );
+        }
+    }
+
+    #[test]
+    fn run_partition_and_join_require_the_exact_sealed_declarations() {
+        for (declaration, operation) in [
+            ("Run::retire_empty", RunCustodyOperation::ReleaseEmpty),
+            ("Run::split", RunCustodyOperation::Split),
+            ("Run::merge", RunCustodyOperation::Merge),
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("run.omg", declaration, CORE_RUN)),
+                Some(SealedIntrinsic::CompilerPrimitive(
+                    CompilerPrimitive::RunCustody(operation)
+                )),
+                "{declaration} must retain its exact custody operation"
+            );
+            let mut edited = CORE_RUN.to_vec();
+            edited.push(b' ');
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("run.omg", declaration, &edited)),
+                None,
+                "a changed declaration cannot acquire custody from its name"
+            );
+            let lookalike = format!("{declaration}_lookalike");
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("run.omg", &lookalike, CORE_RUN)),
                 None,
             );
         }
