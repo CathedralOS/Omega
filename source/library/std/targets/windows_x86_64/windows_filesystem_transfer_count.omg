@@ -6,9 +6,8 @@ use omega::language::core::widen_i32_to_i64;
 
 machine windows_transfer_count(requested: u64, available: u64) -> u64
 requires requested <= available
-ensures result <= requested && result <= available && result <= 4294967295 &&
-    ((requested <= 4294967295 && result == requested) ||
-     (requested > 4294967295 && result == 4294967295))
+ensures result <= requested && result <= 4294967295 && result <= available &&
+    (result == requested || result == 4294967295)
 {
     min_u64(requested, 4294967295)
 }

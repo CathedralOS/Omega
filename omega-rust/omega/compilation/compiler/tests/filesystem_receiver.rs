@@ -151,6 +151,91 @@ fn windows_transfer_count_refuses_original_request_beyond_available() {
 }
 
 #[test]
+fn windows_transfer_count_checks_both_native_consumers() {
+    // Source-check the actual Windows providers without invoking Windows I/O.
+    // Both raw-family calls must reach the private bounded-view consumers;
+    // scalar helper execution alone cannot establish those call contracts.
+    let workspace = TemporaryDirectory::create("windows-transfer-consumers", false).unwrap();
+    let root = repo_root();
+    copy_tree(
+        &root.join("source/library"),
+        &workspace.path().join("source/library"),
+    );
+    let project = workspace.path().join("transfer-consumers");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::write(
+        project.join("main.omg"),
+        r#"use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega_language_std::WindowsFilesystemHost;
+
+machine main() reaches FilesystemContentRead + FilesystemContentWrite {
+    let mut bytes: [u8; 5];
+    let read: i64 = block WindowsFilesystemHost::read_file(1, &mut bytes[..], 5);
+    let written: i64 = block WindowsFilesystemHost::write_file(1, bytes[..]);
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    Build::application(builder, "windows_transfer_consumers");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../source/library/std"
+    }));
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}
+"#,
+    )
+    .unwrap();
+    let profile = target::TargetProfile::WindowsX64;
+    accept_project(&project, profile);
+    let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        stage_validators: Default::default(),
+        root_path: project.join("main.omg"),
+        build_directory: Some(project.join("build/terminal")),
+        targets: orchestration::BuildTargets::Single(profile),
+        product: orchestration::ProjectProduct::Terminal,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .expect("ordinary Windows transfer consumer build");
+    assert_eq!(outcomes.len(), 1);
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap_or_else(|error| panic!("Windows transfer consumer compilation: {error}"))
+        .into_report()
+        .expect("Windows transfer Terminal report")
+        .report;
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("source-produced Windows transfer artifact");
+    let proposal = retained.native_realization_proposal().unwrap();
+    let mut read = false;
+    let mut write = false;
+    for plan in proposal.providers().selection.plans() {
+        for row in &plan.rows {
+            let method = checked_receiver_method(plan, row);
+            if method.requirement_owner == "WindowsFilesystemTransferIo" {
+                read |= method.name == "read_file";
+                write |= method.name == "write_file";
+            }
+        }
+    }
+    assert!(
+        read && write,
+        "both actual raw transfer imports were reached"
+    );
+}
+
+#[test]
 fn windows_canonicalize_receiver() {
     // The ordinary application route must establish project acceptance. The
     // fixture helper's synthetic Console bindings are not a substitute for it.
