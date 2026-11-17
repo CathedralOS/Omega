@@ -705,6 +705,8 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
                 }
             }
             assert_eq!(ranges, 1, "prefix_length keeps its own raw range producer");
+            terminal_semantics::structural_qualifications::validate(&accepted.elaboration.module)
+                .expect("standalone artifact ingress must reconstruct the same prefix evidence");
             accepted.publish_invocation().unwrap();
         }
         other => panic!("the prefix must prove Path on its raw borrowed bytes: {other:?}"),

@@ -3218,26 +3218,9 @@ fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
-/// Primitive byte casts use the actual incoming arguments, just as byte copies
-/// and moves do. The lowered checker reports a false result as an unestablished
-/// value; artifact ingress requires every result to be true.
-pub fn byte_qualification_change_judgments(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-) -> Judged<Vec<(EdgeId, bool)>> {
-    let Ok(graph) =
-        crate::descriptor_results::terminal_borrowed_storage_graph_from(module, [machine.id], &[])
-    else {
-        return validate_machine(module, machine, None);
-    };
-    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-        &module.structural_types,
-        &graph,
-    );
-    byte_qualification_change_judgments_in(module, machine, &mut analysis)
-}
-
-/// Reuse the checker owner's already prepared descriptor and storage history.
+/// Judge primitive byte casts from their actual arguments, reusing the
+/// checker's prepared descriptor and storage history. False is reported as
+/// unestablished; artifact ingress requires every result to be true.
 pub fn byte_qualification_change_judgments_in(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -3249,8 +3232,31 @@ pub fn byte_qualification_change_judgments_in(
 /// The complete structural membership judgment required at artifact ingress.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
+    // Prepare one shared closure for actual cast roots. An unsupported body
+    // remains absent and cannot add evidence; it must not erase independent
+    // supported rows. Modules without casts need no descriptor preparation.
+    let graph = if module.structural_qualification_changes.is_empty() {
+        Vec::new()
+    } else {
+        crate::descriptor_results::terminal_graph_rows(
+            module,
+            module
+                .structural_qualification_changes
+                .iter()
+                .map(|change| change.machine),
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            &[],
+        )
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect()
+    };
+    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.structural_types,
+        &graph,
+    );
     for machine in &module.machines {
-        if byte_qualification_change_judgments(module, machine)?
+        if byte_qualification_change_judgments_in(module, machine, &mut analysis)?
             .iter()
             .any(|(_, established)| !established)
         {
