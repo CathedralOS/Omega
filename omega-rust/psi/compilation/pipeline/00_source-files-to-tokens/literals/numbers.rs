@@ -3,7 +3,7 @@
 use source::Span;
 use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind, TokenKind};
 
-use crate::lexer::{LexedToken, Lexer, is_identifier_continue, is_identifier_start};
+use crate::{LexedToken, Lexer, is_identifier_continue, is_identifier_start};
 
 impl<'source> Lexer<'source> {
     pub(crate) fn lex_number(&mut self, start: usize, first: char) -> LexedToken {

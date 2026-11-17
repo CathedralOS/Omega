@@ -5,7 +5,7 @@ use tokens::TokenKind;
 
 use crate::LexError;
 
-use crate::lexer::{LexedToken, Lexer};
+use crate::{LexedToken, Lexer};
 
 pub(crate) fn decode_string_literal(raw: &str, bytes: &mut Vec<u8>) {
     let contents = &raw.as_bytes()[1..raw.len() - 1];

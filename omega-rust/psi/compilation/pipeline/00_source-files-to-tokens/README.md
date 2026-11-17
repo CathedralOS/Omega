@@ -1,47 +1,46 @@
-# Rust lexical scanning
+# Lexical scanning
 
-This stage turns valid UTF-8 source into tokens with exact byte spans. Ordinary
-spellings borrow the source; quoted literals decode into the token stream's byte
-buffer. Whitespace and comments retain their spans, including LF after a line
-comment. The parser decides which tokens affect its grammar.
+Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
+streams: `lex_sources` coordinates the batch, `Lexer::fill_tokens` publishes each
+token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
+error type, comments, identifiers and punctuation scanning stay with that flow.
 
-Start at `src/lexer.rs`: `fill_tokens` publishes each token and `lex_next_token`
-dispatches its spelling. Follow the reader's question from there:
+Follow the two substantial spelling domains under `literals/`:
 
-| Question | Owner |
-| --- | --- |
-| How are files read? | `src/load_sources.rs` |
-| How are independent sources scheduled and errors ordered? | `src/lex_sources.rs` |
-| Which token starts here, and how do comments nest? | `src/lexer.rs` |
-| How do scans keep absolute byte positions while skipping comment text? | `src/source_cursor.rs` |
-| Where do digits, fractions, exponents and suffixes end? | `src/numeric_literals.rs` |
-| Which escapes are legal, and what bytes do they produce? | `src/quoted_literals.rs` |
-| What does a lexical failure retain? | `src/lex_error.rs` |
-| Which keyword or punctuation spelling matches? | [Token vocabulary](../../representations/tokens/src/token_kind.rs), with `keywords.rs` and `punctuation.rs` beside it |
+- [numbers.rs](literals/numbers.rs) recognizes radix, fractional, exponent and suffix boundaries.
+- [quoted_bytes.rs](literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
 
-Tests live under `tests/`, separate from production code. They cover exact source
-coverage, token boundaries, accepted and refused spellings, decoded bytes, and
-source ownership. The newline regression reconstructs the source from token
-spans; a token-kind-only assertion would miss the dropped byte.
+The [source-compilation coordinator](../../source-compiler/src/lib.rs) owns file
+loading before this stage receives text. [Token vocabulary](../../representations/tokens/src/token_kind.rs)
+owns the shared keyword and punctuation definitions. Ordinary tokens borrow the
+source; quoted literals use the token stream's byte buffer. Whitespace and
+comments retain exact spans, including LF after a line comment.
 
-## Measure scanning through its real consumer
+Behavior tests live under `tests/`. They check exact source coverage, token
+boundaries, accepted and refused spellings, decoded bytes, and batch order.
+The source-loading test lives with the source-compilation coordinator.
 
-Build the timing example with the repository's host budget:
+## Benchmark scanning through its consumer
+
+[benchmarks/lexer_timing.rs](benchmarks/lexer_timing.rs) is a custom benchmark
+program. Run it with the repository's host budget, from the checkout root,
+passing an absolute source path:
 
 ```text
-mbx build --release -p source-files-to-tokens --example lexer_timing
-target/release/examples/lexer_timing lex 100 source/library/core/math.omg
-target/release/examples/lexer_timing parse 100 source/library/core/math.omg
+mbx bench -p source-files-to-tokens --bench lexer_timing -- lex 100 <absolute-source-path>
+mbx bench -p source-files-to-tokens --bench lexer_timing -- parse 100 <absolute-source-path>
 ```
 
-On Windows, append `.exe`. Additional source paths join the same input batch.
-`lex` measures source-retaining tokenization and buffer recycling; `parse` also
-constructs and drops syntax trees. File reads and the complete token fingerprint
-are outside the timed loop. Each result reports bytes processed, elapsed time,
-and a checksum that includes the fingerprint and consumed token/root counts.
+Cargo runs benchmarks from the package directory; absolute paths avoid changing
+the meaning of an input path. Additional source paths join the input batch. `lex` measures source-retaining
+tokenization and buffer recycling; `parse` also constructs and drops syntax
+trees. File reads and the complete token fingerprint are outside the timed loop.
+Each result reports bytes processed, elapsed time, and a checksum containing the
+fingerprint and consumed token/root counts.
 
-Use [omega-bench](../../../../../tools/benchmark/README.md)'s `reported_work`
-plans to compare retained baseline and candidate executables with alternating
-pairs, a fixed checksum, and resource capture. Keep source inputs and executables
-unchanged throughout a run. The [initial comparison](../../../../../wiki/drafts/measurements/rust_lexer_2026_11_16.md)
-records isolated changes, their combined result, and the host limitations.
+For paired comparisons, build without running with
+`mbx bench -p source-files-to-tokens --bench lexer_timing --no-run`. Retain the
+executable at the printed path and use [omega-bench](../../../../../tools/benchmark/README.md)'s `reported_work`
+plans. Keep input files and executables unchanged during a run. The
+[initial comparison](../../../../../wiki/drafts/measurements/rust_lexer_2026_11_16.md)
+records the measured changes and host limitations.

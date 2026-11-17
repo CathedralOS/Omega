@@ -13,7 +13,11 @@ use syntax_trees::SyntaxTrees;
 use tokens::TokenScratch;
 
 fn main() -> Result<(), String> {
-    let arguments: Vec<_> = std::env::args().skip(1).collect();
+    // Cargo supplies this marker even when the benchmark uses its own harness.
+    let arguments: Vec<_> = std::env::args()
+        .skip(1)
+        .filter(|argument| argument != "--bench")
+        .collect();
     if arguments.len() < 3 {
         return Err("usage: lexer_timing <lex|parse> <repeats> <source>...".into());
     }
