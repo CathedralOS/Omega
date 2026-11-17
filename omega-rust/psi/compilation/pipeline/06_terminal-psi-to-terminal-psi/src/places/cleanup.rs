@@ -54,26 +54,51 @@ impl<'a> Storage<'a> {
         edge: EdgeId,
         ordinal: u32,
         concerns: Construct,
-    ) -> Checked<Lineage> {
+    ) -> Checked<Backing> {
         let (block, before) = self.graph.locate(ProgramPoint::BeforeCleanup {
             edge,
             action_ordinal: ordinal,
         })?;
-        let borrowed_arrival = matches!(
-            self.root_kind(place.root, concerns)?,
-            StructuralPlaceKind::BlockParameter { .. }
-        ) && self.incoming(place.root).is_some();
+        let borrowed_arrival =
+            matches!(
+                self.root_kind(place.root, concerns)?,
+                StructuralPlaceKind::BlockParameter { .. }
+            ) && terminal_semantics::structural_argument_source(self.lowered, place.root, 0)
+                .is_some_and(|parameter| {
+                    parameter.access != StructuralAccess::Owned
+                        && !terminal_semantics::descriptor_results::is_descriptor(
+                            self.types.iter(),
+                            parameter.structural_type,
+                        )
+                });
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
-            return Ok(place.clone());
+            return Ok(Backing::direct(place.clone()));
         }
-        let descriptor = place.descriptor_location().ok_or_else(|| {
+        let split = place
+            .segments
+            .iter()
+            .position(|segment| matches!(segment, Segment::RuntimeIndex { .. } | Segment::Extent))
+            .unwrap_or(place.segments.len());
+        let (prefix, suffix) = place.segments.split_at(split);
+        if suffix.contains(&Segment::Referent) {
+            return Err(self.unsupported(
+                concerns,
+                "cleanup backing crosses a permission beneath an unresolved selector",
+            ));
+        }
+        let descriptor = Lineage {
+            root: place.root,
+            segments: prefix.to_vec(),
+        }
+        .descriptor_location()
+        .ok_or_else(|| {
             self.unsupported(
                 concerns,
                 "cleanup observation needs an exact captured storage path",
             )
         })?;
-        let backing = references
-            .location_at(
+        let addresses = references
+            .captured_storage_family_at(
                 self.machine,
                 (block, crate::position(before, self.machine)?),
                 terminal_psi::InvocationOwner::Cleanup {
@@ -82,16 +107,16 @@ impl<'a> Storage<'a> {
                 },
                 &descriptor,
             )
-            .ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "cleanup observation has no owner-prestate backing",
-                )
-            })?;
-        Ok(Lineage {
-            root: backing.root,
-            segments: backing.path,
-        })
+            .map_err(|detail| self.unsupported(concerns, detail))?;
+        let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
+            match self.root_kind(place.root, concerns)? {
+                StructuralPlaceKind::BlockParameter { block, .. } => Some(block),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        self.captured_backing(place, suffix, addresses, owner, concerns)
     }
 
     fn cleanup_untouched(
@@ -110,10 +135,10 @@ impl<'a> Storage<'a> {
             .all(|write| {
                 !overlap(
                     &place,
-                    &Lineage {
+                    &Backing::direct(Lineage {
                         root: write.backing.root,
                         segments: write.backing.path.clone(),
-                    },
+                    }),
                 )
             }))
     }
@@ -121,6 +146,7 @@ impl<'a> Storage<'a> {
     pub(super) fn cleanup_at_point(
         &self,
         asked: Asked<'_>,
+        watched: &Backing,
         block: BlockId,
         point: ProgramPoint,
     ) -> Checked<Option<Reached>> {
@@ -146,23 +172,21 @@ impl<'a> Storage<'a> {
                     write.action_ordinal < ordinal || after && write.action_ordinal == ordinal
                 })
         }) {
-            let written = Lineage {
+            let written = Backing::direct(Lineage {
                 root: write.backing.root,
                 segments: write.backing.path.clone(),
-            };
-            let place = asked.place();
-            let ends = match asked {
-                Asked::Contents(_) => overlap(place, &written),
-                Asked::Case(_) | Asked::Window { .. } => {
-                    place.root == written.root && place.segments.starts_with(&written.segments)
-                }
-            };
-            if ends {
-                if write.content == Content::Vacated {
+            });
+            if !overlap(watched, &written) {
+                continue;
+            }
+            let ends = cleanup_write_ends(asked, watched, &written);
+            if write.content == Content::Vacated {
+                // A payload vacancy does not change its enclosing sum's tag.
+                if !matches!(asked, Asked::Case(_)) || ends {
                     return Ok(Some(Reached::Unestablished));
                 }
-                changed = true;
             }
+            changed |= ends;
         }
         Ok(changed.then_some(match asked {
             Asked::Window { .. } => Reached::Closed,
@@ -215,6 +239,7 @@ impl<'a> Storage<'a> {
     pub(super) fn cleanup_arrival(
         &self,
         asked: Asked<'_>,
+        watched: &Backing,
         source: BlockId,
         target: BlockId,
     ) -> Checked<Option<Reached>> {
@@ -227,33 +252,55 @@ impl<'a> Storage<'a> {
             .map(|(edge, _)| edge)
             .collect::<std::collections::BTreeSet<_>>();
         let mut changed = false;
+        let mut restored_edges = Vec::new();
         for write in self
             .cleanup_writes
             .iter()
             .filter(|write| edges.contains(&write.edge))
         {
-            let written = Lineage {
+            let written = Backing::direct(Lineage {
                 root: write.backing.root,
                 segments: write.backing.path.clone(),
-            };
-            let place = asked.place();
-            let ends = match asked {
-                Asked::Contents(_) => overlap(place, &written),
-                Asked::Case(_) | Asked::Window { .. } => {
-                    place.root == written.root && place.segments.starts_with(&written.segments)
-                }
-            };
-            if ends {
-                if write.content == Content::Vacated {
+            });
+            if !overlap(watched, &written) {
+                continue;
+            }
+            let ends = cleanup_write_ends(asked, watched, &written);
+            if write.content == Content::Vacated {
+                // A payload vacancy does not change its enclosing sum's tag.
+                if !matches!(asked, Asked::Case(_)) || ends {
                     return Ok(Some(Reached::Unestablished));
                 }
-                changed = true;
+            }
+            changed |= ends;
+            if ends
+                && matches!(asked, Asked::Window { .. })
+                && !restored_edges.contains(&write.edge)
+            {
+                restored_edges.push(write.edge);
             }
         }
-        Ok(changed.then_some(match asked {
-            Asked::Window { .. } => Reached::Closed,
-            _ => Reached::Unknown,
-        }))
+        if matches!(asked, Asked::Window { .. }) {
+            // Every actual incoming edge must restore this exact captured owner.
+            // One alternative's write cannot close another alternative's window.
+            return Ok((!edges.is_empty()
+                && edges.iter().all(|edge| restored_edges.contains(edge)))
+            .then_some(Reached::Closed));
+        }
+        Ok(changed.then_some(Reached::Unknown))
+    }
+}
+
+/// Possible writes retire old observations. Only definite coverage can
+/// restore a window; equal lists of possible addresses do not prove that.
+fn cleanup_write_ends(asked: Asked<'_>, watched: &Backing, written: &Backing) -> bool {
+    match asked {
+        Asked::Contents(_) => true,
+        // A write proved strictly below the sum changes its payload, not its tag.
+        Asked::Case(_) => {
+            !watched.definitely_contains(written) || written.definitely_contains(watched)
+        }
+        Asked::Window { .. } => written.definitely_contains(watched),
     }
 }
 
@@ -297,12 +344,12 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
                 self.inputs.concerns,
             )
             .map_err(crate::Unbound::Refused)?;
-        let mut held = self.inputs.held_at(&actual);
+        let mut held = self.inputs.held_at(&actual.place);
         held.point = Some(ProgramPoint::BeforeCleanup {
             edge: self.edge,
             action_ordinal: self.action_ordinal,
         });
-        held.observation(&actual, scalar_type)
+        held.observation(&actual.place, scalar_type)
     }
     fn extent(
         &mut self,
@@ -338,12 +385,12 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
                 self.inputs.concerns,
             )
             .map_err(crate::Unbound::Refused)?;
-        let mut held = self.inputs.held_at(&actual);
+        let mut held = self.inputs.held_at(&actual.place);
         held.point = Some(ProgramPoint::BeforeCleanup {
             edge: self.edge,
             action_ordinal: self.action_ordinal,
         });
-        held.extent_of(&actual, scalar_type)
+        held.extent_of(&actual.place, scalar_type)
     }
     fn case(
         &mut self,
