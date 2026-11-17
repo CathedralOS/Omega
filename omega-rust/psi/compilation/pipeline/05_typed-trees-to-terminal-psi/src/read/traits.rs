@@ -19,6 +19,62 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
 }
 
 impl Program<'_> {
+    /// Whether a formal or the result of `signature` holds a fixed array sized
+    /// by one of the requirement's own `const` binders (`&[u8; Count]`). Such
+    /// a type has an extent only in a closed application.
+    pub(super) fn sized_by_own_binders(&self, signature: &StateSignature) -> bool {
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+        let typed = self.typed;
+        let binders = typed
+            .state_signature_type_parameters(signature)
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        if binders.is_empty() {
+            return false;
+        }
+        let types = &typed.type_reference_table;
+        let mut pending = typed
+            .state_parameters
+            .span_or_empty(signature.parameters)
+            .iter()
+            .map(|formal| formal.type_reference)
+            .chain(std::iter::once(signature.return_type))
+            .collect::<Vec<_>>();
+        // Type references form a tree; the bound only guards a malformed table.
+        let mut budget = types.type_reference_count();
+        while let Some(reference) = pending.pop() {
+            if budget == 0 {
+                return false;
+            }
+            budget -= 1;
+            if !types.contains_type_reference(reference) {
+                continue;
+            }
+            match types.type_reference(reference) {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => {
+                    if let FixedArrayLength::ConstParameter { symbol, .. } = length
+                        && binders.contains(symbol)
+                    {
+                        return true;
+                    }
+                    pending.push(*element_type);
+                }
+                TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+                TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+                TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+                _ => {}
+            }
+        }
+        false
+    }
+
     fn static_envelope(
         &self,
         context: MachineId,
@@ -208,6 +264,22 @@ impl Program<'_> {
                     .map(|parameter| parameter.symbol)
                     .collect(),
             )?;
+            // generics.md, "Publication and assumptions": a requirement sized
+            // by its own `const` binders is a template. Its open signature is
+            // checked once in its own check form, never in this module, whose
+            // closed uses carry literal extents as requirement instances.
+            if self.sized_by_own_binders(signature) {
+                if !self.generic_templates.contains(&signature.symbol) {
+                    self.generic_templates.push(signature.symbol);
+                }
+                requirements.push(SourceSchemaRequirement {
+                    declaration: signature.symbol,
+                    abstract_types: 0,
+                    signature: None,
+                    envelope: self.static_envelope(context, signature, declaration.is_boundary)?,
+                });
+                continue;
+            }
             let lowered = self.static_requirement_signature(
                 context,
                 signature,
@@ -257,7 +329,7 @@ impl Program<'_> {
             requirements.push(SourceSchemaRequirement {
                 declaration: signature.symbol,
                 abstract_types,
-                signature: lowered,
+                signature: Some(lowered),
                 envelope,
             });
         }

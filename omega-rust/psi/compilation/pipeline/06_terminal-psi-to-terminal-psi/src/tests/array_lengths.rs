@@ -479,3 +479,94 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
         "an opaque marker cannot hide a concrete extent equation"
     );
 }
+
+/// A program calling a boundary requirement whose array formal is sized by
+/// its own `const` binder: the closure first, then the requirement's own check
+/// form. generics.md, "Publication and assumptions": the template is checked
+/// once; the program carries only its closed application.
+fn sized_boundary_program(
+    contract: &str,
+    call: &str,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(&format!(
+            "boundary trait Sink {{
+    machine take<const Count: u64>(items: &[u8; Count], used: i32) -> u32
+    reaches none
+    {contract}
+    crashes none;
+}}
+machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
+        )),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(&[entry], &[None], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+}
+
+fn accepted(verdict: &Result<RouteVerdict, crate::CompilationRefusal>) -> bool {
+    matches!(verdict, Ok(RouteVerdict::Accepted(_)))
+}
+
+#[test]
+fn a_size_generic_requirement_is_checked_once_for_every_size() {
+    // At the call, `Count` is 4 and both contracts are formed. The template
+    // is judged for every `Count`: `Count - 1` underflows at zero unless the
+    // contract first requires `Count > 0`.
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && used <= Count - 1",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    assert!(verdicts.iter().all(accepted), "{verdicts:?}");
+
+    let verdicts =
+        sized_boundary_program("requires used <= Count - 1", "Sink::take<4>(&buffer, 0)");
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    assert!(accepted(&verdicts[0]), "{verdicts:?}");
+    assert!(
+        matches!(verdicts[1], Ok(RouteVerdict::Rejected { .. })),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
+    // The closed call has a real four-byte array: `items[0]` is in bounds and
+    // holds 1; `items[Count]` is index 4, outside it.
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && items[0] == 1",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
+        panic!("the closed application is formed and established: {verdicts:?}")
+    };
+    // The program carries no open extent, so it publishes.
+    closure.publish_invocation().unwrap();
+    // The template cannot yet index an array sized by `Count`: a contract
+    // observation at a computed index (byte_views.md, "Indexed scalar
+    // contract observations") is not read yet. It is refused, not accepted.
+    let Ok(RouteVerdict::FallBack(refusal)) = &verdicts[1] else {
+        panic!("the template's indexed contract is refused: {verdicts:?}")
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("indexed clause without a fixed array extent"),
+        "{refusal:?}"
+    );
+
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && items[Count] == 1",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    assert!(!accepted(&verdicts[0]), "{verdicts:?}");
+}
