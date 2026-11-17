@@ -15,7 +15,7 @@ and must be recovered from history.
 | Stage | Operation entrance | Output owner |
 | --- | --- | --- |
 | 00 — source loading and lexing | [lexer.rs](00_source-files-to-tokens/lexer.rs) | [tokens](../representations/tokens/) |
-| 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
+| 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
 | 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
@@ -192,32 +192,22 @@ escapes; it does not pick a Unicode encoding from the host.
 The Rust lexer has its own behavior tests; the product lexer does not need a
 mirrored serialization format for tokens.
 
-The [parser](01_tokens-to-syntax-trees/src/parser.rs) builds syntax roots and
-tables in arenas. It keeps grammar, spans and literal structure but does not
-choose symbols, types, effects or proof evidence. The
-[expression parser](01_tokens-to-syntax-trees/src/expressions.rs) keeps binary
-operators on an explicit stack and collects unary prefixes in reverse;
-membership tests have their own grammar rule, and postfix scratch is dropped
-before a nested primary expression is parsed. Groups, aggregates, arguments
-and types still parse recursively, so the parser is not stackless, but
-ordinary accepted input must not need a larger host thread stack.
+The [parser](01_tokens-to-syntax-trees/parser.rs) builds syntax roots and
+arena tables. Its source loop calls [declarations/items.rs](01_tokens-to-syntax-trees/declarations/items.rs),
+which dispatches to the grammar domains. It preserves spelling, spans and literal
+structure; later stages choose symbols, types, effects and proof evidence.
 
-Each parser file owns one part of the grammar:
-[declarations](01_tokens-to-syntax-trees/src/declarations.rs) dispatch root
-forms; [parameters](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs) own shared
-callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs)
-own clauses, facts, and conformance applications;
-[bodies](01_tokens-to-syntax-trees/src/bodies_and_transitions.rs) own entries and states;
-[type syntax](01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs) owns type references
-and property grammar. Shared grammar does not live in whichever declaration
-first needed it. Each named file does its own work instead of forwarding to a
-hidden coordinator. Rust-only source registration stays in
-[`lib.rs`](01_tokens-to-syntax-trees/src/lib.rs); implementation files neither use
-`mod.rs` nor pair `name.rs` with a `name/` directory. This keeps responsibility
-names independent of Rust's module-root convention for future Omega source,
-without assuming identical import or visibility semantics. `parser::parse_error`
-remains a public compatibility path to the diagnostic type, not a container for
-grammar modules.
+Follow [the parser map](01_tokens-to-syntax-trees/README.md) from that entry into
+declarations, expressions, types, parameters, contracts, machine bodies,
+transitions and statements. The expression entry contains its actual frame loop;
+[operators](01_tokens-to-syntax-trees/expressions/operators.rs) owns precedence
+and operator policy. Nested expressions, groups, arguments and aggregates use
+explicit frames. Type references and some grammar crossings still call back
+into parsing, so the whole parser is not stackless.
+
+`parser.rs` is the library entry and the coordinator. Domain directories contain
+the implementations; no second grammar facade or `src/lib.rs` hides that flow.
+Behavior tests live under `tests/` and timing harnesses under `benchmarks/`.
 
 Keep each clause as written, separately from its normalized meaning:
 `reaches` with no members differs from no `reaches` at all, and each authored `suspends` or

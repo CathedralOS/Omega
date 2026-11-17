@@ -26,7 +26,7 @@ Recount on each landing.
 
 ## Introducer surfaces to retire
 
-- **Parse.** `01_tokens-to-syntax-trees/src/declarations.rs`:
+- **Parse.** `01_tokens-to-syntax-trees/declarations/operators.rs`:
   `parse_operator_definition` owns the declaration and is admitted at
   the root in both the boundary and the nonboundary form. Trait
   requirements already refuse it (`parse_trait_definition`); their
