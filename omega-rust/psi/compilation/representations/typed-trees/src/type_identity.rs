@@ -757,7 +757,7 @@ pub(crate) mod constraint_identity {
     };
     use arena::HandleSpan;
     use language_semantics::type_identity::vocabulary::{
-        ArrayLengthForm, ConstraintForm, DomainFamily, IndexForm, Label, Spelled,
+        ArrayLengthForm, ConstraintForm, DomainFamily, Label, Spelled,
     };
 
     pub(crate) fn normalize_constrained_base(
@@ -967,14 +967,6 @@ pub(crate) mod constraint_identity {
         context: &TypeIdentityContext<'_>,
     ) -> String {
         match length {
-            FixedArrayLength::Literal(value) if context.invalid_application.is_some() => {
-                atom(IndexForm::Integer, &value.to_string())
-            }
-            FixedArrayLength::ConstParameter { symbol, name }
-                if context.invalid_application.is_some() =>
-            {
-                substitution::index_name(program, *symbol, name.as_str(), context)
-            }
             FixedArrayLength::Expression(value) => {
                 let TypeReferenceNode::ConstExpression(expression) =
                     program.type_reference_table.type_reference(*value)
@@ -984,24 +976,18 @@ pub(crate) mod constraint_identity {
                         "missing constant recipe",
                     );
                 };
-                compound(
-                    ArrayLengthForm::ConstExpression,
-                    [super::identity_context::normalize_index_expression(
-                        program,
-                        *expression,
-                        context,
-                    )],
-                )
+                if let Some(value) = program
+                    .declared_constant_extent(*value)
+                    .and_then(|extent| extent.closed(program))
+                {
+                    return atom(ArrayLengthForm::Literal, &value.to_string());
+                }
+                substitution::array_length_expression(program, *expression, context)
             }
             FixedArrayLength::Literal(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
             FixedArrayLength::ConstParameter { symbol, name } => {
                 substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(
-                    || {
-                        atom(
-                            ArrayLengthForm::ConstParameter,
-                            &context.name(program, *symbol, name.as_str()),
-                        )
-                    },
+                    || substitution::unbound_array_length(program, *symbol, name.as_str(), context),
                 )
             }
             FixedArrayLength::ConstCall { machine, name, .. } => atom(
@@ -4887,6 +4873,26 @@ pub(crate) mod package_policy_reading_tests {
                 }))
             }
 
+            pub(crate) fn render_in_lifetime_scope(
+                &self,
+                reference: TypeReferenceHandle,
+                owner: SymbolHandle,
+                lifetimes: &[(super::super::LifetimeParameterIdentity, usize)],
+                binders: &[(SymbolHandle, String)],
+                substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+            ) -> Option<String> {
+                let identity =
+                    self.program
+                        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                            type_reference: reference,
+                            lifetime_scope: Some((owner, lifetimes)),
+                            binders,
+                            substitutions,
+                            exact_toolchain_sources: &self.toolchain,
+                        })?;
+                self.program.type_identity_text(identity)
+            }
+
             pub(crate) fn render(
                 &self,
                 reference: TypeReferenceHandle,
@@ -8199,14 +8205,14 @@ pub(crate) mod substitution {
         };
     }
 
-    pub(crate) fn index(
+    fn selected_index(
         program: &TypedTrees,
         symbol: SymbolHandle,
-        _spelling: &str,
         context: &TypeIdentityContext<'_>,
+        render: fn(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> String,
     ) -> Option<String> {
         if let Some((argument, outer)) = context.applied_argument(symbol) {
-            return Some(index_argument(program, argument, &outer));
+            return Some(render(program, argument, &outer));
         }
         if symbol.is_valid()
             && let Some((_, replacement)) = context
@@ -8214,7 +8220,7 @@ pub(crate) mod substitution {
                 .iter()
                 .find(|(candidate, _)| *candidate == symbol)
         {
-            return Some(index_argument(
+            return Some(render(
                 program,
                 *replacement,
                 &TypeIdentityContext {
@@ -8224,7 +8230,20 @@ pub(crate) mod substitution {
             ));
         }
         open_selected_substitution!(context, symbol, active, reference, nested);
-        Some(index_reference(program, reference, &nested))
+        Some(render(
+            program,
+            IndexIdentityArgument::TypeReference(reference),
+            &nested,
+        ))
+    }
+
+    pub(crate) fn index(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        _spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        selected_index(program, symbol, context, index_argument)
     }
 
     fn index_reference(
@@ -8265,37 +8284,133 @@ pub(crate) mod substitution {
         _spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> Option<String> {
-        open_selected_substitution!(context, symbol, active, reference, nested);
-        Some(
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Named { symbol, name } => {
-                    if let Some(identity) = array_length(program, *symbol, name.as_str(), &nested) {
-                        return Some(identity);
-                    }
-                    match integer(program, *symbol, name.as_str())
-                        .and_then(|value| usize::try_from(value).ok())
-                    {
-                        Some(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
-                        None => atom(
-                            ArrayLengthForm::ConstParameter,
-                            &nested.name(program, *symbol, name.as_str()),
-                        ),
-                    }
-                }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    match program.expression_table.expression(*expression) {
-                        ExpressionNode::Integer(value) => {
-                            atom(ArrayLengthForm::Literal, &value.to_string())
-                        }
-                        _ => compound(
-                            ArrayLengthForm::ConstExpression,
-                            [normalize_index_expression(program, *expression, &nested)],
-                        ),
-                    }
-                }
-                _ => normalize_type_reference(program, reference, &nested),
-            },
+        selected_index(program, symbol, context, array_length_argument)
+    }
+
+    fn literal_array_length(
+        value: impl TryInto<usize>,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match value.try_into() {
+            Ok(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
+            Err(_) => rejected(context),
+        }
+    }
+
+    pub(crate) fn unbound_array_length(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if let Some(value) = integer(program, symbol, spelling) {
+            literal_array_length(value, context)
+        } else {
+            atom(
+                ArrayLengthForm::ConstParameter,
+                &context.name(program, symbol, spelling),
+            )
+        }
+    }
+
+    pub(crate) fn array_length_expression(
+        program: &TypedTrees,
+        expression: crate::expression::ExpressionHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if let ExpressionNode::Integer(value) = program.expression_table.expression(expression) {
+            return value.value_bignum().map_or_else(
+                || rejected(context),
+                |value| literal_array_length(value, context),
+            );
+        }
+        if let Some(value) = program.expression_table.constant_integer_value(expression) {
+            return literal_array_length(value, context);
+        }
+        compound(
+            ArrayLengthForm::ConstExpression,
+            [normalize_index_expression(program, expression, context)],
         )
+    }
+
+    fn array_length_reference(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if !program.contains_type_reference(reference) {
+            return rejected(context);
+        }
+        if let Some(value) = program
+            .declared_constant_extent(reference)
+            .and_then(|extent| extent.closed(program))
+        {
+            return literal_array_length(value, context);
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, name } => {
+                array_length(program, *symbol, name.as_str(), context).unwrap_or_else(|| {
+                    unbound_array_length(program, *symbol, name.as_str(), context)
+                })
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                array_length_expression(program, *expression, context)
+            }
+            _ => compound(
+                ArrayLengthForm::ConstExpression,
+                [index_reference(program, reference, context)],
+            ),
+        }
+    }
+
+    fn array_length_argument(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match argument {
+            IndexIdentityArgument::TypeArgument(reference)
+            | IndexIdentityArgument::TypeReference(reference) => {
+                array_length_reference(program, reference, context)
+            }
+            IndexIdentityArgument::Expression(expression)
+                if program.expression_table.expression_is_valid(expression) =>
+            {
+                array_length_expression(program, expression, context)
+            }
+            IndexIdentityArgument::Subject(symbol) if symbol.is_valid() => {
+                array_length(program, symbol, program.symbols.name(symbol), context).unwrap_or_else(
+                    || unbound_array_length(program, symbol, program.symbols.name(symbol), context),
+                )
+            }
+            IndexIdentityArgument::StaticArgument(argument)
+                if argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && argument.type_reference.is_valid() =>
+            {
+                array_length_reference(program, argument.type_reference, context)
+            }
+            IndexIdentityArgument::StaticArgument(argument)
+                if argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && !argument.type_reference.is_valid()
+                    && argument.const_literal.is_some() =>
+            {
+                argument
+                    .const_literal
+                    .as_ref()
+                    .unwrap()
+                    .value_bignum()
+                    .map_or_else(
+                        || rejected(context),
+                        |value| literal_array_length(value, context),
+                    )
+            }
+            _ => compound(
+                ArrayLengthForm::ConstExpression,
+                [index_argument(program, argument, context)],
+            ),
+        }
     }
 
     pub(crate) fn rejected(context: &TypeIdentityContext<'_>) -> String {
@@ -10470,6 +10585,200 @@ mod nested_callback_region_tests {
         assert_eq!(
             compare(true),
             vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+    }
+}
+
+#[cfg(test)]
+mod declared_array_extent_tests {
+    use super::LifetimeParameterIdentity;
+    use super::package_policy_reading_tests::fixture::Fixture;
+    use crate::machine::Machine;
+    use crate::name::Identifier;
+    use crate::types::FixedArrayLength;
+    use language_semantics::type_identity::malformed_identity_offset;
+
+    #[test]
+    fn scoped_declared_array_extents_retain_parseable_index_recipes() {
+        let mut fixture = Fixture::new();
+        let owner = fixture.symbol("size");
+        fixture.program.push_machine(Machine {
+            symbol: owner,
+            name: Identifier::generated("size"),
+            lifetime_parameters: vec![Identifier::generated("region")],
+            ..Default::default()
+        });
+        let lifetimes = [(
+            LifetimeParameterIdentity {
+                declaration: owner,
+                ordinal: 0,
+            },
+            0,
+        )];
+        let n = fixture.symbol("N");
+        let binders = [(n, "type-parameter:0".to_owned())];
+        let literal = fixture.array(FixedArrayLength::Literal(12288));
+        let other_literal = fixture.array(FixedArrayLength::Literal(12289));
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let width = fixture.symbol("WIDTH");
+        let declared = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: width,
+            name: Identifier::generated("WIDTH"),
+        });
+        let integer = fixture.integer(12288);
+        let expression = fixture.index(integer);
+        let expression = fixture.array(FixedArrayLength::Expression(expression));
+        let replacement = fixture.spelled("12288");
+        let substitutions = [(n, replacement)];
+        let plain_literal = fixture.render(literal, &binders, &[]);
+        assert_eq!(
+            fixture.render(parameter, &binders, &substitutions),
+            plain_literal
+        );
+        assert_eq!(fixture.render(expression, &binders, &[]), plain_literal);
+        for scope in [&[][..], &lifetimes[..]] {
+            let render = |reference, replacements: &[_]| {
+                fixture
+                    .render_in_lifetime_scope(reference, owner, scope, &binders, replacements)
+                    .expect("a complete array declaration has an exact identity")
+            };
+            let literal_identity = render(literal, &[]);
+            assert_eq!(
+                malformed_identity_offset(&literal_identity),
+                None,
+                "the actual scoped formatter must emit a canonical array extent: {literal_identity}"
+            );
+            assert_eq!(
+                literal_identity, plain_literal,
+                "tracking a region scope cannot change this array"
+            );
+            let substituted = render(parameter, &substitutions);
+            let expression_identity = render(expression, &[]);
+            assert_eq!(
+                literal_identity, substituted,
+                "substitution preserves the literal index"
+            );
+            assert_eq!(
+                literal_identity, expression_identity,
+                "literal recipes normalize alike"
+            );
+            assert_ne!(
+                literal_identity,
+                render(other_literal, &[]),
+                "the extent remains part of identity"
+            );
+            for identity in [
+                literal_identity,
+                render(parameter, &[]),
+                render(declared, &[]),
+                expression_identity,
+            ] {
+                assert_eq!(malformed_identity_offset(&identity), None, "{identity}");
+            }
+        }
+        // Unscoped declarations retain their existing literal/const forms, and
+        // the canonical reader must continue to accept those too.
+        for reference in [literal, parameter, declared, expression] {
+            let identity = fixture.render(reference, &binders, &[]);
+            assert_eq!(malformed_identity_offset(&identity), None, "{identity}");
+        }
+    }
+
+    #[test]
+    fn applied_array_extents_use_the_same_selected_constant_value() {
+        use super::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        use crate::expression::StaticMachineArgument;
+        use numerics::literals::IntegerLiteral;
+
+        let mut fixture = Fixture::new();
+        let n = fixture.symbol("N");
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let literal = fixture.array(FixedArrayLength::Literal(12288));
+        let expected = fixture.render(literal, &[], &[]);
+        let expression = fixture.integer(12288);
+        let reference = fixture.index(expression);
+        let selected = StaticMachineArgument {
+            const_literal: Some(IntegerLiteral::from_value(12288)),
+            ..Default::default()
+        };
+        let typed_selected = StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        };
+        for argument in [
+            IndexIdentityArgument::Expression(expression),
+            IndexIdentityArgument::TypeReference(reference),
+            IndexIdentityArgument::StaticArgument(&selected),
+            IndexIdentityArgument::StaticArgument(&typed_selected),
+        ] {
+            let arguments = [(n, argument)];
+            let scopes = [AppliedTypeIdentityScope {
+                declaration: fixture.symbol("Container"),
+                arguments: &arguments,
+                lifetimes: &[],
+            }];
+            let identity = super::portable_applied_type_identity(
+                &fixture.program,
+                parameter,
+                fixture.symbol("size"),
+                &scopes,
+            )
+            .expect("a selected constant keeps its exact array identity");
+            let identity = fixture.program.type_identity_text(identity).unwrap();
+            assert_eq!(identity, expected);
+            assert_eq!(malformed_identity_offset(&identity), None);
+        }
+    }
+
+    #[test]
+    fn scoped_array_extents_keep_invalid_application_and_region_refusals() {
+        let mut fixture = Fixture::new();
+        let owner = fixture.symbol("size");
+        fixture.program.push_machine(Machine {
+            symbol: owner,
+            name: Identifier::generated("size"),
+            lifetime_parameters: vec![Identifier::generated("region")],
+            ..Default::default()
+        });
+        let n = fixture.symbol("N");
+        let binders = [(n, "type-parameter:0".to_owned())];
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let negative = fixture.integer(-1);
+        let negative = fixture.index(negative);
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &[], &binders, &[(n, negative)])
+                .is_none(),
+            "normalizing an index recipe cannot admit a negative array extent"
+        );
+        let self_reference = fixture.named("N");
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &[], &binders, &[(n, self_reference)])
+                .is_none(),
+            "a cyclic substitution cannot produce a partial exact identity"
+        );
+        let unknown_region = [(
+            LifetimeParameterIdentity {
+                declaration: owner,
+                ordinal: 1,
+            },
+            0,
+        )];
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &unknown_region, &binders, &[])
+                .is_none(),
+            "the new extent framing cannot admit a foreign region"
         );
     }
 }
