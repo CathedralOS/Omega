@@ -1,0 +1,14 @@
+<!-- @dsCard group="Layout" height=200 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Tile preview</title></head>
+<body>
+<div id="root" class="om-pair"></div>
+<script>
+  var O = window.Omega, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(O.Tile, { variant: 'outline', label: 'Psi', title: 'Checked source' }, 'Parsed, typed and proved once, for every target.'),
+    h(O.Tile, { variant: 'solid', label: 'Omega', title: 'Native image' }, 'Realized for windows_x86_64.')));
+</script>
+</body>
+</html>
