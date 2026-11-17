@@ -10,5 +10,5 @@ tokens/fonts and adds a short historical status/navigation strip. Historical
 labels, estimates and the disproved declaration-selection claim remain visible
 as part of the original; the strip links to the reviewed current account.
 
-`map.md` owns that reviewed account. The interactive Canvas2D architecture is a
+`map.md` owns that reviewed account. The connected SVG architecture is a
 separate page; it does not replace this presentation.

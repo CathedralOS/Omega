@@ -181,12 +181,14 @@ mod tests {
 
     /* Every named type and every surviving application head, as written after the pass. */
     fn spellings(text: &str) -> Result<(Vec<String>, Vec<String>), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
         let mut sources = source::SourceMap::default();
         let id = sources
             .add("widths/main.omg".into(), text.to_owned())
             .source_id;
-        let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         normalize(&mut syntax).map_err(|diagnostics| {
             diagnostics
                 .iter()

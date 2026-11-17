@@ -530,6 +530,18 @@ pub(crate) mod conditions {
             &self.condition_scope
         }
 
+        pub(super) fn include_completed(&mut self, previous: &super::CompletedScalarConditions) {
+            self.ranges.extend(&previous.ranges);
+            self.predicates.extend(&previous.predicates);
+            self.completions.extend(&previous.completions);
+            self.ranges.sort_unstable();
+            self.predicates.sort_unstable();
+            self.completions.sort_unstable();
+            self.ranges.dedup();
+            self.predicates.dedup();
+            self.completions.dedup();
+        }
+
         pub fn include_evaluation_entry(&mut self, entry: MachineId) -> Result<(), String> {
             if !matches!(
                 self.condition_scope,
@@ -1403,6 +1415,7 @@ pub(crate) mod prerequisites {
             observations: &'input ScalarApplicationObservations<'artifact>,
             address_model: Option<&ScalarAddressModel>,
         ) -> Result<AdmittedScalarEntry<'input, 'artifact>, String> {
+            observations.require_completed_address_model(address_model)?;
             if !std::ptr::eq(
                 self.conditions,
                 &observations
@@ -2039,7 +2052,10 @@ pub(crate) mod abi_storage_tests {
     }
 }
 pub(crate) mod closure {
-    use super::{ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection};
+    use super::{
+        CompletedScalarConditions, ScalarApplicationObservations, ScalarApplicationValues,
+        ScalarConditionSelection,
+    };
     use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, TerminalTargetContext};
     use numerics::bignum::BigInt;
     use terminal_codec::TerminalArtifactView;
@@ -2055,6 +2071,7 @@ pub(crate) mod closure {
         targets: Option<TerminalTargetContext>,
         providers: AdmittedProviderSelections,
         layouts: Option<AdmittedTargetLayouts>,
+        layout_target: Option<crate::LayoutTargetFacts>,
         address_model: Option<ScalarAddressModel>,
         carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
         entry_membership: ScalarEntryMembership,
@@ -2114,14 +2131,15 @@ pub(crate) mod closure {
         code: terminal_codec::TerminalExecutionIdentity,
         product_formation: bool,
         primary: CompletedScalarScope,
-        supplemental: Vec<ScalarScopeInputs>,
+        supplemental: Vec<CompletedScalarScope>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct CompletedScalarScope {
-        inputs: ScalarScopeInputs,
-        values: ScalarApplicationValues,
-        geometry: std::sync::Arc<[terminal_psi::StructuralTypeDeclaration]>,
+        pub(super) inputs: ScalarScopeInputs,
+        pub(super) values: ScalarApplicationValues,
+        pub(super) geometry: std::sync::Arc<[terminal_psi::StructuralTypeDeclaration]>,
+        pub(super) conditions: CompletedScalarConditions,
     }
 
     impl AdmittedScalarApplications {
@@ -2140,8 +2158,58 @@ pub(crate) mod closure {
         pub fn primary(&self) -> &ScalarScopeInputs {
             &self.primary.inputs
         }
-        pub fn supplemental(&self) -> &[ScalarScopeInputs] {
-            &self.supplemental
+        pub fn supplemental(&self) -> impl Iterator<Item = &ScalarScopeInputs> {
+            self.supplemental.iter().map(|scope| &scope.inputs)
+        }
+
+        pub(super) fn restore_scope(
+            &self,
+            observations: &mut ScalarApplicationObservations<'_>,
+            address_model: &Result<Option<ScalarAddressModel>, String>,
+        ) -> Result<(), String> {
+            self.require_product_formation()?;
+            if observations.inherited.is_some()
+                || observations
+                    .applications
+                    .storage_slice()
+                    .iter()
+                    .any(|row| row.value.is_some() || !row.results.is_empty())
+                || matches!(
+                    observations.condition_scope,
+                    super::ScalarConditionScope::Invocation(_)
+                        | super::ScalarConditionScope::AbiStorage(_)
+                )
+            {
+                return Err("completed scalar scope requires fresh Product observations".into());
+            }
+            if self.code != observations.artifact().custody_identity() {
+                return Err("scalar completion belongs to another execution identity".into());
+            }
+            let previous = std::iter::once(&self.primary)
+                .chain(&self.supplemental)
+                .find(|scope| {
+                    scope
+                        .inputs
+                        .targets
+                        .as_ref()
+                        .map(TerminalTargetContext::target)
+                        == observations.target()
+                })
+                .ok_or("scalar completion has no matching authored target")?;
+            let inputs = &previous.inputs;
+            if inputs.targets.as_ref() != observations.targets()
+                || &inputs.providers != observations.providers()
+                || inputs.layouts.as_ref() != observations.layouts()
+                || inputs.layout_target != observations.layout_target
+                || inputs.carrier_layout != observations.carrier_layout()
+                || address_model.as_ref().map_err(Clone::clone)? != &inputs.address_model
+            {
+                return Err("scalar completion changed its provider or target inputs".into());
+            }
+            observations.applications = std::sync::Arc::clone(&previous.values.0);
+            observations.reexecuted = vec![false; previous.values.0.storage_slice().len()];
+            observations.inherited = Some(previous.clone());
+            Ok(())
         }
         pub fn values(&self) -> &ScalarApplicationValues {
             &self.primary.values
@@ -2159,7 +2227,7 @@ pub(crate) mod closure {
         predicates: Vec<bool>,
         completions: Vec<bool>,
         primary_result: Option<CompletedScalarScope>,
-        supplemental: Vec<ScalarScopeInputs>,
+        supplemental: Vec<CompletedScalarScope>,
         kind: ScalarClosureKind,
     }
 
@@ -2310,6 +2378,11 @@ pub(crate) mod closure {
             conditions: ScalarConditionSelection<'_>,
             address_model: Result<Option<ScalarAddressModel>, String>,
         ) -> Result<(), String> {
+            if observations.inherited.is_some() {
+                observations.require_completed_address_model(
+                    address_model.as_ref().map_err(Clone::clone)?.as_ref(),
+                )?;
+            }
             if observations.artifact().identity() != self.artifact.identity()
                 || !conditions.matches(&observations, self.primary.as_deref())
             {
@@ -2452,6 +2525,7 @@ pub(crate) mod closure {
                 targets: observations.targets().cloned(),
                 providers: observations.providers().clone(),
                 layouts: observations.layouts().cloned(),
+                layout_target: observations.layout_target.clone(),
                 address_model,
                 carrier_layout: observations.carrier_layout(),
                 entry_membership: match conditions.scope() {
@@ -2462,14 +2536,16 @@ pub(crate) mod closure {
                         .unwrap_or(ScalarEntryMembership::Source),
                 },
             };
+            let completed = CompletedScalarScope {
+                inputs,
+                values: observations.values(),
+                geometry: geometry.into(),
+                conditions: CompletedScalarConditions::new(&conditions),
+            };
             if target == self.primary.as_deref() {
-                self.primary_result = Some(CompletedScalarScope {
-                    inputs,
-                    values: observations.values(),
-                    geometry: geometry.into(),
-                });
+                self.primary_result = Some(completed);
             } else {
-                self.supplemental.push(inputs);
+                self.supplemental.push(completed);
             }
             self.scopes[scope].1 = true;
             Ok(())
@@ -2653,14 +2729,39 @@ pub(crate) enum EntryResult {
     },
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct CompletedScalarConditions {
+    ranges: Vec<usize>,
+    predicates: Vec<usize>,
+    completions: Vec<usize>,
+}
+
+impl CompletedScalarConditions {
+    fn new(conditions: &ScalarConditionSelection<'_>) -> Self {
+        fn sorted(positions: &[usize]) -> Vec<usize> {
+            let mut positions = positions.to_vec();
+            positions.sort_unstable();
+            positions
+        }
+        Self {
+            ranges: sorted(conditions.ranges()),
+            predicates: sorted(conditions.predicates()),
+            completions: sorted(conditions.completions()),
+        }
+    }
+}
+
 pub struct ScalarApplicationObservations<'artifact> {
     artifact: terminal_codec::TerminalExecutionView<'artifact>,
     targets: Option<&'artifact TerminalTargetContext>,
     providers: &'artifact AdmittedProviderSelections,
     layouts: Option<AdmittedTargetLayouts>,
+    layout_target: Option<crate::LayoutTargetFacts>,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
     condition_scope: ScalarConditionScope,
+    inherited: Option<closure::CompletedScalarScope>,
+    reexecuted: Vec<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2733,10 +2834,77 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             targets,
             providers,
             layouts,
+            layout_target: target_layout.cloned(),
             carrier_layout: None,
             applications: std::sync::Arc::new(applications),
             condition_scope: ScalarConditionScope::Source,
+            inherited: None,
+            reexecuted: Vec::new(),
         })
+    }
+
+    /// Extend a successful Product completion under its exact retained execution
+    /// inputs. Root selection may grow; values and already discharged conditions
+    /// still belong to the same code, providers and physical target.
+    pub fn with_completed_scope(
+        mut self,
+        completed: &AdmittedScalarApplications,
+        address_model: &Result<Option<ScalarAddressModel>, String>,
+    ) -> Result<Self, String> {
+        completed.restore_scope(&mut self, address_model)?;
+        Ok(self)
+    }
+
+    pub fn extends_completed_application(&self, application: ScalarApplicationId) -> bool {
+        self.position(application)
+            .ok()
+            .and_then(|position| self.reexecuted.get(position))
+            == Some(&false)
+            && self
+                .inherited
+                .as_ref()
+                .is_some_and(|scope| scope.values.value(application).is_some())
+    }
+
+    /// Start an expanded output request in this new scope. The prior return
+    /// value stays in immutable completion storage for comparison, but cannot
+    /// authorize the new activation as its own already-completed result.
+    pub fn request_additional_entry_results(
+        &mut self,
+        application: ScalarApplicationId,
+        results: &[(ValueId, ScalarType)],
+    ) -> Result<(), String> {
+        let machine = self.entry(application)?;
+        if !self.extends_completed_application(application)
+            || self.value(application)?.is_none()
+            || !results.iter().any(|(result, scalar)| {
+                self.entry_result(application, machine, *result, *scalar)
+                    .is_err()
+            })
+        {
+            return Err("scalar output request has no additional local result".into());
+        }
+        let position = self.position(application)?;
+        let applications = std::sync::Arc::make_mut(&mut self.applications);
+        let handle = applications
+            .handle_of(&applications.storage_slice()[position])
+            .ok_or("scalar application storage lost its row")?;
+        applications.get_mut(handle).value = None;
+        Ok(())
+    }
+
+    pub fn require_completed_address_model(
+        &self,
+        model: Option<&ScalarAddressModel>,
+    ) -> Result<(), String> {
+        if self
+            .inherited
+            .as_ref()
+            .is_some_and(|scope| scope.inputs.address_model() != model)
+        {
+            return Err("scalar completion changed its retained address model".into());
+        }
+        Ok(())
     }
 
     pub fn artifact(&self) -> terminal_codec::TerminalExecutionView<'artifact> {
@@ -2747,6 +2915,9 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         mut self,
         carriers: Option<semantic_vocabulary::TargetCarrierLayout>,
     ) -> Result<Self, String> {
+        if self.inherited.is_some() && self.carrier_layout != carriers {
+            return Err("scalar completion changed its retained carrier layout".into());
+        }
         if carriers.is_some() && self.targets.is_none() {
             return Err("scalar carrier layout requires an explicit deployment selection".into());
         }
@@ -2824,6 +2995,9 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         mut self,
         roots: &[terminal_psi::ProofDeclarationId],
     ) -> Result<Self, String> {
+        if self.inherited.is_some() {
+            return Err("Product scalar completion cannot become an invocation scope".into());
+        }
         if roots.is_empty() {
             return Err("scalar invocation has no checked entry root".into());
         }
@@ -2845,6 +3019,9 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     }
 
     pub fn with_abi_storage(mut self, demand: &CallingAbiStorageDemand) -> Result<Self, String> {
+        if self.inherited.is_some() {
+            return Err("Product scalar completion cannot become an ABI storage scope".into());
+        }
         demand.require_artifact(self.artifact)?;
         if Some(demand.target.as_str()) != self.target() {
             return Err("ABI storage demand names another selected target".into());
@@ -2869,7 +3046,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             return Err("ABI scalar request differs from its canonical extent roster".into());
         }
         let catalog = &self.artifact.module().scalar_applications;
-        ScalarConditionSelection::select(
+        let mut selected = ScalarConditionSelection::select(
             &catalog.proof_scope,
             &catalog.conditions,
             self.target(),
@@ -2882,7 +3059,11 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             ),
             demanded,
             &self.condition_scope,
-        )
+        )?;
+        if let Some(previous) = &self.inherited {
+            selected.include_completed(&previous.conditions);
+        }
+        Ok(selected)
     }
 
     fn position(&self, application: ScalarApplicationId) -> Result<usize, String> {
@@ -2956,6 +3137,16 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             .and_then(|row| row.scalar_type())
             .ok_or("scalar application has no carrier")?;
         validate_value(value, expected)?;
+        let extending = self.extends_completed_application(application);
+        if extending
+            && self
+                .inherited
+                .as_ref()
+                .and_then(|scope| scope.values.value(application))
+                != Some(value)
+        {
+            return Err("scalar completion extension changed a previously observed value".into());
+        }
         let applications = std::sync::Arc::make_mut(&mut self.applications);
         let handle = applications
             .handle_of(&applications.storage_slice()[position])
@@ -2965,6 +3156,9 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             return Err("scalar application completed more than once".into());
         }
         row.value = Some(value);
+        if extending {
+            self.reexecuted[position] = true;
+        }
         Ok(())
     }
 
@@ -2998,12 +3192,29 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             .ok_or("scalar observation answers no retained entry result")?;
         validate_value(value, expected)?;
         let position = self.position(application)?;
+        let extending = self.extends_completed_application(application);
         let applications = std::sync::Arc::make_mut(&mut self.applications);
         let handle = applications
             .handle_of(&applications.storage_slice()[position])
             .ok_or("scalar application storage lost its row")?;
         let row = applications.get_mut(handle);
-        if row.results.storage_slice().iter().any(|row| matches!(row, EntryResult::Observed { result: observed, .. } if *observed == result)) {
+        if let Some(previous) = row
+            .results
+            .storage_slice()
+            .iter()
+            .find_map(|row| match row {
+                EntryResult::Observed {
+                    result: observed,
+                    value,
+                } if *observed == result => Some(*value),
+                _ => None,
+            })
+        {
+            if extending && self.inherited.as_ref().is_some_and(|scope| scope.values.0.storage_slice()[position].results.storage_slice().iter().any(|row| matches!(row,
+                EntryResult::Observed { result: observed, value } if *observed == result && *value == previous))) {
+                return (previous == value).then_some(()).ok_or_else(||
+                    "scalar completion extension changed a previously captured result".into());
+            }
             return Err("scalar entry result was recorded more than once".into());
         }
         row.results.insert(EntryResult::Observed { result, value });
@@ -3162,8 +3373,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             ScalarRangeObservation::EntryResult {
                 application,
                 machine,
+                result,
                 scalar_type,
-                ..
             } => {
                 if self.entry(*application)? != *machine {
                     return Err("scalar condition names another entry activation".into());
@@ -3172,6 +3383,10 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                     return Err("scalar condition requires an integer observation".into());
                 }
                 self.value(*application)?.is_some()
+                    && (!self.extends_completed_application(*application)
+                        || self
+                            .entry_result(*application, *machine, *result, *scalar_type)
+                            .is_ok())
             }
             ScalarRangeObservation::Missing => {
                 return Err("scalar condition has an absent observation".into());
@@ -3217,6 +3432,13 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         position: usize,
         address_model: Option<(&BigInt, &BigInt)>,
     ) -> Result<(), String> {
+        if self
+            .inherited
+            .as_ref()
+            .is_some_and(|scope| scope.conditions.ranges.binary_search(&position).is_ok())
+        {
+            return Ok(());
+        }
         let conditions = &self.artifact.module().scalar_applications.conditions;
         let condition = conditions
             .ranges()
@@ -3247,6 +3469,13 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     }
 
     pub fn discharge_predicate(&self, position: usize) -> Result<(), String> {
+        if self
+            .inherited
+            .as_ref()
+            .is_some_and(|scope| scope.conditions.predicates.binary_search(&position).is_ok())
+        {
+            return Ok(());
+        }
         let condition = self
             .artifact
             .module()

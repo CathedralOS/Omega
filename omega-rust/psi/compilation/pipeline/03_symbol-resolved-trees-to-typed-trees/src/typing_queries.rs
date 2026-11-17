@@ -2127,9 +2127,11 @@ mod tests {
                     source::SourceOrigin::User,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let mut syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut bindings = Vec::new();
             if core {
                 let text = include_str!(concat!(
@@ -2147,8 +2149,10 @@ mod tests {
                         source::SourceOrigin::Toolchain,
                     )
                     .source_id;
-                let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-                tokens_to_syntax_trees::parse(&mut syntax, declaration, &tokens).unwrap();
+                let tokens = crate::frontend_fixture::Lexer::new(text)
+                    .tokenize()
+                    .unwrap();
+                crate::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
                 bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
                     source,
                     declaration,

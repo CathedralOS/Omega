@@ -1,7 +1,7 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
 use language_core::DomainPredicatePresence;
 use language_core::ReferenceAccess;
-use source_files_to_tokens::Lexer;
 use std::sync::Arc;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::Item;
@@ -1394,6 +1394,35 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
     assert_eq!(projection.term.as_str(&parsed), "proof");
     assert_eq!(projection.member.as_str(&parsed), "modulus");
     assert_eq!(call.display_name(&parsed), "consume<proof.modulus>()");
+}
+
+#[test]
+fn an_empty_record_pattern_keeps_its_consuming_marker() {
+    let parsed = crate::tests::parse_source(
+        "data Zero [linear] {} machine consume(value: Zero) { let {} = move value; }",
+        "an empty consuming pattern must parse",
+    );
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
+    let locals = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .filter_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::LocalData(local) => Some(local),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [marker] = locals.as_slice() else {
+        panic!("one empty pattern marker")
+    };
+    assert_eq!(marker.role, language_core::LocalBindingRole::RecordPattern);
+    assert!(
+        parsed
+            .expressions
+            .match_fields(marker.pattern_fields)
+            .is_empty()
+    );
 }
 
 #[test]

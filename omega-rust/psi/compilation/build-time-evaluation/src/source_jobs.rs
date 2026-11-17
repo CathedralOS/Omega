@@ -1101,10 +1101,10 @@ pub(crate) mod tests {
         origin: source::SourceOrigin,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
+        let tokens = crate::frontend_fixture::Lexer::new(source)
             .tokenize()
             .expect("lex source");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse source");
+        let syntax = crate::frontend_fixture::parse_syntax_trees(&tokens).expect("parse source");
         let mut sources = source::SourceMap::default();
         sources.add_with_metadata(
             "/job/policy.omg".into(),
@@ -4409,10 +4409,10 @@ pub(crate) mod tests {
                 .source_id;
             let mut syntax = syntax_trees::SyntaxTrees::new(policy_id);
             for (id, text) in [(policy_id, policy), (unused_id, unused)] {
-                let tokens = source_files_to_tokens::Lexer::new(text)
+                let tokens = crate::frontend_fixture::Lexer::new(text)
                     .tokenize()
                     .expect("lex source");
-                tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse source");
+                crate::frontend_fixture::parse(&mut syntax, id, &tokens).expect("parse source");
             }
             let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
@@ -4511,12 +4511,14 @@ pub(crate) mod tests {
                 )
                 .source_id;
             ids.push(source);
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             if let Some(syntax) = &mut syntax {
-                tokens_to_syntax_trees::parse(syntax, source, &tokens).unwrap();
+                crate::frontend_fixture::parse(syntax, source, &tokens).unwrap();
             } else {
                 syntax = Some(
-                    tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                    crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap(),
                 );
             }
         }
@@ -4879,8 +4881,10 @@ pub(crate) mod tests {
             .source_id;
         let mut syntax = syntax_trees::SyntaxTrees::new(caller_source);
         for (source, text) in [(caller_source, caller_text), (callee_source, callee_text)] {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
         }
         let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));

@@ -69,8 +69,8 @@ pub use checked_compilation::{
     ProductReportPlan, ProductReportRequest,
 };
 pub use compilation_products::{
-    CompileOutputKind, CompileReport, PendingNativeProduct, RetainedNativeProgram,
-    RetainedNativeProgramIdentity,
+    CompileOutputKind, CompileReport, PendingNativeProduct, ProductScalarCompletion,
+    RetainedNativeProgram, RetainedNativeProgramIdentity,
 };
 pub use compile_outcomes::{
     CheckedCompileOutcome, CompileFailure, CompileOutcomes, CompileTargetOutcome,

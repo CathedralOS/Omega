@@ -1037,6 +1037,9 @@ fn examine(
                     None => Construct::Machine,
                 };
                 let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                        (RefusalReason::Unestablished, unavailable.message())
+                    }
                     terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (RefusalReason::Unsupported, detail)
                     }
@@ -1076,6 +1079,9 @@ fn examine(
                         None => Construct::Machine,
                     };
                     let (reason, detail) = match error {
+                        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                            (RefusalReason::Unestablished, unavailable.message())
+                        }
                         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                             (RefusalReason::Unsupported, detail)
                         }
@@ -1112,14 +1118,7 @@ fn examine(
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at).map_err(Err)?),
-                detail: if unavailable.unrestored {
-                    "an owned value was moved out of borrowed storage, and the place does not \
-                     hold a value again where the machine returns the borrow: a replacement \
-                     must be stored into the vacant place on every path that leaves the machine"
-                } else {
-                    "owned storage is used after its value was transferred or consumed"
-                }
-                .to_owned(),
+                detail: unavailable.message().to_owned(),
                 declared: None,
             });
         }

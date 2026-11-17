@@ -4735,9 +4735,11 @@ mod static_arguments {
         use super::*;
 
         fn resolve(text: &str) -> SymbolResolvedTrees {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(1), &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source::SourceId(1), &tokens)
                     .unwrap();
             crate::resolve(crate::ResolutionRequest {
                 syntax,
@@ -5024,8 +5026,10 @@ mod runtime_callable_reach_tests {
     use symbol_resolved_trees::SymbolResolvedTrees;
 
     fn parse(text: &str, source: source::SourceId) -> syntax_trees::SyntaxTrees {
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
     }
 
     fn check_rows(program: &SymbolResolvedTrees) {

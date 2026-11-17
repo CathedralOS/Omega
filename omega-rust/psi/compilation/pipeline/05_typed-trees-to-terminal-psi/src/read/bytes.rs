@@ -867,6 +867,7 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),
+            cleanup: None,
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
@@ -996,6 +997,7 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),
+            cleanup: None,
             application: None,
             region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),

@@ -115,3 +115,7 @@ pub use lowerer::seeded_continuation::{
     SeededContinuationError, SeededTypingBase, lower_seeded_extension,
     lower_symbol_resolved_trees_to_seeded_base,
 };
+
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

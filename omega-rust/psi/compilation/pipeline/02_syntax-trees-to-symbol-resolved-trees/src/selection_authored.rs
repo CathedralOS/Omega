@@ -1962,8 +1962,10 @@ mod copied_call_tests {
         let source = sources
             .add("calls/evidence.omg".into(), text.into())
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
         let mut program = resolve(ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),
@@ -2075,8 +2077,10 @@ mod copied_call_tests {
             .add("calls/activation.omg".into(), text.into())
             .source_id;
         let parse = || {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
         };
         let sources = Arc::new(sources);
         let mut projected = resolve(ResolutionRequest {
@@ -2290,8 +2294,10 @@ mod copied_call_tests {
             .add("calls/static.omg".into(), text.into())
             .source_id;
         let parse = || {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
         };
         let sources = Arc::new(sources);
         let mut projected = resolve(ResolutionRequest {

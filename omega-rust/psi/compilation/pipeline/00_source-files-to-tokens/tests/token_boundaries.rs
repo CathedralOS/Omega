@@ -1,4 +1,4 @@
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 use tokens::TokenKind;
 
 #[test]
@@ -56,3 +56,6 @@ fn comment_scans_preserve_absolute_utf8_spans_and_nested_delimiters() {
         "/* 😀 /* inner */"
     );
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

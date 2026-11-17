@@ -871,13 +871,6 @@ pub mod nominal_cleanup {
         let declaration =
             crate::runtime_structural_path_tip(module.structural_types.iter(), root, &subject.path)
                 .ok_or("decomposition subject has no exact component shape")?;
-        let selection = declaration
-            .nominal_cleanup
-            .as_ref()
-            .ok_or("decomposition subject has no selected nominal disposition")?;
-        if selection.declaration.identity() != declaration.identity {
-            return Err("decomposition carrier declaration relation is not served");
-        }
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return Err("nominal decomposition of a non-record is not served");
         };
@@ -887,12 +880,17 @@ pub mod nominal_cleanup {
         if !declaration.requires.is_empty() {
             return Err("nominal decomposition with carrier predicates is not served");
         }
-        decomposition_authorized(
-            &module.identities,
-            selection,
-            current,
-            machine.declaration.as_ref(),
-        )?;
+        if let Some(selection) = &declaration.nominal_cleanup {
+            if selection.declaration.identity() != declaration.identity {
+                return Err("decomposition carrier declaration relation is not served");
+            }
+            decomposition_authorized(
+                &module.identities,
+                selection,
+                current,
+                machine.declaration.as_ref(),
+            )?;
+        }
         Ok(declaration.id)
     }
 }

@@ -1,5 +1,5 @@
 use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
-use source_files_to_tokens::lex_sources;
+use source_files_to_tokens::lex as lex_sources;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokens::TokenKind;
@@ -68,12 +68,8 @@ fn lexing_stops_at_the_first_failure_with_its_exact_source_location() {
                     ..LoadedSource::default()
                 }),
         );
-    let errors = lex_sources(loaded).unwrap_err();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].message,
-        "first.omg:2:3: unterminated block comment"
-    );
+    let error = lex_sources(loaded).unwrap_err().into_diagnostic();
+    assert_eq!(error.message, "first.omg:2:3: unterminated block comment");
 }
 
 #[test]
@@ -92,10 +88,6 @@ fn lexing_preserves_source_order_when_a_later_failure_finishes_first() {
         },
     ]);
 
-    let errors = lex_sources(loaded).unwrap_err();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].message,
-        "first.omg:2:1: unterminated block comment"
-    );
+    let error = lex_sources(loaded).unwrap_err().into_diagnostic();
+    assert_eq!(error.message, "first.omg:2:1: unterminated block comment");
 }

@@ -216,7 +216,13 @@ pub struct StaticRequirementSchema {
     pub instance: Option<StaticRequirementInstance>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
-    pub signature: StaticSignature,
+    /// The open signature, or `None` for a template requirement: one whose
+    /// formals are sized by its own `const` binders (`items: &[u8; Count]`).
+    /// generics.md, "Publication and assumptions": its template is checked
+    /// once in its own generic check form, and each closed use is a separate
+    /// requirement instance with literal extents. A published module never
+    /// carries the open sizes.
+    pub signature: Option<StaticSignature>,
     pub envelope: StaticCallableEnvelope,
 }
 

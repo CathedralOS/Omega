@@ -4,7 +4,9 @@ The application calls [compile](src/compile.rs) once with the retained
 Terminal Psi and a `NativeCompileRequest` (component calls, imports, image
 ownership, policy and the completed scalar values). It completes those values
 before the call with `build_settings::scalar_completion::complete_native` (and
-`complete_native_demand` for each component), because this crate never calls
+`complete_native_demand` for each component). A source-produced application instead
+extends Product checking's retained scope with `extend_native`, keeping the same
+execution inputs and already checked conditions. This crate never calls
 an evaluator. [Preparation](src/preparation.rs) then selects native work from
 the retained product and its native proposal, refuses work whose required
 values are missing, and Omega 00 to 09 run once, in order. Failures return the

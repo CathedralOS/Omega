@@ -3,11 +3,11 @@ use language_semantics::{RankingViewId, RankingWitness};
 use typed_trees::TypedTrees;
 
 fn resolve_and_type(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
+    let tokens = crate::frontend_fixture::Lexer::new(source)
         .tokenize()
         .expect("ranking source lexes");
     let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("ranking source parses");
+        crate::frontend_fixture::parse_syntax_trees(&tokens).expect("ranking source parses");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )

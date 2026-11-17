@@ -75,19 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Claim verification hides an already identified restoration error
-- Category: Re-deriving
-- Where: [verdict.rs:939](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/verdict.rs#L939), [minted.rs:754](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L754), and [plain_affine.rs:786](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L786).
-- Saw: `examine` reconstructs the exact unavailable borrowed storage and its restoration flag. Later, `minted` calls `verify_claims_in`, which converts that same unavailable row into a blanket Unsupported before the ordinary restoration diagnostic is returned. In `a_whole_local_owned_home_is_repaired_before_its_reference_ends`, the restored positive passes and removing only `local = next;` gets this generic refusal.
-- Cost: The invalid program still refuses, but its strict restoration regression test fails and callers cannot distinguish a broken restoration obligation from missing compiler support. Keep one availability owner and carry its actual reason through claim validation.
-- Reported: 2026-11-16, Codex, while carrying Room A1 and the multiplication table through byte-observer checking.
-### Saved native inputs do not reproduce the product they were saved from
-- Category: tests that pin the bug
-- Where: [round-trip check](omega-rust/omega/build-system/orchestration/examples/installation_assumption_review/saved_project.rs#L88), [recovery](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs#L1876), [evidence attachment](omega-rust/omega/compilation/native-compiler/src/application.rs#L44)
-- Saw: `installation_assumption_review prepare tests/fixtures/run/calls/scalar_contract_route_exit/main.omg windows_x86_64 DIR` refuses with "saved native inputs do not reproduce the checked project" on `main`. The recovered `RetainedTerminalArtifact` differs from the original in two places. Recovery attaches no operation evidence, while `TerminalApplication` attaches it with `with_evidence`. And the proposal's provider-identity table numbers its rows in a different order: the first differing line maps `named(..Extent)` where the original has `trait-application(..ProgramStorageEntry)`.
-- Cost: The review workflow the native-compiler README documents cannot prepare a saved project, and nothing on the Windows host tests the round trip; the only test of it (`closed_native_binding_reloads_and_executes_the_descriptor_callback`) runs on macOS arm64 only. Save or re-derive the evidence, encode provider identities in their canonical order, and run the round trip in a host-independent test.
-- Reported: 2026-11-17, pi, while moving the saved native-input codec out of Omega 00.
-
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
 - Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
@@ -100,7 +87,7 @@ framework or a list of unimplemented features.
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
 - Saw: [three layers](wiki/spec/build/platform_services.md) says a portable service "is identical on every target". A static diff of the two adapter families found three differences that #3864 did not cover:
   - `set_times` accepts any `i64` on POSIX, but Windows refuses times at or before 1601 and after about year 60056. The comment cites Win32, but the portable contract does not state the limit.
-  - `read_dir_nth` and `read_dir_is_empty` error on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
+  - `read_dir_nth` errors on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
   - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows. `read_at`, `write_at` and `copy` refuse a count over 4 GiB on Windows the same way.
   - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
@@ -112,27 +99,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
-### A read through a runtime index gets a field equation the spec says it never supplies
-- Category: The documents disagree
-- Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
-- Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L556) says a runtime-element read "supplies no field equation", and such a store "publishes no field equation" (L639). The write log records a store at `[RuntimeIndex i]` as `Stored::Value(v)`, and `read_equation` gives a later read of the same path `r == v`, so `a[i] = 7; need7(a[i]);` is accepted. This is sound (same selector, overlap-based retirement), but contradicts the page.
-- Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
-
-### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
-- Category: One idea, several implementations
-- Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
-- Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
-- Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
-- Category: A verdict with nothing behind it
-- Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
-- Saw: [patterns.md](wiki/spec/language/patterns.md#L30) says "`field: value` is ordinary projected equality", so `Reading::Value { level: 0 }` matches only some `Value` readings. `case_pattern` checks only that the arm names the case and ignores the pattern's fields, so `transition r { Reading::Value { level: 0 } -> 0  Reading::Missing -> 1 }` passes coverage and `Value { level: 5 }` matches nothing.
-- Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
 
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
@@ -154,13 +120,6 @@ framework or a list of unimplemented features.
 - Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
-
-### Native products evaluate their scalar conditions twice
-- Category: re-deriving
-- Where: [product checking](omega-rust/omega/compilation/compiler/src/terminal/terminal_artifact.rs#L94), [native completion](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L25)
-- Saw: `ProducedTerminalProduct::check_conditions` completes the artifact's scalar conditions for the target with no application roots. `complete_native` then completes them again with the program's application roots and the native demand before `native_compiler::compile`. The two closures differ in scope, so neither result can stand in for the other as built.
-- Cost: Every native compile with scalar conditions evaluates the deployed conditions twice. Extend one completed closure with the native demand and application roots, or complete once with both where the retained native product is formed, keeping product checking's refusals and their order.
-- Reported: 2026-11-16, pi, while making native compilation one call.
 
 ### Emission libraries still name earlier stage outputs
 - Category: knowledge crossing a boundary

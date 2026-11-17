@@ -5234,13 +5234,15 @@ pub(crate) mod declared_types {
         use super::*;
 
         fn normalized(text: &str) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let mut sources = source::SourceMap::default();
             let id = sources
                 .add("alias/main.omg".into(), text.to_owned())
                 .source_id;
             let mut syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
             let selection =
                 ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
             normalize(&mut syntax, &selection, &[])?;
@@ -5314,11 +5316,11 @@ pub(crate) mod declared_types {
     )
     .unwrap();
             let new_source = "data Other<T> { value: Wrap<T>; }";
-            let tokens = source_files_to_tokens::Lexer::new(new_source)
+            let tokens = crate::frontend_fixture::Lexer::new(new_source)
                 .tokenize()
                 .unwrap();
             let later =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(77), &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source::SourceId(77), &tokens)
                     .unwrap();
             repeated.extend_from(&later);
             let selection = ConstantSelection::new(&repeated, None, Vec::new()).unwrap();
@@ -5350,11 +5352,11 @@ pub(crate) mod declared_types {
             );
 
             let mut global = normalized("data Real { value: u8; } data Global<X> = Real; data Outer<Real> = Global<u8>; data View { value: Outer<bool>; }").unwrap();
-            let tokens = source_files_to_tokens::Lexer::new("data Later { value: Outer<bool>; }")
+            let tokens = crate::frontend_fixture::Lexer::new("data Later { value: Outer<bool>; }")
                 .tokenize()
                 .unwrap();
             let later =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(78), &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source::SourceId(78), &tokens)
                     .unwrap();
             global.extend_from(&later);
             let selection = ConstantSelection::new(&global, None, Vec::new()).unwrap();

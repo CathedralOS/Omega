@@ -1,10 +1,10 @@
 use crate::ParseError;
+use crate::frontend_fixture::Lexer;
 use crate::parameters::generics::{
     GenericParameterSyntax, ParsedGenericParameters, parse_generic_parameters,
 };
 use crate::token_input::cursor::Input;
 use source::SourceId;
-use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{Item, MachineParameterContract, TypeParameterKind};
 

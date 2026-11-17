@@ -5,9 +5,10 @@ calls.
 
 Code and mappings remain resident inside `ManuallyDrop<Worker>` until
 `std::process::exit`, including across native `atexit` and TLS callbacks.
-On macOS (`__error`) and Windows (`GetLastError`/`SetLastError`), we save and
-restore guest thread error state immediately around native adapter entry so
-worker IPC and loader housekeeping never clobber guest observations.
+On Linux (`__errno_location`), macOS (`__error`) and Windows
+(`GetLastError`/`SetLastError`), we save and restore guest thread error state
+immediately around native adapter entry so worker IPC and loader housekeeping
+never clobber guest observations.
 */
 
 use crate::{
@@ -41,8 +42,8 @@ pub(crate) struct Worker {
     adapters: Vec<Adapter>, // Retained through process teardown so atexit/TLS callbacks never see unloaded code.
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
-    #[cfg(target_os = "macos")]
-    guest_errno: libc::c_int, // Restored into Darwin's live `__error()` TLS slot around native entry.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    guest_errno: libc::c_int, // Restored into the live POSIX errno TLS slot around native entry.
     #[cfg(windows)]
     guest_last_error: u32, // Restored via `SetLastError` immediately around native entry.
 }
@@ -127,7 +128,7 @@ pub fn run_worker_if_requested() {
             adapters: Vec::new(),
             homes: BTreeMap::new(),
             directory: directory.into(),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             guest_errno: 0,
             #[cfg(windows)]
             guest_last_error: 0,
@@ -302,8 +303,10 @@ impl Worker {
             .map_or(std::ptr::null_mut(), NativeValue::pointer);
         #[cfg(target_os = "macos")]
         let errno_pointer = unsafe { libc::__error() };
+        #[cfg(target_os = "linux")]
+        let errno_pointer = unsafe { libc::__errno_location() };
         unsafe {
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             {
                 *errno_pointer = self.guest_errno;
             }
@@ -314,7 +317,7 @@ impl Worker {
             {
                 self.guest_last_error = windows_sys::Win32::Foundation::GetLastError();
             }
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             {
                 self.guest_errno = *errno_pointer;
             }

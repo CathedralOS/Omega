@@ -9,10 +9,12 @@ the kernel and the certificate, and a SHA-256 fingerprint over their canonical
 encoding. Anyone holding the seal can recompute the fingerprint; a seal whose
 parts were changed after sealing no longer matches it.
 
-Seals travel in memory beside the Terminal module. They are not part of the
-module's bytes: Terminal Psi's layout (`wiki/spec/terminal-psi/encoding.md`)
-has no place for them yet. A seal is therefore lost on any byte round trip and
-does not survive a stored artifact.
+Seals travel beside the semantic module. An optional, separately versioned
+record preserves them in saved native inputs without changing the module's
+bytes. Decoding checks their canonical shape and fingerprints; it grants no
+truth, execution authority or producer trust and does not replay the proof
+kernel. Receiving owners separately authorize the artifact and attach evidence
+to its exact module, execution sites and goals.
 */
 
 #[cfg(test)]
@@ -31,13 +33,15 @@ use crate::semantic_module::{
 };
 use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 use crate::term_wire::integer_math_term_wire::encode_integer_math_term;
+use crate::wire_fields::Field;
+use crate::wire_fields::wire::{bounded_count, decode_canonical};
 
 const DOMAIN: &[u8] = b"psi-obligation-evidence-fingerprint\0";
 
 /// One accepted obligation's evidence and its fingerprint.
 ///
-/// In memory only: it is not encoded in the Terminal module, so it is lost on
-/// a byte round trip and does not survive a stored artifact.
+/// Separate from the semantic module's bytes. An optional companion record
+/// preserves it for later attachment to the exact authorized artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObligationEvidenceSeal {
     pub machine: MachineId,
@@ -77,18 +81,7 @@ impl ObligationEvidenceSeal {
     /// The fingerprint of the seal's parts as they are now.
     pub fn recompute(&self) -> Result<[u8; 32], CodecError> {
         let mut writer = Writer::default();
-        writer.id(self.machine);
-        writer.id(self.obligation);
-        encode_proposition(&mut writer, &self.goal)?;
-        for list in [&self.assumptions, &self.axioms] {
-            writer.len("evidence hypotheses", list.len())?;
-            for proposition in list {
-                encode_proposition(&mut writer, proposition)?;
-            }
-        }
-        writer.id(self.certificate.identity);
-        writer.u16(self.certificate.proof_system_marker.get());
-        encode_proof_node(&mut writer, &self.certificate.proof)?;
+        write_operation_evidence_seal_parts(&mut writer, self)?;
         let bytes = writer.finish();
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DOMAIN);
         let length = u64::try_from(bytes.len()).map_err(|_| CodecError::NonCanonicalEncoding)?;
@@ -122,6 +115,113 @@ impl EvidenceSeals {
             seals,
         })
     }
+}
+
+const OPERATION_EVIDENCE_MAGIC: &[u8; 8] = b"PSIOEVD\0";
+const OPERATION_EVIDENCE_FORMAT_MARKER: u16 = 1;
+
+fn write_operation_evidence_seal_parts(
+    writer: &mut Writer,
+    seal: &ObligationEvidenceSeal,
+) -> Result<(), CodecError> {
+    writer.id(seal.machine);
+    writer.id(seal.obligation);
+    encode_proposition(writer, &seal.goal)?;
+    for list in [&seal.assumptions, &seal.axioms] {
+        writer.len("evidence hypotheses", list.len())?;
+        for proposition in list {
+            encode_proposition(writer, proposition)?;
+        }
+    }
+    Certificate::write(writer, &seal.certificate)
+}
+
+/// Encodes operation evidence as a separate companion to the semantic module.
+/// The fingerprints bind recorded parts; they grant no truth or execution
+/// authority. This record does not change the semantic module's bytes.
+pub fn encode_operation_evidence(evidence: &EvidenceSeals) -> Result<Vec<u8>, CodecError> {
+    require_operation_evidence_integrity(evidence)?;
+    encode_operation_evidence_record(evidence)
+}
+
+fn require_operation_evidence_integrity(evidence: &EvidenceSeals) -> Result<(), CodecError> {
+    for seal in &evidence.seals {
+        if !seal.intact()? {
+            return Err(CodecError::MalformedMathematicalCertificate(
+                "operation evidence seal fingerprint mismatch",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn encode_operation_evidence_record(evidence: &EvidenceSeals) -> Result<Vec<u8>, CodecError> {
+    let mut writer = Writer::default();
+    writer.bytes(OPERATION_EVIDENCE_MAGIC);
+    writer.u16(OPERATION_EVIDENCE_FORMAT_MARKER);
+    writer.u16(evidence.module.vocabulary_marker.get());
+    writer.bytes(evidence.module.program_fingerprint.as_bytes());
+    writer.len("operation evidence seals", evidence.seals.len())?;
+    for seal in &evidence.seals {
+        write_operation_evidence_seal_parts(&mut writer, seal)?;
+        writer.bytes(&seal.fingerprint);
+    }
+    Ok(writer.finish())
+}
+
+/// Decodes canonical companion data and checks its recorded fingerprints.
+/// Receipt does not require proof-kernel replay (`wiki/spec/terminal-psi/product.md`,
+/// "Publication and separate consumption") and does not authorize the artifact.
+/// The receiving owner must separately authorize that artifact and validate
+/// the seals against its exact module, execution sites and goals.
+pub fn decode_operation_evidence(bytes: &[u8]) -> Result<EvidenceSeals, CodecError> {
+    decode_canonical(
+        bytes,
+        |reader| {
+            if reader.take(OPERATION_EVIDENCE_MAGIC.len())? != OPERATION_EVIDENCE_MAGIC {
+                return Err(CodecError::InvalidMagic);
+            }
+            let marker = reader.u16()?;
+            if marker != OPERATION_EVIDENCE_FORMAT_MARKER {
+                return Err(CodecError::UnsupportedFormatMarker(marker));
+            }
+            let marker = reader.u16()?;
+            let vocabulary_marker = terminal_psi::VocabularyMarker::new(marker)
+                .ok_or(CodecError::UnsupportedVocabularyMarker(marker))?;
+            let module = crate::TerminalPsiIdentity {
+                vocabulary_marker,
+                program_fingerprint: crate::SemanticFingerprint::from_bytes(reader.array()?),
+            };
+            // Each row has two u64 identities and a 32-byte fingerprint, before
+            // any goal, hypotheses or certificate bytes. Bound allocation by
+            // that minimum, just as the shared term-table decoder does.
+            let count = bounded_count(reader, 8 + 8 + 32)?;
+            let mut seals = Vec::with_capacity(count);
+            for _ in 0..count {
+                seals.push(ObligationEvidenceSeal {
+                    machine: reader.id("operation evidence machine")?,
+                    obligation: reader.id("operation evidence obligation")?,
+                    goal: decode_proposition(reader)?,
+                    assumptions: read_operation_evidence_hypotheses(reader)?,
+                    axioms: read_operation_evidence_hypotheses(reader)?,
+                    certificate: Certificate::read(reader)?,
+                    fingerprint: reader.array()?,
+                });
+            }
+            let evidence = EvidenceSeals { module, seals };
+            require_operation_evidence_integrity(&evidence)?;
+            Ok(evidence)
+        },
+        encode_operation_evidence_record,
+    )
+}
+
+fn read_operation_evidence_hypotheses(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<Proposition>, CodecError> {
+    // A proposition has at least its u32 term count and one row tag.
+    let count = bounded_count(reader, 5)?;
+    (0..count).map(|_| decode_proposition(reader)).collect()
 }
 
 /// Why in-memory evidence cannot be attached to the requested module or scope.
@@ -1798,6 +1898,137 @@ mod projection_tests {
         }
         let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
         (module, evidence)
+    }
+
+    #[test]
+    fn saved_operation_evidence_round_trip_keeps_all_parts_and_order() {
+        let (module, mut evidence) = module_and_seals();
+        for seal in &mut evidence.seals {
+            seal.assumptions
+                .extend([Proposition::Truth, Proposition::Falsehood]);
+            seal.axioms = vec![Proposition::Falsehood, Proposition::Truth];
+            seal.fingerprint = seal.recompute().unwrap();
+        }
+        evidence.seals.reverse();
+        let bytes = encode_operation_evidence(&evidence).unwrap();
+        assert_eq!(encode_operation_evidence(&evidence).unwrap(), bytes);
+        let decoded = decode_operation_evidence(&bytes).unwrap();
+        assert_eq!(decoded, evidence);
+        assert_eq!(encode_operation_evidence(&decoded).unwrap(), bytes);
+        EvidenceSealValidator::new(&module, &decoded.seals)
+            .validate_all()
+            .unwrap();
+        let empty = EvidenceSeals {
+            module: evidence.module,
+            seals: Vec::new(),
+        };
+        assert_eq!(
+            decode_operation_evidence(&encode_operation_evidence(&empty).unwrap()).unwrap(),
+            empty
+        );
+    }
+
+    #[test]
+    fn saved_operation_evidence_refuses_truncation_headers_counts_and_corrupt_fingerprints() {
+        let (_, evidence) = module_and_seals();
+        let bytes = encode_operation_evidence(&evidence).unwrap();
+        for end in 0..bytes.len() {
+            assert!(
+                decode_operation_evidence(&bytes[..end]).is_err(),
+                "accepted {end} bytes"
+            );
+        }
+        let mut changed = bytes.clone();
+        changed[0] ^= 1;
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::InvalidMagic)
+        );
+        let mut changed = bytes.clone();
+        changed[8..10].copy_from_slice(&0_u16.to_le_bytes());
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::UnsupportedFormatMarker(0))
+        );
+        let mut changed = bytes.clone();
+        changed[10..12].copy_from_slice(&0_u16.to_le_bytes());
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::UnsupportedVocabularyMarker(0))
+        );
+        let mut changed = bytes.clone();
+        changed[44..48].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::UnexpectedEnd)
+        );
+        let mut changed = bytes.clone();
+        changed[48..56].fill(0);
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::ZeroIdentity("operation evidence machine"))
+        );
+        let mut changed = bytes.clone();
+        *changed.last_mut().unwrap() ^= 1;
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::MalformedMathematicalCertificate(
+                "operation evidence seal fingerprint mismatch"
+            ))
+        );
+        let mut changed = evidence;
+        changed.seals[0].fingerprint[0] ^= 1;
+        assert!(encode_operation_evidence(&changed).is_err());
+        let mut changed = bytes;
+        changed.push(0);
+        assert_eq!(
+            decode_operation_evidence(&changed),
+            Err(CodecError::TrailingBytes(1))
+        );
+    }
+
+    #[test]
+    fn saved_operation_evidence_refuses_noncanonical_certificate_children() {
+        let (_, mut evidence) = module_and_seals();
+        evidence.seals.truncate(1);
+        let seal = &mut evidence.seals[0];
+        let child = seal.certificate.proof.clone();
+        seal.certificate.proof = ProofNode {
+            conclusion: seal.goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(vec![child.clone(), child]),
+        };
+        seal.fingerprint = seal.recompute().unwrap();
+        let mut bytes = encode_operation_evidence(&evidence).unwrap();
+        // The final body field is the certificate's second child reference;
+        // the record ends with the seal's 32-byte fingerprint.
+        let child_offset = bytes.len() - 32 - 4;
+        bytes[child_offset..child_offset + 4].copy_from_slice(&0_u32.to_le_bytes());
+        assert!(matches!(
+            decode_operation_evidence(&bytes),
+            Err(CodecError::NonCanonicalTermTable(_))
+        ));
+    }
+
+    #[test]
+    fn saved_operation_evidence_does_not_supply_module_or_goal_authority() {
+        let (module, mut evidence) = module_and_seals();
+        evidence.seals[0].goal = Proposition::Truth;
+        evidence.seals[0].fingerprint = evidence.seals[0].recompute().unwrap();
+        let decoded =
+            decode_operation_evidence(&encode_operation_evidence(&evidence).unwrap()).unwrap();
+        assert!(matches!(
+            EvidenceSealValidator::new(&module, &decoded.seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
+        let (_, mut evidence) = module_and_seals();
+        evidence.module.program_fingerprint = crate::SemanticFingerprint::from_bytes([9; 32]);
+        let decoded =
+            decode_operation_evidence(&encode_operation_evidence(&evidence).unwrap()).unwrap();
+        assert_eq!(decoded, evidence);
+        assert_eq!(
+            decoded.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::ModuleIdentityMismatch)
+        );
     }
 
     #[test]

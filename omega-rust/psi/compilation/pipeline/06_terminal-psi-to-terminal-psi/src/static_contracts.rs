@@ -378,14 +378,16 @@ fn schema_context(
                 })?;
             places.push((result, StructuralPlaceKind::Result));
         }
-        Some(ValueType::Rigid(_)) => {
-            return Err(crate::refusal(
-                RefusalReason::Unsupported,
+        // An abstract result is opaque exactly like an abstract input above:
+        // it supplies no observable scalar, so a predicate naming `result`
+        // still fails scope validation below and the schema is refused.
+        Some(ValueType::Rigid(rigid)) if rigid.0 >= abstract_types => {
+            return Err(fault(
                 machine,
-                Construct::Machine,
-                "abstract schema result needs a general logical value carrier",
+                "abstract schema result has no declared type",
             ));
         }
+        Some(ValueType::Rigid(_)) => {}
         None => {}
     }
     PropositionContext::from_value_types_and_places(scalars, places).map_err(|_| {
@@ -471,18 +473,14 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
             }
         }
         for requirement in &schema.requirements {
-            let context = schema_context(
-                module,
-                machine,
-                &requirement.signature,
-                requirement.abstract_types,
-            )?;
-            for proposition in requirement
-                .signature
-                .requires
-                .iter()
-                .chain(&requirement.signature.ensures)
-            {
+            // A template requirement's open signature is checked once in its
+            // own generic check form; here it contributes only its envelope.
+            let Some(signature) = &requirement.signature else {
+                check_envelope(module, machine, &requirement.envelope, None)?;
+                continue;
+            };
+            let context = schema_context(module, machine, signature, requirement.abstract_types)?;
+            for proposition in signature.requires.iter().chain(&signature.ensures) {
                 context.validate(proposition).map_err(|_| {
                     fault(
                         machine,
@@ -491,7 +489,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 })?;
             }
             if let terminal_check_tables::contracts::CrashCeiling::Authored(routes) =
-                &requirement.signature.crashes
+                &signature.crashes
             {
                 for guard in routes.iter().flat_map(|route| &route.alternatives) {
                     if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
@@ -501,12 +499,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     }
                 }
             }
-            check_envelope(
-                module,
-                machine,
-                &requirement.envelope,
-                Some(&requirement.signature),
-            )?;
+            check_envelope(module, machine, &requirement.envelope, Some(signature))?;
         }
     }
     for question in &elaboration.static_conformances {

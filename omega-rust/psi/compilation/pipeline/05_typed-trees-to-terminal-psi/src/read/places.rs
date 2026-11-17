@@ -1,39 +1,17 @@
 /*
-The place family of the reader: which `data` declarations are records and
-sums this route serves, their fields, cases and payload fields as dense
-identities, record and case literals, member paths and case tests.
+Read data declarations, literals, field paths, case tests and complete record
+patterns. Resolved symbols identify each type, field and case; a spelling alone
+cannot select one.
 
-Identity is fixed here, once, from symbols. A data type is the
-`StructuralTypeId` minted for its `SymbolKind::Data` declaration the first
-time a type names it; a field is its position in that declaration and the
-`StructuralFieldId` minted with it, found from the field symbol stage 02
-recorded on the literal or member; a case is its position among the
-declaration's cases and the `StructuralCaseId` minted with it, found from the
-case symbol on a literal, a pattern head or the right operand of a case test.
-A field, case or type the typed trees hold only as a spelling is refused as
-`Unserved::Spelling`. A member's `case_variant` is a spelling and is never
-read: a payload member is the payload field its symbol names.
+Values retain their declared copy, affine or linear ownership, selected cleanup,
+references and lifetime arguments. Field types substitute the actual lifetime
+arguments of their containing value. A complete owned pattern ends its record
+wrapper and leaves its components subject to their own ownership and cleanup.
+Ending a wrapper with selected cleanup requires the declaring package's authority
+or the exact selected consumer.
 
-The slice serves plain data with explicit copy permission or ordinary affine
-custody: fields and payloads are builtin integers, `bool` or other such data.
-Affine values transfer once and publish normal-edge disposal of their remaining
-regions. Nominal cleanup hooks, linear claims, reference-bearing data and
-extraction through borrowed storage remain outside this slice.
-A declaration may state lifetime parameters, `data Outer<'a>`, and a field
-may apply such data at them, `inner: Inner<'a>`: they are erased regions, so
-the declaration is one record row (`lifetime_binders`, `lifetime_application`),
-and the regions a value of it is at belong to its value type (`regions`): a
-field read, a literal or a store sees the field types at them
-(`field_type`). A field may store a byte view, `&'a [u8]`, whose type carries
-the region it names (`bytes`); a reference to anything else in a
-field is still refused (`type reference`).
-A declaration's `requires` is read into `RecordType::requires` by the clause
-reader the machine contracts use (`contracts`), over `self` and its fields;
-a `requires` on a case is refused (`type data requires`). Everything else
-about a `data` declaration is refused by name, and later slices add to these
-functions rather than replace them: custody (`type data with custody`),
-common fields beside cases (`type mixed data`). Stores into a record's fields are read in
-`statements`, dispatch over a sum in `transitions`.
+Data predicates use the same clause reader as machine contracts. Field stores
+are read in `statements`, and case dispatch is read in `transitions`.
 */
 
 use crate::body::{Qualification, StorageShape};
@@ -64,6 +42,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 pub(super) struct RecordSource {
     pub(super) declaration: SymbolHandle,
     pub(super) application: Option<typed_trees::SourceTypeApplication>,
+    pub(super) cleanup: Option<typed_trees::domain::CleanupSelection>,
     /// The declaration whose lifetime binders a byte view's region is one
     /// of, when the typed trees retained no owner for that occurrence: the
     /// data declaration the view is a field of. Invalid everywhere else.
@@ -445,6 +424,7 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
+            cleanup: data.cleanup_selection,
             application: application.clone(),
             region_owner: SymbolHandle::invalid(),
             fields: field_symbols,
@@ -865,7 +845,7 @@ impl Program<'_> {
     }
 
     /// `let { a, b as _ } = subject;`: the marker local of a record pattern.
-    /// It binds nothing and lowers to nothing. The bound fields are the
+    /// It binds no field and ends an owned noncopy wrapper. The bound fields are the
     /// ordinary locals that follow it, each a field read of the subject; the
     /// marker only says which fields the author named, and the pattern is
     /// served when those are every field of the subject's record.
@@ -961,7 +941,8 @@ impl Program<'_> {
             }
             _ => false,
         };
-        if nominal && owned {
+        let noncopy = !self.data_type(id, record.record())?.is_copyable();
+        if owned && (nominal || noncopy) {
             if !subject
                 .result
                 .is_some_and(|value| value.qualification().is_none())

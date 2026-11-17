@@ -1616,10 +1616,10 @@ mod boolean_result_tests {
                 comparison
             }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
+        let tokens = crate::frontend_fixture::Lexer::new(source)
             .tokenize()
             .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )

@@ -2886,7 +2886,6 @@ fn visit_cleanup_selection(
         retained.authored_selection(occurrence);
     }
     visit_symbol(retained, application.registration_operation);
-    visit_symbol(retained, selection.executable);
     visit_type_reference(program, retained, selection.subject);
     for argument in program.static_machine_application_arguments(selection.application) {
         visit_static_argument(program, retained, argument);
@@ -3319,14 +3318,18 @@ pub fn visit_type_reference(
                 visit_expression(program, retained, *expression);
             }
         }
-        // A checked integer argument is a value, not a declaration. Its
-        // constant origins were visited above; every present coordinate and
-        // unresolved ordinary name must still reach the receiving visitor.
+        // A checked const argument (an integer, or the canonical value of a
+        // record constant such as `Sizes::SIZE`) is a value, not a
+        // declaration. Its constant origins were visited above; every present
+        // coordinate and unresolved ordinary name must still reach the
+        // receiving visitor.
         TypeReferenceNode::Named { symbol, .. }
             if *symbol == SymbolHandle::invalid()
-                && program
+                && (program
                     .static_const_literal_from_type_reference(type_reference)
-                    .is_some() => {}
+                    .is_some()
+                    || crate::canonical_const_argument_value(program, type_reference)
+                        .is_some()) => {}
         TypeReferenceNode::Named { symbol, .. } => {
             visit_symbol(retained, *symbol);
         }
@@ -3637,10 +3640,12 @@ fn visit_call_expression(
             );
         }
     }
-    // A computed call retains its evaluated operand and contract above. It
-    // has no nominal target; a conflicting retained target remains a real
-    // reference for the source admission owner to diagnose.
-    if (call.runtime_call.is_none() && !completed_byte_predicate_call(program, expression, call))
+    // Computed calls and core layout queries retain their operands separately
+    // and have no nominal callee. Any present target stays visible for the
+    // source admission owner to diagnose, including malformed coordinates.
+    if (call.runtime_call.is_none()
+        && call.layout_query.is_none()
+        && !completed_byte_predicate_call(program, expression, call))
         || call.target_symbol != SymbolHandle::invalid()
     {
         visit_callable_symbol(program, retained, call.target_symbol);

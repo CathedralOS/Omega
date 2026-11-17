@@ -436,10 +436,18 @@ impl Program<'_> {
         for declared in typed.conformances() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                    self.conformance_declaration(entry, declared.symbol)
-                        .map_err(|refusal| {
-                            self.read_failure_at(refusal, declared.symbol, "the implementation")
-                        })?;
+                    // A generic implementation is checked once as written,
+                    // like a generic machine above; a closed one forms its
+                    // static conformance questions.
+                    let checked = if self.is_generic_conformance(declared) {
+                        self.generic_conformance_witnesses(entry, declared)
+                    } else {
+                        self.conformance_declaration(entry, declared.symbol)
+                            .map(|_| ())
+                    };
+                    checked.map_err(|refusal| {
+                        self.read_failure_at(refusal, declared.symbol, "the implementation")
+                    })?;
                     self.admitted_declarations.include(declared.symbol);
                 }
                 Ok(())
