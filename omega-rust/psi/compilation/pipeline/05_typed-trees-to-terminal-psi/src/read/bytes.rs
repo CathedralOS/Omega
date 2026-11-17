@@ -137,6 +137,62 @@ pub(super) struct SourceByteView {
     pub(super) element_type: TypeReferenceHandle,
 }
 
+/// Authenticate the source type against the byte carrier the reader emitted.
+/// A mutable formal keeps its loan access beside the slice carrier; an owned
+/// descriptor keeps that access on the carrier itself.
+pub(super) fn byte_view_matches_carrier(
+    typed: &typed_trees::TypedTrees,
+    machine: MachineId,
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+    carrier: ByteSequenceCarrier,
+    identity: &str,
+) -> Checked<bool> {
+    let Some(view) = source_byte_view(typed, reference, owner, machine)? else {
+        return Ok(false);
+    };
+    Ok(
+        if matches!(carrier, ByteSequenceCarrier::BorrowedView { access: None }) {
+            matches!(
+                view.carrier,
+                ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow)
+                }
+            ) && mutable_byte_formal_identity(typed, machine, reference)? == identity
+        } else {
+            view.carrier == carrier && view.identity == identity
+        },
+    )
+}
+
+/// Reuse the exact source row that produced a byte record, including its role.
+/// Equal descriptor geometry alone cannot establish source correspondence.
+pub(super) fn byte_record_source_matches(
+    typed: &typed_trees::TypedTrees,
+    machine: MachineId,
+    declaration: &RecordType,
+    source: &RecordSource,
+) -> Checked<bool> {
+    let StorageShape::ByteSequence(carrier) = declaration.shape else {
+        return Ok(false);
+    };
+    if source.declaration.is_valid() || !source.fields.is_empty() || !source.cases.is_empty() {
+        return Ok(false);
+    }
+    match &source.application {
+        Some(application) if application.substitutions.is_empty() => byte_view_matches_carrier(
+            typed,
+            machine,
+            application.reference,
+            source.region_owner,
+            carrier,
+            &declaration.identity,
+        ),
+        Some(_) => Ok(false),
+        None => Ok(carrier.is_shared_readable_view()),
+    }
+}
+
 // Both the formal and its source record use the declared slice's identity.
 // The parameter owns the access and region of this loan.
 pub(super) fn mutable_byte_formal_identity(
@@ -1110,5 +1166,182 @@ mod tests {
             .unwrap()
             .reference = byte;
         assert!(program.source_record_correspondence(machine).is_err());
+    }
+
+    #[test]
+    fn formed_collection_operands_keep_the_source_of_mutable_formal_carriers() {
+        use typed_trees::expression::{ExpressionNode, TableNamePath};
+        use typed_trees::signature::StateParameter;
+
+        // Keep the source type metadata that specialization copies. Without it
+        // the operator reader would use its separate no-metadata path.
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Machine, SymbolNameRef::Static("store"))]),
+        );
+        let byte = children
+            .handles()
+            .nth(symbols::BuiltinTypeAtom::U8.ordinal())
+            .unwrap();
+        let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let parameter = symbols
+            .insert_children(
+                owner,
+                [(SymbolKind::Parameter, SymbolNameRef::Static("bytes"))],
+            )
+            .handle_at(0);
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: byte,
+            name: "u8".into(),
+        });
+        let slice = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: byte });
+        let references = [
+            ReferenceAccess::Mutable,
+            ReferenceAccess::Mutable,
+            ReferenceAccess::Shared,
+        ]
+        .map(|access| {
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: slice,
+                    access,
+                    lifetime: Some("region".into()),
+                });
+            typed
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, owner)
+                .unwrap();
+            reference
+        });
+        let parameters = typed.state_parameters.insert_many([StateParameter {
+            symbol: parameter,
+            name: "bytes".into(),
+            type_reference: references[0],
+            is_mutable: true,
+            ..Default::default()
+        }]);
+        let states = typed
+            .machine_states
+            .insert_many([typed_trees::state::State {
+                symbol: owner,
+                name: "store".into(),
+                parameters,
+                ..Default::default()
+            }]);
+        typed.push_machine(Machine {
+            symbol: owner,
+            name: "store".into(),
+            states,
+            lifetime_parameters: vec!["region".into()],
+            ..Default::default()
+        });
+        let expressions = references.map(|reference| {
+            let mut members = Default::default();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, "bytes".into());
+            let expression = typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: parameter,
+                    symbol: parameter,
+                    ..Default::default()
+                }));
+            typed
+                .expression_table
+                .set_constructed_value_type_reference(expression, reference);
+            expression
+        });
+        let mut program = Program::new(&typed, false);
+        program.lifetime_owner = owner;
+        let machine = MachineId::new(1).unwrap();
+        let formals = typed.state_parameters.span(parameters).unwrap();
+        let formal = &formals[0];
+        let (operand, erased, borrowed) = program.formal(machine, formal, None).unwrap();
+        assert!(!erased);
+        assert_eq!(borrowed.unwrap().access, ReferenceAccess::Mutable);
+        let owned_descriptor = program.value_type(machine, references[0]).unwrap();
+        assert_ne!(
+            owned_descriptor.erased(),
+            operand.erased(),
+            "a formal binding and an owned mutable descriptor have different carriers"
+        );
+        for index in [0, 1] {
+            assert_eq!(
+                typed
+                    .expression_table
+                    .constructed_value_type_reference(expressions[index]),
+                references[index]
+            );
+            assert_eq!(
+                program
+                    .structural_operator_operand_reference(machine, expressions[index], operand,)
+                    .unwrap(),
+                Some(references[index]),
+                "lookup retains the full original reference, including a copied occurrence"
+            );
+        }
+        let shared = program
+            .structural_operator_operand_reference(machine, expressions[2], operand)
+            .unwrap_err();
+        assert_eq!(
+            shared.reason,
+            terminal_check_tables::RefusalReason::ForeignIdentity
+        );
+        let ValueType::Record(record, qualification, regions) = operand else {
+            panic!("the mutable formal carries a structural byte view")
+        };
+        let qualified = ValueType::Record(
+            record,
+            Qualification {
+                policy: Some(crate::body::Policy::Wrapping),
+                ..qualification
+            },
+            regions,
+        );
+        assert_eq!(
+            program
+                .structural_operator_operand_reference(machine, expressions[0], qualified,)
+                .unwrap_err()
+                .reason,
+            terminal_check_tables::RefusalReason::ForeignIdentity
+        );
+        assert!(
+            program
+                .source_record_correspondence(machine)
+                .unwrap()
+                .is_empty()
+        );
+        program
+            .record_sources
+            .get_mut(record)
+            .unwrap()
+            .application
+            .as_mut()
+            .unwrap()
+            .reference = references[2];
+        assert_eq!(
+            program
+                .structural_operator_operand_reference(machine, expressions[0], operand,)
+                .unwrap_err()
+                .reason,
+            terminal_check_tables::RefusalReason::ForeignIdentity
+        );
+        assert!(
+            program.source_record_correspondence(machine).is_err(),
+            "the same shared source-owner validator rejects the forged record source"
+        );
     }
 }

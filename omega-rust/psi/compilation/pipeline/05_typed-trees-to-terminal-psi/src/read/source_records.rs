@@ -761,48 +761,13 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
-            if let crate::StorageShape::ByteSequence(carrier) = declaration.shape {
-                let source_is_bytes = if let Some(application) = &source.application {
-                    let view = super::bytes::source_byte_view(
-                        self.typed,
-                        application.reference,
-                        source.region_owner,
-                        machine,
-                    )?;
-                    application.substitutions.is_empty()
-                        && match view {
-                            Some(view)
-                                if matches!(
-                                    carrier,
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None
-                                    }
-                                ) =>
-                            {
-                                matches!(
-                                    view.carrier,
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: Some(terminal_psi::StructuralAccess::MutableBorrow)
-                                    }
-                                ) && super::bytes::mutable_byte_formal_identity(
-                                    self.typed,
-                                    machine,
-                                    application.reference,
-                                )? == declaration.identity
-                            }
-                            Some(view) => {
-                                view.carrier == carrier && view.identity == declaration.identity
-                            }
-                            None => false,
-                        }
-                } else {
-                    carrier.is_shared_readable_view()
-                };
-                if source.declaration.is_valid()
-                    || !source.fields.is_empty()
-                    || !source.cases.is_empty()
-                    || !source_is_bytes
-                {
+            if let crate::StorageShape::ByteSequence(_) = declaration.shape {
+                if !super::bytes::byte_record_source_matches(
+                    self.typed,
+                    machine,
+                    declaration,
+                    source,
+                )? {
                     return Err(malformed(
                         machine,
                         "byte storage has nominal or invalid source custody",
