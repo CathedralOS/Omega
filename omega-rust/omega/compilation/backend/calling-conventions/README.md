@@ -15,11 +15,10 @@ its output and calls the normalized validator. Graph nodes cover integers,
 floats, references, fixed arrays and fixed records. Opaque by-value uses are
 resolved through representation selection first.
 
-[Boundary values](src/boundary_values.rs) defines those source-free shapes and
-their per-policy ABI classes. The same graph serves compatibility calling
-plans and class checks of authored plans; SysV eightbyte and AAPCS64
-homogeneous-float rules are backend decisions. Matching classes does not
-replace placement or full calling-plan validation.
+[Boundary values](src/boundary_values.rs) defines those shapes. Today the
+backend chooses how to classify an aggregate from its ABI tag, including SysV
+eightbyte and AAPCS64 homogeneous-float rules. It applies that choice again
+when checking the class returned by a source policy.
 
 The source vocabulary is [std/calling.omg](../../../../../source/library/std/calling.omg).
 `Calling<Policy>` selects the named implementation argument declared
@@ -27,8 +26,16 @@ The source vocabulary is [std/calling.omg](../../../../../source/library/std/cal
 [policy implementations](../../realization/provider-planning/src/calling_policy_plans/policy_implementations.rs)
 closes its application and selects the exact `CallingPolicy::plan` row. The
 row's machine is called by symbol, not through an attached `Data::plan` name.
-Some standard target evaluators are still Rust; a source policy replaces one
-only with differential tests and the same validator.
+
+The [plan decoder](../../realization/provider-planning/src/calling_policy_plans/build_time_decoding.rs)
+currently requires one of six foreign ABI tags. The [Rust planners](src/plans/call_plan_evaluation.rs)
+also repeat placement rules, including the 32 bytes of shadow space already
+declared by the [Windows x64 policy](../../../../../source/library/std/targets/windows_x86_64/calling.omg).
+The [authorship contract](../../../../../wiki/spec/build/calling_plans.md#authorship-and-evaluation)
+requires each foreign policy to own these choices. Retire the tag and the Rust
+classification and placement rules as the source policies cover those signatures.
+The compiler still checks each value against its public shape, validates
+registers, stack ranges and entry control for the target, and emits the plan.
 
 Source quantities are `u64`. Decoder capacities and narrower normalized
 fields are internal limits, checked before conversion. The graph builder names
@@ -67,9 +74,9 @@ entry and exit code. See [machine-state realization](../../../../../wiki/spec/bu
 
 ## Cross-check against clang
 
-[clang_crosscheck.rs](src/tests/clang_crosscheck.rs) compares where the
-default plans put each argument and result byte with where clang puts it, for
-1,440 fixed generated C signatures on all four hosted targets. The platform
+[clang_crosscheck.rs](src/tests/clang_crosscheck.rs) compares where the Rust
+foreign ABI planners and clang put each argument and result byte for 1,440
+fixed generated C signatures on all four hosted targets. The platform
 ABI documents stay the answer key. Every admitted signature must agree;
 refused signatures are counted separately, and any mismatch or unreadable
 clang output fails the test. It needs clang, so it is ignored by

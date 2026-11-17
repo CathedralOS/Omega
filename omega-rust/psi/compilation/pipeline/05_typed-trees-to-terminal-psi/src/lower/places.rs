@@ -2589,6 +2589,7 @@ impl<'a> Lowering<'a> {
                 callee,
                 required_contract,
                 static_reach_binding,
+                static_reach_arguments,
                 arguments,
                 designated,
             } => {
@@ -2598,7 +2599,11 @@ impl<'a> Lowering<'a> {
                     arguments,
                     *designated,
                     expression.result,
-                    (expression.source, *static_reach_binding),
+                    (
+                        expression.source,
+                        *static_reach_binding,
+                        static_reach_arguments
+                    ),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -5211,6 +5216,7 @@ mod tests {
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                     },
                     result: Some(plain),
                     source,

@@ -3,7 +3,7 @@ We serialize the complete identity preimage (`derive_native_artifact_identity`)
 and foreign-call custody digest (`foreign_call_custody_digest`) for native
 artifacts. We bind the canonical Terminal artifact identity, physical entry
 requirements, installation assumptions, target wire identity, object/image text
-and container bytes, compiler validation digests, selected provider plans,
+and container bytes, selected provider plans,
 provider execution reports, authority policy commitments, D29 boundary coverage,
 and D32 physical evidence (or its blocking gap) into one collision-resistant
 digest.
@@ -17,7 +17,7 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v17\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v18\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
@@ -36,8 +36,6 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) final_image_symbol_digest: [u8; 32],
     pub(super) executable_region_inventory_digest: [u8; 32],
     pub(super) executable_region_inventory_report_fingerprint: u64,
-    pub(super) compiler_text_validation_digest: Option<[u8; 32]>,
-    pub(super) compiler_function_validation: Option<([u8; 32], u64)>,
     pub(super) compiler_entry_region_binding: Option<([u8; 32], u64)>,
     pub(super) compiler_entry_footprint_binding: Option<([u8; 32], u64)>,
     pub(super) selected_provider_closure_digest: [u8; 32],
@@ -57,22 +55,8 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
 
 pub(super) fn compiler_identity_evidence(
     output: &image::EmittedImageOutput,
-) -> (
-    Option<[u8; 32]>,
-    Option<([u8; 32], u64)>,
-    Option<([u8; 32], u64)>,
-    Option<([u8; 32], u64)>,
-) {
+) -> (Option<([u8; 32], u64)>, Option<([u8; 32], u64)>) {
     (
-        output
-            .compiler_text_validation
-            .map(|evidence| *evidence.derivation_digest.as_bytes()),
-        output.compiler_function_validation.map(|evidence| {
-            (
-                *evidence.evidence_digest().as_bytes(),
-                evidence.evidence_report_fingerprint(),
-            )
-        }),
         output
             .compiler_entry_region_binding
             .as_ref()
@@ -159,8 +143,6 @@ pub(super) fn derive_native_artifact_identity(
             .executable_region_inventory_report_fingerprint
             .to_le_bytes(),
     );
-    hash_optional_digest(&mut digest, fields.compiler_text_validation_digest);
-    hash_optional_digest_and_report(&mut digest, fields.compiler_function_validation);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
     digest.raw(&fields.selected_provider_closure_digest);

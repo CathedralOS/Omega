@@ -343,6 +343,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
                 kind: ExpressionKind::Call {
                     required_contract: None,
                     static_reach_binding: None,
+                    static_reach_arguments: Vec::new(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,
@@ -580,6 +581,7 @@ fn rigid_result_transport(
             callee: id::<MachineId>(2).into(),
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             arguments: vec![item(input_type)],
             designated: None,
         },
@@ -917,6 +919,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             kind: ExpressionKind::Call {
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 callee: id::<MachineId>(callee).into(),
                 arguments: Vec::new(),
                 designated: None,
@@ -1015,297 +1018,81 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
 }
 
 #[test]
-fn a_finite_family_keeps_the_runtime_conjunct_of_its_requirement() {
-    let program = r#"
-        machine entry<Element>(items: &[Element], limit: u64) -> u64
-        requires limit <= 10u64 && (Element == u32 || Element == bool)
-        ensures result <= 10u64
-        {
-            limit
-        }
-    "#;
-    for (program, accepts) in [
-        (program.to_owned(), true),
-        (program.replace("limit <= 10u64 && ", ""), false),
-    ] {
-        let source = super::boundary_calls::typed(&program);
-        let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
-            &source,
-            &[super::boundary_calls::entry(&source)],
-        )
-        .expect("the full requirement contains a complete finite family");
-        assert_eq!(forms.len(), 2);
-        for form in forms {
-            let verdict = judge(Ok(form)).unwrap();
-            if accepts {
-                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-            } else {
-                let RouteVerdict::Rejected { unproved, .. } = verdict else {
-                    panic!("the missing runtime bound must reject: {verdict:?}");
-                };
-                assert!(
-                    unproved.iter().any(|failure| matches!(
-                        failure.kind,
-                        ObligationKind::NormalGuarantee { .. }
-                    )),
-                    "{unproved:?}"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn lexical_siblings_keep_captured_types_and_callee_requirements() {
-    let program = r#"
-        machine entry<Kind>(limit: u32) -> u32
-        requires limit <= 10u32
-        ensures result <= 10u32
-        {
-            first(limit)
-            machine first(limit: u32) -> u32
-            requires limit <= 10u32
-            ensures result <= 10u32
-            {
-                second(limit)
-            }
-            machine second(limit: u32) -> u32
-            requires limit <= 10u32
-            ensures result <= 10u32
-            {
-                limit
-            }
-        }
-    "#;
-    for (program, accepts) in [
-        (program.to_owned(), true),
-        (
-            program.replace(
-                "machine second(limit: u32) -> u32\n            requires limit <= 10u32",
-                "machine second(limit: u32) -> u32\n            requires limit <= 9u32",
-            ),
-            false,
-        ),
-    ] {
-        let source = super::boundary_calls::typed(&program);
-        let form = typed_trees_to_terminal_psi::elaborate_generic(
-            &source,
-            super::boundary_calls::entry(&source),
-        )
-        .expect("the sibling's complete captured type tuple is available");
-        let verdict = judge(Ok(form)).unwrap();
-        if accepts {
-            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-        } else {
-            let RouteVerdict::Rejected { unproved, .. } = verdict else {
-                panic!("the stronger callee requirement must reject: {verdict:?}");
-            };
+fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
+    for count in [0, 3] {
+        let text = format!(
+            r#"
+            machine keep<T, const Count: u64>(value: &T) -> u64
+            requires Count > 0u64
+            ensures result == Count
+            {{ Count }}
+            machine entry<T>(value: &T) -> u64 {{ keep<T, {count}u64>(value) }}
+        "#
+        );
+        let form = parameter_form(&text);
+        let verdict = judge(Ok(form));
+        if count == 3 {
             assert!(
-                unproved
-                    .iter()
-                    .any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })),
-                "{unproved:?}"
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        } else {
+            assert!(
+                matches!(&verdict, Ok(RouteVerdict::Rejected {
+                    formations, violations, unproved, unestablished, conflicts, exceeded,
+                }) if formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty()
+                    && unproved.len() == 1
+                    && matches!(unproved[0].kind, ObligationKind::CallRequirement { clause: 0, .. })
+                    && unproved[0].statement.contains("cannot prove requires contract for call keep from entry")),
+                "the const requirement remains owed: {verdict:?}"
             );
         }
     }
 }
 
-/// Renaming and permuting binders across calls does not hide a complete
-/// classifier. Nominal applications retain every source type argument.
 #[test]
-fn a_forwarded_classifier_partitions_its_callers_exact_type_binder() {
-    let source = super::boundary_calls::typed(
-        r#"
-        data Choice [copy] { selected: bool; }
-        data Marker { value: u32; }
-        data Tag<T> { value: u32; }
-        machine classify<First, Second>() -> Choice {
-            transition {
-                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true }
-                Second == Marker -> Choice { selected: false }
-                Second == Tag<u32> -> Choice { selected: true }
-                Second == Tag<u64> -> Choice { selected: false }
-                _ -> Choice { selected: false }
-            }
-        }
-        machine relay<Left, Right>() -> Choice { classify<Right, Left>() }
-        machine entry<Unused, Item>() -> Choice { relay<Item, Unused>() }
-    "#,
-    );
-    let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
-        &source,
-        &[super::boundary_calls::entry(&source)],
-    )
-    .expect("the callee's source partition follows its exact forwarded binder");
-    assert_eq!(
-        forms.len(),
-        7,
-        "six distinct closed types and the opaque remainder"
-    );
-    for form in forms {
-        assert_eq!(form.applications.len(), 2);
-        let verdict = judge(Ok(form)).unwrap();
-        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-    }
-}
-
-#[test]
-fn a_forwarded_partition_does_not_invert_type_constructors_or_mix_binders() {
-    for (program, expected) in [
-        (
+fn generic_callback_applications_keep_the_selected_contract() {
+    for reference in ["&T", "&mut T"] {
+        let text = format!(
             r#"
-            data Wrapped<T> { value: u32; }
-            machine classify<Kind>() -> bool {
-                transition { Kind == u32 -> true _ -> false }
-            }
-            machine entry<T>() -> bool { classify<Wrapped<T>>() }
-            "#,
-            "static partition cannot invert a constructed type argument",
-        ),
-        (
-            r#"
-            machine classify<Left, Right>() -> bool {
-                transition { Left == u32 -> true Right == bool -> true _ -> false }
-            }
-            machine entry<T, U>() -> bool { classify<U, T>() }
-            "#,
-            "static partition over independent type binders",
-        ),
-    ] {
-        let source = super::boundary_calls::typed(program);
-        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
-            &source,
-            super::boundary_calls::entry(&source),
-        )
-        .unwrap_err();
-        assert_eq!(refused.reason, RefusalReason::Unsupported);
-        assert!(refused.detail.contains(expected), "{refused:?}");
-    }
-}
-
-#[test]
-fn a_forwarded_partition_refuses_another_calls_source_application() {
-    let mut source = super::boundary_calls::typed(
-        r#"
-        machine classify<Kind>() -> bool {
-            transition { Kind == u32 -> true _ -> false }
-        }
-        machine entry<T>() -> bool { classify<T>() }
-    "#,
-    );
-    let entry = super::boundary_calls::entry(&source);
-    let callee = source
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "classify")
-        .unwrap()
-        .symbol;
-    let application = source
-        .expression_table
-        .static_machine_applications()
-        .find(|(_, application)| {
-            source
-                .machine_by_symbol(application.lexical_owner)
-                .or_else(|| source.machine_holding_state(application.lexical_owner))
-                .is_some_and(|owner| owner.symbol == entry)
-        })
-        .expect("the ordinary call has a retained supplying owner")
-        .0;
-    source
-        .expression_table
-        .static_machine_application_mut(application)
-        .lexical_owner = callee;
-    let refused = typed_trees_to_terminal_psi::elaborate_alternatives(&source, entry).unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert!(
-        refused
-            .detail
-            .contains("type application has another source owner or declaration"),
-        "{refused:?}"
-    );
-}
-
-/// Discovery uses the same finite expansion boundary as actual body reading.
-/// A recursive permutation cannot enumerate every possible binder mapping.
-#[test]
-fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
-    for program in [
-        r#"
-        machine entry<T, U>() -> bool {
-            let next: bool = entry<U, T>();
-            next
-        }
-        "#,
-        r#"
-        machine relay<X, Y, Z>() -> bool {
-            let next: bool = entry<X, Y, Z>();
-            next
-        }
-        machine entry<T, U, V>() -> bool {
-            let next: bool = relay<U, V, T>();
-            next
-        }
-        "#,
-    ] {
-        let source = super::boundary_calls::typed(program);
-        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
-            &source,
-            super::boundary_calls::entry(&source),
-        )
-        .unwrap_err();
-        assert_eq!(refused.reason, RefusalReason::Unsupported);
-        assert!(
-            refused
-                .detail
-                .contains("recursive static partition forwarding changes its arguments"),
-            "{refused:?}"
-        );
-    }
-}
-
-/// A lexical helper uses the outer type and callback selections themselves.
-/// It still proves its own written guarantee, independently of its callers.
-#[test]
-fn nested_helpers_keep_mixed_inherited_static_parameters() {
-    for result in ["value", "8u32"] {
-        let source = super::boundary_calls::typed(&format!(
-            r#"
-            machine entry<T, machine Next>(value: u32) -> u32
-            requires machine Next() reaches none crashes none;
-            requires value == 7u32
-            ensures result == 7u32
-            {{
-                helper(value)
-                machine helper(value: u32) -> u32
-                requires value == 7u32
-                ensures result == 7u32
-                {{ Next(); {result} }}
-            }}
+            machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}
+            machine invoke<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64 {{ Step(value) }}
+            machine entry<T>(value: &T) -> u64 {{ invoke<T, measure<T>>(value) }}
         "#
-        ));
-        let form = typed_trees_to_terminal_psi::elaborate_generic(
-            &source,
-            super::boundary_calls::entry(&source),
-        )
-        .expect("a lexical helper retains the actual outer static parameters");
-        let root = source
-            .machine_by_symbol(super::boundary_calls::entry(&source))
-            .unwrap();
-        assert!(
-            source
-                .machine_type_parameters(root)
-                .iter()
-                .all(|parameter| form.generic_binders.contains(&parameter.symbol)),
-            "the unused type and callback keep their exact declaration identities"
         );
-        let verdict = judge(Ok(form)).unwrap();
-        if result == "value" {
-            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        let form = callback_form(&text);
+        if reference == "&T" {
+            let prepared = form.as_ref().expect("the callback call must lower");
+            assert!(
+                prepared.undeclared.is_empty(),
+                "the generic callback contract must be publishable: {:?}",
+                prepared
+                    .undeclared
+                    .iter()
+                    .map(|(id, reason)| (
+                        *id,
+                        prepared.names.get(*id).map(|names| names.machine.as_str()),
+                        *reason,
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
+        let verdict = judge(form);
+        if reference == "&T" {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
         } else {
             assert!(
-                matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
-                if unproved.iter().any(|row| guarantee(&row.kind))),
-                "{verdict:?}"
+                matches!(&verdict, Err(refusal)
+                    if refusal.reason == RefusalReason::ForeignIdentity
+                        && refusal.detail == "refinement structural formal has another carrier, access or identity"),
+                "a selected callable requiring exclusive access cannot satisfy a shared-input contract: {verdict:?}"
             );
         }
     }
@@ -1432,6 +1219,177 @@ fn an_open_record_call_requires_its_actual_source_owner() {
             .contains("type application has another source owner or declaration"),
         "{refusal:?}"
     );
+}
+
+fn callback_form(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let source = super::boundary_calls::typed(text);
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("the real preparation stage retains the callback application");
+    typed_trees_to_terminal_psi::elaborate_generic(&source, super::boundary_calls::entry(&source))
+}
+
+const CALLBACK_REACH: &str = r#"
+    boundary trait Output {}
+    machine measure<T>(value: &T) -> u64 { 41u64 }
+    machine invoke<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64 { Step(value) }
+    machine relay<T>(value: &T) -> u64 { invoke<T, measure<T>>(value) }
+    machine entry<T>(value: &T) -> u64 reaches none { relay<T>(value) }
+"#;
+
+#[test]
+fn a_static_callback_uses_its_published_reach_at_the_call() {
+    for reaches_output in [false, true] {
+        let text = if reaches_output {
+            CALLBACK_REACH.replace(
+                "machine measure<T>(value: &T) -> u64",
+                "machine measure<T>(value: &T) -> u64 reaches Output",
+            )
+        } else {
+            CALLBACK_REACH.to_owned()
+        };
+        let form = callback_form(&text).expect("the callback must lower");
+        assert!(form.undeclared.is_empty(), "{:?}", form.undeclared);
+        let verdict = judge(Ok(form)).unwrap();
+        if reaches_output {
+            assert!(
+                matches!(&verdict, RouteVerdict::Rejected { exceeded, .. }
+                if exceeded.iter().any(|row| row.axis == crate::ceilings::Axis::Reach)),
+                "a pure body cannot narrow its published Output promise: {verdict:?}"
+            );
+        } else {
+            let RouteVerdict::Accepted(accepted) = verdict else {
+                panic!("{verdict:?}")
+            };
+            assert!(matches!(
+                accepted.publish(),
+                Err(crate::PublicationError::GenericCheckForm(_))
+            ));
+        }
+    }
+}
+
+#[test]
+fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
+    let verdict = judge(callback_form(
+        r#"
+        machine entry<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64
+        reaches none { Step(value) }
+    "#,
+    ))
+    .unwrap();
+    let RouteVerdict::FallBack(refusal) = verdict else {
+        panic!("{verdict:?}")
+    };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported, "{refusal:?}");
+    assert!(
+        refusal
+            .detail
+            .contains("open abstract service reach cannot establish a finite caller ceiling"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn static_callback_dependencies_cannot_change_their_source_or_selection() {
+    for mutation in 0..6 {
+        let mut form = callback_form(CALLBACK_REACH).expect("the callback must lower");
+        match mutation {
+            0 => form.static_reach_applications[0].arguments[0].conformance = u32::MAX,
+            1 => {
+                form.static_reach_applications[0].arguments[0].selected =
+                    form.static_reach_applications[0].caller
+            }
+            2 => form
+                .static_reach_summaries
+                .iter_mut()
+                .find(|row| !row.term.parameters.is_empty())
+                .unwrap()
+                .term
+                .parameters
+                .clear(),
+            3 => {
+                form.generic_callable_declarations
+                    .iter_mut()
+                    .find(|row| !row.projections.is_empty())
+                    .unwrap()
+                    .projections[0]
+                    .parameter += 1
+            }
+            4 => form.generic_callable_declarations.clear(),
+            5 => form.generic_callable_declarations[0]
+                .envelope
+                .invocations
+                .push(terminal_psi::TerminalCallableInvocation::Parameter(99)),
+            _ => unreachable!(),
+        }
+        let refusal = judge(Ok(form)).unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            RefusalReason::ForeignIdentity,
+            "mutation {mutation}: {refusal:?}"
+        );
+    }
+}
+
+#[test]
+fn open_callback_reach_keeps_known_invocation_limits() {
+    let text = CALLBACK_REACH
+        .replace(
+            "boundary trait Output {}",
+            "boundary trait Output {} boundary trait Other {}",
+        )
+        .replace(
+            "machine measure<T>",
+            "machine fixed() reaches Output invokes Output {} machine measure<T>",
+        )
+        .replace("{ Step(value) }", "{ fixed(); Step(value) }")
+        .replace(
+            "reaches none { relay",
+            "reaches Output invokes Output { relay",
+        );
+    for permits_entry in [true, false] {
+        let source = if permits_entry {
+            text.clone()
+        } else {
+            text.replace(
+                "reaches Output invokes Output { relay",
+                "reaches Output invokes Other { relay",
+            )
+        };
+        let form = callback_form(&source).expect("the invocation contracts must lower");
+        if permits_entry {
+            let mut changed = form.clone();
+            changed
+                .generic_callable_declarations
+                .iter_mut()
+                .find(|row| !row.envelope.invocations.is_empty())
+                .unwrap()
+                .envelope
+                .invocations
+                .clear();
+            let refusal = judge(Ok(changed)).unwrap_err();
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert!(
+                refusal
+                    .detail
+                    .contains("generic checking header changes its published invocation row"),
+                "{refusal:?}"
+            );
+        }
+        let verdict = judge(Ok(form)).unwrap();
+        if permits_entry {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(&verdict, RouteVerdict::Rejected { exceeded, .. }
+                if exceeded.iter().any(|row| row.axis == crate::ceilings::Axis::Entries)),
+                "the fixed helper's published entry remains owed: {verdict:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -1633,4 +1591,304 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
     );
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_finite_family_keeps_the_runtime_conjunct_of_its_requirement() {
+    let program = r#"
+        machine entry<Element>(items: &[Element], limit: u64) -> u64
+        requires limit <= 10u64 && (Element == u32 || Element == bool)
+        ensures result <= 10u64
+        {
+            limit
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (program.replace("limit <= 10u64 && ", ""), false),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
+            &source,
+            &[super::boundary_calls::entry(&source)],
+        )
+        .expect("the full requirement contains a complete finite family");
+        assert_eq!(forms.len(), 2);
+        for form in forms {
+            let verdict = judge(Ok(form)).unwrap();
+            if accepts {
+                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+            } else {
+                let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                    panic!("the missing runtime bound must reject: {verdict:?}");
+                };
+                assert!(
+                    unproved.iter().any(|failure| matches!(
+                        failure.kind,
+                        ObligationKind::NormalGuarantee { .. }
+                    )),
+                    "{unproved:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn lexical_siblings_keep_captured_types_and_callee_requirements() {
+    let program = r#"
+        machine entry<Kind>(limit: u32) -> u32
+        requires limit <= 10u32
+        ensures result <= 10u32
+        {
+            first(limit)
+            machine first(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                second(limit)
+            }
+            machine second(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                limit
+            }
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (
+            program.replace(
+                "machine second(limit: u32) -> u32\n            requires limit <= 10u32",
+                "machine second(limit: u32) -> u32\n            requires limit <= 9u32",
+            ),
+            false,
+        ),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .expect("the sibling's complete captured type tuple is available");
+        let verdict = judge(Ok(form)).unwrap();
+        if accepts {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("the stronger callee requirement must reject: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })),
+                "{unproved:?}"
+            );
+        }
+    }
+}
+
+/// Renaming and permuting binders across calls does not hide a complete
+/// classifier. Nominal applications retain every source type argument.
+
+#[test]
+fn a_forwarded_classifier_partitions_its_callers_exact_type_binder() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Choice [copy] { selected: bool; }
+        data Marker { value: u32; }
+        data Tag<T> { value: u32; }
+        machine classify<First, Second>() -> Choice {
+            transition {
+                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true }
+                Second == Marker -> Choice { selected: false }
+                Second == Tag<u32> -> Choice { selected: true }
+                Second == Tag<u64> -> Choice { selected: false }
+                _ -> Choice { selected: false }
+            }
+        }
+        machine relay<Left, Right>() -> Choice { classify<Right, Left>() }
+        machine entry<Unused, Item>() -> Choice { relay<Item, Unused>() }
+    "#,
+    );
+    let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
+        &source,
+        &[super::boundary_calls::entry(&source)],
+    )
+    .expect("the callee's source partition follows its exact forwarded binder");
+    assert_eq!(
+        forms.len(),
+        7,
+        "six distinct closed types and the opaque remainder"
+    );
+    for form in forms {
+        assert_eq!(form.applications.len(), 2);
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_does_not_invert_type_constructors_or_mix_binders() {
+    for (program, expected) in [
+        (
+            r#"
+            data Wrapped<T> { value: u32; }
+            machine classify<Kind>() -> bool {
+                transition { Kind == u32 -> true _ -> false }
+            }
+            machine entry<T>() -> bool { classify<Wrapped<T>>() }
+            "#,
+            "static partition cannot invert a constructed type argument",
+        ),
+        (
+            r#"
+            machine classify<Left, Right>() -> bool {
+                transition { Left == u32 -> true Right == bool -> true _ -> false }
+            }
+            machine entry<T, U>() -> bool { classify<U, T>() }
+            "#,
+            "static partition over independent type binders",
+        ),
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(refused.detail.contains(expected), "{refused:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_refuses_another_calls_source_application() {
+    let mut source = super::boundary_calls::typed(
+        r#"
+        machine classify<Kind>() -> bool {
+            transition { Kind == u32 -> true _ -> false }
+        }
+        machine entry<T>() -> bool { classify<T>() }
+    "#,
+    );
+    let entry = super::boundary_calls::entry(&source);
+    let callee = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "classify")
+        .unwrap()
+        .symbol;
+    let application = source
+        .expression_table
+        .static_machine_applications()
+        .find(|(_, application)| {
+            source
+                .machine_by_symbol(application.lexical_owner)
+                .or_else(|| source.machine_holding_state(application.lexical_owner))
+                .is_some_and(|owner| owner.symbol == entry)
+        })
+        .expect("the ordinary call has a retained supplying owner")
+        .0;
+    source
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = callee;
+    let refused = typed_trees_to_terminal_psi::elaborate_alternatives(&source, entry).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert!(
+        refused
+            .detail
+            .contains("type application has another source owner or declaration"),
+        "{refused:?}"
+    );
+}
+
+/// Discovery uses the same finite expansion boundary as actual body reading.
+/// A recursive permutation cannot enumerate every possible binder mapping.
+
+#[test]
+fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
+    for program in [
+        r#"
+        machine entry<T, U>() -> bool {
+            let next: bool = entry<U, T>();
+            next
+        }
+        "#,
+        r#"
+        machine relay<X, Y, Z>() -> bool {
+            let next: bool = entry<X, Y, Z>();
+            next
+        }
+        machine entry<T, U, V>() -> bool {
+            let next: bool = relay<U, V, T>();
+            next
+        }
+        "#,
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(
+            refused
+                .detail
+                .contains("recursive static partition forwarding changes its arguments"),
+            "{refused:?}"
+        );
+    }
+}
+
+/// A lexical helper uses the outer type and callback selections themselves.
+/// It still proves its own written guarantee, independently of its callers.
+
+#[test]
+fn nested_helpers_keep_mixed_inherited_static_parameters() {
+    for result in ["value", "8u32"] {
+        let source = super::boundary_calls::typed(&format!(
+            r#"
+            machine entry<T, machine Next>(value: u32) -> u32
+            requires machine Next() reaches none crashes none;
+            requires value == 7u32
+            ensures result == 7u32
+            {{
+                helper(value)
+                machine helper(value: u32) -> u32
+                requires value == 7u32
+                ensures result == 7u32
+                {{ Next(); {result} }}
+            }}
+        "#
+        ));
+        let form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .expect("a lexical helper retains the actual outer static parameters");
+        let root = source
+            .machine_by_symbol(super::boundary_calls::entry(&source))
+            .unwrap();
+        assert!(
+            source
+                .machine_type_parameters(root)
+                .iter()
+                .all(|parameter| form.generic_binders.contains(&parameter.symbol)),
+            "the unused type and callback keep their exact declaration identities"
+        );
+        let verdict = judge(Ok(form)).unwrap();
+        if result == "value" {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| guarantee(&row.kind))),
+                "{verdict:?}"
+            );
+        }
+    }
 }

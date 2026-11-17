@@ -81,7 +81,7 @@ impl<'program> Program<'program> {
         false
     }
 
-    fn static_envelope(
+    pub(super) fn static_envelope(
         &self,
         context: MachineId,
         signature: &StateSignature,

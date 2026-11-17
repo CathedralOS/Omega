@@ -780,9 +780,34 @@ fn check_publication(
         native.physical_evidence().unwrap().children().len(),
         usize::from(through_boundary)
     );
+    assert!(
+        native.image().output().compiler_text_validation.is_none()
+            && native
+                .image()
+                .output()
+                .compiler_function_validation
+                .is_none(),
+        "ordinary emission does not replay the final image"
+    );
+    let receipt = native_artifact::PreparedExecutablePublication::new(&native)
+        .expect("fresh emission can be published without replay reports")
+        .into_receipt(std::path::PathBuf::from("published-program"))
+        .expect("publication keeps consistent installation inputs");
+    assert!(receipt.has_consistent_installation_identity());
     native
         .validate()
         .expect("independent receiver replays emitted code");
+    let mut changed = native.image().output().clone();
+    changed.final_text_bytes[0] ^= 1;
+    assert!(
+        image_emission::validate_direct_executable_image_output(
+            native.object(),
+            native.image(),
+            &changed,
+        )
+        .is_err(),
+        "absent replay reports do not exempt changed bytes from receiver replay"
+    );
     let identity = native.identity();
     let mut parts = native.into_parts();
     parts.physical_evidence = None;

@@ -297,6 +297,13 @@ pub struct Elaboration {
     /// frames, ordered strictly by machine identity. These are checking inputs,
     /// never named runtime publication or executable declaration authority.
     pub check_form_envelopes: Vec<terminal_psi::TerminalMachineEnvelope>,
+    /// Exact callback requirements and applications used to reconstruct each
+    /// generic body's reach. Open terms remain checking inputs, never runtime
+    /// callable envelopes or permission to publish an executable closure.
+    pub static_reach_parameters: Vec<terminal_psi::static_reach::StaticReachParameter>,
+    pub static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
+    pub static_reach_summaries: Vec<terminal_psi::static_reach::StaticReachSummary>,
+    pub generic_callable_declarations: Vec<crate::contracts::GenericCallableDeclaration>,
     /// Complete normalized questions formed before Terminal judgment. Their
     /// source coordinates are opaque association/diagnostic custody only.
     pub reach: crate::contracts::ServiceReach,

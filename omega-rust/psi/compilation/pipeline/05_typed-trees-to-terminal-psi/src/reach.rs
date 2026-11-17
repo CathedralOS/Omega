@@ -389,8 +389,9 @@ pub(crate) fn publish(
         // Lowering retained the authored bound and its applied service
         // identities. Publish those records for named machines and for
         // conformance entries built from requirement signatures.
-        let written = machine.declared_service_reach.clone();
-        ceilings.push(written);
+        // A bodyless requirement keeps its authored bound too. Retaining
+        // that contract creates neither an executable body nor an envelope.
+        ceilings.push(machine.declared_service_reach.clone());
     }
     let mut published = ceilings
         .iter()

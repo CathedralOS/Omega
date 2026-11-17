@@ -359,6 +359,7 @@ impl Program<'_> {
                 callee: crate::body::CallTarget::Boundary { boundary },
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments: vec![operand],
                 designated: None,
             },

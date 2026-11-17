@@ -378,224 +378,6 @@ impl Program<'_> {
     }
 }
 
-impl Program<'_> {
-    /// One complete Const tuple is checked in declaration order. Only scalar leaves
-    /// become checking actuals; record values keep their exact schema/supplier account.
-    pub(super) fn const_call_values(
-        &self,
-        id: MachineId,
-        target: SymbolHandle,
-        application: typed_trees::static_applications::StaticMachineApplicationHandle,
-        authored: &[typed_trees::expression::StaticMachineArgument],
-    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
-        let unavailable = |reason| super::services::unavailable(id, reason);
-        let typed = self.typed;
-        let machine = typed
-            .machine_by_symbol(target)
-            .ok_or_else(|| unavailable("Const application has no actual callee"))?;
-        let caller = *self
-            .symbols
-            .get(id)
-            .ok_or_else(|| unavailable("Const application has no source caller"))?;
-        let parameters = typed.machine_type_parameters(machine);
-        let source = if application.is_valid() {
-            if !typed
-                .expression_table
-                .static_machine_application_is_valid(application)
-            {
-                return Err(unavailable("Const application has a stale retained source"));
-            }
-            let source = typed
-                .expression_table
-                .static_machine_application(application);
-            if typed
-                .machine_by_own_or_state_symbol(source.lexical_owner)
-                .map(|machine| machine.symbol)
-                != Some(caller)
-                || typed
-                    .machine_by_own_or_state_symbol(source.registration_operation)
-                    .map(|machine| machine.symbol)
-                    != Some(target)
-                || !source.selected_machine_arguments.is_empty()
-                || !source.input_selections.is_empty()
-                || !source.lifetime_bindings.is_empty()
-                || source.conformance_selection.is_some()
-                || source.callable_contract_source.is_valid()
-            {
-                return Err(unavailable(
-                    "Const application changed its caller or target, or has another static feature",
-                ));
-            }
-            Some(source)
-        } else {
-            None
-        };
-        let arguments = source.map_or(&[][..], |_| {
-            typed
-                .expression_table
-                .static_machine_application_arguments(application)
-        });
-        let bindings = source.map_or(&[][..], |_| {
-            typed
-                .expression_table
-                .static_machine_application_bindings(application)
-        });
-        if !authored.is_empty() && authored != arguments {
-            return Err(unavailable(
-                "Const actuals differ from their retained source tuple",
-            ));
-        }
-        let inherited = bindings.is_empty()
-            && self.inherits_static_parameters(caller, target)
-            && match source {
-                // Named transitions have no separate static application. Their
-                // inherited binders are the same original caller inputs.
-                None => arguments.is_empty(),
-                Some(source) => {
-                    // Source preparation retains captured arguments before it
-                    // can prepare bindings. Each capture must still name this
-                    // exact original binder in its original position.
-                    source.binding_declaration == target
-                        && arguments.len() == parameters.len()
-                        && parameters
-                            .iter()
-                            .zip(arguments)
-                            .all(|(parameter, argument)| {
-                                argument.symbol == parameter.symbol
-                                    && argument.application.is_none()
-                                    && argument.evidence_projection.is_none()
-                                    && argument.const_literal.is_none()
-                                    && (!argument.type_reference.is_valid()
-                                        || typed
-                                            .static_operand_from_type_reference(
-                                                argument.type_reference,
-                                            )
-                                            .is_ok_and(|retained| {
-                                                retained.symbol == parameter.symbol
-                                                    && retained.application.is_none()
-                                                    && retained.evidence_projection.is_none()
-                                                    && retained.const_literal.is_none()
-                                            }))
-                                    && typed
-                                        .static_operand_region_supplier(
-                                            argument,
-                                            source.lexical_owner,
-                                        )
-                                        .is_ok()
-                            })
-                }
-            };
-        if !inherited
-            && (source.is_none_or(|source| source.binding_declaration != target)
-                || arguments.len() != parameters.len()
-                || bindings.len() != parameters.len())
-        {
-            return Err(unavailable(
-                "Const application has no complete exact binder tuple",
-            ));
-        }
-        if bindings.iter().enumerate().any(|(position, binding)| {
-            bindings[..position]
-                .iter()
-                .any(|other| other.parameter == binding.parameter)
-        }) {
-            return Err(unavailable("Const application repeats a retained binder"));
-        }
-        let mut values = Vec::new();
-        for parameter in parameters {
-            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
-            else {
-                if inherited {
-                    // These are the same captured type, machine or evidence
-                    // selections. They supply no hidden runtime operand.
-                    continue;
-                }
-                return Err(unavailable(
-                    "Const application changed its declared binder kind",
-                ));
-            };
-            let reference = if inherited {
-                None
-            } else {
-                let binding = bindings
-                    .iter()
-                    .find(|binding| binding.parameter == parameter.symbol)
-                    .ok_or_else(|| unavailable("Const parameter has no unique retained actual"))?;
-                let typed_trees::static_applications::StaticMachineBindingValue::Const(reference) =
-                    binding.value
-                else {
-                    return Err(unavailable(
-                        "Const parameter was supplied with another binding kind",
-                    ));
-                };
-                if !typed
-                    .type_reference_table
-                    .contains_type_reference(reference)
-                {
-                    return Err(unavailable("Const actual has a stale value reference"));
-                }
-                Some(reference)
-            };
-            if let Some(record) = self.record_parameter(parameter.symbol) {
-                if inherited {
-                    continue;
-                } // The exact same source value, already formed above.
-                let operand = typed
-                    .static_operand_from_type_reference(
-                        reference.ok_or_else(|| unavailable("record actual lost its reference"))?,
-                    )
-                    .map_err(unavailable)?;
-                let actual = if let Some(binding) = self.record_parameter(operand.symbol) {
-                    if !typed
-                        .declaration_type_parameters(caller)
-                        .iter()
-                        .any(|parameter| parameter.symbol == operand.symbol)
-                    {
-                        return Err(unavailable(
-                            "forwarded record is outside the caller's exact telescope",
-                        ));
-                    }
-                    binding.account.application.clone()
-                } else {
-                    let value = typed.conformance_by_symbol(operand.symbol).ok_or_else(|| {
-                        unavailable("record actual has no represented complete schema construction")
-                    })?;
-                    AppliedTraitScope::from_conformance(typed, value)
-                        .and_then(|scope| scope.portable_application_identity(typed))
-                        .and_then(|identity| typed.type_identity_text(identity))
-                        .ok_or_else(|| {
-                            unavailable("record actual lost its exact schema application")
-                        })?
-                };
-                if actual != record.account.application {
-                    return Err(unavailable(
-                        "record actual has another exact schema application",
-                    ));
-                }
-            } else {
-                let scalar_type = self.scalar_type(id, type_reference)?;
-                values.push(if let Some(reference) = reference {
-                    self.bound_scalar_value(id, scalar_type, reference, true)?
-                } else {
-                    let input = self
-                        .const_scope
-                        .iter()
-                        .find(|input| {
-                            input.symbol == parameter.symbol
-                                && input.owner == id
-                                && input.scalar_type == scalar_type
-                        })
-                        .ok_or_else(|| {
-                            unavailable("inherited scalar Const lost its exact caller input")
-                        })?;
-                    semantic_vocabulary::ScalarTerm::value(input.value, scalar_type)
-                });
-            }
-        }
-        Ok(values)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1039,16 +821,17 @@ mod tests {
             );
             let mut program = Program::new(&typed, true);
             let caller = program.machine(fixture.caller).unwrap();
-            let values = program.const_call_values(caller, fixture.nested, application, &arguments);
+            let values =
+                program.application_arguments(caller, fixture.nested, application, &arguments);
             if valid {
                 assert!(
-                    values.unwrap().is_empty(),
+                    values.unwrap().values.is_empty(),
                     "record captures are not scalar actuals"
                 );
             } else {
                 assert_eq!(
                     values.unwrap_err().detail,
-                    "Const application has no complete exact binder tuple"
+                    "generic application has no complete exact binder tuple"
                 );
             }
         }
@@ -1066,11 +849,11 @@ mod tests {
         let mut program = Program::new(&typed, true);
         let caller = program.machine(fixture.caller).unwrap();
         let refused = program
-            .const_call_values(caller, fixture.nested, application, &captured)
+            .application_arguments(caller, fixture.nested, application, &captured)
             .unwrap_err();
         assert_eq!(
             refused.detail,
-            "Const application changed its caller or target, or has another static feature"
+            "generic application changed its caller or target, or has another static feature"
         );
     }
 
@@ -1083,7 +866,9 @@ mod tests {
             let fixture = fixture_with_reach(authored_reach);
             let mut program = Program::new(&fixture.typed, true);
             let caller = program.machine(fixture.caller).unwrap();
-            let helper = program.static_application(fixture.nested).unwrap();
+            let helper = program
+                .application(caller, fixture.nested, Vec::new(), None)
+                .unwrap();
             let (position, signature) = program
                 .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)
                 .unwrap()
@@ -1105,6 +890,7 @@ mod tests {
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                     },
                     result: None,
                     source,
@@ -1194,19 +980,18 @@ mod tests {
                     .find(|machine| machine.id == requirement)
                     .unwrap();
                 assert!(machine.declaration.is_none());
-                let instance = prepared
-                    .program
-                    .static_schemas
-                    .iter()
-                    .flat_map(|schema| &schema.requirements)
-                    .filter_map(|requirement| requirement.instance.as_ref())
-                    .find(|instance| instance.machine == requirement)
-                    .unwrap();
-                assert_ne!(instance.header.proof.id.get(), requirement.get());
-                assert_eq!(instance.header.proof.id, machine.contract.id);
                 assert_eq!(
-                    machine.declared_service_reach.as_deref(),
-                    Some(entry.published_service_ceiling.as_slice())
+                    machine.declared_service_reach.as_ref(),
+                    Some(&entry.published_service_ceiling)
+                );
+                assert!(
+                    prepared
+                        .program
+                        .module
+                        .callables
+                        .machine_envelope(requirement)
+                        .is_none(),
+                    "retaining a source bound does not publish an executable requirement"
                 );
                 assert_eq!(
                     machine.published_service_ceiling,

@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Capture comparisons leave their time scope implicit
+- Category: A verdict with nothing behind it
+- Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
+- Saw: Captured paths record static `(BlockId, u32)` positions. `Backing::same_single_region` and `Backing::definitely_contains` compare those paths without receiving an entry version. Lifetime and whole-value consumption checks live elsewhere; a static position alone does not distinguish separate loop entries.
+- Cost: Reviewers must trace each caller to establish which execution the comparison covers. A loop that retires a binding and changes its index at the same capture point remains unverified; no accepted invalid program was observed. Make that time-scope premise explicit in the comparison API or establish one common caller rule.
+- Reported: 2026-11-17, Codex, while checking reference transport through nested-machine loops
+
 ### Typed conversion leaves operand formation as an implicit caller obligation
 - Category: A verdict with nothing behind it
 - Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
@@ -100,13 +107,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
-### Native emission and publication still require the final-image recheck
-- Category: Re-deriving
-- Where: [image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs), [native artifact identity](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/identity.rs), [publication](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/publication.rs), [settled rule](wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
-- Saw: Direct executable emission and dynamic ELF emission call `validate_terminal_image` on the bytes just produced. Publication requires validation evidence, and the native artifact identity incorporates validation digests.
-- Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
 
 ### A build-wide flag admits machine control for every output
 - Category: A verdict with nothing behind it

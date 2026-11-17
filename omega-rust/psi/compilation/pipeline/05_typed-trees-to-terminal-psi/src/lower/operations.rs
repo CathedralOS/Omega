@@ -446,6 +446,7 @@ impl Lowering<'_> {
                 callee,
                 required_contract,
                 static_reach_binding,
+                static_reach_arguments,
                 arguments,
                 designated,
             } => self.call(
@@ -454,7 +455,7 @@ impl Lowering<'_> {
                 arguments,
                 *designated,
                 expression.result,
-                (source, *static_reach_binding),
+                (source, *static_reach_binding, static_reach_arguments),
                 expression.call_context.unwrap_or_default(),
             ),
         }

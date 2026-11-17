@@ -320,6 +320,10 @@ impl AcceptedClosure {
             return Err(PublicationError::InstallationReachRefinement);
         }
         if !self.elaboration.requirements.is_empty()
+            || !self.elaboration.static_reach_parameters.is_empty()
+            || !self.elaboration.static_reach_applications.is_empty()
+            || !self.elaboration.static_reach_summaries.is_empty()
+            || !self.elaboration.generic_callable_declarations.is_empty()
             || !self.elaboration.check_form_envelopes.is_empty()
             || !self.elaboration.generic_binders.is_empty()
             || !self.elaboration.generic_storage.is_empty()
@@ -1017,6 +1021,7 @@ fn examine(
         ))));
     }
     crate::generic_storage::declared(&elaboration).map_err(fall_back_or_defect)?;
+    crate::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check

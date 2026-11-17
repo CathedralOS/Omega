@@ -885,6 +885,7 @@ fn witness_call(
             designated: None,
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
         },
         result: required.result,
         source,
@@ -1186,6 +1187,16 @@ fn finish_reading_into<'source>(
         }
     }
 
+    let mut checking_envelopes = IdTable::default();
+    for (id, envelope) in program.checking_envelopes.iter() {
+        checking_envelopes.push(
+            envelope
+                .as_ref()
+                .map(|row| row.publish(id, &services))
+                .transpose()?,
+        );
+    }
+
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(entry, &services, &mut elaboration)?;
@@ -1198,6 +1209,10 @@ fn finish_reading_into<'source>(
             Unserved::Declaration(reason),
         )
     };
+    elaboration.static_reach_parameters = std::mem::take(&mut program.static_reach_parameters);
+    elaboration
+        .static_reach_applications
+        .sort_unstable_by_key(|row| (row.caller, row.site));
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
     let prepared_applications = declare::declare(
@@ -1205,6 +1220,7 @@ fn finish_reading_into<'source>(
         &program,
         &outcomes,
         &binder_reach,
+        &checking_envelopes,
         &mut elaboration,
     )
     .map_err(declaration_error)?;
@@ -1656,6 +1672,7 @@ fn lower_program<'source>(
         }
     }
     let mut source = SourceFormCorrespondence::default();
+    let mut static_reach_applications = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -1698,6 +1715,7 @@ fn lower_program<'source>(
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
         source.calls.extend(lowered.source_calls);
+        static_reach_applications.extend(lowered.static_reach_applications);
         source.constructions.extend(lowered.source_constructions);
         source.folded_calls.extend(lowered.source_folded_calls);
     }
@@ -1860,6 +1878,10 @@ fn lower_program<'source>(
             provider_candidate_intents: Vec::new(),
             undeclared: Vec::new(),
             check_form_envelopes: Vec::new(),
+            static_reach_parameters: Vec::new(),
+            static_reach_applications,
+            static_reach_summaries: Vec::new(),
+            generic_callable_declarations: Vec::new(),
             reach: ServiceReach::default(),
             external_provider_candidates,
             static_schemas,

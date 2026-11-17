@@ -450,3 +450,73 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
 
 #[path = "../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
+
+// The unchanged fixture imports GNU libc's versioned abs through the GNU loader.
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[test]
+fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_report() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let root = fixture_package_inputs::repo_root().join(
+                "tests/fixtures/pass/build/native_row_outranks_scoped_implementations_exit/main.omg",
+            );
+            let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
+                .unwrap_or_else(|errors| panic!("dynamic fixture discovery: {errors:#?}"));
+            let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+                installation_assumptions: Vec::new(),
+                retain_native_inputs: false,
+                retain_native_stage_inputs: false,
+                image: Default::default(),
+                private_entry_ram: Vec::new(),
+                terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: Default::default(),
+            });
+            let mut prepared = fixture_package_inputs::review_fixture(
+                discovered,
+                &[target::TargetProfile::LinuxX64],
+                product,
+            )
+            .unwrap_or_else(|errors| panic!("dynamic fixture review: {errors:#?}"));
+            let output = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
+                .unwrap_or_else(|errors| panic!("dynamic fixture production: {errors:#?}"));
+            let report = orchestration::complete_product(output)
+                .and_then(compiler::CompilationOutput::into_report)
+                .expect("complete the original versioned libc import");
+            let artifact = report
+                .retained_dynamic_elf_artifact()
+                .expect("the selected abs import must produce a dynamic ELF artifact");
+            let output = artifact.image().output();
+            assert!(output.final_image_imports > 0);
+            assert!(output.compiler_text_validation.is_none());
+            assert!(output.compiler_function_validation.is_none());
+            artifact
+                .validate()
+                .expect("the receiver completely replays fresh dynamic bytes without a report");
+            let bytes = output.bytes.clone();
+            let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+                "dynamic-image-publication",
+                false,
+            )
+            .unwrap();
+            let published = products::publication::publish_compilation(report, directory.path())
+                .expect("ordinary dynamic publication requires no legacy replay report");
+            let path = published.checked_native_executable_path().unwrap();
+            assert_eq!(std::fs::read(path).unwrap(), bytes);
+            let execution = std::process::Command::new(path)
+                .stdin(std::process::Stdio::null())
+                .output()
+                .expect("run the original dynamically linked program");
+            assert_eq!(
+                execution.status.code(),
+                Some(0),
+                "stdout={:?}; stderr={:?}",
+                String::from_utf8_lossy(&execution.stdout),
+                String::from_utf8_lossy(&execution.stderr),
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
