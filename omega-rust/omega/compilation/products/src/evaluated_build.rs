@@ -120,13 +120,6 @@ impl BuildConfig {
         roots.dedup();
         roots
     }
-
-    pub fn root_grant_selectors(&self) -> Vec<String> {
-        self.grants
-            .iter()
-            .map(|grant| grant.selector.clone())
-            .collect()
-    }
 }
 
 #[derive(Clone)]
