@@ -409,13 +409,10 @@ pub enum StorageShape {
 
 impl StorageShape {
     /// A fixed array's length belongs to its type, not to stored contents.
-    /// Parameter extents still need their exact invocation input.
-    pub(crate) fn fixed_array_length(&self) -> Option<u64> {
+    /// Symbolic extents retain their owning invocation and exact input.
+    pub(crate) fn fixed_array_extent(&self) -> Option<terminal_psi::ArrayExtent> {
         match self {
-            Self::FixedArray {
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } => Some(*length),
+            Self::FixedArray { length, .. } => Some(*length),
             _ => None,
         }
     }

@@ -160,6 +160,7 @@ impl Program<'_> {
                 let source = value.source;
                 self.measured_collection(
                     id,
+                    slots,
                     value,
                     typed_trees::expression::CollectionMeasure::Length,
                     source,

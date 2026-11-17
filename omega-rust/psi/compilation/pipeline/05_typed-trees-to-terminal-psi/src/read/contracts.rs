@@ -1135,30 +1135,61 @@ impl Program<'_> {
                 )
                 .expect("u64 is valid");
                 let shape = &self.data_type(id, record)?.shape;
-                let length = if let Some(length) = shape.fixed_array_length() {
-                    // Taking a type's constant length must not erase the
-                    // obligation to establish a payload before selecting it.
-                    if path
-                        .iter()
-                        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
-                    {
-                        return unserved(
-                            "fixed array length through an unestablished case payload",
-                        );
-                    }
-                    ScalarTerm::Integer {
-                        scalar_type,
-                        value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
-                    }
-                } else if shape.length_operation().is_some() {
-                    ScalarTerm::ViewExtent {
-                        root,
-                        path,
-                        scalar_type,
-                    }
-                } else {
-                    return unserved("extent without its descriptor operation");
-                };
+                let length =
+                    if let Some(length) = shape.fixed_array_extent() {
+                        // Taking a type's constant length must not erase the
+                        // obligation to establish a payload before selecting it.
+                        if path.iter().any(|segment| {
+                            matches!(segment, CanonicalStructuralPathSegment::Case(_))
+                        }) {
+                            return unserved(
+                                "fixed array length through an unestablished case payload",
+                            );
+                        }
+                        match length {
+                            terminal_psi::ArrayExtent::Literal(length) => ScalarTerm::Integer {
+                                scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                            },
+                            terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                                let binding = self.extent_input(id, owner, value)?;
+                                let ScalarType::Integer(input_type) = binding.scalar_type else {
+                                    return unserved("fixed-array length input is not an integer");
+                                };
+                                let term = ScalarTerm::Value {
+                                    id: value,
+                                    scalar_type: binding.scalar_type,
+                                };
+                                if input_type == scalar_type {
+                                    term
+                                } else {
+                                    ScalarTerm::integer_widen(input_type, scalar_type, term)
+                                        .map_err(|_| {
+                                            refuse(
+                                                id,
+                                                Construct::Machine,
+                                                Unserved::Contract(
+                                                    "fixed-array length has no count conversion",
+                                                ),
+                                            )
+                                        })?
+                                }
+                            }
+                            terminal_psi::ArrayExtent::Application(_) => {
+                                return unserved(
+                                    "fixed-array length with an unresolved scalar application",
+                                );
+                            }
+                        }
+                    } else if shape.length_operation().is_some() {
+                        ScalarTerm::ViewExtent {
+                            root,
+                            path,
+                            scalar_type,
+                        }
+                    } else {
+                        return unserved("extent without its descriptor operation");
+                    };
                 Ok((length, ValueType::plain(ScalarType::Integer(scalar_type))))
             }
             // `self.value`, `self.from.x`: a field of the value a data

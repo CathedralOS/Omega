@@ -1,0 +1,13 @@
+// Expected exit: 0. A nominal array extent follows its declared constant.
+data Buffer<const Count: u64> { before: u64; bytes: [u8; Count]; after: u64; }
+machine width<const N: u64>(value: &Buffer<N>) -> u64 { value.bytes.len }
+machine main() crashes Trap {
+    let value: Buffer<4> = Buffer { before: 17u64, bytes: [1u8, 2u8, 3u8, 4u8], after: 91u64 };
+    let count: u64 = width<4>(&value);
+    transition count == 4u64 && value.before == 17u64 && value.after == 91u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

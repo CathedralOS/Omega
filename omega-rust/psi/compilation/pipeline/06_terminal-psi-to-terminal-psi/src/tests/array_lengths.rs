@@ -2,10 +2,9 @@
 //! program: a Build that holds a table asks how many rows it has.
 //!
 //! domains.md: "`[u8; N] in D` is the same exact `N`-byte fixed-array carrier
-//! as `[u8; N]`; its `.len` is `N`". The length is the extent the type
-//! states, so the reader gives the expression that number and lowers no
-//! operation for it. A guarantee over the result is then held to the number,
-//! whichever fields the array is reached through.
+//! as `[u8; N]`; its `.len` is `N`". Literal extents stay literal; symbolic
+//! extents use their own constant input. The body and its guarantees must
+//! describe that same value, whichever fields lead to the array.
 
 use super::build_purpose::judge_build;
 use super::*;
@@ -597,4 +596,15 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
         "Sink::take<4>(&buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
+}
+
+#[test]
+fn a_symbolic_array_length_uses_its_owned_extent_input() {
+    for carrier in ["u32", "u64"] {
+        let form = rigid_array_form(&format!(
+            "machine entry<const N: {carrier}>(items: &[u8; N]) -> u64 ensures result == (N as u64) {{ items.len }}"
+        ));
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
 }
