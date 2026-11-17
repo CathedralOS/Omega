@@ -67,6 +67,17 @@ compile just produced. That trades safety for compile time and maintenance: an
 independent validator can catch producer bugs in the same process, but each
 recheck costs time and needs a second implementation of the checked rules.
 
+For native output this rule includes the final executable image. The compiler
+resolves relocations and enforces encoding constraints during emission.
+Independent checks of the emitted bytes belong in focused backend regression
+tests. The [native emission rule](../wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
+also governs publication and artifact identity.
+
+Use `digest` for a hash of inputs or results and `receipt` for a record of an
+operation. Reserve `certificate` for data a checker can use to establish a
+specific claim independently of the producer. For example, the Psi checker
+checks a proof term against its expected type.
+
 Source checking, decoding and installation checks still run where they belong.
 A compile checks its
 [validation subjects](../wiki/spec/build/validation_subjects.md) in full and

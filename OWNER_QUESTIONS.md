@@ -64,51 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="final-artifact-validation-placement"></a>
-
-### 1. Does default compilation re-check the native image it just wrote?
-
-Decision name: `final-artifact-validation-placement`.
-
-**Customer.** Every `omega build` and `omega run` of a native program on the
-four hosted targets. Each one pays for a second pass over the image it just
-emitted, and the result is bound into the published artifact's identity.
-
-**Gap.** [Machine-state evidence](wiki/spec/build/machine_state_evidence.md#certificate-and-replay)
-says "Final-artifact validation is mandatory" and binds a certificate of the
-exact final bytes. [Verification placement](omega-rust/pipeline.md#verification-placement)
-says a compile "does not revalidate, replay or rebuild output the same compile
-just produced", and [optimizations](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
-repeats it, leaving such checks to tests and explicit
-[`--validator` requests](wiki/spec/build/command_line.md#independent-stage-validators).
-The code follows the first page: `validate_terminal_image` in
-`omega-rust/omega/compilation/backend/images/image-emission/src/image.rs` runs on
-every native build, decoding x86 and AArch64 address fields from the final
-bytes and checking import, relocation, region and literal-pool counts against
-the object plan. `native-artifact/src/publication.rs` and `identity.rs` then
-carry the resulting text and function validation digests into the published
-artifact. Neither page names the other as an exception.
-
-**Question.** Is final-artifact validation an exception to verification
-placement that every compile runs, or an independent validator that runs only
-in tests and under `--validator`? If it is optional, does the published
-artifact identity keep a validation digest at all when the validator did not
-run?
-
-**Recommendation.** Keep the final-image check in the default path and write it
-into verification placement as a named exception: the image is the trust
-boundary the machine-state certificate describes, and its digests already form
-part of the published identity. Moving it behind `--validator` would change
-artifact identity and the certificate contract, not only compile time. This is
-a recommendation, not a settled rule.
-
-**Until answered.** Leave `validate_terminal_image` and its digests in the
-default path. Do not extend the default final-image checks or add new default
-re-checks of other stage outputs on the strength of machine-state evidence.
-
 <a id="freestanding-machine-owner-authority"></a>
 
-### 2. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
+### 1. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
 
 **Context.** A program that uses machine-control assembly, such as `cli` or a
 control-register write, compiles only if the build grants machine-owner
@@ -152,7 +110,7 @@ assembly work can proceed.
 
 <a id="syscall-binding-calling-policy"></a>
 
-### 3. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
+### 2. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
 
 Decision name: `syscall-binding-calling-policy`.
 
@@ -207,7 +165,7 @@ policy and checks the locator against its entry control (a syscall needs
 `SupervisorCall`, an import `CallReturn`); that path is part of finishing calling
 policies under `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md).
 
-### 4. May a `module` declaration follow imports or other declarations in its file?
+### 3. May a `module` declaration follow imports or other declarations in its file?
 
 Decision name: `module-header-position`.
 
@@ -237,7 +195,7 @@ not check the position.
 
 <a id="test-runner-filesystem-slot"></a>
 
-### 5. How does the test runner identify std's `FilesystemService` slot?
+### 4. How does the test runner identify std's `FilesystemService` slot?
 
 Decision name: `test-runner-filesystem-slot`.
 

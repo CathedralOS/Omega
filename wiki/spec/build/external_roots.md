@@ -109,7 +109,8 @@ them. Root admission composes the artifact-wide stack/nesting relation, not only
 each body's demand. See [entry-stack composition](../resources/entry_stacks.md).
 Logical-work evidence distinguishes reconstructed Terminal entry/segment facts
 from admitted opaque-provider claims, and joins each to its actual installed
-occurrence. A segment claim is not a whole-entry certificate.
+occurrence. Establishing a bound for the whole entry requires accounting for
+every reachable segment.
 
 Reports retain ceilings, realized facts, and validation receipts without exposing
 private proof data or numeric entry addresses. Maximum logical work is not WCET;

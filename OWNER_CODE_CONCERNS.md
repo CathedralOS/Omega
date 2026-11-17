@@ -101,11 +101,11 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
-- Category: The documents disagree
-- Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
-- Saw: machine_state_evidence.md says "Final-artifact validation is mandatory". pipeline.md says a compile "does not revalidate, replay or rebuild output the same compile just produced", and optimizations.md repeats it. Every ordinary native build calls `validate_terminal_image`, which re-checks import and relocation counts, region inventories and literal-pool bytes, and decodes x86 and AArch64 address fields from the final bytes to compare them with the object plan, without any `--validator` flag.
-- Cost: Agents can cite one rule to delete this work and another to extend it, and every native build pays for it. Decide whether final-artifact validation is an exception to verification placement; then move the checks behind `--validator` or write the exception into pipeline.md and optimizations.md.
+### Native emission and publication still require the final-image recheck
+- Category: Re-deriving
+- Where: [image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs), [native artifact identity](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/identity.rs), [publication](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/publication.rs), [settled rule](wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
+- Saw: Direct executable emission and dynamic ELF emission call `validate_terminal_image` on the bytes just produced. Publication requires validation evidence, and the native artifact identity incorporates validation digests.
+- Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
 
 ### `Build.freestanding` is one untargeted mutable flag that two spec pages forbid and a third relies on

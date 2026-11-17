@@ -189,11 +189,6 @@ added by a binding kind. Missing or unrealizable plans
 reject. A wider compiler scratch slot cannot redefine a retained foreign scalar
 type; insufficient storage rejects.
 
-The plan is the published promise. The final artifact's
-[machine-state evidence](machine_state_evidence.md) establishes that a particular
-implementation honors it without becoming part of that promise.
-
-A passing plan evaluator does not imply a replayed final state footprint;
-[machine-state evidence](machine_state_evidence.md) requires that separately.
-Selected consumers retain the evaluated plan through realization rather than
-reselecting it.
+The plan is the published promise. Backend stages carry the evaluated plan
+through realization. Emitted code must honor its
+[machine-state limits](machine_state_evidence.md).
