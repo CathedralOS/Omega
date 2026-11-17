@@ -308,6 +308,16 @@ impl Program<'_> {
             for statement in &body.statements {
                 collect_statement(statement, &mut found);
             }
+            if !components.members(id)?.is_empty()
+                && found
+                    .iter()
+                    .any(|call| !call.static_reach_arguments.is_empty())
+            {
+                return Err(unavailable(
+                    id,
+                    "a static callback substitution on a recursive edge needs its retained call correspondence",
+                ));
+            }
             calls.push(found);
         }
         loop {
@@ -612,6 +622,7 @@ impl Program<'_> {
                 };
             }
         }
+        let mut checking_envelopes = IdTable::default();
         for (id, envelope) in published.iter() {
             if matches!(
                 envelope.termination,
@@ -642,6 +653,25 @@ impl Program<'_> {
             if complete.blocks {
                 signature.operational.blocking = Some(envelope.blocks);
             }
+            checking_envelopes.push(
+                (!complete.is_complete()
+                    && complete.invokes
+                    && complete.suspends
+                    && complete.blocks)
+                    .then(|| crate::static_contracts::StaticSourceEnvelope {
+                        service_reach: if complete.reach {
+                            crate::static_contracts::SourceServiceCeiling::Closed(
+                                envelope.service_reach.clone(),
+                            )
+                        } else {
+                            crate::static_contracts::SourceServiceCeiling::Open
+                        },
+                        invocations: envelope.invocations.clone(),
+                        suspends: envelope.suspends,
+                        blocks: envelope.blocks,
+                        termination: envelope.termination.clone(),
+                    }),
+            );
             if !complete.is_complete() {
                 continue;
             }
@@ -649,6 +679,7 @@ impl Program<'_> {
                 .bind_machine_envelope(id, envelope.clone())
                 .map_err(|reason| unavailable(id, reason))?;
         }
+        self.checking_envelopes = checking_envelopes;
         Ok(())
     }
 
@@ -747,6 +778,95 @@ impl Program<'_> {
             return Err(unavailable(id, "requirement policy was already retained"));
         }
         *saved = Some(policy);
+        Ok(())
+    }
+
+    pub(crate) fn retain_requirement_schema(&mut self, id: MachineId) -> Checked<()> {
+        use crate::static_contracts::{
+            SourceSchema, SourceSchemaRequirement, SourceServiceCeiling, StaticSourceEnvelope,
+        };
+        if !self.requirements.contains(&id) {
+            return Err(unavailable(
+                id,
+                "an abstract schema names no actual requirement",
+            ));
+        }
+        let policy = self
+            .declared_envelope_policies
+            .get(id)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source policy"))?;
+        let signature = self
+            .signatures
+            .get(id)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source header"))?;
+        let declaration = *self
+            .symbols
+            .get(id)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source declaration"))?;
+        let abstract_types = signature
+            .parameters
+            .iter()
+            .copied()
+            .chain(signature.result)
+            .filter_map(|value| match value {
+                crate::body::ValueType::Rigid(rigid) => Some(rigid.0),
+                _ => None,
+            })
+            .max()
+            .map_or(Some(0), |last| last.checked_add(1))
+            .ok_or_else(|| unavailable(id, "abstract requirement type namespace overflow"))?;
+        let source = SourceSchemaRequirement {
+            instance: Some(id),
+            declaration,
+            abstract_types,
+            signature: Some(signature.clone()),
+            envelope: StaticSourceEnvelope {
+                service_reach: match &policy.reach {
+                    Some(row) => SourceServiceCeiling::Closed(row.clone()),
+                    None => SourceServiceCeiling::Open,
+                },
+                invocations: policy.invokes.clone().ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its invocation bound")
+                })?,
+                suspends: policy.suspends.ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its suspension bound")
+                })?,
+                blocks: policy.blocks.ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its blocking bound")
+                })?,
+                termination: policy.termination.clone(),
+            },
+        };
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        match self
+            .static_contracts
+            .schemas
+            .binary_search_by_key(&key(declaration), |schema| key(schema.declaration))
+        {
+            Ok(position) => {
+                let schema = &mut self.static_contracts.schemas[position];
+                if schema
+                    .requirements
+                    .last()
+                    .is_some_and(|row| row.instance.is_some_and(|earlier| earlier >= id))
+                {
+                    return Err(unavailable(
+                        id,
+                        "abstract requirement schema was already retained",
+                    ));
+                }
+                schema.requirements.push(source);
+            }
+            Err(position) => self.static_contracts.schemas.insert(
+                position,
+                SourceSchema {
+                    declaration,
+                    requirements: vec![source],
+                    bindings: Vec::new(),
+                },
+            ),
+        }
         Ok(())
     }
 }
@@ -900,6 +1020,7 @@ struct Use<'a> {
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
+    static_reach_arguments: &'a [terminal_psi::static_reach::StaticReachArgument],
 }
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
@@ -955,6 +1076,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             callee,
             required_contract,
             arguments,
+            static_reach_arguments,
             ..
         } => {
             if let CallTarget::Selected { callable, .. } = callee {
@@ -967,6 +1089,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 target: callee,
                 required_contract: *required_contract,
                 arguments,
+                static_reach_arguments,
             });
         }
         E::Field { base, .. }
@@ -1022,7 +1145,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 collect_expression(end, calls);
             }
         }
-        E::Index { base, index } | E::ByteElement { base, index } => {
+        E::Index { base, index } | E::ByteElement { base, index, .. } => {
             collect_expression(base, calls);
             collect_expression(index, calls);
         }

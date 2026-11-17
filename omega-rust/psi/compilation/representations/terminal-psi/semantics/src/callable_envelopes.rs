@@ -14,6 +14,27 @@ fn validate_envelope(
     services: &[ServiceId],
     envelope: &TerminalCallableEnvelope,
     order: &[BoundaryParameterKind],
+    scalar_types: impl ExactSizeIterator<Item = ScalarType>,
+    structures: &[StructuralParameterDeclaration],
+) -> Result<(), &'static str> {
+    validate_bounds(
+        module,
+        services,
+        (
+            Some(&envelope.service_reach),
+            CallableOperationalView::from(envelope),
+        ),
+        order,
+        scalar_types,
+        structures,
+    )
+}
+
+fn validate_bounds(
+    module: &TerminalModule,
+    services: &[ServiceId],
+    (service_reach, envelope): (Option<&[ServiceId]>, CallableOperationalView<'_>),
+    order: &[BoundaryParameterKind],
     mut scalar_types: impl ExactSizeIterator<Item = ScalarType>,
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
@@ -30,25 +51,22 @@ fn validate_envelope(
     {
         return Err("callable envelope has no complete ordered formal namespace");
     }
-    if envelope
-        .service_reach
+    if service_reach.is_some_and(|row| {
+        row.windows(2).any(|pair| pair[0] >= pair[1])
+            || row
+                .iter()
+                .any(|service| services.binary_search(service).is_err())
+    }) || envelope
+        .invocations
         .windows(2)
         .any(|pair| pair[0] >= pair[1])
-        || envelope
-            .service_reach
-            .iter()
-            .any(|service| services.binary_search(service).is_err())
-        || envelope
-            .invocations
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
     {
         return Err("callable envelope has a repeated, unordered or unknown authority");
     }
     // Invocation positions are ordered, so consume each formal once. Read its
     // actual scalar type instead of manufacturing declaration/value identities.
     let mut next_parameter = 0;
-    for invocation in &envelope.invocations {
+    for invocation in envelope.invocations {
         match invocation {
             TerminalCallableInvocation::Service(service)
                 if services.binary_search(service).is_err() =>
@@ -82,7 +100,7 @@ fn validate_envelope(
             TerminalCallableInvocation::Service(_) => {}
         }
     }
-    if let TerminalCallableTermination::Terminates { premises } = &envelope.termination {
+    if let TerminalCallableTermination::Terminates { premises } = envelope.termination {
         for (ordinal, premise) in premises.iter().enumerate() {
             if premises[..ordinal].contains(premise) {
                 return Err("callable termination ceiling repeats a premise");
@@ -264,6 +282,25 @@ pub fn validate_callable_envelope(
     scalars: &[ValueDeclaration],
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
+    validate_callable_bounds(
+        module,
+        Some(&envelope.service_reach),
+        CallableOperationalView::from(envelope),
+        order,
+        scalars,
+        structures,
+    )
+}
+
+/// Validate declared bounds without closing an explicitly open service ceiling.
+pub fn validate_callable_bounds(
+    module: &TerminalModule,
+    service_reach: Option<&[ServiceId]>,
+    envelope: CallableOperationalView<'_>,
+    order: &[BoundaryParameterKind],
+    scalars: &[ValueDeclaration],
+    structures: &[StructuralParameterDeclaration],
+) -> Result<(), &'static str> {
     let mut services = module
         .services
         .iter()
@@ -271,10 +308,10 @@ pub fn validate_callable_envelope(
         .collect::<Vec<_>>();
     services.sort_unstable();
     services.dedup();
-    validate_envelope(
+    validate_bounds(
         module,
         &services,
-        envelope,
+        (service_reach, envelope),
         order,
         scalars.iter().map(|formal| formal.scalar_type),
         structures,

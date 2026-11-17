@@ -2452,6 +2452,17 @@ pub fn visit_static_argument(
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
+    if program
+        .expression_table
+        .static_machine_application_is_valid(argument.authored_machine_application)
+    {
+        let prepared = program.static_machine_application(argument.authored_machine_application);
+        retained.static_application(
+            argument.authored_machine_application,
+            prepared.lexical_owner,
+        );
+        visit_symbol(retained, prepared.binding_declaration);
+    }
     if let Some(application) = &argument.application {
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);

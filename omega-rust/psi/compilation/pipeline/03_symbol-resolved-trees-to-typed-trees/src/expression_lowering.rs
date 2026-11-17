@@ -3684,6 +3684,7 @@ pub(crate) mod expression {
             typed::types::TypeReferenceHandle::invalid()
         };
         let mut selected = typed::expression::StaticMachineArgument {
+            authored_machine_application: Default::default(),
             authored_selection,
             type_reference,
             path: argument
