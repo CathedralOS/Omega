@@ -1,103 +1,103 @@
 {
   "source_revision": "3f9ce43f0c9d179048911d18faa91ba93f60176d",
-  "content_revision": "08beaed263b5f379e2072acd2024de99c69214e3",
+  "content_revision": "f36234695b146e7fca19f47f75e8e63996786a66",
   "pages": [
     {
       "page": "index.html",
       "source": "artifacts/home.html",
       "diagrams": 0,
-      "sha256": "822dac71dc0e596bca762d5e0c1bb86208185e3e74a7fbbee8a2eb766c6b2d01"
+      "sha256": "d0974cdaad741f4851e28ba7531906b0d53afb0d9730c064d3dca73343e8c00c"
     },
     {
       "page": "pages/repository.html",
       "source": "subsystems/repository.md",
       "diagrams": 1,
-      "sha256": "76f78e3f96c405d37a3ebe38da12784f7f9574099326a8f7f405857caacbb5fe"
+      "sha256": "1c7bd9ba5ad51e32fdfc0bb18e061bcf51820e489b90e7e62fbd57f6c5fc10b6"
     },
     {
       "page": "pages/psi.html",
       "source": "subsystems/psi.md",
       "diagrams": 3,
-      "sha256": "6afb371120378a695291ea2154c706811ff8485c068c60e98c5772788519970e"
+      "sha256": "ec33b128ca7b0274d4f709f3e9ce248d41c5c437b38b23a5977d8ca06d7d424f"
     },
     {
       "page": "pages/omega.html",
       "source": "subsystems/omega.md",
       "diagrams": 3,
-      "sha256": "eff586d305d3672911c32c73c67600c48791cfd809179b4dd4fa2035491bf429"
+      "sha256": "121ad5a382c4ca7b9df0bc0a614f3e5cc92609610508228dbdc96b305697db08"
     },
     {
       "page": "pages/build-and-packages.html",
       "source": "subsystems/build-and-packages.md",
       "diagrams": 3,
-      "sha256": "d2a185ee39348e62f27084dbf3c9dbe7e77a8c422d0c4b6d79eb7026321e54fc"
+      "sha256": "32a3856aea7f3c846537c4a904d8a26fbaf62440db64ff05b848f77e41002168"
     },
     {
       "page": "pages/cli.html",
       "source": "subsystems/cli.md",
       "diagrams": 1,
-      "sha256": "13d6a48e970378eba127ae220218ef1d3a0d7a58acfc6a2322b571855a9ed8bf"
+      "sha256": "d449ba4e3955eb8651f2b5aad6b75fba609e750918ed3768b2910ab81f2df6fa"
     },
     {
       "page": "pages/interpreter.html",
       "source": "subsystems/interpreter.md",
       "diagrams": 3,
-      "sha256": "fc7ce79c906d0394ff7e5df8ac84148184743162cff6849e87a682f75def8c85"
+      "sha256": "2298c51350b70c3420a9cb0ac1be22c56240d01291f0386e3034fbe6f8853337"
     },
     {
       "page": "pages/bootstrap.html",
       "source": "subsystems/bootstrap.md",
       "diagrams": 1,
-      "sha256": "d19e01ae65fd75011ce259ba2f14510dc0a269d7cef9f4e71694e0287cbaa20a"
+      "sha256": "923a8d134e51a21d1c1c325cc53268218e10c77c58b8808197164b7e7234907c"
     },
     {
       "page": "pages/tools.html",
       "source": "subsystems/tools.md",
       "diagrams": 1,
-      "sha256": "d5d0de7879cb20f4da1a150e067e62c6af2c5afa0824f380c8f3cd1dec312883"
+      "sha256": "fc6c4ff38e95bda0fef804637baa8b40200597704b5ebf427f0db9d58d3e9796"
     },
     {
       "page": "pages/library.html",
       "source": "subsystems/library.md",
       "diagrams": 1,
-      "sha256": "6e133735b36450a639a13bae5979895cdb7b1a32ef1d8252c5592b7bedd6ed3c"
+      "sha256": "191ec356929518afe4df929e5f291fb2728fa86a244144b40c4521fb3f16f071"
     },
     {
       "page": "pages/pipeline-map.html",
       "source": "artifacts/pipeline-map/original.html",
       "diagrams": 4,
-      "sha256": "4d6b1611488e7bda365a8f5060a5ad779cb32222b004fe22be44f9e905d71fea",
+      "sha256": "38b82a8632df3df8f68c222c7350a4507c43c547ff2522ff1e41f4134ed8b989",
       "historical_revision": "4dcadfb359b143f87df4cda6d2b0c5b55203e7ef"
     },
     {
       "page": "pages/pipeline-current.html",
       "source": "artifacts/pipeline-map/map.md",
       "diagrams": 4,
-      "sha256": "bb74eb67f8acf004d661b48e4d60776a95dac9057eb9ae70546e1a646f24838b"
+      "sha256": "35b36c169861176cdc4057964c3e9bc17b8f1bf06660c9a4df955c23ad561366"
     },
     {
       "page": "pages/architecture.html",
       "source": "artifacts/architecture.md",
       "diagrams": 2,
-      "sha256": "cff32ea092dd8e7e6986d9937e72f7647302e04388f8277b9de0a46611154e98"
+      "sha256": "9aadc43553036862c574d808094be216c08ea641b78ee4487afdb61ad8a40522"
     },
     {
       "page": "pages/foundation-backend-plan.html",
       "source": "plans/foundation-and-backend.md",
       "diagrams": 3,
-      "sha256": "2d6980749c8385fe8063b5831ac52e0bc139d999d174dbc029f7cfca88c03456"
+      "sha256": "f671b038f34ee0be7e836ea198eea8e633843d40d00e97de21701dd83d8ee6b7"
     },
     {
       "page": "pages/questions.html",
       "source": "questions.md",
       "diagrams": 0,
-      "sha256": "7da82e25397248e36108b21e1c3f8c55e9312baf7bd84548ffe78f999981771c"
+      "sha256": "4576408fb1cb69f74f28c00fbb33493047563079b2e4da2818e6d4d761d26115"
     },
     {
       "page": "pages/rulings.html",
       "source": "rulings.md",
       "diagrams": 0,
-      "sha256": "9fc72c3543a0c877026e1397cd5687e595a4cad97627cfb5a32e3df2a99da9ba"
+      "sha256": "82cb5cfbcb95f4226c56a7a9e1c9612db303ce076f2d30568af550f799b9400f"
     }
   ],
   "evidence_manifest_sha256": "37803d100da8629c6ba4a441f440a6971e000c958ba5f64246d79958ddcb356d",

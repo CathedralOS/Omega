@@ -95,6 +95,7 @@ def main():
                 page.locator('[data-camera="expand"]').click()
                 assert viewport.evaluate('v=>v.getBoundingClientRect().bottom<=window.innerHeight+1')
                 page.locator('[data-camera="expand"]').click()
+                assert source.locator('.stage-title').evaluate('label => getComputedStyle(label).fill')=='rgb(236, 232, 223)'
                 source.scroll_into_view_if_needed()
                 box=source.bounding_box()
                 x,y=box['x']+box['width']/2,box['y']+box['height']/2

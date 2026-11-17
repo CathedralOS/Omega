@@ -306,9 +306,7 @@ def render_scene(model):
     parts = [f'<g class="connected-scene{" proposed-scene" if model.get("view")=="proposed" else ""}">']
     proposed=model.get('view')=='proposed'
     for g in model['groups']:
-        parts.append(f'<g class="connected-group" data-group="{g["id"]}"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}" rx="6"/>')
-        if not proposed:
-            parts.append(f'<rect class="phase-band" x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="33" rx="4"/>')
+        parts.append(f'<g class="connected-group" data-group="{g["id"]}"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/>')
         for i,line in enumerate(g['caption']['lines']):
             parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]+5}" y="{g["caption"]["y"]+i*26}">{esc(line)}</text>')
         parts.append('</g>')
@@ -335,18 +333,11 @@ def render_scene(model):
         href=f'{n["page"]}.html#{n["anchor"]}' if model.get('view')=='proposed' else f'#layer-{n["group"]}'
         parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-role="{n["role"]}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
         if not proposed:
-            radius=h/2 if n['role']=='artifact' else 4
-            parts.append(f'<rect class="node-body" x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}"/>')
+            parts.append(f'<rect class="node-body" x="{x}" y="{y}" width="{w}" height="{h}"/>')
             title={'apply-frame':'Apply frames · rewrite','image-build':'Form image · late code','optimized-abstract':'Optimized abstract ops','installations':'Measure handler objects','native-run':'Run native executable','build':'Build · packages · library'}.get(n['id'],n['title'])
             if n['role']=='transform':
                 title=title[:1].upper()+title[1:]
-            number,_,action=title.partition(' ')
-            if n['role']=='transform' and number.isdecimal():
-                parts.append(f'<rect class="step-tab" x="{x+3}" y="{y+3}" width="29" height="{h-6}" rx="2"/>')
-                parts.append(f'<text class="step-number" x="{x+17.5}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{number}</text>')
-                parts.append(f'<text class="current-title" x="{x+40}" y="{y+h/2}" dominant-baseline="central">{esc(action.capitalize())}</text>')
-            else:
-                parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
+            parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')

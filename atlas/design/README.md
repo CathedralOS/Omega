@@ -3,7 +3,7 @@
 Any model can make an atlas page with this kit, whether that is GPT, Codex or
 Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
-inline SVG, and opens in any browser. The architecture overview places source compilation, evaluation and selection, native lowering, and publication on a connected canvas. Stage families use their Atlas colors. Dashed teal paths show supporting work, while orange paths mark audited detours and late code generation. Trace follows a detour to its endpoints and source. Selecting a component shows its immediate neighbors. D3 Zoom moves the diagram in the browser.
+inline SVG, and opens in any browser. The architecture overview places source compilation, evaluation and selection, native lowering, and publication on a connected canvas. The canvas uses the original map’s Ink palette and Omega Serif. Outlines mark portable forms, ivory fills mark native forms, and teal marks the checker. Dotted gray paths show supporting work, while dashed coral paths mark audited detours and late code generation. Trace follows a detour to its endpoints and source. Selecting a component shows its immediate neighbors. D3 Zoom moves the diagram in the browser.
 
 Current and Proposed share a canvas and remember their own camera positions. The proposed stages 00–10 cite their recorded plan and expose open contracts. Their forward chain carries requests and facts through successive representations.
 The current-source and proposed-plan labels remain distinct. The
