@@ -1265,8 +1265,14 @@ fn scalar_specialization_keeps_the_carrier_refusal_and_open_parameter() {
         ..
     } = source();
     let sized = program.symbols.get(sized_state).parent;
-    let parameter =
-        program.machine_callable_parameters(program.machine_by_symbol(sized).unwrap())[0].symbol;
+    let parameters = program.machine_callable_parameters(program.machine_by_symbol(sized).unwrap());
+    let parameter = &parameters[0];
+    let TypeParameterKind::Const {
+        type_reference: parameter_carrier,
+    } = &parameter.kind
+    else {
+        panic!("one const value binder");
+    };
     let carrier = named(&mut program, byte, "u8");
     let negative = StaticMachineArgument {
         const_literal: Some(numerics::literals::IntegerLiteral::from_value(-1)),
@@ -1277,8 +1283,8 @@ fn scalar_specialization_keeps_the_carrier_refusal_and_open_parameter() {
         Err(super::Stop::Unserved(reason)) if reason == "a static integer is outside its declared carrier"
     ));
     assert!(matches!(
-        super::closed_scalar(&program, carrier, &argument(parameter, "N")),
-        Ok(super::Scalar::Parameter(symbol)) if symbol == parameter
+        super::closed_scalar(&program, *parameter_carrier, &argument(parameter.symbol, "N")),
+        Ok(super::Scalar::Parameter(symbol)) if symbol == parameter.symbol
     ));
 }
 
