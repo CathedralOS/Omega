@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use isa_aarch64::aarch64_preservation_convention_for_target;
 use isa_x86_64::x86_64_preservation_convention_for_target;
+use machine_code::OptimizedMachineLayout;
 #[cfg(test)]
 use machine_code::SelectedFormDecodedFootprint;
 use machine_code::{
@@ -26,9 +27,6 @@ use post_allocation_machine::{PhysicalOperandFootprint, PostAllocationMachineIns
 use register_model::{
     PreservationConvention, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
     ValidatedPhysicalRegisterModel,
-};
-use resolved_layout_to_resolved_layout::{
-    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization,
 };
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -60,7 +58,6 @@ impl StagedWholeFunctionExitContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
-    Relaxation(OptimizedX86BranchRelaxationError),
     OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,
@@ -128,23 +125,23 @@ struct ValidationContext {
 }
 
 pub(crate) fn stage_whole_function_exit_contract_for_layout(
-    layout: &ResolvedLayoutOptimization,
+    layout: &OptimizedMachineLayout,
 ) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let contract = compute_inner(layout.program(), layout_custody(layout))?;
+    let contract = compute_inner(&layout.program, layout_custody(layout))?;
     Ok(StagedWholeFunctionExitContract {
         contract: Arc::new(contract),
     })
 }
 
 pub(crate) fn validate_exit_record_for_current_layout(
-    layout: &ResolvedLayoutOptimization,
+    layout: &OptimizedMachineLayout,
     frame: Option<(
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
-    let program = layout.program();
+    let program = &layout.program;
     let custody = layout_custody(layout);
     validate_layout_custody(&program.encoding, &program.layout, custody)?;
     let inputs = ValidationInputs {
@@ -161,10 +158,10 @@ pub(crate) fn validate_exit_record_for_current_layout(
     require_artifact(contract.identity() == contract.contract().recomputed_identity())
 }
 
-fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {
-    if let Some(relaxation) = layout.relaxation() {
+fn layout_custody(layout: &OptimizedMachineLayout) -> WholeFunctionExitLayoutCustody {
+    if let Some(relaxation) = layout.relaxation {
         WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-            relaxation: relaxation.identity(),
+            relaxation: relaxation.identity,
         }
     } else {
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1

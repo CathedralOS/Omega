@@ -28,6 +28,7 @@ mod preparation;
 mod realization;
 mod request;
 mod scalar_completion;
+mod stage_audit;
 
 #[cfg(test)]
 mod physical_publication_tests;

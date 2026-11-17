@@ -27,6 +27,8 @@ boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 image-emission = { path = "../backend/images/image-emission" }
 machine-code = { path = "../representations/machine-code" }
+post-allocation-machine = { path = "../representations/post-allocation-machine" }
+register-homes = { path = "../representations/register-homes" }
 machine-emission = { path = "../backend/machine-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
