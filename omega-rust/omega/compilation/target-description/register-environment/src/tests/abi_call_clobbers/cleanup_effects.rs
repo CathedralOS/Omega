@@ -58,22 +58,22 @@ fn temporary_stack_shape(
         return None;
     }
     match key {
-        isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY
-        | isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_UNARY => Some((
+        target_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY
+        | target_x86_64::X86_64_IEEE_FLOAT_DIRECTED_UNARY => Some((
             16,
             MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
                 stack_pointer,
                 byte_count: 16,
             },
         )),
-        isa_x86_64::X86_64_FLAGS_SNAPSHOT | isa_x86_64::X86_64_FLAGS_RESTORE => Some((
+        target_x86_64::X86_64_FLAGS_SNAPSHOT | target_x86_64::X86_64_FLAGS_RESTORE => Some((
             8,
             MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
                 stack_pointer,
                 byte_count: 8,
             },
         )),
-        isa_x86_64::X86_64_TASK_REGISTER_ACTIVATE => Some((
+        target_x86_64::X86_64_TASK_REGISTER_ACTIVATE => Some((
             8,
             MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
                 table_pointer_operand: 0,
@@ -84,7 +84,7 @@ fn temporary_stack_shape(
                 stack_pointer,
             },
         )),
-        isa_x86_64::X86_64_CODE_SEGMENT_RELOAD => Some((
+        target_x86_64::X86_64_CODE_SEGMENT_RELOAD => Some((
             16,
             MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
                 table_pointer_operand: 0,
@@ -94,7 +94,7 @@ fn temporary_stack_shape(
                 stack_pointer,
             },
         )),
-        isa_x86_64::X86_64_DATA_SEGMENT_RELOAD => Some((
+        target_x86_64::X86_64_DATA_SEGMENT_RELOAD => Some((
             8,
             MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
                 table_pointer_operand: 0,
@@ -104,7 +104,7 @@ fn temporary_stack_shape(
                 stack_pointer,
             },
         )),
-        isa_x86_64::X86_64_INSTALLED_INTERRUPT_CPU_CHECK => Some((
+        target_x86_64::X86_64_INSTALLED_INTERRUPT_CPU_CHECK => Some((
             8,
             MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
                 table_pointer_operand: 0,
@@ -113,7 +113,7 @@ fn temporary_stack_shape(
                 stack_pointer,
             },
         )),
-        isa_x86_64::X86_64_INSTALLED_INTERRUPT_TASK_COMMIT => Some((
+        target_x86_64::X86_64_INSTALLED_INTERRUPT_TASK_COMMIT => Some((
             8,
             MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
                 table_pointer_operand: 0,

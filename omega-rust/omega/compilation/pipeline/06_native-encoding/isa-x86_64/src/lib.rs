@@ -159,8 +159,8 @@ mod import_thunk {
 }
 mod machine_effects;
 mod post_handoff_writer;
-mod preservation_storage;
-mod register_model;
+
+use target_x86_64::register_model;
 pub use register_model::X86_64_COPY_BYTES;
 pub use register_model::X86_64_DIVIDE_I64;
 pub use register_model::X86_64_DIVIDE_U64;
@@ -243,7 +243,7 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
-pub use preservation_storage::x86_64_preservation_storage_catalog;
+pub use target_x86_64::x86_64_preservation_storage_catalog;
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
 pub use register_model::x86_64_microsoft_register_call_keys;
@@ -333,7 +333,6 @@ pub use register_model::{X86_64_ACCESSOR_READ, X86_64_ACCESSOR_WRITE};
 pub use selected_form_encoding::{
     encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
 };
-
 
 pub use selected_form_encoding::register_access::installed_table::{
     X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,

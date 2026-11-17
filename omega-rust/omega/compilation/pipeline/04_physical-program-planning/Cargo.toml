@@ -35,8 +35,8 @@ register-model = { path = "../../target-description/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
-isa-x86_64 = { path = "../06_native-encoding/isa-x86_64" }
-isa-aarch64 = { path = "../06_native-encoding/isa-aarch64" }
+target-x86_64 = { path = "../../target-description/target-x86_64" }
+target-aarch64 = { path = "../../target-description/target-aarch64" }
 calling-conventions = { path = "../../target-description/calling-conventions" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

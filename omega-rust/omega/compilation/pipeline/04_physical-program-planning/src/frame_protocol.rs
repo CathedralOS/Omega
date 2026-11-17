@@ -27,8 +27,8 @@ pub struct PlannedFrameFunction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameRecipe {
-    X86(isa_x86_64::X86_64FrameProtocolPlan),
-    Aarch64(isa_aarch64::Aarch64FrameProtocolPlan),
+    X86(target_x86_64::X86_64FrameProtocolPlan),
+    Aarch64(target_aarch64::Aarch64FrameProtocolPlan),
 }
 
 impl PlannedTargetFrameProtocols {
@@ -76,17 +76,17 @@ pub(crate) fn plan_target_frame_protocols(
                     .restores
                     .iter()
                     .rev()
-                    .map(|restore| isa_x86_64::X86_64FrameSlot {
+                    .map(|restore| target_x86_64::X86_64FrameSlot {
                         view: restore.view,
                         offset_bytes: restore.frame_offset_bytes,
                         size_bytes: restore.size_bytes,
                     })
                     .collect::<Vec<_>>();
                 FrameRecipe::X86(
-                    isa_x86_64::plan_system_v_amd64_frame_protocol(
+                    target_x86_64::plan_system_v_amd64_frame_protocol(
                         environment.physical(),
                         committed_bytes,
-                        isa_x86_64::X86_64StackProbe {
+                        target_x86_64::X86_64StackProbe {
                             interval_bytes: function.stack_probe.interval_bytes,
                             touches: function.stack_probe.touches,
                         },
@@ -101,17 +101,17 @@ pub(crate) fn plan_target_frame_protocols(
                     .restores
                     .iter()
                     .rev()
-                    .map(|restore| isa_aarch64::Aarch64FrameSlot {
+                    .map(|restore| target_aarch64::Aarch64FrameSlot {
                         view: restore.view,
                         offset_bytes: restore.frame_offset_bytes,
                         size_bytes: restore.size_bytes,
                     })
                     .collect::<Vec<_>>();
                 FrameRecipe::Aarch64(
-                    isa_aarch64::plan_aapcs64_frame_protocol(
+                    target_aarch64::plan_aapcs64_frame_protocol(
                         environment.physical(),
                         committed_bytes,
-                        isa_aarch64::Aarch64StackProbe {
+                        target_aarch64::Aarch64StackProbe {
                             interval_bytes: function.stack_probe.interval_bytes,
                             touches: function.stack_probe.touches,
                         },

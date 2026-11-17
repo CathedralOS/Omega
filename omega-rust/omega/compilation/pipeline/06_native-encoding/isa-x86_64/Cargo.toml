@@ -9,6 +9,7 @@ name = "isa_x86_64"
 path = "src/lib.rs"
 
 [dependencies]
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
 wire = { path = "../../../../../psi/foundation/wire" }
 normalized-foreign-call-plan = { path = "../../../representations/selected-instructions/foreign-calls" }
 x86_64-encoding = { path = "../x86_64-encoding" }

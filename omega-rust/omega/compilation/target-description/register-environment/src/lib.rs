@@ -42,8 +42,8 @@ use catalog::{
     conservative_baseline_reservation_profile, prepared_target_constraint_catalog,
     selected_constraint_keys, target_physical_register_model,
 };
-use isa_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
-use isa_x86_64::{
+use target_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
+use target_x86_64::{
     X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view,
     x86_64_preservation_convention_for_target,
 };
@@ -261,11 +261,11 @@ pub fn selected_abi_preservation(
         ),
         (Architecture::Aarch64, ObjectFormat::Elf) => (
             FrameAbiPreservationConvention::Aapcs64,
-            isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+            target_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
         ),
         (Architecture::Aarch64, ObjectFormat::MachO) => (
             FrameAbiPreservationConvention::DarwinAapcs64,
-            isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+            target_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
         ),
         _ => {
             return Err(AbiPreservationSelectionError::UnsupportedTargetConvention);
@@ -280,12 +280,12 @@ pub fn selected_preservation_storage_catalog(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {
     match environment.target().architecture {
-        Architecture::X86_64 => isa_x86_64::x86_64_preservation_storage_catalog(
+        Architecture::X86_64 => target_x86_64::x86_64_preservation_storage_catalog(
             environment.physical(),
             environment.target(),
         )
         .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention),
-        Architecture::Aarch64 => isa_aarch64::aarch64_preservation_storage_catalog(
+        Architecture::Aarch64 => target_aarch64::aarch64_preservation_storage_catalog(
             environment.physical(),
             environment.target(),
         )

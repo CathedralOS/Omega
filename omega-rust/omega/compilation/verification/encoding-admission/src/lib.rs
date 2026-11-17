@@ -6,6 +6,7 @@
 //! producer stage or callback is an input to these checks.
 
 #![forbid(unsafe_code)]
+pub mod frame_protocol;
 mod control_encoding;
 pub mod exit_requirements;
 pub mod frame_address;

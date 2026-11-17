@@ -8,11 +8,11 @@ declared keys.
 */
 
 #[cfg(test)]
-use isa_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
-use isa_aarch64::{aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog};
+use target_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
+use target_aarch64::{aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog};
 #[cfg(test)]
-use isa_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
-use isa_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
+use target_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
+use target_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
 #[cfg(test)]
 use register_model::RegisterConstraintKey;
 use register_model::{
@@ -62,8 +62,8 @@ pub(super) fn conservative_baseline_reservation_profile(
 
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match target.architecture {
-        Architecture::X86_64 => isa_x86_64::x86_64_selected_constraint_keys(target),
-        Architecture::Aarch64 => isa_aarch64::aarch64_selected_constraint_keys(target),
+        Architecture::X86_64 => target_x86_64::x86_64_selected_constraint_keys(target),
+        Architecture::Aarch64 => target_aarch64::aarch64_selected_constraint_keys(target),
     }
 }
 
@@ -77,12 +77,12 @@ fn float_result_policy_keys_are_declared_for_every_hosted_target() {
     ] {
         let (trapping, saturating) = match target.architecture {
             Architecture::Aarch64 => (
-                isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING,
-                isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING,
+                target_aarch64::AARCH64_FLOAT_RESULT_TRAPPING,
+                target_aarch64::AARCH64_FLOAT_RESULT_SATURATING,
             ),
             Architecture::X86_64 => (
-                isa_x86_64::X86_64_FLOAT_RESULT_TRAPPING,
-                isa_x86_64::X86_64_FLOAT_RESULT_SATURATING,
+                target_x86_64::X86_64_FLOAT_RESULT_TRAPPING,
+                target_x86_64::X86_64_FLOAT_RESULT_SATURATING,
             ),
         };
         let keys = selected_constraint_keys(target).unwrap();

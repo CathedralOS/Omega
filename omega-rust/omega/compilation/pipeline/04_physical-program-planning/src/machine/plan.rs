@@ -700,7 +700,7 @@ mod tests {
     use super::choose_alternative;
 
     fn physical() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap()
+        validate_physical_register_model(target_x86_64::x86_64_physical_register_model()).unwrap()
     }
 
     fn view(physical: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {

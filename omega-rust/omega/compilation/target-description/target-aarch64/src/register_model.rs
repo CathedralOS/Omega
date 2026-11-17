@@ -78,7 +78,7 @@ mod call_keys {
         vec![RegisterConstraintKey::call(3300)]
     }
 
-    pub(crate) const AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64: RegisterConstraintKey =
+    pub const AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64: RegisterConstraintKey =
         RegisterConstraintKey::call(2);
 
     pub const AARCH64_AAPCS64_RETURN: RegisterConstraintKey = RegisterConstraintKey::ret(0);
@@ -1133,7 +1133,7 @@ mod constraint_catalog {
         Ok(validated)
     }
 
-    pub(crate) fn aarch64_register_constraint_catalog_for(
+    pub fn aarch64_register_constraint_catalog_for(
         model: &ValidatedPhysicalRegisterModel,
     ) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
         if model.identity() == canonical_aarch64_physical_register_model_identity() {
@@ -1247,9 +1247,9 @@ mod float_scalar_calls {
                 variant: 0,
             };
             let encoded =
-                crate::encode_aarch64_selected_form(&physical, kind, alternative, &[home])
+                isa_aarch64::encode_aarch64_selected_form(&physical, kind, alternative, &[home])
                     .expect("floating return");
-            crate::validate_aarch64_selected_form_encoding(
+            isa_aarch64::validate_aarch64_selected_form_encoding(
                 &physical,
                 kind,
                 alternative,
@@ -1258,7 +1258,7 @@ mod float_scalar_calls {
             )
             .unwrap();
             assert!(
-                crate::validate_aarch64_selected_form_encoding(
+                isa_aarch64::validate_aarch64_selected_form_encoding(
                     &physical,
                     kind,
                     alternative,
@@ -1726,10 +1726,10 @@ mod operation_keys {
     pub const AARCH64_BITS_TO_FLOAT64: RegisterConstraintKey =
         RegisterConstraintKey::instruction(713);
 
-    pub(crate) const AARCH64_LINUX_SYSTEM_CALL: RegisterConstraintKey =
+    pub const AARCH64_LINUX_SYSTEM_CALL: RegisterConstraintKey =
         RegisterConstraintKey::system_call(0);
 
-    pub(crate) const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey =
+    pub const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey =
         RegisterConstraintKey::inline_assembly(0);
 
     pub const AARCH64_MATERIALIZE_BOOLEAN: RegisterConstraintKey =
@@ -1842,7 +1842,7 @@ mod operation_keys {
     pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey =
         RegisterConstraintKey::instruction(791);
 
-    pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 120] = [
+    pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 120] = [
         AARCH64_AAPCS64_CALL,
         AARCH64_DARWIN_CALL,
         AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -2025,7 +2025,7 @@ mod physical_model {
         model.model().view_named(&name).map(|view| view.id)
     }
 
-    pub(crate) fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
+    pub fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
         static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
         MODEL.get_or_init(build_aarch64_physical_register_model)
     }
@@ -2277,7 +2277,7 @@ mod physical_model {
         })
     }
 
-    pub(crate) fn canonical_aarch64_physical_register_model_identity()
+    pub fn canonical_aarch64_physical_register_model_identity()
     -> PhysicalRegisterModelIdentity {
         validated_aarch64_physical_register_model().identity()
     }
@@ -2936,7 +2936,7 @@ mod tests {
         );
     }
 }
-pub(crate) use call_keys::AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64;
+pub use call_keys::AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64;
 pub use call_keys::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_DARWIN_CALL,
     AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
@@ -2946,7 +2946,7 @@ pub use call_keys::{
     aarch64_preservation_convention_for_target, aarch64_register_aggregate_call_keys,
     aarch64_register_aggregate_return_keys, aarch64_register_unit_call_keys,
 };
-pub(crate) use constraint_catalog::aarch64_register_constraint_catalog_for;
+pub use constraint_catalog::aarch64_register_constraint_catalog_for;
 pub use constraint_catalog::{
     Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
     prepare_aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
@@ -2983,7 +2983,7 @@ pub use operation_keys::{
     AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR,
     AARCH64_TRAPPING_SHIFT, AARCH64_ZERO_BYTES,
 };
-pub(crate) use operation_keys::{
+pub use operation_keys::{
     AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL,
     AARCH64_REQUIRED_REGISTER_CONSTRAINTS,
 };
@@ -2991,6 +2991,6 @@ pub use physical_model::{
     aarch64_fixed_register_view, aarch64_physical_register_model,
     validated_aarch64_physical_register_model,
 };
-pub(crate) use physical_model::{
+pub use physical_model::{
     aarch64_physical_register_model_ref, canonical_aarch64_physical_register_model_identity,
 };

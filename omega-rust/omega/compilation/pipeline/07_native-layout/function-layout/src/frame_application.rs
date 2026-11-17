@@ -18,7 +18,7 @@ use crate::fragment_emission::{
     FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmission,
     validate_optimized_function_fragment_emission,
 };
-use frame_admission::frame_protocol::{
+use encoding_admission::frame_protocol::{
     FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     target_frame_protocol_encoding_identity,
 };
@@ -1737,7 +1737,7 @@ mod tests {
         FunctionFragmentInternalMachineFixup, TargetFrameProtocolEncodingPlan,
         validate_frame_protocol_application,
     };
-    use frame_admission::frame_protocol::{
+    use encoding_admission::frame_protocol::{
         FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
         TargetFrameProtocolEncodingPolicy,
     };

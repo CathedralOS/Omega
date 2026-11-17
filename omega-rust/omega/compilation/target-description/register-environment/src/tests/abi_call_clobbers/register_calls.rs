@@ -17,10 +17,10 @@ fn every_register_call_arity_retains_exact_target_abi() {
         let selected_keys = environment.selected_keys();
         let (keys, floating_keys) = selected_keys.call_scalar.split_at(case.arguments.len() + 1);
         let expected_floating_keys = match case.target.architecture {
-            Architecture::X86_64 => isa_x86_64::x86_64_float_scalar_call_keys(
+            Architecture::X86_64 => target_x86_64::x86_64_float_scalar_call_keys(
                 case.target == NativeTarget::windows_x64(),
             ),
-            Architecture::Aarch64 => isa_aarch64::aarch64_float_scalar_call_keys(
+            Architecture::Aarch64 => target_aarch64::aarch64_float_scalar_call_keys(
                 case.target == NativeTarget::macos_arm64(),
             ),
         };

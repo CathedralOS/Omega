@@ -3751,7 +3751,7 @@ pub(crate) mod float_result_policy {
                 MachineBarrier::None
             },
             MachineAlternativeFamily::FloatResultPolicy(form),
-            MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
+            target_aarch64::float_sizes::float_result_policy_size(form),
             effects(form),
         )
     }
@@ -4239,6 +4239,23 @@ pub(crate) mod float_result_policy {
                         MachineBarrier::None
                     }
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn declared_lengths_match_encoded_forms() {
+        use selected_instructions::MachineSizeKnowledge;
+        for form in FloatResultPolicyForm::ALL {
+            let lengths = [0, 8].map(|register| {
+                let registers = [register; 4];
+                (program(form, &registers).into_iter().flat_map(|word| encode_word(word).to_le_bytes()).count()) as u16
+            });
+            match target_aarch64::float_sizes::float_result_policy_size(form) {
+                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
+                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
+                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                }
             }
         }
     }
@@ -8825,7 +8842,7 @@ pub(crate) mod ieee_float_arithmetic {
                 MachineBarrier::None
             },
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
+            target_aarch64::float_sizes::ieee_float_arithmetic_size(form),
             effects(form),
         )
     }
@@ -10312,6 +10329,23 @@ pub(crate) mod ieee_float_arithmetic {
                 assert!(encode(form, &wide).is_err());
                 assert!(encode(form, &[1, 2, 3, 4, 5]).is_err());
                 assert!(validate(form, registers, &bytes[..bytes.len() - 4]).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn declared_lengths_match_encoded_forms() {
+        use selected_instructions::MachineSizeKnowledge;
+        for form in IeeeFloatArithmeticForm::ALL {
+            let lengths = [0, 8].map(|register| {
+                let registers = [register; 4];
+                (program(form, &registers).into_iter().flat_map(|word| encode_word(word).to_le_bytes()).count()) as u16
+            });
+            match target_aarch64::float_sizes::ieee_float_arithmetic_size(form) {
+                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
+                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
+                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                }
             }
         }
     }

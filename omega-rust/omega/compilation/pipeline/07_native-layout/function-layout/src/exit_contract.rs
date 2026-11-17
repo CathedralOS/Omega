@@ -51,7 +51,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use frame_admission::frame_layout::{
     FunctionTargetFrameLayout, ReturnAddressFrameCustody, ValidatedTargetFrameLayout,
 };
-use frame_admission::frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use encoding_admission::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedWholeFunctionExitContract {

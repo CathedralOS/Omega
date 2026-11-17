@@ -533,10 +533,10 @@ pub fn plan_native_entry_bridge(
     };
     let model = match request.target.architecture {
         Architecture::Aarch64 => {
-            validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
+            validate_physical_register_model(target_aarch64::aarch64_physical_register_model())
         }
         Architecture::X86_64 => {
-            validate_physical_register_model(isa_x86_64::x86_64_physical_register_model())
+            validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
         }
     }
     .map_err(|_| Error::Encoding)?;
@@ -923,7 +923,7 @@ pub fn plan_installed_interrupt_entry_bridge(
     let address_scratch = candidates.next().ok_or(Error::NoUnoccupiedScratch)?;
     let mut encoding = Encoding {
         architecture: Architecture::X86_64,
-        model: validate_physical_register_model(isa_x86_64::x86_64_physical_register_model())
+        model: validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
             .map_err(|_| Error::Encoding)?,
         scratch,
         address_scratch,
@@ -1075,7 +1075,7 @@ fn plan_installed_fatal_entry_bridge(
     }
     let encoding = Encoding {
         architecture: Architecture::X86_64,
-        model: validate_physical_register_model(isa_x86_64::x86_64_physical_register_model())
+        model: validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
             .map_err(|_| Error::Encoding)?,
         scratch: MachineRegister::X86Rax,
         address_scratch: MachineRegister::X86Rdx,

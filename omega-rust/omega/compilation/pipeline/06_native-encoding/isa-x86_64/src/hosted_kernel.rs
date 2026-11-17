@@ -10,46 +10,7 @@ class and carry-flag error reporting alongside Linux's negative-errno contract.
 use diagnostics::Diagnostic;
 use target::NativeTarget;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct HostedKernel {
-    pub(crate) write: u32,
-    pub(crate) exit: u32,
-    pub(crate) carry_reports_failure: bool,
-}
-
-const DARWIN_UNIX_CLASS: u32 = 0x0200_0000;
-
-const LINUX: HostedKernel = HostedKernel {
-    write: 1,
-    exit: 231,
-    carry_reports_failure: false,
-};
-
-const DARWIN: HostedKernel = HostedKernel {
-    write: DARWIN_UNIX_CLASS | 4,
-    exit: DARWIN_UNIX_CLASS | 1,
-    carry_reports_failure: true,
-};
-
-const DARWIN_READ: u32 = DARWIN_UNIX_CLASS | 3;
-
-pub(crate) fn hosted_kernel(target: NativeTarget) -> Option<HostedKernel> {
-    if target == NativeTarget::linux_x64() {
-        Some(LINUX)
-    } else if target == NativeTarget::macos_x64() {
-        Some(DARWIN)
-    } else {
-        None
-    }
-}
-
-pub(crate) fn hosted_syscall_target(target: NativeTarget) -> bool {
-    hosted_kernel(target).is_some()
-}
-
-pub(crate) fn hosted_exit_syscall_number(target: NativeTarget) -> Option<u32> {
-    hosted_kernel(target).map(|kernel| kernel.exit)
-}
+pub(crate) use target_x86_64::hosted_kernel::*;
 
 pub fn encode_hosted_exit_process_i32_for_target(
     target: NativeTarget,

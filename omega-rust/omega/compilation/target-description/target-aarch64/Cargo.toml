@@ -1,0 +1,18 @@
+[package]
+name = "target-aarch64"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+calling-conventions = { path = "../calling-conventions" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+register-model = { path = "../register-model" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target = { path = "../target" }
+
+[dev-dependencies]
+isa-aarch64 = { path = "../../pipeline/06_native-encoding/isa-aarch64" }
+register-model = { path = "../register-model", features = ["test-support"] }
+selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

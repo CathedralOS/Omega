@@ -14,7 +14,7 @@ use super::{
     TargetRegisterEnvironmentValidationError, assemble_target_register_environment,
     baseline_target_register_environment,
 };
-use isa_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
+use target_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
 
@@ -34,18 +34,18 @@ fn prepared_constraints_share_rows_and_keep_the_receiving_identity() {
         ));
         let (prepared, received) = match target.architecture {
             target::Architecture::X86_64 => (
-                isa_x86_64::prepare_x86_64_register_constraint_catalog(environment.physical())
+                target_x86_64::prepare_x86_64_register_constraint_catalog(environment.physical())
                     .unwrap(),
-                isa_x86_64::validate_x86_64_register_constraint_catalog(
+                target_x86_64::validate_x86_64_register_constraint_catalog(
                     environment.constraints().catalog().clone(),
                     environment.physical(),
                 )
                 .unwrap(),
             ),
             target::Architecture::Aarch64 => (
-                isa_aarch64::prepare_aarch64_register_constraint_catalog(environment.physical())
+                target_aarch64::prepare_aarch64_register_constraint_catalog(environment.physical())
                     .unwrap(),
-                isa_aarch64::validate_aarch64_register_constraint_catalog(
+                target_aarch64::validate_aarch64_register_constraint_catalog(
                     environment.constraints().catalog().clone(),
                     environment.physical(),
                 )
@@ -67,27 +67,27 @@ fn prepared_constraints_share_rows_and_keep_the_receiving_identity() {
 
 #[test]
 fn prepared_constraints_require_the_exact_isa_model() {
-    let x86 = isa_x86_64::validated_x86_64_physical_register_model();
-    let arm = isa_aarch64::validated_aarch64_physical_register_model();
-    assert!(matches!(isa_x86_64::prepare_x86_64_register_constraint_catalog(arm),
-        Err(isa_x86_64::X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch)));
-    assert!(matches!(isa_aarch64::prepare_aarch64_register_constraint_catalog(x86),
-        Err(isa_aarch64::Aarch64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch)));
+    let x86 = target_x86_64::validated_x86_64_physical_register_model();
+    let arm = target_aarch64::validated_aarch64_physical_register_model();
+    assert!(matches!(target_x86_64::prepare_x86_64_register_constraint_catalog(arm),
+        Err(target_x86_64::X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch)));
+    assert!(matches!(target_aarch64::prepare_aarch64_register_constraint_catalog(x86),
+        Err(target_aarch64::Aarch64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch)));
 
     let mut changed = x86.model().clone();
     changed.conventions[0].name.push_str(".different-model");
     let changed = validate_physical_register_model(changed).unwrap();
     assert!(matches!(
-        isa_x86_64::prepare_x86_64_register_constraint_catalog(&changed),
-        Err(isa_x86_64::X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel)
+        target_x86_64::prepare_x86_64_register_constraint_catalog(&changed),
+        Err(target_x86_64::X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel)
     ));
     let mut changed = arm.model().clone();
     changed.conventions[0].name.push_str(".different-model");
     let changed = validate_physical_register_model(changed).unwrap();
     assert!(matches!(
-        isa_aarch64::prepare_aarch64_register_constraint_catalog(&changed),
+        target_aarch64::prepare_aarch64_register_constraint_catalog(&changed),
         Err(
-            isa_aarch64::Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel
+            target_aarch64::Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel
         )
     ));
 }
@@ -154,10 +154,10 @@ fn prepared_constraints_do_not_bypass_supplied_row_validation() {
         match target.architecture {
             target::Architecture::X86_64 => assert_eq!(error,
                 TargetRegisterEnvironmentValidationError::X86_64(
-                    isa_x86_64::X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(call))),
+                    target_x86_64::X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(call))),
             target::Architecture::Aarch64 => assert_eq!(error,
                 TargetRegisterEnvironmentValidationError::Aarch64(
-                    isa_aarch64::Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(call))),
+                    target_aarch64::Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(call))),
         }
     }
 }
@@ -180,11 +180,11 @@ fn validate_target_register_environment_join(
     }
     let constraints = match target.architecture {
         target::Architecture::X86_64 => {
-            isa_x86_64::validate_x86_64_register_constraint_catalog(constraints, &physical)
+            target_x86_64::validate_x86_64_register_constraint_catalog(constraints, &physical)
                 .map_err(TargetRegisterEnvironmentValidationError::X86_64)?
         }
         target::Architecture::Aarch64 => {
-            isa_aarch64::validate_aarch64_register_constraint_catalog(constraints, &physical)
+            target_aarch64::validate_aarch64_register_constraint_catalog(constraints, &physical)
                 .map_err(TargetRegisterEnvironmentValidationError::Aarch64)?
         }
     };
@@ -217,9 +217,9 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
     );
     assert_ne!(linux.identity(), macos.identity());
 
-    let raw = isa_aarch64::aarch64_physical_register_model();
+    let raw = target_aarch64::aarch64_physical_register_model();
     let physical = validate_physical_register_model(raw.clone()).unwrap();
-    let catalog = isa_aarch64::aarch64_register_constraint_catalog(&physical);
+    let catalog = target_aarch64::aarch64_register_constraint_catalog(&physical);
     let mut inapplicable =
         conservative_baseline_reservation_profile(NativeTarget::macos_arm64(), &raw);
     inapplicable.name = "test.inapplicable-platform".into();

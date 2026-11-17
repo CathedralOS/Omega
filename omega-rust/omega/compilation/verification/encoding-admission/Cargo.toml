@@ -9,6 +9,8 @@ name = "encoding_admission"
 path = "src/lib.rs"
 
 [dependencies]
+frame-admission = { path = "../frame-admission" }
+register-environment = { path = "../../target-description/register-environment" }
 optimization-core = { path = "../../representations/optimization-contracts" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../target-description/calling-conventions" }

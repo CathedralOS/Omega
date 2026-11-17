@@ -4775,12 +4775,7 @@ pub(crate) mod float_result_policy {
     }
 
     pub(crate) fn size(form: FloatResultPolicyForm) -> MachineSizeKnowledge {
-        MachineSizeKnowledge::ExactBytes(
-            program(form, &[0; 4])
-                .iter()
-                .map(|instruction| instruction.size())
-                .sum::<usize>() as u16,
-        )
+        target_x86_64::float_sizes::float_result_policy_size(form)
     }
 
     pub(crate) fn declaration(
@@ -5551,6 +5546,27 @@ pub(crate) mod float_result_policy {
                     crate::encode_x86_64_selected_form(&physical, kind, key(form), &invalid)
                         .is_err()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn declared_lengths_match_encoded_forms() {
+        use selected_instructions::MachineSizeKnowledge;
+        for form in FloatResultPolicyForm::ALL {
+            let lengths = [0, 8].map(|register| {
+                let registers = [register; 4];
+                {
+                    let mut bytes = Vec::new();
+                    for instruction in program(form, &registers) { encode_instruction(instruction, &mut bytes); }
+                    bytes.len() as u16
+                }
+            });
+            match target_x86_64::float_sizes::float_result_policy_size(form) {
+                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
+                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
+                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                }
             }
         }
     }
@@ -6600,10 +6616,7 @@ pub(crate) mod ieee_float_arithmetic {
     }
 
     fn size(form: IeeeFloatArithmeticForm) -> Result<MachineSizeKnowledge, Error> {
-        Ok(crate::encoder_resolved(
-            canonical(form, &[0, 0, 0, 0])?.len() as u16,
-            Some(canonical(form, &[8, 8, 8, 8])?.len() as u16),
-        ))
+        Ok(target_x86_64::float_sizes::ieee_float_arithmetic_size(form))
     }
 
     pub(crate) fn declaration(
@@ -8374,6 +8387,23 @@ pub(crate) mod ieee_float_arithmetic {
                 assert!(validate(&physical, form, key(form), &swapped, &bytes).is_err());
                 assert!(validate(&physical, form, key(form), operands, &bytes[1..]).is_err());
                 assert!(validate(&physical, form, key(form), &all[..1], &bytes).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn declared_lengths_match_encoded_forms() {
+        use selected_instructions::MachineSizeKnowledge;
+        for form in IeeeFloatArithmeticForm::ALL {
+            let lengths = [0, 8].map(|register| {
+                let registers = [register; 4];
+                canonical(form, &registers).unwrap().len() as u16
+            });
+            match target_x86_64::float_sizes::ieee_float_arithmetic_size(form) {
+                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
+                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
+                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                }
             }
         }
     }

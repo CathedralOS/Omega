@@ -46,8 +46,8 @@ mod hosted_sequences;
 mod immediate_offset;
 mod machine_effects;
 mod post_handoff_writer;
-mod preservation_storage;
-mod register_model;
+
+use target_aarch64::register_model;
 pub use register_model::aarch64_linux_system_call_keys;
 pub use register_model::{AARCH64_LOAD_ENCODED_SCALAR, AARCH64_STORE_ENCODED_SCALAR};
 mod saturating_forms;
@@ -140,7 +140,7 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
-pub use preservation_storage::aarch64_preservation_storage_catalog;
+pub use target_aarch64::aarch64_preservation_storage_catalog;
 
 #[cfg(test)]
 pub(crate) use register_model::AARCH64_REQUIRED_REGISTER_CONSTRAINTS;

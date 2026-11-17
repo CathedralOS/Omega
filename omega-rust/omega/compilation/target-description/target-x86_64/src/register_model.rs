@@ -61,17 +61,17 @@ pub(super) fn early_clobber(operand: RegisterOperandConstraint) -> RegisterOpera
     }
 }
 
-pub(crate) fn view_of(name: &str) -> &'static RegisterView {
+pub fn view_of(name: &str) -> &'static RegisterView {
     physical_model::x86_64_physical_register_model_ref()
         .view_named(name)
         .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
 }
 
-pub(crate) fn units(name: &str) -> Vec<RegisterUnitId> {
+pub fn units(name: &str) -> Vec<RegisterUnitId> {
     view_of(name).units.clone()
 }
 
-pub(crate) fn units_of(names: &[&str]) -> Vec<RegisterUnitId> {
+pub fn units_of(names: &[&str]) -> Vec<RegisterUnitId> {
     sorted_units(
         names
             .iter()
@@ -152,7 +152,7 @@ mod call_keys {
         vec![Key::call(3300)]
     }
 
-    pub(crate) const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: Key = Key::call(3);
+    pub const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: Key = Key::call(3);
 
     pub const X86_64_SYSTEM_V_RETURN: Key = Key::ret(0);
 
@@ -1438,7 +1438,7 @@ mod constraint_catalog {
         Ok(validated)
     }
 
-    pub(crate) fn x86_64_register_constraint_catalog_for(
+    pub fn x86_64_register_constraint_catalog_for(
         model: &ValidatedPhysicalRegisterModel,
     ) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
         if model.identity() == canonical_x86_64_physical_register_model_identity() {
@@ -1565,9 +1565,9 @@ mod float_scalar_calls {
                 family: selected_instructions::MachineAlternativeFamily::ReturnScalar,
                 variant: 0,
             };
-            let encoded = crate::encode_x86_64_selected_form(&physical, kind, alternative, &[home])
+            let encoded = isa_x86_64::encode_x86_64_selected_form(&physical, kind, alternative, &[home])
                 .expect("floating return");
-            crate::validate_x86_64_selected_form_encoding(
+            isa_x86_64::validate_x86_64_selected_form_encoding(
                 &physical,
                 kind,
                 alternative,
@@ -1576,7 +1576,7 @@ mod float_scalar_calls {
             )
             .unwrap();
             assert!(
-                crate::validate_x86_64_selected_form_encoding(
+                isa_x86_64::validate_x86_64_selected_form_encoding(
                     &physical,
                     kind,
                     alternative,
@@ -2145,9 +2145,9 @@ mod operation_keys {
 
     pub const X86_64_BYTE_LITERAL_IMAGE_ADDRESS: Key = Key::instruction(791);
 
-    pub(crate) const X86_64_LINUX_SYSTEM_CALL: Key = Key::system_call(0);
+    pub const X86_64_LINUX_SYSTEM_CALL: Key = Key::system_call(0);
 
-    pub(crate) const X86_64_INLINE_ASSEMBLY_DEFAULT: Key = Key::inline_assembly(0);
+    pub const X86_64_INLINE_ASSEMBLY_DEFAULT: Key = Key::inline_assembly(0);
 
     pub const X86_64_MATERIALIZE_BOOLEAN: Key = Key::instruction(732);
 
@@ -2236,7 +2236,7 @@ mod operation_keys {
 
     pub const X86_64_JUMP: Key = Key::instruction(9);
 
-    pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 102] = [
+    pub const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 102] = [
         X86_64_SYSTEM_V_CALL,
         X86_64_MICROSOFT_CALL,
         X86_64_SYSTEM_V_RETURN,
@@ -2341,7 +2341,7 @@ mod operation_keys {
         X86_64_FLAGS_RESTORE,
     ];
 
-    pub(crate) fn x86_64_required_register_constraints() -> Vec<Key> {
+    pub fn x86_64_required_register_constraints() -> Vec<Key> {
         let mut required = X86_64_ORDINARY_REGISTER_CONSTRAINTS.to_vec();
         required.extend(super::call_keys::x86_64_system_v_register_call_keys());
         required.extend(super::call_keys::x86_64_microsoft_register_call_keys());
@@ -2506,7 +2506,7 @@ mod physical_model {
         model.model().view_named(name).map(|view| view.id)
     }
 
-    pub(crate) fn x86_64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
+    pub fn x86_64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
         static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
         MODEL.get_or_init(build_x86_64_physical_register_model)
     }
@@ -2762,7 +2762,7 @@ mod physical_model {
         })
     }
 
-    pub(crate) fn canonical_x86_64_physical_register_model_identity()
+    pub fn canonical_x86_64_physical_register_model_identity()
     -> PhysicalRegisterModelIdentity {
         validated_x86_64_physical_register_model().identity()
     }
@@ -3638,7 +3638,7 @@ mod tests {
         }));
     }
 }
-pub(crate) use call_keys::X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64;
+pub use call_keys::X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64;
 pub use call_keys::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN,
@@ -3649,7 +3649,7 @@ pub use call_keys::{
     x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
     x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
-pub(crate) use constraint_catalog::x86_64_register_constraint_catalog_for;
+pub use constraint_catalog::x86_64_register_constraint_catalog_for;
 pub use constraint_catalog::{
     X86_64RegisterConstraintCatalogValidationError, prepare_x86_64_register_constraint_catalog,
     validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
@@ -3694,11 +3694,11 @@ pub use operation_keys::{
     X86_64_TASK_REGISTER_READ, X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT,
     X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
 };
-pub(crate) use operation_keys::{
+pub use operation_keys::{
     X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, x86_64_required_register_constraints,
 };
 pub use packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
-pub(crate) use physical_model::{
+pub use physical_model::{
     canonical_x86_64_physical_register_model_identity, x86_64_physical_register_model_ref,
 };
 pub use physical_model::{

@@ -588,11 +588,13 @@ name = "encoding-admission"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "frame-admission",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
  "optimization-core",
  "post-allocation-machine",
+ "register-environment",
  "register-homes",
  "register-model",
  "selected-instructions",
@@ -694,8 +696,6 @@ name = "frame-admission"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
- "isa-aarch64",
- "isa-x86_64",
  "machine-code",
  "optimization-core",
  "post-allocation-machine",
@@ -705,6 +705,8 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-aarch64",
+ "target-x86_64",
  "wire",
 ]
 
@@ -1046,6 +1048,7 @@ dependencies = [
  "semantic-vocabulary",
  "symbols",
  "target",
+ "target-aarch64",
  "target-operations",
  "task-plans",
  "terminal-psi",
@@ -1081,6 +1084,7 @@ dependencies = [
  "symbols",
  "target",
  "target-operations",
+ "target-x86_64",
  "task-plans",
  "terminal-psi",
  "wire",
@@ -1831,8 +1835,6 @@ dependencies = [
  "frame-admission",
  "function-identity",
  "installation-evidence",
- "isa-aarch64",
- "isa-x86_64",
  "language-core",
  "layout-plans",
  "legalized-operations",
@@ -1850,8 +1852,10 @@ dependencies = [
  "semantic-vocabulary",
  "storage-access",
  "target",
+ "target-aarch64",
  "target-operations",
  "target-vocabulary",
+ "target-x86_64",
  "task-plans",
  "terminal-psi",
  "terminal-semantics",
@@ -2113,6 +2117,8 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "target",
+ "target-aarch64",
+ "target-x86_64",
 ]
 
 [[package]]
@@ -2636,6 +2642,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "target-aarch64"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "isa-aarch64",
+ "register-model",
+ "selected-instructions",
+ "target",
+]
+
+[[package]]
 name = "target-operations"
 version = "0.1.0"
 dependencies = [
@@ -2670,6 +2688,19 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-wire",
+ "wire",
+]
+
+[[package]]
+name = "target-x86_64"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "isa-x86_64",
+ "register-model",
+ "selected-instructions",
+ "target",
  "wire",
 ]
 

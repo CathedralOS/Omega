@@ -32,7 +32,7 @@ use frame_admission::frame_layout::{
     prepare_frame_demands, validate_non_authoritative_callee_save_storage,
     validate_target_frame_demands,
 };
-use frame_admission::frame_protocol::{
+use encoding_admission::frame_protocol::{
     ValidatedTargetFrameProtocolEncoding, validate_target_frame_protocol_encoding,
 };
 
@@ -243,7 +243,7 @@ pub enum FunctionRelativeOptimizationRealizationError {
     ExitContract(WholeFunctionExitContractError),
     CalleeSaveStorage(frame_admission::frame_layout::NonAuthoritativeCalleeSaveStorageError),
     FrameLayout(frame_admission::frame_layout::TargetFrameLayoutError),
-    FrameProtocol(frame_admission::frame_protocol::TargetFrameProtocolEncodingError),
+    FrameProtocol(encoding_admission::frame_protocol::TargetFrameProtocolEncodingError),
     StatisticsOverflow,
     ReplayUnavailable,
     /// The retained Omega 04 run failed its independent replay.
