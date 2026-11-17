@@ -381,12 +381,8 @@ impl<Image> NativeArtifactParts<Image> {
         image_subsystem: Option<u16>,
         physical_evidence_gap: Option<&NativePhysicalEvidenceGap>,
     ) -> NativeArtifactIdentityFields<'a> {
-        let (
-            compiler_text_validation_digest,
-            compiler_function_validation,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
-        ) = compiler_identity_evidence(output);
+        let (compiler_entry_region_binding, compiler_entry_footprint_binding) =
+            compiler_identity_evidence(output);
         NativeArtifactIdentityFields {
             installation_assumptions: self.object.installation_environment_assumptions(),
             physical_entry_requirements: self
@@ -421,8 +417,6 @@ impl<Image> NativeArtifactParts<Image> {
             executable_region_inventory_report_fingerprint: output
                 .executable_regions
                 .inventory_report_fingerprint,
-            compiler_text_validation_digest,
-            compiler_function_validation,
             compiler_entry_region_binding,
             compiler_entry_footprint_binding,
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),

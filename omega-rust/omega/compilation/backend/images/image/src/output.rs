@@ -53,6 +53,8 @@ pub struct EmittedImageOutput {
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub data_regions: crate::PlacedDataRegionInventory,
     pub import_data_regions: crate::PlacedDataRegionInventory,
+    // Legacy replay records. Fresh emission leaves both absent; explicit
+    // receiving checks authenticate supplied records against actual bytes.
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
