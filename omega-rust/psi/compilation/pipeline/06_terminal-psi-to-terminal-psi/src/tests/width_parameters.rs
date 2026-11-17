@@ -9,11 +9,11 @@ fn typed(text: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic>
     let source = sources
         .add("width_parameters/source.omg".into(), text.to_owned())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .expect("source tokenizes");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).expect("source parses");
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+        .expect("source parses");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax,

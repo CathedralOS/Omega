@@ -329,10 +329,10 @@ machine main() {}
             .add(std::path::PathBuf::from(path), text.to_owned())
             .source_id;
         let sources = std::sync::Arc::new(sources);
-        let tokens = source_files_to_tokens::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("existing source lexes");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("existing source parses");
         let original = syntax.clone();
         let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
@@ -442,10 +442,10 @@ fn typed_base_scoped(
             }
         };
         identities.push(source_id);
-        let tokens = source_files_to_tokens::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("source lexes");
-        let page = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+        let page = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("source parses");
         match &mut syntax {
             Some(syntax) => syntax.extend_from(&page),

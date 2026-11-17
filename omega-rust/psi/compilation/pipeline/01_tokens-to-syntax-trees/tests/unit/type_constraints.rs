@@ -1,5 +1,5 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
-use source_files_to_tokens::Lexer;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::DataMember;

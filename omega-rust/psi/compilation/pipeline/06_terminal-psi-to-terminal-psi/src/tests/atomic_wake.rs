@@ -225,10 +225,10 @@ fn malformed_ordering(source: &str, detail: &str) {
     let id = sources
         .add("atomic_ordering.omg".into(), source.to_owned())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(source)
+    let tokens = crate::frontend_fixture::Lexer::new(source)
         .tokenize()
         .unwrap();
-    let error = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens)
+    let error = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
         .expect_err("illegal ordering was parsed");
     assert!(error.message.contains(detail), "{error:?}");
 }

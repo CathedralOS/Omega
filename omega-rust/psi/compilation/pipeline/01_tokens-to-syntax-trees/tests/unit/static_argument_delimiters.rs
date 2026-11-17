@@ -1,4 +1,4 @@
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};

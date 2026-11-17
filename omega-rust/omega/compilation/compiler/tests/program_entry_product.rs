@@ -97,10 +97,10 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
             source::DependencyScope::Product,
         )
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(source_text)
+    let tokens = crate::frontend_fixture::Lexer::new(source_text)
         .tokenize()
         .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
@@ -447,3 +447,6 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
     });
     std::fs::remove_dir_all(workspace).unwrap();
 }
+
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

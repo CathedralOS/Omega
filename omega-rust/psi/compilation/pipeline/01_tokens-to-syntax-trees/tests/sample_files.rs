@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use source_files_to_tokens::Lexer;
-use tokens_to_syntax_trees::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::frontend_fixture::parse_syntax_trees;
 
 #[test]
 fn parses_dungeon_sample_project() {
@@ -161,3 +161,6 @@ fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>, skip: &[PathB
         }
     }
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

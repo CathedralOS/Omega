@@ -1102,9 +1102,11 @@ mod tests {
                     source::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();

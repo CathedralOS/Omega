@@ -1,4 +1,4 @@
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 
 #[test]
 fn line_comments_leave_the_newline_in_the_token_stream() {
@@ -23,3 +23,6 @@ fn line_comments_leave_the_newline_in_the_token_stream() {
         assert_eq!(recovered, source);
     }
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

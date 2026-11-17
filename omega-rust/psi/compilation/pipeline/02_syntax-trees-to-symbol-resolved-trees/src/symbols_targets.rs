@@ -1414,8 +1414,8 @@ mod tests {
         with no target. The call keeps that `work` state.
     */
 
+    use crate::frontend_fixture::Lexer;
     use crate::resolution::{ResolutionRequest, resolve};
-    use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::expression::ExpressionNode;
     use symbols::SymbolKind;
 
@@ -1466,7 +1466,7 @@ mod tests {
         let source_id = sources.add("main.omg".into(), text.to_owned()).source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -1521,7 +1521,7 @@ mod tests {
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -1624,7 +1624,7 @@ mod tests {
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -1697,7 +1697,7 @@ mod tests {
         let mut syntax = syntax_trees::SyntaxTrees::new(caller_id);
         for (id, text) in [(library_id, library), (caller_id, caller)] {
             let tokens = Lexer::new(text).tokenize().expect("tokenize retained unit");
-            tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse retained unit");
+            crate::frontend_fixture::parse(&mut syntax, id, &tokens).expect("parse retained unit");
         }
         let program = resolve(ResolutionRequest {
             syntax,
@@ -1962,7 +1962,7 @@ mod tests {
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -2027,7 +2027,7 @@ mod tests {
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -2084,7 +2084,7 @@ mod tests {
             .add("kit/main.omg".into(), text.to_owned())
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).is_err()
+        crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).is_err()
     }
 
     /*
@@ -2141,7 +2141,7 @@ mod tests {
             let mut syntax = syntax_trees::SyntaxTrees::new(caller_id);
             for (id, text) in &units {
                 let tokens = Lexer::new(text).tokenize().expect("tokenize unit");
-                tokens_to_syntax_trees::parse(&mut syntax, *id, &tokens).expect("parse unit");
+                crate::frontend_fixture::parse(&mut syntax, *id, &tokens).expect("parse unit");
             }
             let bindings = imports
                 .iter()

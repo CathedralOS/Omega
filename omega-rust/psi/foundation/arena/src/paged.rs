@@ -851,7 +851,7 @@ pub struct ConcurrentPagedArena<T: Default> {
     published_pages: AtomicU32,
     published_values: AtomicU64,
     default_page_capacity: usize,
-    dummy: T,
+    dummy: OnceLock<Box<T>>,
 }
 
 impl<T: Default> ConcurrentPagedArena<T> {
@@ -887,7 +887,9 @@ impl<T: Default> ConcurrentPagedArena<T> {
             published_pages: AtomicU32::new(0),
             published_values: AtomicU64::new(0),
             default_page_capacity,
-            dummy: T::default(),
+            // Publishing pages need not construct or move storage for an unused
+            // default value, which can itself be a complete syntax forest.
+            dummy: OnceLock::new(),
         }
     }
 
@@ -1058,7 +1060,7 @@ pub struct SealedPagedArena<T: Default> {
     first_page_identity: u32,
     page_count: u32,
     value_count: u64,
-    dummy: T,
+    dummy: OnceLock<Box<T>>,
 }
 
 impl<T: Default> SealedPagedArena<T> {
@@ -1084,7 +1086,9 @@ impl<T: Default> SealedPagedArena<T> {
     pub fn get(&self, handle: Handle<T>) -> &T {
         match self.resolve(handle) {
             Some(item) => item,
-            None if !handle.is_valid() => &self.dummy,
+            None if !handle.is_valid() => {
+                self.dummy.get_or_init(|| Box::new(T::default())).as_ref()
+            }
             None => refuse_unresolved("get", handle.arena_index(), handle.generation()),
         }
     }
@@ -2172,6 +2176,7 @@ impl compiler_storage::Record for OwnedTextInterner {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Barrier};
 
     use super::{
@@ -2724,6 +2729,47 @@ mod tests {
         assert_eq!(
             sealed.try_get(Handle::from_parts(value.arena_index(), 2)),
             None
+        );
+    }
+
+    #[test]
+    fn publishing_pages_constructs_the_default_only_when_zero_is_read() {
+        static DEFAULTS: AtomicUsize = AtomicUsize::new(0);
+        struct CountedDefault(u32);
+        impl Default for CountedDefault {
+            fn default() -> Self {
+                DEFAULTS.fetch_add(1, Ordering::Relaxed);
+                Self(0)
+            }
+        }
+
+        let arena = ConcurrentPagedArena::<CountedDefault>::new(2, 1);
+        let mut page = arena.reserve_page().unwrap();
+        let value = page.push(CountedDefault(42));
+        page.publish();
+        let sealed = arena.seal().unwrap();
+        assert_eq!(sealed.get(value).0, 42);
+        assert!(sealed.try_get(Handle::invalid()).is_none());
+        assert_eq!(DEFAULTS.load(Ordering::Relaxed), 0);
+        assert_eq!(sealed.get(Handle::invalid()).0, 0);
+        assert_eq!(sealed.get(Handle::invalid()).0, 0);
+        assert_eq!(DEFAULTS.load(Ordering::Relaxed), 1);
+
+        let extended = sealed.begin_concurrent_extension(1).seal().unwrap();
+        assert_eq!(extended.get(Handle::invalid()).0, 0);
+        assert_eq!(extended.get(value).0, 42);
+        assert_eq!(DEFAULTS.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn page_headers_do_not_embed_the_default_values_storage() {
+        assert_eq!(
+            std::mem::size_of::<ConcurrentPagedArena<u32>>(),
+            std::mem::size_of::<ConcurrentPagedArena<[u64; 32]>>()
+        );
+        assert_eq!(
+            std::mem::size_of::<super::SealedPagedArena<u32>>(),
+            std::mem::size_of::<super::SealedPagedArena<[u64; 32]>>()
         );
     }
 
