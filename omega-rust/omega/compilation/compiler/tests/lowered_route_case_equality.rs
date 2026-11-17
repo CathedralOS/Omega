@@ -37,6 +37,10 @@ fn verdict(name: &str, source: &str) -> RouteVerdict {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier = unbuilt_frontier::staged_frontier(name, &source);
+    frontier_verdict(name, &frontier)
+}
+
+fn frontier_verdict(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdict {
     judge(elaborate(
         &frontier.typed,
         Compilation {
@@ -144,7 +148,7 @@ fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
              machine same(flag: bool, left: Kind in Marked, right: Kind in Marked) -> bool {\n\
                  (match flag { true -> left, false -> left }) == right\n\
              }",
-            "qualified operand",
+            "unqualified operands",
         ),
     ] {
         let found = verdict(name, source);
@@ -154,6 +158,77 @@ fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
         );
         assert!(format!("{found:?}").contains(reason), "{name}: {found:?}");
     }
+}
+
+#[test]
+fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+    use typed_trees::statement::StatementNode;
+
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = "data Key [copy] { case A; case B; }\n\
+                  machine == key_equal(left: Key, right: Key) -> bool { false }\n\
+                  machine same(left: Key, right: Key) -> bool { left == right }\n\
+                  machine main() {}";
+    let mut frontier = unbuilt_frontier::staged_frontier("selected_enum_comparison", source);
+    assert!(matches!(
+        frontier_verdict("selected_enum_comparison", &frontier),
+        RouteVerdict::Accepted(_)
+    ));
+    let mut typed = frontier.typed.clone().into_inner();
+    let target = unbuilt_frontier::program_machine(&typed, "key_equal").unwrap();
+    let (handle, call) = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| match node {
+            ExpressionNode::Call(call) if call.target_symbol == target => {
+                Some((handle, call.clone()))
+            }
+            _ => None,
+        })
+        .expect("the authored operator must first become its selected call");
+    let [left, right] = *typed.expression_table.expression_handles(call.arguments) else {
+        panic!("equality has exactly two arguments");
+    };
+    let span = typed.expression_table.source_span(handle);
+    // Model a broken producer that drops both the selected call and its
+    // occurrence attachment while retaining the same operand identities.
+    let bare = typed
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            right,
+            operator: BinaryOperator::Equal,
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+        }));
+    typed.expression_table.set_source_span(bare, span);
+    assert_eq!(
+        typed
+            .expression_table
+            .authored_selection_occurrences(bare)
+            .len(),
+        0
+    );
+    let same = unbuilt_frontier::program_machine(&typed, "same").unwrap();
+    let body = typed.machine_states(typed.machine_by_symbol(same).unwrap())[0].statement_nodes;
+    let statement = typed
+        .statement_table
+        .iter_statements(body)
+        .find_map(|(statement, node)| {
+            matches!(node, StatementNode::Expression(value) if *value == handle)
+                .then_some(statement)
+        })
+        .expect("the comparison is the machine's result expression");
+    *typed.statement_table.statement_mut(statement) = StatementNode::Expression(bare);
+    frontier.typed = typed.into();
+    let found = frontier_verdict("lost_selected_enum_comparison", &frontier);
+    assert!(!matches!(found, RouteVerdict::Accepted(_)), "{found:?}");
+    assert!(
+        format!("{found:?}").contains("selected operator call"),
+        "{found:?}"
+    );
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]

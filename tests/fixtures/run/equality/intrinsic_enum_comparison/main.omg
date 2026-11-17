@@ -10,6 +10,8 @@ data Message [copy] { case Empty; case Number(value: i32); }
 MessageEquality satisfies Equatable<Message> {
     machine equals(left: &Message, right: &Message) -> bool { false }
 }
+data Key [copy] { case A; case B; }
+machine == key_equal(left: Key, right: Key) -> bool { false }
 machine same(left: Signal, right: Signal) -> bool { left == right }
 machine different(left: Signal, right: Signal) -> bool { left != right }
 machine borrowed(left: &Signal, right: &Signal) -> bool { left == right }
@@ -19,7 +21,14 @@ machine marked(context: &mut Context, next: Signal) -> Signal {
     next
 }
 machine main() crashes Trap {
-    let ready: Signal = Signal::Ready;
+    // Atomic observation supplies a runtime selector, so the comparison
+    // callees cannot all disappear through constant folding.
+    let mut selector: AtomicBool;
+    selector.store(true, NoOrdering);
+    let ready: Signal = match selector.load(NoOrdering) {
+        true -> Signal::Ready,
+        false -> Signal::Waiting
+    };
     let waiting: Signal = Signal::Waiting;
     let mut context: Context = Context { signal: ready, calls: 0u32 };
     let snapshot: bool = context.signal == marked(&mut context, waiting);
@@ -27,10 +36,13 @@ machine main() crashes Trap {
     let computed: bool = (match true { true -> ready, false -> waiting }) == ready;
     let message: Message = Message::Number { value: 17 };
     let selected: bool = message == message;
+    let key: Key = Key::A;
+    let operator_selected: bool = key == key;
     transition same(ready, ready) && same(waiting, waiting)
         && different(ready, waiting) && different(waiting, Signal::Done)
         && borrowed(&ready, &ready) && computed && snapshot == false && ordered
-        && context.signal == Signal::Done && context.calls == 3u32 && selected == false {
+        && context.signal == Signal::Done && context.calls == 3u32
+        && selected == false && operator_selected == false {
         true -> done()
         false -> bad()
     }
