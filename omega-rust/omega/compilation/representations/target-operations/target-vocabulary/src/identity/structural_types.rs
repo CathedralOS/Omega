@@ -272,6 +272,8 @@ pub fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeD
         bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
     }
     match &declaration.shape {
+        // This tag distinguishes hash inputs; executable codecs reject open storage.
+        StructuralTypeShape::TypeParameter => bytes.push(20),
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);

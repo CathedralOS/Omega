@@ -60,6 +60,7 @@ mod describe;
 mod entry_inputs;
 mod external_providers;
 mod formation;
+mod generic_storage;
 mod graph;
 mod joins;
 mod known;

@@ -178,7 +178,6 @@ Write each item so any agent can start from it alone: current state, files and e
 - **APPLIED-BOUNDARY-SERVICE-REACH.** Implement [boundary services with parameters](wiki/spec/language/effects.md#boundary-services-with-parameters): name a boundary trait with parameters in `reaches` and `invokes` rows by its application, and carry that application end to end.
   - Parse applied names in rows (`reaches Sensor<17u64>`, `reaches Sensor<Id>`) and resolve them to the exact application. Preserve the arguments through generic substitution, normalization, contract comparison, publication and separate consumption. The bare name of a trait with parameters rejects with a diagnostic naming the application form.
   - Close boundary parents by substituting the child's arguments into its declared boundary parents, then closing transitively; ordinary trait parents add nothing. `invokes` shares the application resolution but not reach semantics or parent closure.
-  - Keep explicit requirement-row propagation: add a regression that an applied boundary call whose requirement says `reaches none` contributes no service reach while keeping its exact provider-slot application, and repair any consumer that adds the owning service.
   - Migrate `samples/cli/facts/build_target_provider`: its rows drop `Reading`, becoming `reaches none` or `reaches Calculation`, since its calls reach nothing.
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).

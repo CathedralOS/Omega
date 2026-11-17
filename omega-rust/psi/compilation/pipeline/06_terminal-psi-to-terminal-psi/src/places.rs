@@ -704,6 +704,16 @@ impl<'q> Asked<'q> {
     /// store; any other store beneath the place only changes the contents
     /// of a window that stays open.
     fn ended_by(self, row: &Logged) -> bool {
+        if let Stored::UnknownPayloadWrite {
+            receiving,
+            contents,
+        } = &row.stored
+        {
+            // The explicit call write establishes its receiving storage.
+            // A pending packet can only invalidate a possible backing alias.
+            debug_assert_eq!(contents.location.root, row.captured.root);
+            return !overlap(receiving, self.place()) && overlap(&row.lineage, self.place());
+        }
         match self {
             Self::Contents(leaf) => overlap(&row.lineage, leaf),
             Self::Case(sum) => {
@@ -952,7 +962,7 @@ impl<'a> Storage<'a> {
                 row.stored = Stored::Moved(source);
             }
         }
-        storage.byte_payload_writes(references)?;
+        storage.byte_payload_writes(references, tables)?;
         for block in &lowered.blocks {
             for (before, operation) in block.operations.iter().enumerate() {
                 let Some(leaf) = storage.read_leaf(operation)? else {
@@ -1921,6 +1931,12 @@ impl<'a> Storage<'a> {
                 (Shape::Payload(_), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
                     return Err(self.foreign(concerns, "an index is applied to a case namespace"));
                 }
+                (_, Segment::UnknownContents) => {
+                    return Err(self.foreign(
+                        concerns,
+                        "unknown contents are not a physical storage projection",
+                    ));
+                }
             };
         }
         Ok(at)
@@ -1979,6 +1995,7 @@ impl<'a> Storage<'a> {
             // place. Neither grants owned access to hidden backing storage.
             StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::Opaque
+            | StructuralTypeShape::TypeParameter
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
@@ -2518,6 +2535,9 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if matches!(row.stored, Stored::UnknownPayloadWrite { .. }) {
+                return Ok(Supply::Direct(Reached::Unknown));
+            }
             // A window asks only which store a path met last: the one that
             // opened it, or one that closed it.
             if let Asked::Window { by, .. } = asked {
@@ -2563,6 +2583,7 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
+                (Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {

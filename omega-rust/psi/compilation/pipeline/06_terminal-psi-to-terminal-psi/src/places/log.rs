@@ -80,6 +80,12 @@ pub(super) enum Stored {
     /// exclusively. Only this call may supply the returned leaf identities;
     /// an earlier snapshot never names the contents after it.
     Established,
+    /// A call may write through contents whose backing cannot be enumerated.
+    /// This invalidates possible aliases; it establishes no replacement value.
+    UnknownPayloadWrite {
+        receiving: Lineage,
+        contents: terminal_semantics::descriptor_results::UnknownDescriptorContents,
+    },
 }
 
 impl Stored {
@@ -89,9 +95,11 @@ impl Stored {
         match self {
             Self::Vacated => Content::Vacated,
             Self::Value(value) => Content::Value(*value),
-            Self::Moved(_) | Self::Case(_) | Self::Zeroed | Self::Established => {
-                Content::Overwritten
-            }
+            Self::Moved(_)
+            | Self::Case(_)
+            | Self::Zeroed
+            | Self::Established
+            | Self::UnknownPayloadWrite { .. } => Content::Overwritten,
         }
     }
 }

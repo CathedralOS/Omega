@@ -3170,6 +3170,7 @@ pub(crate) mod scalar_fields {
                     }
                 }
                 terminal_psi::sum_or_mixed_shape_pattern!()
+                | StructuralTypeShape::TypeParameter
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::AtomicCell(_) => {
                     return Err(malformed());
@@ -3198,7 +3199,9 @@ pub(crate) mod scalar_fields {
                 };
                 let mut fields = Vec::new();
                 match &declaration.shape {
-                    StructuralTypeShape::Reference { .. } | StructuralTypeShape::AtomicCell(_) => {
+                    StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::TypeParameter
+                    | StructuralTypeShape::AtomicCell(_) => {
                         return true;
                     }
                     StructuralTypeShape::Opaque

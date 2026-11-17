@@ -14197,7 +14197,8 @@ pub(crate) mod operation_contracts {
                         }
                     }
                     StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::Opaque
+                    StructuralTypeShape::TypeParameter
+                    | StructuralTypeShape::Opaque
                     | StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::ElementView { .. }
@@ -16678,6 +16679,13 @@ pub(crate) mod structural_catalog {
             }
             for declaration in &unit.structural_types {
                 match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::TypeParameter => {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidStructuralTypeIdentity(
+                                declaration.id,
+                            ),
+                        );
+                    }
                     terminal_psi::StructuralTypeShape::Opaque => {
                         if declaration.quotient_carrier.is_some()
                             || declaration.scalar_restriction.is_some()
@@ -16727,7 +16735,8 @@ pub(crate) mod structural_catalog {
             }
             for declaration in &unit.structural_types {
                 let referenced = match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::Opaque
+                    terminal_psi::StructuralTypeShape::TypeParameter
+                    | terminal_psi::StructuralTypeShape::Opaque
                     | terminal_psi::StructuralTypeShape::Reference { .. } => Vec::new(),
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
                     | terminal_psi::StructuralTypeShape::AtomicCell(_)

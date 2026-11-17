@@ -9827,7 +9827,8 @@ mod storage_regions {
                         .iter()
                         .all(|case| fields_cannot_retain_loan(types, &case.fields, established))
             }
-            StructuralTypeShape::Opaque
+            StructuralTypeShape::TypeParameter
+            | StructuralTypeShape::Opaque
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => false,
         };

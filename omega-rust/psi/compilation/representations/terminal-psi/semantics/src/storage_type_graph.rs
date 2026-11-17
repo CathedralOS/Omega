@@ -193,6 +193,7 @@ fn for_each_owned_child(
         }
         StructuralTypeShape::FixedArray { element, .. } => visit(*element)?,
         StructuralTypeShape::Opaque
+        | StructuralTypeShape::TypeParameter
         | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::AtomicCell(_)
         | StructuralTypeShape::ByteSequence(_)

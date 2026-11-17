@@ -1022,6 +1022,23 @@ pub(crate) mod analysis {
             self.replay.summary(identity, 0)?.result.into_slots()
         }
 
+        pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
+            let summary = self.replay.summary(identity, 0)?;
+            let super::engine::ResultObservations::Observed {
+                slots,
+                contents,
+                unknown,
+            } = summary.result
+            else {
+                return None;
+            };
+            Some(DescriptorResultContents {
+                slots: slots?,
+                unknown_contents: contents,
+                unresolved_slots: unknown,
+            })
+        }
+
         /// A helper can update referenced storage while leaving its descriptor
         /// unchanged. Every normal return must retain the invocation's original
         /// descriptor; facts about the stored data still need invalidation.
@@ -1675,6 +1692,40 @@ pub(crate) mod analysis {
                         outputs.push((destination, slot.origins.as_slice(), true));
                         Ok::<(), DescriptorGraphError>(())
                     })?;
+                }
+                for packet in summary.result.contents() {
+                    let mut destination = result.clone();
+                    destination.path.extend_from_slice(&packet.path);
+                    let expected = self
+                        .replay
+                        .unknown_contents_type(machine, &destination)
+                        .ok_or_else(incomplete_step)?;
+                    step.definitions.push(destination.clone());
+                    for origin in &packet.origins {
+                        let DescriptorStoredOrigin::IncomingSlot {
+                            position: parameter,
+                            path,
+                        } = origin
+                        else {
+                            return Err(incomplete_step());
+                        };
+                        let mut source = call
+                            .arguments
+                            .get(*parameter)
+                            .and_then(Option::as_ref)
+                            .ok_or_else(incomplete_step)?
+                            .clone();
+                        source.path.extend_from_slice(path);
+                        let source = self
+                            .replay
+                            .canonical_contents_packet(machine, before, &source)
+                            .ok_or_else(incomplete_step)?;
+                        if self.replay.unknown_contents_type(machine, &source) != Some(expected) {
+                            return Err(incomplete_step());
+                        }
+                        step.inputs.push((Some(source.clone()), None));
+                        step.derivations.push((source, destination.clone()));
+                    }
                 }
                 // A result slot of unknown origin may be any descriptor
                 // the call was given, or reach through one: everything
@@ -3312,6 +3363,43 @@ pub(crate) mod contents_queries {
             )
         }
 
+        pub(crate) fn unknown_contents_type(
+            &self,
+            machine: &DescriptorMachine,
+            location: &DescriptorLocation,
+        ) -> Option<StructuralTypeId> {
+            let (last, path) = location.path.split_last()?;
+            if *last != DescriptorPathSegment::UnknownContents {
+                return None;
+            }
+            let root = *machine.place_types.get(&location.root)?;
+            let carrier =
+                crate::descriptor_lifetimes::descriptor_location_type(self.types, root, path)?;
+            matches!(
+                find_structural_type(self.types, carrier)?.shape,
+                StructuralTypeShape::TypeParameter
+            )
+            .then_some(carrier)
+        }
+
+        pub(crate) fn canonical_contents_packet(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            packet: &DescriptorLocation,
+        ) -> Option<DescriptorLocation> {
+            let expected = self.unknown_contents_type(machine, packet)?;
+            let mut carrier = packet.clone();
+            carrier.path.pop()?;
+            let mut canonical = match self.resolve_storage(machine, state, &carrier, None)? {
+                StorageResolution::Unique(location) => location,
+                StorageResolution::Projected(_) => carrier,
+                StorageResolution::Alternatives => return None,
+            };
+            canonical.path.push(DescriptorPathSegment::UnknownContents);
+            (self.unknown_contents_type(machine, &canonical)? == expected).then_some(canonical)
+        }
+
         fn validate_query(
             &self,
             machine: &DescriptorMachine,
@@ -3393,6 +3481,12 @@ pub(crate) mod contents_queries {
             depth: &DescriptorReadDepth<'_>,
         ) -> Value {
             let _read = depth.enter()?;
+            if let Some(location) = query.exact_location()
+                && location.path.last() == Some(&DescriptorPathSegment::UnknownContents)
+            {
+                self.unknown_contents_type(machine, &location)?;
+                return self.read_with_depth(machine, state, &location, depth);
+            }
             self.validate_query(machine, state, query, depth)?;
             if self.slot_kind == DescriptorSlotKind::AccessOrigins {
                 if state.contents_path_invalidated(query) {
@@ -4437,13 +4531,34 @@ pub(crate) mod dispatch {
 
     pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
         joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
-        if let super::engine::ResultObservations::Observed { unknown, .. } = &mut joined.result {
+        if let super::engine::ResultObservations::Observed {
+            unknown,
+            contents,
+            slots,
+        } = &mut joined.result
+        {
             for path in summaries
                 .iter()
                 .flat_map(|summary| summary.result.unknown())
             {
                 if !unknown.contains(path) {
                     unknown.push(path.clone());
+                }
+            }
+            for summary in summaries {
+                let other = summary.result.contents();
+                if other.len() != contents.len()
+                    || other
+                        .iter()
+                        .zip(contents.iter())
+                        .any(|(left, right)| left.path != right.path)
+                {
+                    *slots = None;
+                    contents.clear();
+                    break;
+                }
+                for (output, incoming) in contents.iter_mut().zip(other) {
+                    output.origins.extend(incoming.origins.iter().cloned());
                 }
             }
         }
@@ -4597,6 +4712,9 @@ pub(crate) mod engine {
     pub(crate) enum ResultObservations {
         Observed {
             slots: Option<Vec<DescriptorResultSlot>>,
+            /// Whole unknown values retain their entry contents identity.
+            /// These are value packets, never captured reference addresses.
+            contents: Vec<DescriptorResultSlot>,
             /// These paths have no established spatial origin. Their flow
             /// conservatively retains every possible actual input loan;
             /// retaining a loan does not establish one input as the backing.
@@ -4608,6 +4726,12 @@ pub(crate) mod engine {
     }
 
     impl ResultObservations {
+        pub(crate) fn contents(&self) -> &[DescriptorResultSlot] {
+            match self {
+                Self::Observed { contents, .. } => contents,
+                Self::NoNormalBodyObservation => &[],
+            }
+        }
         pub(crate) fn slots(&self) -> Option<&Vec<DescriptorResultSlot>> {
             match self {
                 Self::Observed { slots, .. } => slots.as_ref(),
@@ -4616,7 +4740,9 @@ pub(crate) mod engine {
         }
         pub(crate) fn into_slots(self) -> Option<Vec<DescriptorResultSlot>> {
             match self {
-                Self::Observed { slots, .. } => slots,
+                Self::Observed {
+                    slots, contents, ..
+                } => contents.is_empty().then_some(slots)?,
                 Self::NoNormalBodyObservation => None,
             }
         }
@@ -4678,6 +4804,7 @@ pub(crate) mod engine {
             } => Some(Summary {
                 result: ResultObservations::Observed {
                     slots: Some(results.clone()),
+                    contents: Vec::new(),
                     unknown: Vec::new(),
                 },
                 result_cases: Default::default(),
@@ -4692,6 +4819,7 @@ pub(crate) mod engine {
             } => Some(Summary {
                 result: ResultObservations::Observed {
                     slots: Some(results.clone()),
+                    contents: Vec::new(),
                     unknown: Vec::new(),
                 },
                 result_cases: Default::default(),
@@ -5642,6 +5770,16 @@ pub(crate) mod engine {
             include_selected: bool,
         ) -> Value {
             let _read = depth.enter()?;
+            if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                let ty = self.unknown_contents_type(machine, location)?;
+                if !matches!(
+                    find_structural_type(self.types, ty)?.shape,
+                    StructuralTypeShape::TypeParameter
+                ) {
+                    return None;
+                }
+                return state.slots.get(location)?.clone();
+            }
             if location.path.is_empty()
                 && matches!(machine.place_definition(location.root)?, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
                 && !is_descriptor(self.types.iter(), *machine.place_types.get(&location.root)?)
@@ -5766,14 +5904,11 @@ pub(crate) mod engine {
                     .slots_mut()
                     .insert(DescriptorLocation::whole(row.place), None);
                 let inventory = if self.slot_kind.tracks_references() {
-                    DescriptorSlotInventory {
-                        slots: self.slot_kind.owned_slots(
-                            self.types,
-                            row.place,
-                            *machine.place_types.get(&row.place)?,
-                        )?,
-                        opaque_referents: Vec::new(),
-                    }
+                    self.slot_kind.owned_inventory(
+                        self.types,
+                        row.place,
+                        *machine.place_types.get(&row.place)?,
+                    )?
                 } else {
                     self.slot_kind.inventory(
                         self.types,
@@ -5781,7 +5916,12 @@ pub(crate) mod engine {
                         *machine.place_types.get(&row.place)?,
                     )?
                 };
-                for slot in inventory.slots.iter().chain(&inventory.opaque_referents) {
+                for slot in inventory.slots.iter().chain(
+                    inventory
+                        .unknown_contents
+                        .iter()
+                        .map(|unknown| &unknown.location),
+                ) {
                     state.slots_mut().insert(slot.clone(), None);
                 }
                 if let DescriptorDefinition::Parameter {
@@ -5818,6 +5958,17 @@ pub(crate) mod engine {
                                 slot.clone(),
                                 Some(BTreeSet::from([Origin::Incoming(slot)])),
                             );
+                        }
+                    }
+                    if access != StructuralAccess::WriteOnlyBorrow {
+                        for contents in inventory.unknown_contents {
+                            if contents.kind == UnknownContentsKind::Value {
+                                let location = contents.location;
+                                state.slots_mut().insert(
+                                    location.clone(),
+                                    Some(BTreeSet::from([Origin::Incoming(location)])),
+                                );
+                            }
                         }
                     }
                 }
@@ -6298,6 +6449,27 @@ pub(crate) mod engine {
             after.contents_invalidated |= summary.invalidates_contents;
             if summary.invalidates_contents {
                 after.cases = Arc::default();
+                let mut actuals = call.arguments.iter().flatten().cloned().collect::<Vec<_>>();
+                actuals.extend(
+                    call.argument_contents
+                        .iter()
+                        .flatten()
+                        .map(DescriptorContentsQuery::observation),
+                );
+                let changed = after
+                    .slots
+                    .keys()
+                    .filter(|location| {
+                        location.path.last() == Some(&DescriptorPathSegment::UnknownContents)
+                            && actuals.iter().any(|actual| actual.contains(location))
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                // The value remains established, but an unknown mutation
+                // cannot preserve its entry contents as an exact snapshot.
+                for location in changed {
+                    after.slots_mut().insert(location, None);
+                }
             }
             if let Some(result) = &call.result
                 && summary.result.is_unobserved()
@@ -6489,6 +6661,24 @@ pub(crate) mod engine {
                         },
                     )
                     .ok()?;
+                }
+                for packet in summary.result.contents() {
+                    let mut destination = result.clone();
+                    destination.path.extend_from_slice(&packet.path);
+                    self.unknown_contents_type(machine, &destination)?;
+                    let mut origins = BTreeSet::new();
+                    for origin in &packet.origins {
+                        origins.extend(
+                            self.substitute_result_with_depth(
+                                machine, before, call, origin, reads,
+                            )?,
+                        );
+                    }
+                    if origins.is_empty() {
+                        return None;
+                    }
+                    replacements
+                        .insert(DescriptorPayloadTarget::current(destination), Some(origins));
                 }
                 let unknown = if summary.result.is_unobserved() {
                     self.slot_kind
@@ -7610,6 +7800,7 @@ pub(crate) mod engine {
             }
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
             let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
+            let mut result_contents: Option<Vec<DescriptorResultSlot>> = None;
             let result = if let Some(returns) = &machine.returns {
                 let mut slots: Option<Vec<DescriptorResultSlot>> = None;
                 let mut result_type = None;
@@ -7632,9 +7823,40 @@ pub(crate) mod engine {
                         return None;
                     }
                     result_type = Some(structural_type);
-                    let returned =
-                        self.slot_kind
-                            .owned_slots(self.types, location.root, structural_type)?;
+                    let inventory = self.slot_kind.owned_inventory(
+                        self.types,
+                        location.root,
+                        structural_type,
+                    )?;
+                    let contents = result_contents.get_or_insert_with(|| {
+                        inventory
+                            .unknown_contents
+                            .iter()
+                            .map(|packet| DescriptorResultSlot {
+                                path: packet.location.path.clone(),
+                                origins: Vec::new(),
+                            })
+                            .collect()
+                    });
+                    if contents.len() != inventory.unknown_contents.len() {
+                        return None;
+                    }
+                    for (packet, returned) in contents.iter_mut().zip(inventory.unknown_contents) {
+                        if returned.kind != UnknownContentsKind::Value
+                            || packet.path != returned.location.path
+                        {
+                            return None;
+                        }
+                        self.unknown_contents_type(machine, &returned.location)?;
+                        let origins = self.read(machine, state, &returned.location)?;
+                        if origins.is_empty() {
+                            return None;
+                        }
+                        for origin in origins {
+                            packet.origins.push(self.exported(machine, &origin)?);
+                        }
+                    }
+                    let returned = inventory.slots;
                     let accumulated = slots.get_or_insert_with(|| {
                         returned
                             .iter()
@@ -7796,6 +8018,7 @@ pub(crate) mod engine {
             let summary = Summary {
                 result: ResultObservations::Observed {
                     slots: result,
+                    contents: result_contents.unwrap_or_default(),
                     unknown: unknown_results,
                 },
                 result_cases: result_cases.unwrap_or_default(),
@@ -10567,6 +10790,7 @@ pub(crate) mod summary_interface {
             Some(Summary {
                 result: ResultObservations::Observed {
                     slots: None,
+                    contents: Vec::new(),
                     unknown: Vec::new(),
                 },
                 result_cases: Default::default(),
@@ -10581,6 +10805,17 @@ use crate::runtime_structural_path_tip;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use engine::Replay;
 use terminal_psi::find_structural_type;
+
+/// Known reference origins and opaque value contents have different roles.
+/// A contents packet records custody; it supplies no address or access mode.
+#[derive(Clone)]
+pub struct DescriptorResultContents {
+    pub slots: Vec<DescriptorResultSlot>,
+    pub unknown_contents: Vec<DescriptorResultSlot>,
+    /// The flow retains all possible input loans for these descriptors.
+    /// This lifetime account supplies no unique spatial origin.
+    pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+}
 
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
@@ -10907,12 +11142,13 @@ fn may_contain_descriptor(
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
         StructuralTypeShape::Reference { referent, .. } => {
             kind.is_slot(types, ty)
-                || (scope == DescriptorStorageScope::Reachable
+                || (scope != DescriptorStorageScope::Owned
                     && may_contain_descriptor(kind, scope, types, *referent, active))
         }
         StructuralTypeShape::FixedArray { element, .. } => {
             may_contain_descriptor(kind, scope, types, *element, active)
         }
+        StructuralTypeShape::TypeParameter => true,
         _ => kind.is_slot(types, ty),
     };
     active.remove(&ty);
@@ -10933,8 +11169,10 @@ impl DescriptorSlotKind {
         place: PlaceId,
         structural_type: StructuralTypeId,
     ) -> bool {
-        self.owned_slots(types, place, structural_type)
-            .is_some_and(|slots| !slots.is_empty())
+        self.owned_inventory(types, place, structural_type)
+            .is_some_and(|inventory| {
+                !inventory.slots.is_empty() || !inventory.unknown_contents.is_empty()
+            })
             || case_flow::contains_case(
                 types,
                 structural_type,
@@ -10998,7 +11236,7 @@ impl DescriptorSlotKind {
     ) -> Option<Vec<DescriptorLocation>> {
         let inventory = self.inventory(types, root, structural_type)?;
         inventory
-            .opaque_referents
+            .unknown_contents
             .is_empty()
             .then_some(inventory.slots)
     }
@@ -11008,15 +11246,25 @@ impl DescriptorSlotKind {
         root: PlaceId,
         structural_type: StructuralTypeId,
     ) -> Option<Vec<DescriptorLocation>> {
-        Some(
-            slot_inventory(
-                self,
-                DescriptorStorageScope::Owned,
-                types,
-                root,
-                structural_type,
-            )?
-            .slots,
+        let inventory = self.owned_inventory(types, root, structural_type)?;
+        inventory
+            .unknown_contents
+            .is_empty()
+            .then_some(inventory.slots)
+    }
+
+    pub fn owned_inventory(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Option<DescriptorSlotInventory> {
+        slot_inventory(
+            self,
+            DescriptorStorageScope::Owned,
+            types,
+            root,
+            structural_type,
         )
     }
 
@@ -11143,6 +11391,7 @@ fn indirect_contents_contain_slot(
             fields_contain(fields) || cases.iter().any(|case| fields_contain(&case.fields))
         }
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
+        StructuralTypeShape::TypeParameter => true,
         _ => false,
     };
     active.remove(&structural_type);
@@ -11199,8 +11448,8 @@ impl DescriptorSlotKind {
             }
             Some(external && matches!(permission, terminal_psi::exclusive_borrow_pair_pattern!()))
         };
-        for opaque in inventory.opaque_referents {
-            if writable(&opaque.path)? {
+        for opaque in inventory.unknown_contents {
+            if writable(&opaque.location.path)? {
                 return None;
             }
         }
@@ -11216,7 +11465,21 @@ impl DescriptorSlotKind {
 
 pub struct DescriptorSlotInventory {
     pub slots: Vec<DescriptorLocation>,
-    pub opaque_referents: Vec<DescriptorLocation>,
+    pub unknown_contents: Vec<UnknownDescriptorContents>,
+}
+
+/// An owned value's unknown contents travel with the value. A pointer's
+/// unknown referent remains separate storage and is never an owned payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnknownContentsKind {
+    Value,
+    Referent,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownDescriptorContents {
+    pub location: DescriptorLocation,
+    pub kind: UnknownContentsKind,
 }
 
 pub fn descriptor_slots(
@@ -11239,6 +11502,9 @@ pub fn descriptor_slot_inventory(
 enum DescriptorStorageScope {
     Owned,
     Reachable,
+    /// Traversal crossed a reference. Its descendants belong to the
+    /// referent's storage even when their declarations are represented.
+    Referent,
 }
 
 fn slot_inventory(
@@ -11257,7 +11523,7 @@ fn slot_inventory(
         active: &mut BTreeSet<StructuralTypeId>,
         result: &mut DescriptorSlotInventory,
     ) -> Option<()> {
-        if !active.insert(ty) || result.slots.len() + result.opaque_referents.len() > 4096 {
+        if !active.insert(ty) || result.slots.len() + result.unknown_contents.len() > 4096 {
             return None;
         }
         let declaration = exactly_one(types.iter(), |declaration| declaration.id == ty)?;
@@ -11269,15 +11535,38 @@ fn slot_inventory(
             }
         }
         match &declaration.shape {
+            StructuralTypeShape::TypeParameter => {
+                let mut contents = location.clone();
+                contents.path.push(DescriptorPathSegment::UnknownContents);
+                result.unknown_contents.push(UnknownDescriptorContents {
+                    location: contents,
+                    kind: if scope == DescriptorStorageScope::Referent {
+                        UnknownContentsKind::Referent
+                    } else {
+                        UnknownContentsKind::Value
+                    },
+                });
+            }
             StructuralTypeShape::Reference { referent, .. }
-                if scope == DescriptorStorageScope::Reachable =>
+                if scope != DescriptorStorageScope::Owned =>
             {
                 let mut child = location.clone();
                 child.path.push(DescriptorPathSegment::Referent);
                 if active.contains(referent) || find_structural_type(types, *referent).is_none() {
-                    result.opaque_referents.push(child);
+                    result.unknown_contents.push(UnknownDescriptorContents {
+                        location: child,
+                        kind: UnknownContentsKind::Referent,
+                    });
                 } else {
-                    walk(kind, scope, types, *referent, child, active, result)?;
+                    walk(
+                        kind,
+                        DescriptorStorageScope::Referent,
+                        types,
+                        *referent,
+                        child,
+                        active,
+                        result,
+                    )?;
                 }
             }
             terminal_psi::record_or_mixed_shape_pattern!(fields) => {
@@ -11339,7 +11628,7 @@ fn slot_inventory(
     }
     let mut result = DescriptorSlotInventory {
         slots: Vec::new(),
-        opaque_referents: Vec::new(),
+        unknown_contents: Vec::new(),
     };
     walk(
         kind,
