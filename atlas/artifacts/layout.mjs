@@ -10,7 +10,7 @@ const graph=await new ELK().layout({id:'spine',layoutOptions:{
   'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'ORTHOGONAL',
   'elk.layered.spacing.nodeNodeBetweenLayers':'18','elk.spacing.nodeNode':'18',
   'elk.padding':'[top=50,left=0,bottom=20,right=0]',
-},children:model.spine.map(id=>{const n=records.get(id);return{id,width:n.role==='transform'?8:220,height:n.role==='transform'?8:60};}),
+},children:model.spine.map(id=>{const n=records.get(id);return{id,width:n.role==='transform'?8:220,height:n.role==='transform'?8:(model.view==='proposed'?n.height:60)};}),
  edges:model.edges.filter(e=>e.main).map(e=>({id:e.id,sources:[e.start],targets:[e.end]}))});
 const positions=new Map(graph.children.map(n=>[n.id,n]));
 const nodes=new Map();

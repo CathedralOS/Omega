@@ -7,6 +7,10 @@ plan citation and any unresolved planning obligation. Proposed stages are number
 00–10. These are draft ordering numbers, not current crate numbers or a claim
 that the migration is implemented. Every proposed handoff moves forward; each
 representation carries the requests and facts its successors need.
+Every proposed stage is unfolded by default: decimal labels expose its
+operations and intermediate forms. Source lexing, parsing, resolution, typing,
+preparation, lowering and checking remain visible. Source/native worklists may
+revisit operations; internal arrows show dependencies, not one-pass execution.
 
 Follow the bold route from START, top to bottom. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed
