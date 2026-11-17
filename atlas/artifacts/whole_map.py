@@ -213,7 +213,7 @@ def render_layers(model, prefix):
 def render_architecture(atlas, prefix):
     model = architecture(atlas)
     revision = re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
-    return ('<section class="architecture" id="architecture" aria-labelledby="architecture-title">'
+    return ('<section class="architecture" data-theme="dark" id="architecture" aria-labelledby="architecture-title">'
             '<header class="arch-header"><div class="map-heading"><a class="atlas-mark" href="../index.html" aria-label="Atlas overview">Ω</a><div class="map-heading-text">'
             '<h2 id="architecture-title">Compiler architecture</h2>'
             f'<span class="arch-badge">Compiler snapshot · {revision[:12]}</span></div></div>'

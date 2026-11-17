@@ -1,6 +1,6 @@
 # Interactive architecture
 
-In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dashed teal arrows show supporting calls and data.
+In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dotted gray arrows show supporting calls and data. The teal checker marks its verdict.
 
 Use **Current / Proposed** above the drawing to compare the observed compiler
 with the recorded migration plan on the same canvas. Each view remembers its
