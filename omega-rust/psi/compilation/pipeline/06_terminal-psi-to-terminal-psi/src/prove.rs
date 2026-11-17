@@ -310,6 +310,8 @@ pub struct ProofSearchActivity {
     started: usize,
     #[cfg(test)]
     sign_queries: usize,
+    #[cfg(test)]
+    contradiction_searches: usize,
 }
 
 impl ProofSearchActivity {
@@ -322,6 +324,9 @@ impl ProofSearchActivity {
         #[cfg(test)]
         {
             self.sign_queries = self.sign_queries.saturating_add(other.sign_queries);
+            self.contradiction_searches = self
+                .contradiction_searches
+                .saturating_add(other.contradiction_searches);
         }
     }
 }
@@ -360,10 +365,9 @@ pub(crate) struct Prover<'a> {
     /// An auxiliary sign query can revisit its parent through contradiction
     /// search. The same goal under these unchanged premises supplies no proof.
     active_goals: Vec<Proposition>,
-    /// Set while `unreachable` searches these premises for a contradiction.
-    /// The search does not depend on its goal, so a nested search under the
-    /// same premises finds nothing new; re-entering it only multiplies work
-    /// by the number of order facts at each level.
+    /// A direct Falsehood or unreachable query already searches these premises
+    /// for a contradiction. Repeating that search for another conclusion adds
+    /// no information and multiplies work by the order facts at each level.
     refuting: bool,
 }
 
@@ -918,6 +922,10 @@ impl<'a> Prover<'a> {
         if std::mem::replace(&mut self.refuting, true) {
             return None;
         }
+        #[cfg(test)]
+        {
+            self.activity.contradiction_searches += 1;
+        }
         let absurd = self.contradiction(goal);
         self.refuting = false;
         absurd
@@ -1264,15 +1272,20 @@ impl<'a> Prover<'a> {
     }
 
     fn prove_direct(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
-        let structural = self.prove_structural(goal);
-        if structural.is_ok() {
-            return structural;
-        }
-        if let Some(proof) = self.by_implication(goal) {
-            return Ok(proof);
-        }
-        self.by_transport(goal)
-            .ok_or(structural.err().unwrap_or("no proof"))
+        // Proving Falsehood already asks whether these premises contradict.
+        // An implication's antecedent cannot usefully restart that same search;
+        // the outer goal still tries its ordinary cases and contradiction pass.
+        let refuting = self.refuting;
+        self.refuting |= matches!(goal, Proposition::Falsehood);
+        let result = match self.prove_structural(goal) {
+            Ok(proof) => Ok(proof),
+            Err(detail) => self
+                .by_implication(goal)
+                .or_else(|| self.by_transport(goal))
+                .ok_or(detail),
+        };
+        self.refuting = refuting;
+        result
     }
 
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {

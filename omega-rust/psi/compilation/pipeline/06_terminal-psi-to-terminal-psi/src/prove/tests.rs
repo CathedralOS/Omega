@@ -903,3 +903,71 @@ fn unsigned_carrier_endpoint_uses_the_existing_checked_primitive() {
             .is_err()
     );
 }
+
+#[test]
+fn falsehood_implications_do_not_restart_the_same_contradiction_search() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let value = ScalarTerm::value(id, scalar);
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let premise = Proposition::LessOrEqual(value.clone(), literal(3));
+    let excludes = Proposition::Implication {
+        premise: Box::new(premise.clone()),
+        conclusion: Box::new(Proposition::Falsehood),
+    };
+    let mut activity = ProofSearchActivity::default();
+    assert!(
+        Prover::new(
+            &context,
+            std::slice::from_ref(&excludes),
+            &[],
+            &values,
+            &mut activity,
+        )
+        .prove(&Proposition::Falsehood)
+        .is_err()
+    );
+    assert_eq!(activity.contradiction_searches, 1);
+
+    // A proved antecedent still eliminates its implication, with both actual
+    // assumptions cited in the certificate.
+    let assumptions = [excludes.clone(), premise];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&Proposition::Falsehood)
+        .unwrap();
+    let accepted = proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &[],
+        &proof,
+    )
+    .unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+
+    // The outer contradiction pass remains available when a different pair
+    // of arithmetic assumptions contradicts. No antecedent proves itself.
+    let assumptions = [
+        excludes,
+        Proposition::LessOrEqual(value.clone(), literal(5)),
+        Proposition::LessOrEqual(literal(8), value),
+    ];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&Proposition::Falsehood)
+        .unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &[],
+        &proof,
+    )
+    .unwrap();
+}
