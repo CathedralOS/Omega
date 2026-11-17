@@ -309,6 +309,72 @@ fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
     }
 }
 
+/// state_contracts.md, "Private entry inference", for the two places a
+/// caller's fact can live that are not its own read of an input field: an
+/// array element another block read (`sc_verdict` tests `main.wires[4]`, so
+/// every copied head of `sc_stop` names that element), and a value stored
+/// into a field and then guarded (`check` stores `main.plug[main.x]` into
+/// `main.t` and its `&&` passes `main` on through a block formal of its
+/// own). Each twin drops the bound its helper needs and stays rejected.
+#[test]
+fn a_caller_fact_reaches_its_helper_through_elements_and_stores() {
+    let element = |bound: &str| {
+        format!(
+            "data Main {{ wires: [i32; 8]; n: i32; r: i32; }}\n\
+             machine fill(main: &mut Main) {{ main.wires[4] = main.r; }}\n\
+             machine scan(main: &mut Main) {{\n\
+                 main.n = 0;\n\
+                 main.r = 0;\n\
+                 transition {{ _ -> sc_pos(main) }}\n\
+                 machine sc_pos(main: &mut Main) {{ fill(main); transition {{ _ -> sc_verdict(main) }} }}\n\
+                 machine sc_verdict(main: &mut Main) {{\n\
+                     transition main.wires[4] == 3 {{ true -> sc_next(main) _ -> sc_stop(main) }}\n\
+                 }}\n\
+                 machine sc_stop(main: &mut Main) {{\n\
+                     transition main.n >= 0{bound} {{ true -> sc_ct(main) _ -> sc_next(main) }}\n\
+                 }}\n\
+                 machine sc_ct(main: &mut Main) {{ main.n = main.n + 1; transition {{ _ -> sc_next(main) }} }}\n\
+                 machine sc_next(main: &mut Main) {{\n\
+                     transition main.r >= 0 && main.r < 25 {{ true -> sc_inc(main) _ -> sc_done(main) }}\n\
+                 }}\n\
+                 machine sc_inc(main: &mut Main) {{ main.r = main.r + 1; transition {{ _ -> sc_pos(main) }} }}\n\
+                 machine sc_done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; scan(&mut storage); }}\n"
+        )
+    };
+    let stored = |bound: &str| {
+        format!(
+            "data Main {{ plug: [i32; 26]; x: i32; t: i32; }}\n\
+             machine involution(main: &mut Main) {{\n\
+                 main.x = 0;\n\
+                 transition {{ _ -> head(main) }}\n\
+                 machine head(main: &mut Main) {{\n\
+                     transition main.x >= 0 && main.x < 26 {{ true -> check(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine check(main: &mut Main) {{\n\
+                     main.t = main.plug[main.x];\n\
+                     transition main.t >= 0 && main.t < {bound} {{ true -> pair(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine pair(main: &mut Main) {{\n\
+                     transition main.plug[main.t] == main.x && main.x < 26 {{ true -> next(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine next(main: &mut Main) {{ main.x = main.x + 1; transition {{ _ -> head(main) }} }}\n\
+                 machine done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; involution(&mut storage); }}\n"
+        )
+    };
+    for (name, source, expected) in [
+        ("element_guarded", element(" && main.n < 100"), "accepted"),
+        ("element_unbounded", element(""), "rejected"),
+        ("stored_guarded", stored("26"), "accepted"),
+        ("stored_past_the_array", stored("27"), "rejected"),
+    ] {
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
     for (name, guard, expected) in [
