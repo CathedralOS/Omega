@@ -2202,6 +2202,13 @@ pub mod operator {
                     owner_symbol,
                     spelling,
                 )
+                && operand_types.iter().flatten().all(|reference| {
+                    // Builtins require unqualified operands. Reuse the same
+                    // complete identity as declaration matching, including a
+                    // reference's referent and a layout's semantic carrier.
+                    qualification_identity(program, *reference, &[])
+                        .is_some_and(|qualification| qualification.is_empty())
+                })
                 && crate::closed_numeric::has_builtin_anonymous_operands(
                     program, expression, spelling,
                 )
