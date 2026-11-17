@@ -353,14 +353,18 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   fill:var(--ink-muted); font:500 14px var(--font-serif); letter-spacing:.06em; text-transform:uppercase;
 }
 .connected-start { fill:var(--ink-muted); font:500 12px var(--font-serif); letter-spacing:.06em; }
-.connected-scene .overview-node .current-title { fill:var(--ink); font:500 17px var(--font-serif); }
+.connected-scene .overview-node .current-title { fill:var(--ink); font:500 20px var(--font-serif); }
 .connected-scene .overview-node .node-body { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.8; }
 .connected-scene .overview-node.owner .node-body { fill:var(--ground); stroke:var(--rule); stroke-width:1.5; }
 .connected-scene .overview-node.native .node-body { fill:var(--ink); stroke:var(--ink); }
 .connected-scene .overview-node.native .current-title { fill:var(--ground); }
 .connected-scene .overview-node.accepted .node-body { stroke:var(--ink); stroke-width:2.5; }
-.connected-scene .overview-node[data-role="transform"] .node-body { fill:var(--surface); stroke:none; }
-.connected-scene .overview-node[data-role="transform"] .current-title { font-weight:400; }
+.connected-scene .operation-port { fill:transparent; }
+.connected-scene .overview-node.operation { pointer-events:bounding-box; }
+.connected-scene .overview-node.operation .current-title { font:400 18px var(--font-serif); }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .current-title { text-decoration:underline; }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .operation-port { fill:var(--ink); }
+.connected-scene:not(.proposed-scene) .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.8; }
 .connected-scene .overview-node.check .current-title { fill:var(--checked); }
 .connected-scene .overview-node.attention .current-title,
 .connected-scene .overview-node[data-endpoint="installations"] .current-title { fill:var(--trap); }
@@ -368,7 +372,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-scene .overview-node:is(:hover,:focus-visible,.is-selected) .node-body { stroke:var(--ink); stroke-width:2.5; }
 .connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--ink-muted); stroke-width:1.6; stroke-dasharray:2 4; }
 .connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:2.2; stroke-dasharray:6 4; }
-.connected-scene .overview-edge .wire-caption { font:400 14px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
+.connected-scene .overview-edge .wire-caption { font:400 16px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
 .connected-scene .overview-edge.detour .wire-caption { fill:var(--trap); }
 .has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
 #compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
@@ -567,7 +571,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Reviewed pipeline routes</h1>
       <p class="lede">Observed compilation routes, corrected value paths and the proposed ownership changes.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/f36234695b146e7fca19f47f75e8e63996786a66/atlas"><code>f36234695b14</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/06709e716e718bc1086a9bb434bd39155dc3d899/atlas"><code>06709e716e71</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -1022,14 +1026,14 @@ it does not renumber the observed code. The
 <a href="rulings.html">owner rulings</a> govern the destination.</p>
 <h2 id="size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</h2>
 <p>The measurement panel is generated from
-<a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
+<a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
 source lines within Cargo package directories, including test files, under
-the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/manifest.json">evidence manifest</a>.
+the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/evidence/data/manifest.json">evidence manifest</a>.
 A directory total does not prove that all its work belongs in one stage.
 The plan must trace each producer, consumer, authority, and refusal condition.</p>
 <p>Text scans identify observed names, not every Rust use. A dependency with no
 observed use still needs resolver-aware verification before deletion. See
-the <a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
+the <a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
 scan and the limits of the generated data.</p></main>
   </div>
 <footer class="site-footer"><div class="site-footer-inner"><nav class="footer-pages" aria-label="Atlas directory"><section><h2>Compiler</h2><ul>
@@ -1052,7 +1056,7 @@ scan and the limits of the generated data.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/06709e716e718bc1086a9bb434bd39155dc3d899/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1291,7 +1295,7 @@ scan and the limits of the generated data.</p></main>
   function traceDetour(id){
     stopFlight();clear();
     const trace=model.traces.find(t=>t.id===id);
-    if(!trace){fit();return;}
+    if(!trace)return;
     traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
     const points=[];
     for(const edgeId of trace.edges){
@@ -1378,7 +1382,7 @@ scan and the limits of the generated data.</p></main>
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
     const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else if(view==='current')fit();else start();
+    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
@@ -1425,13 +1429,11 @@ scan and the limits of the generated data.</p></main>
       const t=stagePosition(null);move(t.x,t.y,t.k);
       return;
     }
-    const k=Math.min(1,(viewport.clientWidth-30)/240);move(8,8,k);
+    const first=nodes.get(model.spine[0]);
+    move(Math.min(0,(viewport.clientWidth-first.width)/2-first.x),0,1);
   }
-  fit();
-  if(location.hash==='#detours'){
-    root.querySelector('[data-camera="expand"]').click();
-    fit();
-  }
+  start();
+  if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
   if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>

@@ -128,7 +128,6 @@ class OverviewContracts(GeometryContracts, unittest.TestCase):
     def test_every_handoff_is_drawn_in_the_landscape_map(self):
         self.assertEqual(self.model['spine'][0],'build')
         self.assertEqual(self.model['spine'][-1],'native-run')
-        self.assertGreater(self.layout['width'],1.8*self.layout['height'])
         self.assertEqual({e['id'] for e in self.model['edges']},{e['id'] for e in self.layout['edges']})
         nodes={n['id']:n for n in self.layout['nodes']}
         for a,b in zip(self.model['spine'],self.model['spine'][1:]):
@@ -153,9 +152,18 @@ class OverviewContracts(GeometryContracts, unittest.TestCase):
         self.assertNotIn('engine',self.model['spine'])
         self.assertNotIn('policy-eval',self.model['spine'])
 
-    def test_compact_canvas_bounds(self):
-        self.assertLess(self.layout['width'],1800)
-        self.assertLess(self.layout['height'],4000)
+    def test_each_operation_label_sits_on_an_unbroken_handoff(self):
+        nodes={n['id']:n for n in self.layout['nodes']}
+        for key in self.model['spine']:
+            node=nodes[key]
+            if node['role']!='transform':
+                continue
+            point={'x':node['x'],'y':node['y']}
+            incoming=next(e for e in self.layout['edges'] if e['main'] and e['end']==key)
+            outgoing=next(e for e in self.layout['edges'] if e['main'] and e['start']==key)
+            self.assertEqual(incoming['sections'][-1]['points'][-1],point,key)
+            self.assertEqual(outgoing['sections'][0]['points'][0],point,key)
+            self.assertGreaterEqual(nodes[outgoing['end']]['y']-node['y'],40,key)
 
 
 

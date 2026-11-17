@@ -177,7 +177,7 @@ accepted code. Extra inputs terminate at the operations that consume them.
 
 Drag to pan and scroll to zoom in either view. In Proposed, use Stage to jump to a numbered group. Find reaches individual components in either view.
 Select a box or arrow to highlight its connections and open pinned source.
-Current opens on the whole compiler. Follow the arrows across the stage groups. Orange marks a path in the repair plan. Trace isolates its handoffs and links to the recorded code.
+Current opens at Build at 100% zoom. Follow the arrows across the stage groups. Orange marks a path in the repair plan. Trace isolates its handoffs and links to the recorded code.
 Start returns to Build; the minimap and Fit whole compiler locate the view.
 100% restores natural-scale type. Expand
 keeps the same graph and camera. Arrow keys pan, F fits all, and Escape clears

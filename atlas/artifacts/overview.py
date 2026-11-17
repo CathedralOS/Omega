@@ -319,6 +319,8 @@ def render_scene(model):
         marker='return' if 'attention' in css else 'check' if css=='check' else 'service' if not e.get('main') else 'arrow'
         parts.append(f'<g class="overview-edge {css}{" main-path" if e.get("main") else ""}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}" tabindex="0" role="button" aria-label="{esc(nodes[e["start"]]["title"])} to {esc(nodes[e["end"]]["title"])}: {esc(e["label"])}"><title>{esc(e["label"])} · {esc(e["source"])}</title>')
         arrow=f' marker-end="url(#overview-{marker})"'
+        if not proposed and e.get('main') and nodes[e['end']]['role']=='transform':
+            arrow=''
         for section in e.get('sections',[]):
             path='M'+' L'.join(f'{p["x"]:g} {p["y"]:g}' for p in section['points'])
             if e.get('detour') and not e.get('main'):
@@ -333,11 +335,17 @@ def render_scene(model):
         href=f'{n["page"]}.html#{n["anchor"]}' if model.get('view')=='proposed' else f'#layer-{n["group"]}'
         parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-role="{n["role"]}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
         if not proposed:
-            parts.append(f'<rect class="node-body" x="{x}" y="{y}" width="{w}" height="{h}"/>')
             title={'apply-frame':'Apply frames · rewrite','image-build':'Form image · late code','optimized-abstract':'Optimized abstract ops','installations':'Measure handler objects','native-run':'Run native executable','build':'Build · packages · library'}.get(n['id'],n['title'])
             if n['role']=='transform':
                 title=title[:1].upper()+title[1:]
-            parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
+                # The measured handler binding arrives from the right at 03 select.
+                left=n['id']=='native-3'
+                text_x,anchor=(x-12,'end') if left else (x+12,'start')
+                parts.append(f'<circle class="operation-port" cx="{x}" cy="{y}" r="3"/>')
+            else:
+                parts.append(f'<rect class="node-body" x="{x}" y="{y}" width="{w}" height="{h}"/>')
+                text_x,anchor=x+w/2,'middle'
+            parts.append(f'<text class="current-title" x="{text_x}" y="{y+h/2}" dominant-baseline="central" text-anchor="{anchor}">{esc(title)}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')

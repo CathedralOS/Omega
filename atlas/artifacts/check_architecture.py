@@ -33,12 +33,23 @@ def main():
                 model=json.loads(page.locator('#overview-model').text_content())
                 assert page.locator('[data-endpoint]').count()==len(model['nodes'])
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
-                start_camera=page.locator('#compiler-overview').get_attribute('data-camera')
                 start_scale=float(page.locator('#compiler-overview').get_attribute('data-scale'))
-                assert page.locator('#compiler-overview').get_attribute('data-whole')=='true'
+                assert start_scale==1
+                assert page.locator('#compiler-overview').get_attribute('data-whole')=='false'
                 route=[next(n for n in model['nodes'] if n['id']==key) for key in model['spine']]
                 assert route[0]['id']=='build' and route[-1]['id']=='native-run'
                 assert all(a['x']<b['x'] or a['y']+a['height']<b['y'] for a,b in zip(route,route[1:]))
+                page.evaluate('document.fonts.ready')
+                overlaps=page.locator('.connected-scene').evaluate("""scene => {
+                    const boxes=[...scene.querySelectorAll('.node-body')].map(el=>el.getBBox());
+                    const labels=[...scene.querySelectorAll('.wire-caption, .operation .current-title')];
+                    return labels.filter(label=>{
+                        const a=label.getBBox();
+                        return boxes.some(b=>a.x < b.x+b.width && a.x+a.width > b.x &&
+                                             a.y < b.y+b.height && a.y+a.height > b.y);
+                    }).map(label=>label.textContent);
+                }""")
+                assert not overlaps,overlaps
                 trace=page.get_by_label('Trace a pipeline detour')
                 for item in model['traces']:
                     trace.select_option(item['id'])
