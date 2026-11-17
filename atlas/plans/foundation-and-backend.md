@@ -15,6 +15,10 @@ until the named evidence is supplied. Those obligations must be settled in this
 plan before implementation starts. A new folder name is not evidence that a
 contract is possible.
 
+**Reading the map?** Start with [the extra-arrow repair list](#start-with-the-extra-arrows)
+and the [handler detour](#why-handlers-leave-and-return). The remaining sections
+give the contracts and evidence for the same coordinated migration.
+
 ## 1. Scope, evidence and the single cutover
 
 The change covers the Rust compiler from source input through accepted Psi,
@@ -63,6 +67,45 @@ shipped migration milestone. If final validation fails, the old released route
 remains in place. This is not a runtime fallback between two compilers.
 
 ## 2. What the observed code requires us to solve
+
+### Start with the extra arrows
+
+**The orange emission arrow and the handler detour must disappear in the cutover.**
+Each row names the observed dependency, its proposed replacement and what must
+be deleted.
+
+**Evidence:** focused source review at
+[`fe6e3d2e0104`](https://github.com/CathedralOS/Omega/tree/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust).
+The map retains its older snapshot. Repairs and completion conditions are
+**judgment**, subject to the same coordinated cutover and planning gates. This
+review did not run the compiler.
+
+| Visible detour or hidden dependency | What the code does | Repair and completion condition |
+| --- | --- | --- |
+| Target operations → emit | The driver saves `EmissionFacts` separately; emission and physical publication still read an earlier executable program. [Driver][audit-emission], [consumer][audit-publication] | Carry the precise admission, identity, attribution and resource records in current forms. Delete earlier-program lookups and the separate driver-held bundle; forwarding the whole earlier graph is not completion. See §6. |
+| Handlers → measured binding → instruction selection | The root stops after target lowering. Required handlers become objects; their stack/entry requirements return to binding before the root continues. [Order][audit-object-order], [measurement][audit-handler-stack] | Put retained handlers in the physical program, derive complete resource summaries, then bind the program before encoding. Delete recursive handler-to-object compilation used to obtain those summaries. See §5. |
+| Source compiler ↔ source evaluator | Source preparation requests compile-time values. The evaluator also prepares an invocation and obtains its lowered-form verdict before execution. [Preparation][audit-source-job], [execution][audit-source-execution] | One source-settlement owner prepares/checks invocation code. The executor receives accepted code plus admitted inputs and returns values/status/work receipts. Delete the evaluator's source-preparation interface. See §4. |
+| Provider closure ↔ policy preparation | Changed demand repeats policy preparation using accepted publication and checked source custody. [Inputs][audit-policy], [loop][audit-provider-loop] | Close logical source/body choices in source settlement; carry accepted policy code and exact choices into later ABI planning. Delete post-publication source access. Preserve existing choices and refusals. See §4. |
+| Emitted objects → more callback compilation | The coordinator scans object symbols, discovers referenced callback bodies and compiles them. [Discovery][audit-callback-reach] | Close retained body/reference demand in native planning over accepted code. Delete object-symbol-driven compiler reentry while preserving pruning. See §5. |
+| Layout/fragments → more branch encoding | Frame insertion after fragment emission can widen and re-encode displaced branches. [Frame application][audit-frame-application] | Common encoding supplies legal forms/fixups; layout selects and patches them. Preserve body-first relaxation and frame-placement behavior. Delete later calls that construct instruction encodings. See §5. |
+| Completed bodies/provisions → generated adapter bytes | Entry transport reads a body object and emits a bridge; runtime provision capture can emit a foreign adapter. [Entry][audit-entry], [runtime adapter][audit-runtime-adapter] | Declare generated bodies before physical planning and route them through common encoding. Runtime provisions consume completed auxiliary products. Delete writer/carrier-owned code generation. See §§5–6. |
+| Psi runtime admission → stage 02 helper | The runtime-only route runs abstract optimization, then separately calls `capture_runtime_borrowed_storage_layouts`. [Call][audit-runtime-layout] | Make required layout records an explicit stage output consumed by runtime provision construction. Preserve Psi-only execution without requiring native compilation of the main body. See §6. |
+| Realized function → driver-supplied audit callback | The driver attaches `NativeStageAudit`; the realized-function representation holds `Box<dyn FunctionStageAudit>`. This is a verifier dependency, not another compiler transformation. [Attachment][audit-callback], [stored capability][audit-callback-owner] | Give an explicit verifier the current form and requested originals. Delete the callable driver capability from program data while preserving independent checks. See §6. |
+
+**Keep real service boundaries explicit.** The source, calling-policy and runtime
+callers use one Psi interpreter. Execution requests/results, external host calls,
+admitted Build inputs and product publication are not themselves evidence of
+compiler backtracking. The repair concerns source/stage work inside those services
+or missing information supplied outside the declared representation handoff.
+
+**Correction to the earlier plan:** the cited O08 callback routine compares
+carried bytes against a canonical encoding; it does not replace those bytes.
+[Comparison][audit-callback-validation], [carried-byte output][audit-layout-output]
+do not establish a second callback producer. Preserve that check. The confirmed
+late encoding example above is frame application; broader claims about encoding
+ownership still require a production caller trace.
+
+### Detailed snapshot observations
 
 The [Psi](../subsystems/psi.md) and [Omega](../subsystems/omega.md) maps retain the
 full snapshot walkthroughs. These observations determine the new contracts:
@@ -200,6 +243,12 @@ an all-purpose compiler stage.
 
 ### Evaluation is an explicit operation on accepted code
 
+The source compiler produces the program; the source evaluator runs computations
+needed while preparing it, such as constants and layout policies. These are
+different operations. The current evaluator also prepares and checks invocation
+programs, which entangles their ownership. The replacement keeps compilation in
+source settlement and gives the executor an already accepted invocation.
+
 Settlement constructs, lowers and checks the exact required invocation closure,
 then gives the executor immutable accepted code plus sealed invocation admission.
 That admission binds caller, entry, arguments, target/supplies, permitted
@@ -296,6 +345,44 @@ that image construction uses it. Where required, its transfer program follows
 the common encoding route; otherwise retire or retain it only with an evidenced
 non-production owner.
 
+### Why handlers leave and return
+
+The current root has reached target operations when it needs a handler's stack
+bound. The driver compiles that handler to an object, derives its resource
+requirements, binds the installation, then resumes the root at instruction
+selection. Nested handler demands can repeat this sequence; the code refuses
+cyclic resource dependencies. [Order][audit-object-order], [recursion][audit-handler-recursion]
+
+Here “measured” means static analysis of compiled objects, including body and
+bridge stack use, call bias, alignment and fault evidence. It is not a handler
+execution benchmark. [Requirement construction][audit-handler-stack]
+
+**Observed at the focused audit revision:**
+
+```mermaid
+flowchart LR
+  A[Root 02] -->|compile| B[Handler objects]
+  B -->|analyse| C[Requirements]
+  A -->|cohorts| D[Bound installations]
+  C -->|bind| D
+  D -->|resume| E[Root 03]
+```
+
+**Proposed · judgment, ordering proof still required:**
+
+```mermaid
+flowchart LR
+  A[Physical program including handlers] -.->|analyse| B[Resource summaries]
+  B -.->|bind| C[Bound physical program]
+  C -.->|encode| D[Common encoding]
+```
+
+The replacement must make the handler a body in the current program and its
+resource requirement a carried result. Compiling it through later stages just
+to return a number to an earlier stage is the path to delete. Preserve exact
+demand pruning and cycle refusals; including every available handler would
+change which programs must compile. The stability argument below remains open.
+
 ### Binding uses a complete resource summary
 
 The current [stack requirement][stack] contains body demand, bridge bytes,
@@ -330,9 +417,11 @@ compiling handlers through later stages and returning to the installer.
 Common encoding owns ordinary instructions and all generated executable
 fragments, including frame prologues/epilogues. It emits legal alternatives and
 fixup data: bases, signed ranges, alignment, bitfield geometry, external symbols,
-callback/image addresses and identity bindings. Layout never asks an earlier
-encoder to regenerate a branch or callback sequence; O08's current
-[callback re-encoding][callback-encoding] is part of this migration too.
+callback/image addresses and identity bindings. Layout chooses carried encoding
+alternatives and patches their fixups. O08's
+[callback-byte comparison][callback-encoding] is validation, not a demonstrated
+callback producer; preserve it. The confirmed late instruction rewriting in
+[frame application][audit-frame-application] needs carried alternatives instead.
 
 Preserve the present reason for body-first relaxation before frame insertion.
 The layout phase can perform those internal placement steps using already
@@ -377,6 +466,13 @@ representation codecs. A [SymbolHandle-keyed alias][symbol-map] stays with
 symbol vocabulary even if its generic hasher moves to foundation.
 
 ### Carry what emission actually reads
+
+The focused audit found ordinary publication reading `abstract_program` to
+derive physical evidence scope, and emission construction reading the earlier
+program's entry/identity and admitted cohorts. [Publication][audit-publication],
+[construction][audit-emission-consumer] These checks protect real contracts.
+Move their required records into the current form; do not delete the checks or
+carry the entire earlier executable graph under a new field name.
 
 For every `EmissionFacts` consumer, record the field read, meaning, producer,
 first available phase, version/identity and final consumer. Replace access to
@@ -549,6 +645,7 @@ an ordering argument; a diagram alone does not close it.
 | Resource/binding stability | Inventory every numeric consumer; model transitive demand, bridge/bias/arrival costs, fault premises and identity joins. Prove finite ordering and unchanged allocation/effects after binding. | A resolved bound changes its own frame, instruction constraints, helper set or resource graph. |
 | Encoding/layout closure | Complete alternative/fixup schema for both ISAs, callbacks, frames, entries and formats; account for exact old relaxation decisions. | A layout phase must invoke an encoder or the new order changes bytes/refusals without authorization. |
 | Carried-fact and authority interfaces | Finish per-export/per-field classification, including EmissionFacts and source custody; specify allowed constructors and runtime/verifier inputs. | A representation exposes an earlier graph, source lookup, producing stage or driver callback. |
+| Extra-arrow closure | Account for every mechanism in §2 with its actual producer/consumer, replacement handoff, deleted API/path and behavior check. Distinguish production, host execution and independent verification. | A detour is merely renamed, hidden by a coordinator or removed from the picture while its code survives. |
 
 A gate may require changing the proposed boundary. Resolve that change in the
 plan and its consumer contracts before coding. Do not hide the conflict with an
@@ -686,3 +783,22 @@ piecemeal migration.
 [transitive-stack]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L5363
 [writer]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan/src/lib.rs#L37
 [invocation-accounting]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L164
+[audit-emission]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L179-L269
+[audit-publication]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/fragment_publication.rs#L78-L102
+[audit-object-order]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L81-L115
+[audit-handler-stack]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1499-L1560
+[audit-source-job]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L598-L667
+[audit-source-execution]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L403-L544
+[audit-policy]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L63-L81
+[audit-provider-loop]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L267-L316
+[audit-callback-reach]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L199-L264
+[audit-frame-application]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/machine-emission/src/frame_application.rs#L1-L13
+[audit-entry]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1220-L1252
+[audit-runtime-adapter]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs#L81-L96
+[audit-runtime-layout]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/realization.rs#L152-L184
+[audit-callback]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L258-L269
+[audit-callback-owner]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs#L146-L170
+[audit-callback-validation]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676-L769
+[audit-layout-output]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L456-L482
+[audit-handler-recursion]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L96-L109
+[audit-emission-consumer]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L305-L358

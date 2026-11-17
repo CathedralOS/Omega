@@ -250,7 +250,7 @@ pub struct StorageUse {
 }
 
 /// One machine's result.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MachineDischarge {
     /// One verdict per obligation row, indexed by the same `ObligationId`.
     pub verdicts: IdTable<ObligationId, Checked<Discharged>>,
@@ -267,9 +267,9 @@ pub struct MachineDischarge {
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
     pub conflicts: Vec<places::ConflictingLoan>,
-    /// The authored arms no arrival can take (`branch_warnings`), for the
-    /// advisory warning about them. Nothing is decided by them.
-    pub impossible: Vec<ImpossibleArm>,
+    /// Prepared warning inputs are consumed only by accepted diagnostics.
+    /// They never decide a mandatory obligation or storage/loan judgment.
+    branch_warnings: branch_warnings::Deferred,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -297,7 +297,7 @@ impl MachineDischarge {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Discharge {
     pub machines: IdTable<MachineId, MachineDischarge>,
 }
@@ -543,7 +543,7 @@ fn discharge_inner(
                     windows: Vec::new(),
                     weakened_joins: Vec::new(),
                     conflicts: Vec::new(),
-                    impossible: Vec::new(),
+                    branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
             let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
@@ -669,9 +669,7 @@ fn machine(
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let module = formed.source();
-    let machines = &module.machines;
-    let invariants = &module.scalar_block_invariants;
-    let lowered = terminal_machine(machines, id, id)?;
+    terminal_machine(&module.machines, id, id)?;
     if !tables.knowledge.is_empty() {
         return Err(refusal(
             RefusalReason::Unsupported,
@@ -680,32 +678,59 @@ fn machine(
             "knowledge rows already present",
         ));
     }
-    let Prepared {
+    let (prepared, mut discharge) = with_prepared_machine(
+        formed,
+        domains,
+        id,
+        tables,
+        inhabitation,
+        |prepared, tables| {
+            check_prepared_machine(
+                prepared,
+                inhabitation,
+                tables,
+                unreached,
+                carried,
+                empty_contracts,
+                application_sized_storage,
+                activity,
+            )
+        },
+    )?;
+    if !branches.is_empty() {
+        discharge.branch_warnings =
+            branch_warnings::Deferred::new(prepared.graph, prepared.context);
+    }
+    Ok(discharge)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_prepared_machine(
+    prepared: PreparedMachine<'_, '_>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    tables: &mut MachineTables,
+    unreached: &[ValueId],
+    carried: Option<&Carried<'_>>,
+    empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+    application_sized_storage: &[StructuralTypeId],
+    activity: &mut ProofSearchActivity,
+) -> Checked<MachineDischarge> {
+    let PreparedMachine {
+        module,
+        lowered,
+        id,
         types,
         graph,
         context,
-        reference_graph,
         ranking_bindings,
-    } = prepare_with_inhabitation(formed, domains, id, tables, inhabitation)?;
-    let mut references =
-        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
-            &reference_graph,
-        );
-    let storage = places::Storage::new(
-        id,
-        lowered,
-        module,
-        domains,
-        &graph,
-        tables,
-        &types,
-        &mut references,
-    )?;
+        storage,
+        references,
+    } = prepared;
+    let invariants = &module.scalar_block_invariants;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(&mut references, module, tables)?;
+    let (lent, conflicts) = storage.loans(references, module, tables)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -728,33 +753,25 @@ fn machine(
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
     let declared = joins::prepare(
-        lowered,
-        id,
-        tables,
-        &graph,
-        &context,
-        invariants,
-        &storage,
-        &mut references,
-        activity,
+        lowered, id, tables, graph, context, invariants, storage, references, activity,
     )?;
     let weakened_joins = joins::check(
         &joins::Machine {
             module,
             lowered,
-            storage: &storage,
+            storage,
             id,
-            types: &types,
-            graph: &graph,
-            context: &context,
-            ranking_bindings: &ranking_bindings,
+            types,
+            graph,
+            context,
+            ranking_bindings,
             declared: &declared,
             unreached,
         },
         tables,
         &mut decided,
         activity,
-        &mut references,
+        references,
     )?;
     // Certificates next; a published clause is then decided from its exits.
     // A machine stage 04 generated takes each one its generic form proved,
@@ -772,22 +789,18 @@ fn machine(
         })?
         .into_iter()
         .peekable();
-    let mut target_ranges = terminal_semantics::target_scalar_ranges(
-        module,
-        lowered,
-        &types,
-        application_sized_storage,
-    )
-    .map_err(|detail| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            Construct::Machine,
-            detail,
-        )
-    })?
-    .into_iter()
-    .peekable();
+    let mut target_ranges =
+        terminal_semantics::target_scalar_ranges(module, lowered, types, application_sized_storage)
+            .map_err(|detail| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Machine,
+                    detail,
+                )
+            })?
+            .into_iter()
+            .peekable();
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -797,7 +810,7 @@ fn machine(
         }
         if let ObligationKind::WellFoundedness { component } = row.kind {
             decided[index] = Some(
-                rankings::well_founded(lowered, &ranking_bindings, obligation, component)
+                rankings::well_founded(lowered, ranking_bindings, obligation, component)
                     .map(Discharged::FiniteIntegerRanking),
             );
             continue;
@@ -841,19 +854,19 @@ fn machine(
         let verdict = goal(
             module,
             lowered,
-            (&storage, &mut references),
+            (storage, references),
             id,
             obligation,
             &row.kind,
             tables,
-            &types,
-            &ranking_bindings,
+            types,
+            ranking_bindings,
         )
         .and_then(|goal| {
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(
-                    &context,
-                    &graph,
+                    context,
+                    graph,
                     obligation,
                     &row.kind,
                     row.created_at,
@@ -863,8 +876,8 @@ fn machine(
                 return Ok(Discharged::Certificate(evidence));
             }
             decide(
-                &context,
-                &graph,
+                context,
+                graph,
                 tables,
                 id,
                 obligation,
@@ -926,7 +939,7 @@ fn machine(
             Ok(Discharged::Certificate(evidence)) if stores => {
                 let owner = storage.owner(operation, clause, concerns)?;
                 restoring.push((
-                    storage.capture_owner(&mut references, operation, owner, concerns)?,
+                    storage.capture_owner(references, operation, owner, concerns)?,
                     operation,
                 ));
                 Ok(Discharged::Certificate(evidence))
@@ -941,12 +954,7 @@ fn machine(
                     windows.push(places::Window {
                         obligation,
                         opened_by: operation,
-                        owner: storage.capture_owner(
-                            &mut references,
-                            operation,
-                            owner,
-                            concerns,
-                        )?,
+                        owner: storage.capture_owner(references, operation, owner, concerns)?,
                         initial: zeroes,
                         restored: Vec::new(),
                     });
@@ -977,7 +985,7 @@ fn machine(
         for earlier in &opened {
             if !earlier.initial
                 && earlier.owner == window.owner
-                && storage.open_before(&mut references, tables, earlier, window.opened_by)?
+                && storage.open_before(references, tables, earlier, window.opened_by)?
             {
                 within = true;
                 break;
@@ -988,7 +996,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(&mut references, tables, empty_contracts, inhabitation)?;
+    let mut uses = storage.uses(references, tables, empty_contracts, inhabitation)?;
     // Byte-domain establishments are judged from their actual source at the
     // producer, including qualified transfers whose result is never consumed.
     for judged in storage.byte_predicate_establishments(module)? {
@@ -999,7 +1007,7 @@ fn machine(
         }
     }
     let mut closures = Vec::new();
-    for consumption in storage.consumptions(&mut references, tables, &windows)? {
+    for consumption in storage.consumptions(references, tables, &windows)? {
         let window = windows.get(consumption.window).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -1010,8 +1018,8 @@ fn machine(
         })?;
         let proved = consumption.goal.and_then(|goal| {
             decide(
-                &context,
-                &graph,
+                context,
+                graph,
                 tables,
                 id,
                 window.obligation,
@@ -1063,15 +1071,13 @@ fn machine(
             verdict,
         });
     }
-    let impossible = branch_warnings::Analysis::new(&context, &graph, tables, lowered, id)
-        .run(branches, activity);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
         windows: closures,
         weakened_joins,
         conflicts,
-        impossible,
+        branch_warnings: branch_warnings::Deferred::default(),
     })
 }
 
@@ -1330,6 +1336,20 @@ pub(crate) struct Prepared {
     ranking_bindings: rankings::Bindings,
 }
 
+/// The checking continuation borrows the same descriptor and storage analysis
+/// that admitted rankings and filled knowledge. It cannot outlive preparation.
+struct PreparedMachine<'scope, 'analysis> {
+    module: &'analysis TerminalModule,
+    lowered: &'analysis TerminalMachine,
+    id: MachineId,
+    types: &'scope IdTable<ValueId, ScalarType>,
+    graph: &'scope Graph,
+    context: &'scope PropositionContext,
+    ranking_bindings: &'scope rankings::Bindings,
+    storage: &'scope places::Storage<'analysis>,
+    references: &'scope mut terminal_semantics::descriptor_results::DescriptorAnalysis<'analysis>,
+}
+
 impl Prepared {
     fn references<'a>(
         &'a self,
@@ -1379,6 +1399,20 @@ pub(crate) fn prepare_with_inhabitation(
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<Prepared> {
+    with_prepared_machine(formed, domains, id, tables, inhabitation, |_, _| Ok(()))
+        .map(|(prepared, ())| prepared)
+}
+
+/// Keep analysis within one invocation while a caller checks the prepared
+/// machine. The returned values own no borrow of this local working state.
+fn with_prepared_machine<Outcome>(
+    formed: formation::FormedModule<'_>,
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
+) -> Checked<(Prepared, Outcome)> {
     let module = formed.source();
     let machines = &module.machines;
     let structural_types = &module.structural_types;
@@ -1393,8 +1427,7 @@ pub(crate) fn prepare_with_inhabitation(
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     let reference_graph = places::reference_graph(module, id)?;
-    let ranking_bindings;
-    {
+    let (context, ranking_bindings, result) = {
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
@@ -1410,7 +1443,7 @@ pub(crate) fn prepare_with_inhabitation(
             &types,
             &mut references,
         )?;
-        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage, &mut references)?;
+        let ranking_bindings = rankings::admit(lowered, tables, &graph, &storage, &mut references)?;
         if fill {
             storage.owed_are_minted(tables)?;
             fill_knowledge(
@@ -1422,41 +1455,60 @@ pub(crate) fn prepare_with_inhabitation(
                 (&storage, &mut references),
             )?;
         }
-    }
-    // A value of a type parameter has no type the kernel could hold it at,
-    // so the context does not list it (`concrete`). The machine's own places
-    // are listed so a goal may name one: a byte predicate of an input view
-    // (`Storage::byte_source`) stays a term over that input's place.
-    let context = PropositionContext::from_value_types_and_places(
-        types
-            .iter()
-            .filter(|(value, _)| {
-                tables
-                    .values
-                    .get(*value)
-                    .is_none_or(|row| row.rigid.is_none())
-            })
-            .map(|(value, scalar_type)| (value, *scalar_type)),
-        lowered
-            .structural_places
-            .iter()
-            .map(|place| (place.id, place.kind)),
-    )
-    .map_err(|_| {
-        refusal(
-            RefusalReason::Unsupported,
-            id,
-            Construct::Machine,
-            "value types do not form a proposition context",
+
+        // A value of a type parameter has no type the kernel could hold it at,
+        // so the context does not list it (`concrete`). The machine's own places
+        // are listed so a goal may name one: a byte predicate of an input view
+        // (`Storage::byte_source`) stays a term over that input's place.
+        let context = PropositionContext::from_value_types_and_places(
+            types
+                .iter()
+                .filter(|(value, _)| {
+                    tables
+                        .values
+                        .get(*value)
+                        .is_none_or(|row| row.rigid.is_none())
+                })
+                .map(|(value, scalar_type)| (value, *scalar_type)),
+            lowered
+                .structural_places
+                .iter()
+                .map(|place| (place.id, place.kind)),
         )
-    })?;
-    Ok(Prepared {
-        types,
-        graph,
-        context,
-        reference_graph,
-        ranking_bindings,
-    })
+        .map_err(|_| {
+            refusal(
+                RefusalReason::Unsupported,
+                id,
+                Construct::Machine,
+                "value types do not form a proposition context",
+            )
+        })?;
+        let result = check(
+            PreparedMachine {
+                module,
+                lowered,
+                id,
+                types: &types,
+                graph: &graph,
+                context: &context,
+                ranking_bindings: &ranking_bindings,
+                storage: &storage,
+                references: &mut references,
+            },
+            tables,
+        )?;
+        (context, ranking_bindings, result)
+    };
+    Ok((
+        Prepared {
+            types,
+            graph,
+            context,
+            reference_graph,
+            ranking_bindings,
+        },
+        result,
+    ))
 }
 
 /// A published `ensures` clause holds when every `Destination::Return` edge
@@ -2558,3 +2610,7 @@ pub fn derive_contract_obligation(
     .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
     Ok(certificate)
 }
+
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

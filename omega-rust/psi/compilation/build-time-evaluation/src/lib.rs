@@ -28,9 +28,10 @@ pub use product::{
     provider_declarations, test_groups,
 };
 pub use scalar_applications::{
-    AdmittedImportRealizations, InvocationTarget, ScalarScopeEvaluation, TargetImportRealizations,
-    complete_invocation_scalar_applications, complete_scalar_applications,
-    evaluate_scalar_applications, evaluate_scalar_applications_with_address_model,
+    AdmittedImportRealizations, InvocationTarget, ScalarApplicationCompletion,
+    ScalarScopeEvaluation, TargetImportRealizations, complete_invocation_scalar_applications,
+    complete_scalar_applications, evaluate_scalar_applications,
+    evaluate_scalar_applications_with_address_model, prepare_scalar_applications,
 };
 pub use source_frontier::{
     AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeInvocationCustody,
@@ -57,3 +58,7 @@ pub(crate) mod unique {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

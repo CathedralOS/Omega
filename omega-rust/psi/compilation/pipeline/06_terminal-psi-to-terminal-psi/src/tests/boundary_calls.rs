@@ -27,8 +27,10 @@ pub(super) fn try_typed(text: &str) -> Result<typed_trees::TypedTrees, diagnosti
             source::DependencyScope::Product,
         )
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let tokens = crate::frontend_fixture::Lexer::new(text)
+        .tokenize()
+        .unwrap();
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax,
@@ -100,10 +102,10 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
     let source = sources
         .add("boundary_calls/omitted.omg".into(), text.clone())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(&text)
+    let tokens = crate::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
-    let refusal = match tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens) {
+    let refusal = match crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
         Ok(_) => panic!("an open boundary reach contract must refuse"),
         Err(refusal) => refusal,
     };
@@ -2945,11 +2947,14 @@ fn named_two_packages(public_map: bool) -> typed_trees::TypedTrees {
             )
             .source_id;
         source_ids.push(id);
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
         if let Some(syntax) = &mut syntax {
-            tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+            crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
         } else {
-            syntax = Some(tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap());
+            syntax =
+                Some(crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
         }
     }
     let mut request =

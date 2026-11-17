@@ -35,8 +35,24 @@ pub struct Unavailable {
     pub unrestored: bool,
 }
 
+impl Unavailable {
+    /// The ownership walk knows whether storage is vacant at an observation
+    /// or still owed back when a borrow ends; every consumer reports that reason.
+    pub const fn message(&self) -> &'static str {
+        if self.unrestored {
+            "an owned value was moved out of borrowed storage, and the place does not \
+             hold a value again where the machine returns the borrow: a replacement \
+             must be stored into the vacant place on every path that leaves the machine"
+        } else {
+            "owned storage is used after its value was transferred or consumed"
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
+    /// A supported ownership check found unavailable storage at an exact site.
+    Unavailable(Unavailable),
     Unsupported {
         detail: &'static str,
         site: Option<Site>,
@@ -61,6 +77,7 @@ impl Error {
     /// machine or guessing a neighboring source construct.
     fn at(self, at: Site) -> Self {
         match self {
+            Self::Unavailable(unavailable) => Self::Unavailable(unavailable),
             Self::Unsupported { detail, site } => Self::Unsupported {
                 detail,
                 site: site.or(Some(at)),
@@ -74,6 +91,7 @@ impl Error {
 
     pub const fn site(&self) -> Option<Site> {
         match self {
+            Self::Unavailable(unavailable) => Some(unavailable.site),
             Self::Unsupported { site, .. } | Self::Malformed { site, .. } => *site,
         }
     }
@@ -323,6 +341,9 @@ struct Root {
     /// The root's own contract is nonlinear, unqualified and claim-free.
     /// This is a static storage restriction, never authority to use a loan.
     whole_restoration: bool,
+    /// Decomposition may end a linear wrapper, but cannot settle qualifications
+    /// or independent content custody attached to its storage.
+    unqualified_owned: bool,
     parameter: bool,
     /// A parameter lent with `&mut`: the only storage the machine does not
     /// own that an owned value may be moved out of, leaving a window the
@@ -796,11 +817,11 @@ pub fn verify_claims_in(
         None,
         Some(claims::Mode::Verify),
     )?;
-    if let Some(unavailable) = plan.unavailable.first() {
-        return Err(
-            Error::unsupported("claim transport observes unavailable owned storage")
-                .at(unavailable.site),
-        );
+    // Finish reconstructing the claim rows before reporting storage debt:
+    // malformed transport must still refuse as malformed, while an exact
+    // unavailable place is an ordinary ownership error, not missing support.
+    if let Some(unavailable) = plan.unavailable.into_iter().next() {
+        return Err(Error::Unavailable(unavailable));
     }
     plan.claims
         .ok_or(Error::malformed("claim receiver lost its plan"))
@@ -975,6 +996,18 @@ fn prepare_disposition(
     }
     visiting[raw] = true;
     let declaration = &types[raw];
+    // A consuming pattern may end this wrapper while leaving its children
+    // live. Prepare their dispositions even when this wrapper is linear.
+    for (_, field) in declaration.shape.fields_with_case() {
+        if !field.relevance.is_erased()
+            && let Some(child) = field.field_type.as_structural()
+        {
+            prepare_disposition(types, module, child, rows, visiting)?;
+        }
+    }
+    if let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = declaration.shape {
+        prepare_disposition(types, module, element, rows, visiting)?;
+    }
     let supported = if declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || declaration.owns_linear_claim
         || declaration.is_copyable() && declaration.nominal_cleanup.is_some()
@@ -1098,6 +1131,15 @@ fn analyze(
     // Read static whole-origin restrictions once with the custody declarations.
     // Actual loan authority and the current value remain separate judgments.
     let mut whole_restoration = vec![true; machine.structural_places.len()];
+    let mut unqualified_owned = vec![true; machine.structural_places.len()];
+    let mut exclude_decomposition = |place: PlaceId| -> Result<(), Error> {
+        *unqualified_owned
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed(
+                "decomposition contract is outside the machine",
+            ))? = false;
+        Ok(())
+    };
     let mut exclude_whole = |place: PlaceId| -> Result<(), Error> {
         *whole_restoration
             .get_mut(index(place.get())?)
@@ -1142,6 +1184,13 @@ fn analyze(
             || !parameter.additional_input_qualifications.is_empty()
         {
             exclude_whole(parameter.place)?;
+        }
+        if parameter.access != StructuralAccess::Owned
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !parameter.additional_input_qualifications.is_empty()
+        {
+            exclude_decomposition(parameter.place)?;
         }
         let required = (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
             && parameter.access == StructuralAccess::Owned
@@ -1190,6 +1239,13 @@ fn analyze(
             terminal_psi::OperationKind::MoveStructuralField { .. }
         );
         if let Some(result) = operation.result.as_structural() {
+            if !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.additional_input_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+            {
+                exclude_decomposition(result.place)?;
+            }
             if !(result.is_affine_plain() || result.is_unrestricted_plain())
                 || !result.additional_input_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
@@ -1233,6 +1289,7 @@ fn analyze(
             && !qualifications.is_empty()
         {
             exclude_whole(*destination)?;
+            exclude_decomposition(*destination)?;
         }
     }
     for claim in machine
@@ -1244,6 +1301,7 @@ fn analyze(
     }
     for claim in &machine.content_entry_claims {
         exclude_whole(claim.input.root)?;
+        exclude_decomposition(claim.input.root)?;
     }
     if let TerminalMachineResult::Structural(result) = &machine.result {
         insert_contract(
@@ -1387,6 +1445,7 @@ fn analyze(
                 affine: tracked,
                 multiplicity,
                 whole_restoration: owned && whole_restoration[roots.len()],
+                unqualified_owned: owned && unqualified_owned[roots.len()],
                 parameter,
                 exclusive,
             }),
@@ -2526,9 +2585,9 @@ impl Analysis<'_> {
             let root = self.root(subject.place)?.ok_or(Error::unsupported(
                 "decomposition requires tracked owned storage",
             ))?;
-            if !root.owned || !root.affine || !root.whole_restoration {
+            if !root.owned || !root.affine || !root.unqualified_owned {
                 return Err(Error::unsupported(
-                    "nominal decomposition requires claim-free unqualified owned custody",
+                    "decomposition requires unqualified owned custody without independent content",
                 ));
             }
             let path = self.canonical(subject.place, &subject.path)?;
@@ -3062,7 +3121,10 @@ impl Analysis<'_> {
                 return Ok(());
             }
         }
-        if declaration.nominal_cleanup.is_some() && region.mode != Mode::Components {
+        if region.mode != Mode::Components
+            && (declaration.nominal_cleanup.is_some()
+                || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
+        {
             return Err(Error::unsupported(
                 "partial nominal cleanup requires its authorized component partition",
             ));
@@ -3118,9 +3180,56 @@ impl Analysis<'_> {
             return Ok(false);
         }
         let declaration = &self.types[index(info.structural_type.get())?];
+        if region.contains_partition(&[]) {
+            return self.components_need_disposition(info.structural_type, region);
+        }
         Ok(declaration.owns_linear_claim
             || region.whole
             || !self.vacant_region(place, region, &[])?)
+    }
+
+    /// Ending a wrapper does not end any intact linear component inside it.
+    fn components_need_disposition(
+        &self,
+        structural_type: StructuralTypeId,
+        region: &Region,
+    ) -> Result<bool, Error> {
+        if !region.base && region.children.is_empty() {
+            return Ok(false);
+        }
+        let declaration = &self.types[index(structural_type.get())?];
+        if !region.contains_partition(&[]) {
+            if declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                && self.can_dispose(structural_type)?
+            {
+                return Ok(false);
+            }
+            return Ok(true);
+        }
+        if region.mode != Mode::Components
+            && (declaration.owns_linear_claim || declaration.nominal_cleanup.is_some())
+        {
+            return Ok(true);
+        }
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return Err(Error::unsupported(
+                "component disposition requires an exact record",
+            ));
+        };
+        for field in fields {
+            if field.relevance.is_erased() {
+                return Err(Error::unsupported(
+                    "erased component disposition is not served",
+                ));
+            }
+            if let Some(child) = field.field_type.as_structural() {
+                let child_region = region.view(&[Segment::Field(field.id)]);
+                if self.components_need_disposition(child, &child_region)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
     }
 
     fn dispose(
@@ -3139,8 +3248,9 @@ impl Analysis<'_> {
                 "normal edge cannot implicitly dispose storage without an authorized disposition",
             ));
         }
-        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !self.can_dispose(info.structural_type)?
+        if !region.contains_partition(&[])
+            && (info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || !self.can_dispose(info.structural_type)?)
         {
             return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
         }
@@ -3150,9 +3260,9 @@ impl Analysis<'_> {
             || !declaration.descriptor_cleanup
         {
             let mut actions = Vec::new();
-            if !info.whole_restoration {
+            if !info.unqualified_owned {
                 return Err(Error::unsupported(
-                    "owned nominal cleanup requires an explicit independent claim correspondence",
+                    "component cleanup cannot settle qualifications or independent content custody",
                 ));
             }
             self.dispose_components(
@@ -4929,6 +5039,7 @@ mod tests {
                 affine: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 whole_restoration: true,
+                unqualified_owned: true,
                 parameter: false,
                 exclusive: false,
             })],
@@ -5055,6 +5166,66 @@ mod tests {
             })
         ));
         assert_eq!(borrowed_state, before);
+    }
+
+    #[test]
+    fn partitioned_linear_wrappers_keep_remaining_component_dispositions() {
+        let mut declarations = reconvergence_types();
+        declarations[0].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        declarations[0].owns_linear_claim = true;
+        declarations[0].no_code_affine_cleanup = false;
+        declarations[0].descriptor_cleanup = false;
+        let mut analysis = owned_analysis(&declarations);
+        analysis.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        analysis.dispositions.fill(None);
+        prepare_disposition(
+            &declarations,
+            None,
+            id(1),
+            &mut analysis.dispositions,
+            &mut vec![false; declarations.len()],
+        )
+        .unwrap();
+        let mut partitioned = Region::new(true);
+        partitioned.partition(&[]);
+        let actions = analysis.dispose(id(1), &partitioned, 8).unwrap();
+        assert!(matches!(
+            actions.last(),
+            Some(TerminalAffineCleanupAction::RetireHome(_))
+        ));
+        assert!(
+            actions
+                .iter()
+                .any(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))),
+            "a linear wrapper must still clean its surviving affine fields"
+        );
+        assert!(
+            analysis.dispose(id(1), &Region::new(true), 8).is_err(),
+            "an intact intrinsic wrapper still needs its explicit consuming pattern"
+        );
+
+        declarations[0].owns_linear_claim = false;
+        declarations[1].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        declarations[1].owns_linear_claim = true;
+        declarations[1].no_code_affine_cleanup = false;
+        declarations[1].descriptor_cleanup = false;
+        let mut analysis = owned_analysis(&declarations);
+        analysis.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        analysis.dispositions.fill(None);
+        prepare_disposition(
+            &declarations,
+            None,
+            id(1),
+            &mut analysis.dispositions,
+            &mut vec![false; declarations.len()],
+        )
+        .unwrap();
+        assert!(
+            analysis.dispose(id(1), &partitioned, 8).is_err(),
+            "partitioning the parent cannot silently consume an intact linear child"
+        );
     }
 
     #[test]

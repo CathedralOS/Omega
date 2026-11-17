@@ -75,10 +75,116 @@ svg.bars { min-width: 640px; }
 .bar-now { fill: var(--rule); }
 .bar-target { fill: var(--checked); }
 .num { font-variant-numeric: tabular-nums; }
-.original-status { border-bottom:1px solid var(--rule); padding-bottom:12px; font-size:13px; line-height:20px; } .original-status a { color:inherit; } .original-links { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:8px; } .original-status button { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--ink-muted); padding:2px 8px; } .atlas-directory { font-size:15px; } .atlas-directory ul { display:flex; flex-wrap:wrap; gap:8px 24px; list-style:none; padding:0; } .atlas-directory a { color:inherit; }
+/* Shared navigation uses Atlas tokens; page content keeps its own layout. */
+.site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
+.site-bar { max-width:1320px; margin:auto; padding:var(--space-3); display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
+.site-brand { color:var(--ink); font:var(--type-subheading); text-decoration:none; white-space:nowrap; }
+.site-primary { display:flex; align-items:center; gap:var(--space-4); margin-left:auto; }
+.site-primary a { color:var(--ink-muted); font:var(--type-body); text-decoration:none; white-space:nowrap; }
+.site-primary a:hover,.site-primary a.is-active { color:var(--ink); text-decoration:underline; text-underline-offset:.4em; }
+.site-actions { display:flex; align-items:center; gap:var(--space-3); }
+.site-actions button,.site-directory > summary { font:var(--type-label); color:var(--ink); background:var(--surface); border:var(--border-control) solid var(--ink-muted); border-radius:var(--radius-chamfer); padding:var(--space-2); min-height:40px; cursor:pointer; white-space:nowrap; }
+.site-directory { position:relative; }
+.site-directory > summary { list-style:none; }
+.site-directory > summary::-webkit-details-marker { display:none; }
+.site-directory[open] > summary { background:var(--ground); }
+.directory-panel { position:absolute; right:0; top:calc(100% + var(--space-2)); width:min(760px,calc(100vw - var(--space-4))); max-height:75dvh; overflow:auto; border:var(--border-control) solid var(--ink-muted); background:var(--surface); padding:var(--space-3); }
+.directory-panel input { width:100%; margin:var(--space-2) 0 var(--space-3); }
+.directory-panel .atlas-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-3); }
+.directory-panel .nav-home { grid-column:1/-1; }
+.directory-panel .atlas-nav h2 { margin:0 0 var(--space-2); font:var(--type-label); color:var(--ink-muted); }
+.directory-panel .atlas-nav ul,.footer-pages ul { list-style:none; padding:0; margin:0; }
+.directory-panel .atlas-nav a { display:block; padding:var(--space-2); color:var(--ink-muted); text-decoration:none; font:var(--type-body); border-left:var(--border-control) solid transparent; }
+.directory-panel .atlas-nav a:hover,.directory-panel .atlas-nav a[aria-current="page"] { color:var(--ink); background:var(--ground); border-color:var(--ink); }
+.site-footer { display:block; padding:0; border-top:var(--border-hairline) solid var(--rule); margin-top:var(--space-5); color:var(--ink-muted); background:var(--surface); }
+.site-footer-inner { max-width:1320px; margin:auto; padding:var(--space-4) var(--space-3); }
+.footer-pages { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); }
+.footer-pages h2 { font:var(--type-subheading); color:var(--ink); margin:0 0 var(--space-3); }
+.footer-pages a { color:inherit; font:var(--type-body); text-decoration:none; display:inline-block; padding:var(--space-1) 0; }
+.footer-pages a:hover { text-decoration:underline; }
+.footer-meta { border-top:var(--border-hairline) solid var(--rule); padding-top:var(--space-3); margin-top:var(--space-4); display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); font:var(--type-label); }
+.back-link { font:var(--type-label); color:var(--ink-muted); width:fit-content; }
+.page-sections { min-width:0; font:var(--type-label); }
+.page-sections .contents { position:sticky; top:100px; max-height:calc(100dvh - 116px); overflow:auto; border:0; padding:0; background:transparent; }
+.page-sections summary { color:var(--ink-muted); margin-bottom:var(--space-3); }
+.page-sections ul { list-style:none; padding:0; margin:0; }
+.page-sections ul ul { padding-left:var(--space-3); border-left:var(--border-hairline) solid var(--rule); }
+.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-serif); }
+.page-sections a:hover,.page-sections a[aria-current="location"] { color:var(--ink); text-decoration:underline; }
+.home-page .page { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
+.home-page .top { border:0; padding:var(--space-4) 0 0; gap:var(--space-3); }
+.home-page .top h1 { font:var(--type-display); max-width:19ch; }
+main h2,main h3 { scroll-margin-top:100px; }
+.home-page .lede { max-width:48ch; }
+.home-page .source-details { font:var(--type-label); color:var(--ink-muted); }
+.home-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
+.route-card { display:grid; gap:var(--space-3); padding:var(--space-4); border:var(--border-control) solid var(--ink-muted); background:var(--surface); color:var(--ink); text-decoration:none; }
+.route-card:hover { border-color:var(--ink); background:var(--ground); }
+.route-card h2 { font:var(--type-heading); border:0; margin:0; padding:0; }
+.route-card p { margin:0; max-width:40ch; }
+.route-link { font:var(--type-subheading); text-decoration:underline; text-underline-offset:.2em; }
+.section-intro { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:var(--space-2) var(--space-4); }
+.section-intro h2 { border:0; padding:0; margin:0; }
+.section-intro p { color:var(--ink-muted); margin:0; }
+.home-reference { margin-top:var(--space-5); scroll-margin-top:100px; }
+.reference-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:var(--space-4); border-top:var(--border-hairline) solid var(--rule); }
+.reference-link { padding:var(--space-3) 0; margin-right:var(--space-4); border-bottom:var(--border-hairline) solid var(--rule); color:var(--ink); text-decoration:none; display:grid; gap:var(--space-1); }
+.reference-link strong { font:var(--type-subheading); }
+.reference-link span { font:var(--type-body); color:var(--ink-muted); }
+.reference-link:hover strong { text-decoration:underline; }
+.home-context { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-4); margin-top:var(--space-5); }
+.home-context h2 { font:var(--type-subheading); margin:0; padding:var(--space-3) 0 0; }
+.home-context p { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); }
+.history-note { font:var(--type-label); padding:var(--space-3); max-width:1320px; margin:auto; color:var(--ink-muted); }
+@media (max-width:760px) {
+ .site-bar { gap:var(--space-3); }
+ .site-brand { margin-right:auto; }
+ .site-primary { order:3; flex-basis:100%; margin:0; justify-content:space-between; gap:var(--space-3); }
+ .site-primary a { padding:var(--space-1) 0; }
+ .site-actions { gap:var(--space-2); }
+ .site-directory { position:static; }
+ .directory-panel { left:var(--space-3); right:var(--space-3); top:calc(100% + var(--space-2)); width:auto; max-height:calc(100dvh - 160px); }
+ .directory-panel .atlas-nav { grid-template-columns:minmax(0,1fr); }
+ .footer-pages { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
+ .home-choices,.home-context { grid-template-columns:minmax(0,1fr); }
+ .reference-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .route-card { padding:var(--space-3); }
+ .home-page .top { padding-top:var(--space-3); }
+ .home-page .top h1 { font:300 40px/46px var(--font-serif); }
+ main h2,main h3 { scroll-margin-top:144px; }
+ .home-reference { scroll-margin-top:144px; }
+}
+@media (max-width:979px) {
+ .page-sections .contents { position:static; max-height:none; border-top:var(--border-hairline) solid var(--rule); border-bottom:var(--border-hairline) solid var(--rule); padding:var(--space-3) 0; }
+ .page-sections .contents > summary { margin:0; }
+ .page-sections .contents[open] > summary { margin-bottom:var(--space-2); }
+}
+@media print { .site-header,.site-footer,.page-sections { display:none; } }
+
 </style>
 
-<div class="page"><aside class="original-status" aria-label="Historical design status"><strong>Original proposed design · 2026-11-17</strong> · Atlas content <a href="https://github.com/CathedralOS/Omega/tree/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas">c03bdc1aef0e</a><br>Original drawing, labels and estimates preserved. The declaration-selection bypass was corrected in the <a href="pipeline-current.html">reviewed account</a>.<nav class="original-links" aria-label="Atlas views"><a href="pipeline-map.html" aria-current="page">Original map</a><a href="architecture.html">Interactive full architecture</a><a href="foundation-backend-plan.html">Complete migration plan</a><a href="repository.html">Codebase guide</a><a href="#atlas-directory">All pages</a><button id="original-theme" type="button">Light / dark</button></nav></aside>
+<header class="site-header"><div class="site-bar"><a class="site-brand" href="../index.html">Ω / Atlas</a><nav class="site-primary" aria-label="Primary navigation"><a href="architecture.html" class="">Compiler map</a><a href="foundation-backend-plan.html#start-with-the-extra-arrows" class="">Repair plan</a><a href="../index.html#reference" class="">Reference</a></nav><div class="site-actions"><details id="page-list" class="site-directory"><summary>All pages</summary><div class="directory-panel"><label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Search Atlas…" autocomplete="off"><nav class="atlas-nav" aria-label="Atlas pages"><div class="nav-home"><a href="../index.html">Atlas overview →</a></div>
+<section><h2>Compiler</h2><ul>
+<li><a href="architecture.html">Compiler map</a></li>
+<li><a href="psi.html">Psi stages</a></li>
+<li><a href="omega.html">Omega stages and realization</a></li>
+<li><a href="build-and-packages.html">Build and packages</a></li>
+<li><a href="interpreter.html">Psi interpreter</a></li>
+<li><a href="library.html">Bundled library</a></li>
+</ul></section>
+<section><h2>Repository</h2><ul>
+<li><a href="repository.html">Codebase map</a></li>
+<li><a href="cli.html">CLI</a></li>
+<li><a href="bootstrap.html">Bootstrap</a></li>
+<li><a href="tools.html">Tools and verification</a></li>
+</ul></section>
+<section><h2>Plans and evidence</h2><ul>
+<li><a href="pipeline-current.html">Reviewed pipeline routes</a></li>
+<li><a href="foundation-backend-plan.html">Compiler repair plan</a></li>
+<li><a href="questions.html">Open questions</a></li>
+<li><a href="rulings.html">Owner rulings</a></li>
+<li><a href="pipeline-map.html" aria-current="page">Original pipeline map</a></li>
+</ul></section></nav><p id="no-pages" hidden>No matching pages.</p></div></details><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div></div></header><aside class="history-note" aria-label="Historical design status"><strong>Historical original · 2026-11-17</strong> · Atlas content <a href="https://github.com/CathedralOS/Omega/tree/54a4163589bab2f99272123376c29a888918b92b/atlas">54a4163589ba</a><br>Original drawing, labels and estimates preserved. Read the <a href="pipeline-current.html">reviewed account</a> for corrected claims. <a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/artifacts/pipeline-map/original.html">Preserved source</a>.</aside><div class="page" id="main">
   <header>
     <div class="eyebrow">Omega compiler · architecture · 2026-11-17</div>
     <h1>Omega pipeline map</h1>
@@ -306,28 +412,6 @@ svg.bars { min-width: 640px; }
       <figcaption>Counts are <code>.rs</code> lines from the current tree; the foundation target is the plan's estimate. Foundation keeps <code>arena</code>, <code>compiler-storage</code>, <code>diagnostics</code>, source text positions, a merged <code>wire</code>, <code>bignum</code> and <code>execution-admission</code>; <code>omega/foundation/</code> is deleted. The backend dissolves: emission, object and image code become stages, the target description becomes an input Omega 00 receives, program-derived plans move into the stages that compute them, and packaging moves to products.</figcaption>
     </figure>
   </section>
-<section class="atlas-directory" id="atlas-directory"><h2>Atlas pages</h2><nav aria-label="All atlas pages"><ul><li><a href="../index.html">Overview</a></li></ul>
-<h2>Compiler</h2><ul>
-<li><a href="architecture.html">Interactive architecture</a></li>
-<li><a href="psi.html">Psi stages</a></li>
-<li><a href="omega.html">Omega stages and realization</a></li>
-<li><a href="build-and-packages.html">Build and packages</a></li>
-<li><a href="interpreter.html">Psi interpreter</a></li>
-<li><a href="library.html">Bundled library</a></li>
-</ul>
-<h2>Repository</h2><ul>
-<li><a href="repository.html">Codebase map</a></li>
-<li><a href="cli.html">CLI</a></li>
-<li><a href="bootstrap.html">Bootstrap</a></li>
-<li><a href="tools.html">Tools and verification</a></li>
-</ul>
-<h2>Plans and evidence</h2><ul>
-<li><a href="pipeline-current.html">Reviewed pipeline routes</a></li>
-<li><a href="foundation-backend-plan.html">Foundation and backend plan</a></li>
-<li><a href="questions.html">Open questions</a></li>
-<li><a href="rulings.html">Owner rulings</a></li>
-<li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></nav><p><a href="https://github.com/CathedralOS/Omega/blob/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas/artifacts/pipeline-map/original.html">Preserved HTML source</a> · <a href="https://github.com/CathedralOS/Omega/blob/4dcadfb359b143f87df4cda6d2b0c5b55203e7ef/atlas/pages/pipeline-map.html">Original publication revision</a></p></section>
 </div>
 
 <script>
@@ -341,5 +425,4 @@ svg.bars { min-width: 640px; }
 })();
 </script>
 
-<script>document.getElementById("original-theme").addEventListener("click",()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");r.dataset.theme=d==="dark"?"light":"dark";});</script>
 </html>

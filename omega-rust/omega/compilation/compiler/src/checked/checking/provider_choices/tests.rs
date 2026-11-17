@@ -65,18 +65,18 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("lex source");
         match &mut syntax {
             None => {
                 syntax = Some(
-                    tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens)
+                    crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                         .expect("parse source"),
                 )
             }
             Some(syntax) => {
-                tokens_to_syntax_trees::parse(syntax, id, &tokens).expect("parse source");
+                crate::frontend_fixture::parse(syntax, id, &tokens).expect("parse source");
             }
         }
     }

@@ -237,34 +237,45 @@ pub mod provider_declarations {
             Ok(())
         }
 
-        /// The old checker's template and contract plans are not route evidence.
-        /// Keep the complete source census and refuse when an admitted machine
-        /// needs trust declarations the route does not yet publish. An empty
-        /// census requires no such custody and makes no admission claim.
+        /// Retain every authored claim, including claims the program never uses.
+        /// Missing checked receipts remain explicit; only a requested claim
+        /// asks trust settlement to consume its template or contract evidence.
         pub fn trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
             self.trust
                 .get_or_init(|| {
-                    let claims = self
-                        .owner
-                        .as_ref()
-                        .as_ref()
+                    use language_semantics::trust_declarations::{
+                        AcceptedMachineDeclaration, TrustDeclarationCardinality,
+                    };
+                    let typed = self.owner.as_ref().as_ref();
+                    let machines = typed
                         .machines()
                         .iter()
                         .filter(|machine| {
                             machine.supply_mode
                                 == language_semantics::MachineSupplyMode::AdmissionClaim
                         })
-                        .map(|machine| machine.name.as_str())
-                        .collect::<Vec<_>>();
-                    if claims.is_empty() {
-                        Ok(TrustDeclarations::default())
-                    } else {
-                        Err(Diagnostic::error(format!(
-                            "no product route yet: admitted machines require route-owned \
-                             template and contract trust declarations: {}",
-                            claims.join(", ")
-                        )))
-                    }
+                        .map(|machine| {
+                            let declaration_identity = typed
+                                .normalized_hermetic_symbol_identity(machine.symbol)
+                                .map_err(|reason| {
+                                    Diagnostic::error(format!(
+                                        "admitted machine `{}` has no exact declaration identity: {reason}",
+                                        machine.name,
+                                    ))
+                                })?;
+                            Ok(AcceptedMachineDeclaration {
+                                machine: machine.symbol,
+                                declaration_identity,
+                                package_identity: typed.symbols.symbol_package_identity(machine.symbol),
+                                name: machine.name.as_str().to_owned(),
+                                template: Err(TrustDeclarationCardinality::Missing),
+                                contract: Err(TrustDeclarationCardinality::Missing),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                    Ok(TrustDeclarations {
+                        machines: machines.into_boxed_slice(),
+                    })
                 })
                 .as_ref()
                 .map_err(Clone::clone)
@@ -362,7 +373,7 @@ pub mod provider_declarations {
         }
 
         #[test]
-        fn admission_claims_cannot_recover_old_checker_trust() {
+        fn malformed_claims_cannot_invent_a_declaration_identity() {
             let mut symbols = symbols::SymbolTableBuilder::new();
             let first = symbols.insert_root(
                 symbols::SymbolKind::Machine,
@@ -387,8 +398,8 @@ pub mod provider_declarations {
             let inventory =
                 PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
             let error = inventory.trust_declarations().unwrap_err();
-            assert!(error.message.contains("no product route yet"));
-            assert!(error.message.contains("First, Second"));
+            assert!(error.message.contains("has no exact declaration identity"));
+            assert!(error.message.contains("First"));
         }
     }
 }

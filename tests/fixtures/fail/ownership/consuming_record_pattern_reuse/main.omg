@@ -1,0 +1,22 @@
+// Expected diagnostic: decomposition source is not a complete live value
+data Zero [linear] {}
+data Ticket [linear] { number: u64; }
+data Counter { value: u64; }
+data Counted<'view> dropped by end_counted { counter: &'view mut Counter; }
+data Wrapper<'view> [linear] { held: Counted<'view>; }
+machine end_counted(value: Counted) { let { counter } = move value; counter.value = 47u64; }
+machine dispose(value: Wrapper) { let { held as _ } = move value; }
+machine zero(value: Zero) { let {} = move value; let {} = move value; }
+machine ticket(value: Ticket) -> u64 { let { number } = move value; number }
+machine main() crashes Trap {
+    zero(Zero {});
+    let number: u64 = ticket(Ticket { number: 29u64 });
+    let mut counter: Counter = Counter { value: 11u64 };
+    dispose(Wrapper { held: Counted { counter: &mut counter } });
+    transition number == 29u64 && counter.value == 47u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

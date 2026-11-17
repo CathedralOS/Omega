@@ -128,6 +128,12 @@ pub(crate) struct Program<'t> {
     /// Applied signatures can share a declaration symbol while owning
     /// different source expressions. Capture the views this reader formed.
     pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
+    /// The declaration each view above was read for, by position. A
+    /// requirement applied by an implementation names that implementation's
+    /// binders, so its references belong to the implementing machine.
+    pub(crate) admitted_signature_view_owners: Vec<SymbolHandle>,
+    /// While set, retained views are read for this implementing machine.
+    pub(crate) signature_view_owner: Option<SymbolHandle>,
     /// Boundary applications whose ordinary parents need contract-owner admission.
     /// They are not service parents and grant no service reach.
     pub(crate) boundary_parent_contracts:
@@ -426,6 +432,8 @@ impl<'t> Program<'t> {
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_bodies: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
+            admitted_signature_view_owners: Vec::new(),
+            signature_view_owner: None,
             boundary_parent_contracts: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
             shared,
@@ -762,6 +770,7 @@ mod tests {
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: SymbolHandle::invalid(),
+            cleanup: None,
             application: None,
             region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),
@@ -2536,6 +2545,7 @@ mod tests {
         program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            cleanup: None,
             application: None,
             region_owner: SymbolHandle::invalid(),
             fields: vec![a, b],
@@ -2554,7 +2564,19 @@ mod tests {
                 },
             )
         };
-        assert!(matches!(read(point, full, subject), Ok(None)));
+        let crate::body::Statement::Decompose {
+            subject: decomposed,
+        } = read(point, full, subject)
+            .unwrap()
+            .expect("the owned affine record must be decomposed")
+        else {
+            panic!("a complete record pattern decomposes its actual subject");
+        };
+        assert!(matches!(
+            decomposed.kind,
+            crate::body::ExpressionKind::Slot(0)
+        ));
+        assert_eq!(decomposed.result, Some(slots[0].value_type));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
             read(pattern_subject, pattern_fields, initial_value)
                 .unwrap_err()

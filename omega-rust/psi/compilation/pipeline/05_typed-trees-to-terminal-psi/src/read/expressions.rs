@@ -14,7 +14,7 @@ use typed_trees::expression::{
 
 use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
@@ -486,38 +486,13 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
-                // `subject in S::C` is a case test wherever it stands.
-                // `k == Kind::A` is the same test only on a payload-free sum
-                // (data_and_literals.md: "Primitive and payload-free-sum
-                // equality is intrinsic"). On a record or a payload-bearing
-                // sum, Psi 03 replaces a `==` it can type with the selected
-                // `Equatable` call, so a `==` that reaches here against a case
-                // has no selected comparison and `case_test` refuses it.
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::CaseMembership
-                        | BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                ) && let Some(case) = self.named_case(binary.right)
+                // Membership names a case domain. Value equality instead
+                // reads both operands through the ordinary comparison path,
+                // including when one is a named case value.
+                if binary.operator == BinaryOperator::CaseMembership
+                    && let Some(case) = self.named_case(binary.right)
                 {
-                    let test = self.case_test(
-                        id,
-                        slots,
-                        binary.left,
-                        case,
-                        binary.operator != BinaryOperator::CaseMembership,
-                        source,
-                    )?;
-                    return Ok(if binary.operator == BinaryOperator::NotEqual {
-                        Expression {
-                            call_context: None,
-                            result: test.result,
-                            kind: ExpressionKind::Not(Box::new(test)),
-                            source,
-                        }
-                    } else {
-                        test
-                    });
+                    return self.case_test(id, slots, binary.left, case, source);
                 }
                 // A quoted literal is a byte view whatever its partner is
                 // (data_and_literals.md, "Quoted bytes"), so it is read
@@ -569,18 +544,19 @@ impl<'t> Program<'t> {
                     )?;
                     (left, right)
                 };
-                // conformances.md, "Core equality acquisition": text is
-                // "compared by byte content". Two unqualified byte views
-                // compare by the bytes they hold; `!=` is that comparison
-                // negated (structural_predicates.md, "Byte-sequence equality
-                // compares live lengths and live byte prefixes").
+                // Intrinsic storage equality compares byte contents or the
+                // retained case identity of a payload-free sum. Selected
+                // user comparisons are already calls, so they never enter
+                // this raw-operator path (conformances.md, "Core equality
+                // acquisition"). `!=` negates the same selected comparison.
                 if suffix.is_none()
                     && matches!(
                         binary.operator,
                         BinaryOperator::Equal | BinaryOperator::NotEqual
                     )
-                    && self.is_plain_readable_bytes(id, left.result)?
-                    && self.is_plain_readable_bytes(id, right.result)?
+                    && ((self.is_plain_readable_bytes(id, left.result)?
+                        && self.is_plain_readable_bytes(id, right.result)?)
+                        || self.intrinsic_enum_equality(id, &left, &right, source)?)
                 {
                     let boolean = Some(ValueType::plain(ScalarType::Boolean));
                     let equal = Expression {
@@ -761,6 +737,41 @@ impl<'t> Program<'t> {
         self.observed(id, value, expected)
     }
 
+    /// The implicit route reads only two identical, unqualified enum types.
+    /// Payloads require the selected Equatable call; domains.md, "Operands"
+    /// requires a declared operator or explicit cast for qualified values.
+    fn intrinsic_enum_equality(
+        &self,
+        id: MachineId,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Checked<bool> {
+        let Some(left_record) = self.opened(id, left.result, Access::Read)? else {
+            return Ok(false);
+        };
+        let Some(right_record) = self.opened(id, right.result, Access::Read)? else {
+            return Ok(false);
+        };
+        if [left.result, right.result]
+            .into_iter()
+            .flatten()
+            .any(|value| !value.qualification().is_none())
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "builtin equality requires unqualified operands",
+            ));
+        }
+        if left.result != right.result {
+            return Err(crate::reject(id, source, "equality operand types differ"));
+        }
+        self.require_intrinsic_tag_equality(id, left_record)?;
+        self.require_intrinsic_tag_equality(id, right_record)?;
+        Ok(true)
+    }
+
     /// A place that holds a reference, as the context that names it sees it.
     /// A reference context transports the permission descriptor; an ordinary
     /// value context observes its exact referent, so the path crosses the
@@ -914,16 +925,19 @@ impl<'t> Program<'t> {
         record: super::authority::Opened,
         subject: &Expression,
         expected: Option<ValueType>,
-    ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
+    ) -> Checked<(
+        Vec<(CaseSelector, Expression)>,
+        Option<Box<Expression>>,
+        ValueType,
+    )> {
         use typed_trees::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let mut arms: Vec<(usize, Expression)> = Vec::new();
+        let mut arms: Vec<(CaseSelector, Expression)> = Vec::new();
         let mut default = None;
         let mut result = expected;
+        let mut wildcard = None;
+        let mut full_cases = vec![None; self.data_type(id, record.record())?.cases().len()];
         for arm in self.typed.expression_table.match_arms(matched.arms) {
-            if default.is_some() {
-                return Err(unserved("match arm after the wildcard"));
-            }
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
                 MatchPattern::Value(head) => {
@@ -955,7 +969,7 @@ impl<'t> Program<'t> {
                         }
                         _ => Default::default(),
                     };
-                    Some(self.case_pattern(
+                    Some(CaseSelector::tag(self.case_pattern(
                         id,
                         record,
                         &typed_trees::expression::TableDestructurePattern {
@@ -964,34 +978,40 @@ impl<'t> Program<'t> {
                             ..Default::default()
                         },
                         SourceOrigin::of(arm.source_span),
-                    )?)
+                    )?))
                 }
-                MatchPattern::Destructure(pattern) => {
-                    let case =
-                        self.case_pattern(id, record, pattern, SourceOrigin::of(arm.source_span))?;
-                    // Stage 03 keeps the arm's test as the pattern's
-                    // condition, `subject in case && true`; it must read to
-                    // exactly that, or the arm tests something else.
-                    let condition = self.expression(
-                        id,
-                        slots,
-                        pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                    )?;
-                    if !same_computation(&condition, &case_condition(subject, case)) {
-                        return Err(unserved("match arm whose condition is not its case test"));
-                    }
-                    Some(case)
-                }
+                MatchPattern::Destructure(pattern) => Some(self.case_selector(
+                    id,
+                    slots,
+                    record,
+                    pattern,
+                    subject,
+                    SourceOrigin::of(arm.source_span),
+                )?),
             };
-            if case.is_some_and(|case| arms.iter().any(|(earlier, _)| *earlier == case)) {
-                return Err(unserved("match arm for a case an earlier arm selects"));
-            }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
             self.label_arm(id, &value, &arm.pattern);
+            // Read and type every authored arm before omitting a branch
+            // whose earlier unconditional pattern already selects its values.
+            if let Some(earlier) =
+                wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
+            {
+                if let Some(names) = self.names.get_mut(id) {
+                    names.shadowed_patterns.push((arm.source_span, earlier));
+                }
+                continue;
+            }
             match case {
-                Some(case) => arms.push((case, value)),
-                None => default = Some(Box::new(value)),
+                Some(case) => {
+                    if case.condition.is_none() {
+                        full_cases[case.case] = Some(arm.source_span);
+                    }
+                    arms.push((case, value));
+                }
+                None => {
+                    wildcard = Some(arm.source_span);
+                    default = Some(Box::new(value));
+                }
             }
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
@@ -1665,7 +1685,12 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                         .all(|((a_case, a), (b_case, b))| {
                             both(a, b)
                                 && match (a_case, b_case) {
-                                    (Selector::Case(a), Selector::Case(b)) => a == b,
+                                    (Selector::Case(a), Selector::Case(b)) => a.case == b.case
+                                        && match (&a.condition, &b.condition) {
+                                            (Some(a), Some(b)) => both(a,b),
+                                            (None, None) => true,
+                                            _ => false,
+                                        },
                                     (Selector::Value(a), Selector::Value(b)) => both(a, b),
                                     (Selector::Case(_), Selector::Value(_))
                                     | (Selector::Value(_), Selector::Case(_)) => false,

@@ -74,7 +74,10 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     pub fn installed_helper_roots(
         module: &terminal_psi::TerminalModule,
     ) -> Vec<(
-        semantic_vocabulary::OperationId,
+        (
+            semantic_vocabulary::MachineId,
+            semantic_vocabulary::OperationId,
+        ),
         Result<[semantic_vocabulary::MachineId; 3], String>,
     )> {
         if module.installed_interrupt_registrations.is_empty() {
@@ -96,19 +99,31 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
         bodies.sort_unstable_by_key(|(contract, _, _)| *contract);
         let mut applications = module.callback_applications.iter().collect::<Vec<_>>();
         applications.sort_unstable_by_key(|application| {
-            (application.registrar, application.static_machine_ordinal)
+            (
+                application.registrar_machine,
+                application.registrar,
+                application.static_machine_ordinal,
+            )
         });
         let mut result = Vec::new();
         for registration in &module.installed_interrupt_registrations {
             let roots = (|| {
                 let mut roots = Vec::with_capacity(3);
                 for ordinal in [1, 2, 3] {
-                    let key = (registration.operation, ordinal);
+                    let key = (registration.machine, registration.operation, ordinal);
                     let first = applications.partition_point(|application| {
-                        (application.registrar, application.static_machine_ordinal) < key
+                        (
+                            application.registrar_machine,
+                            application.registrar,
+                            application.static_machine_ordinal,
+                        ) < key
                     });
                     let mut selections = applications[first..].iter().take_while(|application| {
-                        (application.registrar, application.static_machine_ordinal) == key
+                        (
+                            application.registrar_machine,
+                            application.registrar,
+                            application.static_machine_ordinal,
+                        ) == key
                     });
                     let (Some(selection), None) = (selections.next(), selections.next()) else {
                         return Err(format!(
@@ -143,7 +158,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
                     .try_into()
                     .map_err(|_| "installed helper count changed during preparation".to_owned())
             })();
-            result.push((registration.operation, roots));
+            result.push(((registration.machine, registration.operation), roots));
         }
         result.sort_unstable_by_key(|(operation, _)| *operation);
         let mut first = 0;

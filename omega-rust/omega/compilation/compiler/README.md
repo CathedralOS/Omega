@@ -35,7 +35,12 @@ The crate-internal `produce_products` goes from checked source and selected
 targets to Terminal Psi when needed, then to the requested outputs. It is not
 a public way to compile an existing Terminal artifact; that source-free route is
 `build_settings::scalar_completion::complete_native`, which evaluates the
-scalar values the native code reads, then one call to
+scalar values the native code reads. Source compilation retains Product
+checking's completed scalar scopes and calls `extend_native` with the executable's
+roots and additional demand. Its target, providers, layout and import adapters
+stay with that invocation-owned completion. An identical completed request is
+reused; a request for an additional local result records another execution and
+checks that its returned value and overlapping captures agree. Both routes then make one call to
 [`native_compiler::compile`](../native-compiler/src/compile.rs) with those
 values in its request. Native compilation never calls an interpreter or
 reopens source.

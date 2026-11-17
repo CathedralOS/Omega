@@ -241,11 +241,14 @@ pub(crate) mod native_callbacks {
         target: NativeTarget,
         admitted_rows: &[crate::AdmittedNativeCallbackArgument],
     ) -> Result<
-        BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
+        BTreeMap<
+            (semantic_vocabulary::MachineId, OperationId),
+            Vec<target_operations::TargetNativeCallbackArgument>,
+        >,
         LoweringError,
     > {
         let mut native_callbacks_by_operation: BTreeMap<
-            OperationId,
+            (semantic_vocabulary::MachineId, OperationId),
             Vec<target_operations::TargetNativeCallbackArgument>,
         > = BTreeMap::new();
         for admitted in admitted_rows {
@@ -263,7 +266,10 @@ pub(crate) mod native_callbacks {
                 ));
             }
             let matching_calls = plan
-                .operations()
+                .functions
+                .iter()
+                .filter(|function| function.machine == admitted.registrar_machine)
+                .flat_map(|function| function.operations())
                 .filter(|operation| {
                     matches!(operation,
                     AbstractOperation::BoundaryCall { psi_operation, .. }
@@ -286,10 +292,11 @@ pub(crate) mod native_callbacks {
                 ));
             }
             native_callbacks_by_operation
-                .entry(admitted.terminal_operation)
+                .entry((admitted.registrar_machine, admitted.terminal_operation))
                 .or_default()
                 .push(target_operations::TargetNativeCallbackArgument {
                     registrar_invokes_callback: admitted.registrar_invokes_callback,
+                    registrar_machine: admitted.registrar_machine,
                     terminal_operation: admitted.terminal_operation,
                     placement_index: admitted.placement_index,
                     callback_function: admitted.callback_function,
@@ -569,13 +576,13 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         {
             let installations = verified_input.map(|input| input.module().installed_interrupt_registrations.iter()
                 .filter(|registration| registration.installer == *boundary)
-                .map(|registration| (registration.operation, registration.registrar_application.as_str(), registration.callbacks.len()))
+                .map(|registration| (registration.machine, registration.operation, registration.registrar_application.as_str(), registration.callbacks.len()))
                 .collect::<Vec<_>>());
             eprintln!("checked interrupt installation records: {installations:?}");
             if let Some(input) = verified_input {
                 let module = input.module();
                 for registration in module.installed_interrupt_registrations.iter().filter(|registration| registration.installer == *boundary) {
-                    let helpers = module.callback_applications.iter().filter(|application| application.registrar == registration.operation)
+                    let helpers = module.callback_applications.iter().filter(|application| application.registrar_machine == registration.machine && application.registrar == registration.operation)
                         .map(|application| (application.static_machine_ordinal, application.entry_admitted, application.requirement.as_str(), &application.body)).collect::<Vec<_>>();
                     eprintln!("installed operation helper selections: {helpers:?}");
                     eprintln!("installed registrar ABI: {:?}", module.calling_abi_identity(registration.registrar_boundary));

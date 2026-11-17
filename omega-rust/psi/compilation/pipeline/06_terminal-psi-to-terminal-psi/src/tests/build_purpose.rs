@@ -65,14 +65,16 @@ pub(super) fn frontier_with_core(
         } else {
             build_source = Some(id);
         }
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
         match &mut syntax {
             None => {
                 syntax =
-                    Some(tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap());
+                    Some(crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
             }
             Some(syntax) => {
-                tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
         }
     }
@@ -96,8 +98,10 @@ pub(super) fn frontier_with_core(
                 core_scope,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
         bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
             importing_source,
             id,
@@ -215,10 +219,8 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 }
 
 /// The checker's verdict on the Build program `build`, rooted at its
-/// `build_entry`, beside an empty Product: the verdict on its closure.
-/// Every other verdict a program without generic machines or
-/// implementations gets is a further refusal of the same reading, which the
-/// closure's refusal already refuses the compilation for.
+/// `build_entry`, beside an empty Product. Acceptance covers every subject
+/// declaration; only then is its closure returned for table inspection.
 pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
     judge_build_with_core(build, &[])
 }
@@ -234,7 +236,7 @@ pub(super) fn judge_build_with_core(
         core,
     );
     let entry = symbol(&typed, "build_entry");
-    let mut verdicts = crate::judge_compilation(
+    let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             roster(&[entry], &[Some(package())], DependencyScope::Build),
@@ -242,14 +244,33 @@ pub(super) fn judge_build_with_core(
         )
         .program,
     );
+    super::entryless::whole_subject_result(verdicts)
+}
+
+#[test]
+fn a_build_subject_cannot_hide_a_generic_guarantee_rejection() {
+    let source = "machine build_entry() {}\n\
+                  machine unchanged<T>(value: u32) -> u32 \
+                  ensures result == value crashes none { value }\n";
+    let accepted = judge_build(source);
     assert!(
-        verdicts
-            .iter()
-            .skip(1)
-            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
-        "{verdicts:?}"
+        matches!(accepted, Ok(RouteVerdict::Accepted(_))),
+        "{accepted:?}"
     );
-    verdicts.remove(0)
+
+    let negative = source.replace("result == value", "result != value");
+    let parts = judge_build_all(&negative);
+    assert!(
+        matches!(parts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
+        "{parts:?}"
+    );
+    let rejected = judge_build(&negative);
+    assert!(
+        matches!(rejected, Ok(RouteVerdict::Rejected { ref unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
+                && row.cause == UnprovedCause::NoDerivation)),
+        "the uncalled generic declaration still owes its guarantee: {rejected:?}"
+    );
 }
 
 /// Every verdict of the Build program `build`: its closure, then each

@@ -9,6 +9,8 @@ This tree has one directory per language, plus shared test support.
 - `epsilon/` contains Epsilon checking, evaluation and runtime gates.
 - `bootstrap/` contains tests spanning more than one bootstrap rung.
 - `fixtures/` holds Omega programs explicitly read by Rust tests.
+- `support/frontend.rs` constructs small Rust test inputs through the public lexical
+  and parsing stages; crates include it only in tests and benchmark/example harnesses.
 - `psi/` contains black-box gates for the Omega-written Psi source.
 - `product/` holds `gate.sh`, shared by gates of the Omega-written compiler.
 

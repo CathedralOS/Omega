@@ -1,7 +1,7 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
 use language_core::BindingRelevance;
 use language_core::ReferenceAccess;
-use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::Item;
 use syntax_trees::item::TypeParameterKind;

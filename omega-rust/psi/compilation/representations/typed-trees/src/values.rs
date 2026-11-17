@@ -4868,10 +4868,12 @@ pub mod expression {
         pub operator: BinaryOperator,
         pub right: ExpressionHandle,
         /// The policy an operator suffix chose for this one operation
-        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Preparation
-        /// rewrites every suffixed operation in executable code onto
-        /// policy-qualified operands, so checking sees `Exact` here and
-        /// rejects anything else.
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Executable code,
+        /// contracts and mathematical definitions may retain this suffix for
+        /// their policy-aware lowering; constant type positions reject it.
+        /// Canonical identities support raw Exact recipes. A non-Exact raw
+        /// recipe needs a complete selected operation identity, including its
+        /// carrier, and refuses until that representation is available.
         pub policy: numerics::arithmetic::ArithmeticDomain,
     }
 
@@ -5518,14 +5520,32 @@ pub mod expression {
             left: numerics::arithmetic::ArithmeticDomain,
             right: numerics::arithmetic::ArithmeticDomain,
         ) -> Option<numerics::arithmetic::ArithmeticDomain> {
-            use numerics::arithmetic::ArithmeticDomain::Exact;
-            if self.is_shift() || right == Exact || right == left {
-                Some(left)
-            } else if left == Exact {
-                Some(right)
-            } else {
-                None
-            }
+            self.scalar_operation()?.selected_policy(left, right)
+        }
+
+        pub fn scalar_operation(
+            self,
+        ) -> Option<language_semantics::numeric_intrinsics::ScalarBinaryOperation> {
+            use language_semantics::numeric_intrinsics::ScalarBinaryOperation as Operation;
+            Some(match self {
+                Self::Add => Operation::Add,
+                Self::Subtract => Operation::Subtract,
+                Self::Multiply => Operation::Multiply,
+                Self::Divide => Operation::Divide,
+                Self::Modulo => Operation::Remainder,
+                Self::ShiftLeft => Operation::ShiftLeft,
+                Self::ShiftRight => Operation::ShiftRight,
+                Self::BitwiseAnd => Operation::BitwiseAnd,
+                Self::BitwiseOr => Operation::BitwiseOr,
+                Self::BitwiseXor => Operation::BitwiseXor,
+                Self::Equal => Operation::Equal,
+                Self::NotEqual => Operation::NotEqual,
+                Self::Less => Operation::Less,
+                Self::LessOrEqual => Operation::LessOrEqual,
+                Self::Greater => Operation::Greater,
+                Self::GreaterOrEqual => Operation::GreaterOrEqual,
+                Self::And | Self::Or | Self::CaseMembership => return None,
+            })
         }
 
         pub fn is_comparison(self) -> bool {

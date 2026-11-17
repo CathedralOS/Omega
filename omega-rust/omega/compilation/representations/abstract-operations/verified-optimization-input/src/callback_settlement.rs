@@ -8,11 +8,11 @@
   their outbound calling plans and selected import rows.
 */
 mod operations {
-    use semantic_vocabulary::OperationId;
+    use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::Operation;
 
     struct RequestedCallbackOperation<'terminal> {
-        identity: OperationId,
+        identity: (MachineId, OperationId),
         first_match: Option<&'terminal Operation>,
         match_count: usize,
     }
@@ -23,8 +23,8 @@ mod operations {
 
     impl<'terminal> CallbackTerminalOperations<'terminal> {
         pub fn new(
-            operation_ids: impl Iterator<Item = OperationId>,
-            operations: impl Iterator<Item = &'terminal Operation>,
+            operation_ids: impl Iterator<Item = (MachineId, OperationId)>,
+            operations: impl Iterator<Item = (MachineId, &'terminal Operation)>,
         ) -> Self {
             let mut requested = operation_ids
                 .map(|identity| RequestedCallbackOperation {
@@ -36,9 +36,9 @@ mod operations {
             requested.sort_unstable_by_key(|entry| entry.identity);
             requested.dedup_by_key(|entry| entry.identity);
             if !requested.is_empty() {
-                for operation in operations {
-                    if let Ok(position) =
-                        requested.binary_search_by_key(&operation.id, |entry| entry.identity)
+                for (machine, operation) in operations {
+                    if let Ok(position) = requested
+                        .binary_search_by_key(&(machine, operation.id), |entry| entry.identity)
                     {
                         let entry = &mut requested[position];
                         entry.first_match.get_or_insert(operation);
@@ -49,7 +49,10 @@ mod operations {
             Self { requested }
         }
 
-        pub fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
+        pub fn find(
+            &self,
+            operation: (MachineId, OperationId),
+        ) -> Result<&'terminal Operation, usize> {
             let position = self
                 .requested
                 .binary_search_by_key(&operation, |entry| entry.identity)
@@ -59,6 +62,41 @@ mod operations {
                 (1, Some(operation)) => Ok(operation),
                 (match_count, _) => Err(match_count),
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use terminal_psi::{OperationKind, OperationResult};
+
+        #[test]
+        fn registrar_lookup_distinguishes_equal_local_operation_ids() {
+            let owner = MachineId::new(1).unwrap();
+            let other = MachineId::new(2).unwrap();
+            let id = OperationId::new(1).unwrap();
+            let first = Operation::unsuspended(
+                id,
+                OperationResult::Unit,
+                OperationKind::BooleanConstant { value: true },
+            );
+            let second = Operation::unsuspended(
+                id,
+                OperationResult::Unit,
+                OperationKind::BooleanConstant { value: false },
+            );
+            let operations = CallbackTerminalOperations::new(
+                [(owner, id), (other, id)].into_iter(),
+                [(owner, &first), (other, &second)].into_iter(),
+            );
+            assert_eq!(operations.find((owner, id)), Ok(&first));
+            assert_eq!(operations.find((other, id)), Ok(&second));
+            assert_eq!(operations.find((MachineId::new(3).unwrap(), id)), Err(0));
+            let duplicate = CallbackTerminalOperations::new(
+                [(owner, id)].into_iter(),
+                [(owner, &first), (owner, &second)].into_iter(),
+            );
+            assert_eq!(duplicate.find((owner, id)), Err(2));
         }
     }
 }
@@ -84,12 +122,16 @@ mod placement {
             module
                 .callback_applications
                 .iter()
-                .map(|application| application.registrar),
-            module.operations(),
+                .map(|application| (application.registrar_machine, application.registrar)),
+            module.machines.iter().flat_map(|machine| {
+                machine
+                    .operations()
+                    .map(move |operation| (machine.id, operation))
+            }),
         );
         let mut placements = Vec::new();
         for application in &module.callback_applications {
-            let operation = operations.find(application.registrar).map_err(|count| {
+            let operation = operations.find((application.registrar_machine, application.registrar)).map_err(|count| {
             format!("callback registrar resolves to {count} Terminal operations; exactly one is required")
         })?;
             let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
@@ -399,7 +441,10 @@ mod installed_placement {
             }
             let mut timer_destinations = 0usize;
             for callback in &registration.callbacks {
-                if callback.registrar != registration.operation || !callback.entry_admitted {
+                if callback.registrar_machine != registration.machine
+                    || callback.registrar != registration.operation
+                    || !callback.entry_admitted
+                {
                     return Err(
                         "installed callback lost its checked occurrence or entry contract".into(),
                     );
@@ -473,12 +518,13 @@ mod registrar_imports {
     use backend_plan::NativeCallbackPlacement;
     use calling_conventions::BoundaryCallingApplication;
     use calling_conventions::ExternalBindingRow;
-    use semantic_vocabulary::OperationId;
+    use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::TerminalModule;
 
     #[derive(Clone, Copy)]
     pub struct CallbackRegistrarOccurrence {
         pub placement_index: usize,
+        pub registrar_machine: MachineId,
         pub terminal_operation: OperationId,
     }
 
@@ -497,8 +543,12 @@ mod registrar_imports {
         let operations = CallbackTerminalOperations::new(
             callback_occurrences
                 .clone()
-                .map(|occurrence| occurrence.terminal_operation),
-            terminal_module.operations(),
+                .map(|occurrence| (occurrence.registrar_machine, occurrence.terminal_operation)),
+            terminal_module.machines.iter().flat_map(|machine| {
+                machine
+                    .operations()
+                    .map(move |operation| (machine.id, operation))
+            }),
         );
         let declarations = terminal_module
             .boundary_machines
@@ -524,7 +574,7 @@ mod registrar_imports {
             let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
                 "callback registrar import closure requires one private materialization".to_owned()
             })?;
-            let operation = operations.find(occurrence.terminal_operation).map_err(|count| {
+            let operation = operations.find((occurrence.registrar_machine, occurrence.terminal_operation)).map_err(|count| {
             format!(
                 "callback registrar import closure resolves Terminal operation {} to {count} operations",
                 occurrence.terminal_operation.get(),

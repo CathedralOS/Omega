@@ -1147,3 +1147,235 @@ fn contradictory_strict_orders_discharge_an_unrelated_goal_with_an_admitted_cert
         }
     }
 }
+
+#[test]
+fn dense_order_arrivals_copy_only_the_bounds_the_certificate_uses() {
+    // The relations have quadratic size, but they all carry the same endpoint.
+    // Replaying equal endpoints must not copy a growing certificate per edge.
+    for count in [4, 8, 16] {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let mut values = IdTable::default();
+        let inputs: Vec<_> = (0..count)
+            .map(|position| {
+                let id = values.push(ValueRow {
+                    scalar_type,
+                    origin: ValueOrigin::MachineParameter {
+                        position: position as u32,
+                    },
+                    rigid: None,
+                });
+                ScalarTerm::value(id, scalar_type)
+            })
+            .collect();
+        let context = PropositionContext::from_value_types(
+            values.iter().map(|(id, row)| (id, row.scalar_type)),
+        )
+        .unwrap();
+        let limit = ScalarTerm::integer(integer, IntegerValue::Unsigned(9)).unwrap();
+        let goal = Proposition::LessOrEqual(inputs[count - 1].clone(), limit.clone());
+        let mut assumptions = vec![Proposition::LessOrEqual(inputs[0].clone(), limit)];
+        for (left, input) in inputs.iter().enumerate() {
+            for (right, other) in inputs.iter().enumerate() {
+                if left != right {
+                    assumptions.push(Proposition::LessOrEqual(input.clone(), other.clone()));
+                }
+            }
+        }
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+        let proof = prover.prove(&goal).unwrap();
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                .unwrap();
+        assert!(accepted.assumptions.iter().any(|used| used.index == 0));
+        assert!(accepted.assumptions.iter().any(|used| used.index > 0));
+        assert!(
+            prover.activity.bound_certificate_copies <= count,
+            "{} copies for {count} subjects",
+            prover.activity.bound_certificate_copies,
+        );
+
+        // Without the literal arrival, all subjects can be 10. Keep this
+        // semantic falsifier small; the growing cases above measure work.
+        if count == 4 {
+            assert!(
+                Prover::new(
+                    &context,
+                    &assumptions[1..],
+                    &[],
+                    &values,
+                    &mut ProofSearchActivity::default(),
+                )
+                .prove(&goal)
+                .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn selected_relation_bounds_keep_strict_steps_and_equality_direction() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let inputs: Vec<_> = (0..2)
+        .map(|position| {
+            let id = values.push(ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar_type)
+        })
+        .collect();
+    let (left, right) = (&inputs[0], &inputs[1]);
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    for direction in [Direction::Upper, Direction::Lower] {
+        for relation in [
+            Proposition::LessThan(left.clone(), right.clone()),
+            Proposition::Equal(left.clone(), right.clone()),
+            Proposition::Equal(right.clone(), left.clone()),
+        ] {
+            let strict = matches!(relation, Proposition::LessThan(..));
+            let (subject, bounded) = match direction {
+                Direction::Upper => (left, right),
+                Direction::Lower => (right, left),
+            };
+            let endpoint = if strict {
+                match direction {
+                    Direction::Upper => 8,
+                    Direction::Lower => 10,
+                }
+            } else {
+                9
+            };
+            let assumptions = [relation, Prover::oriented(bounded, literal(9), direction)];
+            let goal = Prover::oriented(subject, literal(endpoint), direction);
+            let mut activity = ProofSearchActivity::default();
+            let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                .prove(&goal)
+                .unwrap();
+            let accepted =
+                proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                    .unwrap();
+            assert!(accepted.assumptions.iter().any(|used| used.index == 0));
+            assert!(accepted.assumptions.iter().any(|used| used.index == 1));
+            let beyond = match direction {
+                Direction::Upper => endpoint - 1,
+                Direction::Lower => endpoint + 1,
+            };
+            let unproved = Prover::oriented(subject, literal(beyond), direction);
+            assert!(
+                Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                    .prove(&unproved)
+                    .is_err()
+            );
+        }
+    }
+}
+
+/// A value-to-value order cannot finish `refute`'s existing closed-endpoint
+/// chain. Refusing before the opposite search must copy no bound evidence.
+#[test]
+fn refutation_without_a_closed_endpoint_skips_bound_work() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let inputs: Vec<_> = (0..2)
+        .map(|position| {
+            let id = values.push(ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar_type)
+        })
+        .collect();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let assumptions = [Proposition::LessOrEqual(
+        inputs[0].clone(),
+        inputs[1].clone(),
+    )];
+    let local = node(assumptions[0].clone(), ProofRule::Assumption { index: 0 });
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert!(prover.refute(local, &Proposition::Falsehood).is_none());
+    let copied_for_refutation = prover.activity.bound_certificate_copies;
+    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert!(prover.prove(&Proposition::Falsehood).is_err());
+    assert_eq!(copied_for_refutation, 0);
+}
+
+/// Skipping an unusable first order must retain the later literal-endpoint
+/// contradiction and its real premises, in either orientation. Removing
+/// either conflicting premise leaves a consistent context and must refuse.
+#[test]
+fn literal_endpoint_refutation_keeps_the_actual_conflicting_premises() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let inputs: Vec<_> = (0..2)
+        .map(|position| {
+            let id = values.push(ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar_type)
+        })
+        .collect();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let upper = Proposition::LessOrEqual(inputs[0].clone(), literal(3));
+    let lower = Proposition::LessOrEqual(literal(4), inputs[0].clone());
+    for reversed in [false, true] {
+        let mut assumptions = vec![Proposition::LessOrEqual(
+            inputs[0].clone(),
+            inputs[1].clone(),
+        )];
+        if reversed {
+            assumptions.extend([lower.clone(), upper.clone()]);
+        } else {
+            assumptions.extend([upper.clone(), lower.clone()]);
+        }
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&Proposition::Falsehood)
+            .unwrap();
+        let accepted = proof_admission::accept_certificate(
+            &context,
+            &Proposition::Falsehood,
+            &assumptions,
+            &[],
+            &proof,
+        )
+        .unwrap();
+        let mut cited: Vec<_> = accepted.assumptions.iter().map(|used| used.index).collect();
+        cited.sort_unstable();
+        assert_eq!(cited, [1, 2]);
+        assert!(accepted.semantic_axioms.is_empty());
+        for missing in [1, 2] {
+            let mut remaining = assumptions.clone();
+            remaining.remove(missing);
+            assert!(
+                Prover::new(
+                    &context,
+                    &remaining,
+                    &[],
+                    &values,
+                    &mut ProofSearchActivity::default(),
+                )
+                .prove(&Proposition::Falsehood)
+                .is_err()
+            );
+        }
+    }
+}

@@ -8,6 +8,11 @@ use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use numerics::literals::FloatFormat;
 use symbols::BuiltinFunction;
 
+mod core_integer_operators;
+pub use core_integer_operators::{
+    CoreIntegerOperand, CoreIntegerOperatorSignature, CoreIntegerResult, ScalarBinaryOperation,
+};
+
 macro_rules! tagged_vocabulary {
     ($documentation:literal, $tag_documentation:literal, $name:ident, $tag_fn:ident { $($variant:ident => $spelling:literal = $tag:literal),+ $(,)? }) => {
         #[doc = $documentation]

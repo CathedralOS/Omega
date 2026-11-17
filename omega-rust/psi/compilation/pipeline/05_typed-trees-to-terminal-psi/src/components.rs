@@ -200,7 +200,10 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
                 ..
             } => {
                 expression(subject, false, sites);
-                for (_, arm, _) in arms {
+                for (selector, arm, _) in arms {
+                    if let Some(condition) = selector.condition.as_deref() {
+                        expression(condition, false, sites);
+                    }
                     target(arm, sites);
                 }
                 if let Some((arm, _)) = default {
@@ -317,7 +320,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         } => {
             expression(subject, false, sites);
             for (selector, arm) in arms {
-                if let crate::body::Selector::Value(pattern) = selector {
+                if let Some(pattern) = selector.test() {
                     expression(pattern, false, sites);
                 }
                 expression(arm, terminal, sites);

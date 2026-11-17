@@ -20,7 +20,9 @@ use terminal_psi::{
 
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
-use crate::body::{Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType};
+use crate::body::{
+    CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType,
+};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -372,34 +374,15 @@ impl Lowering<'_> {
                 arms,
                 default,
                 source,
-            } => {
-                let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
-                let (blocks, rest) = continuing!(self.select(
-                    subject,
-                    &cases,
-                    default.as_ref().map(|(_, arm)| *arm),
-                    *source,
-                    None
-                ));
-                // Each arm completes the machine, so what one binds (the home
-                // a loan gives a local) is no other arm's.
-                let bound = self.slots.clone();
-                for ((_, target, source), (block, chosen)) in arms.iter().zip(blocks) {
-                    self.enter(block);
-                    self.selected.push(chosen);
-                    self.complete(target, *source)?;
-                    self.selected.pop();
-                    self.slots.clone_from(&bound);
-                }
-                if let (Some((target, source)), Some((block, chosen))) = (default, rest) {
-                    self.enter(block);
-                    self.selected.push(chosen);
-                    self.complete(target, *source)?;
-                    self.selected.pop();
-                    self.slots.clone_from(&bound);
-                }
-                Ok(Reached::Value(()))
-            }
+            } => self.case_decisions(
+                subject,
+                arms.iter()
+                    .map(|(selector, target, source)| (selector, target, *source)),
+                default.as_ref().map(|(target, source)| (target, *source)),
+                *source,
+                None,
+                |lowering, target, source, _temporary| lowering.complete(target, source),
+            ),
             Statement::Evaluate {
                 expression,
                 discards_result,
@@ -688,35 +671,178 @@ impl Lowering<'_> {
         }
         let cases = arms
             .iter()
-            .map(|(selector, _)| {
-                selector
-                    .case()
-                    .ok_or_else(|| self.internal("a value pattern on a sum subject"))
+            .map(|(selector, value)| match selector {
+                Selector::Case(selector) => Ok((selector, value, value.source)),
+                Selector::Value(_) => Err(self.internal("a value pattern on a sum subject")),
             })
-            .collect::<Checked<Vec<usize>>>()?;
+            .collect::<Checked<Vec<_>>>()?;
+        self.case_decisions(
+            subject,
+            cases,
+            default.map(|value| (value, value.source)),
+            source,
+            capture,
+            |lowering, value, _source, temporary| finish(lowering, value, temporary),
+        )
+    }
+
+    /// Select a tag before touching its payload, then test that case's
+    /// alternatives in authored order. Alternatives for other tags cannot
+    /// match, so their tests are neither evaluated nor copied into this block.
+    /// A failed predicate retains the subject and falls through; only the
+    /// selected target transfers or retires it.
+    fn case_decisions<'a, T: 'a>(
+        &mut self,
+        subject: &Expression,
+        arms: impl IntoIterator<Item = (&'a CaseSelector, &'a T, SourceOrigin)>,
+        default: Option<(&'a T, SourceOrigin)>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
+        mut finish: impl FnMut(&mut Self, &T, SourceOrigin, Option<PlaceId>) -> Checked<()>,
+    ) -> Evaluation<()> {
+        let arms = arms.into_iter().collect::<Vec<_>>();
+        let mut indices = arms
+            .iter()
+            .map(|(selector, _, _)| (selector.case, None))
+            .collect::<Vec<_>>();
+        indices.sort_unstable_by_key(|(case, _)| *case);
+        indices.dedup_by_key(|(case, _)| *case);
+        let mut cases = Vec::with_capacity(indices.len());
+        let mut groups: Vec<Vec<usize>> = Vec::with_capacity(indices.len());
+        for (position, (selector, _, _)) in arms.iter().enumerate() {
+            let slot = indices
+                .binary_search_by_key(&selector.case, |(case, _)| *case)
+                .expect("selected case is indexed");
+            let group = *indices[slot].1.get_or_insert_with(|| {
+                cases.push(selector.case);
+                groups.push(Vec::new());
+                groups.len() - 1
+            });
+            groups[group].push(position);
+        }
         let decided_in = self.current()?;
         let (blocks, rest) = continuing!(self.select(
             subject,
             &cases,
-            default.map(|value| value.source),
+            default.map(|(_, source)| source),
             source,
             capture
         ));
-        let bodies = arms
-            .iter()
-            .map(|(_, value)| value)
-            .zip(blocks)
-            .chain(default.zip(rest));
-        for (value, (block, chosen)) in bodies {
-            self.authored_arm(block, decided_in, value.source, value.source);
+        let bound = self.slots.clone();
+        let mut selected = self.selected.clone();
+        let path = self.path.len();
+        let mut ended = None;
+        let mut fallback = rest;
+        let mut fallback_selected = selected.clone();
+        for (group, (block, chosen)) in groups.iter().zip(blocks) {
             self.enter(block);
             let temporary = chosen.temporary();
+            let unselected = chosen.without_case();
             self.selected.push(chosen);
-            let reached = finish(self, value, temporary);
-            self.selected.pop();
-            reached?;
+            let mut falls_through = true;
+            let mut preceding = decided_in;
+            let mut preceding_source = source;
+            for &index in group {
+                let (selector, target, arm_source) = arms[index];
+                if let Some(test) = selector.condition.as_deref() {
+                    let condition = match self.scalar(test)? {
+                        Reached::Value(condition) => condition,
+                        Reached::Ended(origin) => {
+                            ended = Some(origin);
+                            falls_through = false;
+                            break;
+                        }
+                    };
+                    let before = self.current()?;
+                    let taken = self.block(arm_source);
+                    let rest = self.block(SourceOrigin::Unpositioned(
+                        Unpositioned::DispatchContinuation,
+                    ));
+                    self.authored_arm(taken, before, arm_source, test.source);
+                    self.branch(
+                        condition,
+                        (taken, Vec::new()),
+                        (rest, Vec::new()),
+                        test.source,
+                    )?;
+                    let after_guard = self.slots.clone();
+                    let selected_after_guard = self.selected.clone();
+                    self.enter(taken);
+                    self.path.push(self.decision(condition, true)?);
+                    finish(self, target, arm_source, temporary)?;
+                    if self.current.is_some() {
+                        for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                            retained.retain_invalidation(incoming);
+                        }
+                    }
+                    self.path.pop();
+                    self.slots.clone_from(&after_guard);
+                    self.selected.clone_from(&selected_after_guard);
+                    self.enter(rest);
+                    self.path.push(self.decision(condition, false)?);
+                    preceding = before;
+                    preceding_source = test.source;
+                } else {
+                    let block = self.current()?;
+                    self.authored_arm(block, preceding, arm_source, preceding_source);
+                    finish(self, target, arm_source, temporary)?;
+                    if self.current.is_some() {
+                        for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                            retained.retain_invalidation(incoming);
+                        }
+                    }
+                    falls_through = false;
+                    break;
+                }
+            }
+            if falls_through {
+                let Some((_, arm_source)) = default else {
+                    return Err(Refusal {
+                        reason: RefusalReason::Unestablished,
+                        machine: self.id,
+                        concerns: Construct::Block(self.current()?),
+                        source_span: source.span(),
+                        detail: "a conditional case pattern leaves values uncovered; add a case fallback or wildcard".into(),
+                    });
+                };
+                // Every false arrival reaches the same authored wildcard.
+                // No payload parameter or ownership transfer crosses this
+                // join: normal guards update the existing homes, and the
+                // captured subject remains the same live storage.
+                for (retained, incoming) in fallback_selected.iter_mut().zip(&self.selected) {
+                    retained.retain_invalidation(incoming);
+                }
+                let (block, _) =
+                    fallback.get_or_insert_with(|| (self.block(arm_source), unselected));
+                self.jump(*block, Vec::new(), arm_source)?;
+            }
+            self.slots.clone_from(&bound);
+            self.selected.clone_from(&selected);
+            self.path.truncate(path);
         }
-        Ok(Reached::Value(()))
+        let default_used = fallback.is_some();
+        if let (Some((target, arm_source)), Some((block, chosen))) = (default, fallback) {
+            self.enter(block);
+            let temporary = chosen.temporary();
+            self.selected.clone_from(&fallback_selected);
+            self.selected.push(chosen);
+            self.authored_arm(block, decided_in, arm_source, arm_source);
+            finish(self, target, arm_source, temporary)?;
+            if self.current.is_some() {
+                for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                    retained.retain_invalidation(incoming);
+                }
+            }
+            self.slots.clone_from(&bound);
+            self.selected.clone_from(&selected);
+            self.path.truncate(path);
+        }
+        if let Some((_, source)) = default
+            && !default_used
+        {
+            self.sources.dead_wildcards.push(source.into());
+        }
+        Ok(ended.map_or(Reached::Value(()), Reached::Ended))
     }
 
     /// Scalar patterns retain their authored order and decisions. A pattern
@@ -776,8 +902,9 @@ impl Lowering<'_> {
         Ok(Reached::Value(()))
     }
 
-    /// Records the authored arm whose first block is `block`, entered only
-    /// from the decision that ends `decided_in`.
+    /// Records an authored arm's entry and the decision point preceding it.
+    /// A shared wildcard may have several arrivals from that dispatch; the
+    /// checker compares facts before the decision and at the joined entry.
     fn authored_arm(
         &mut self,
         block: BlockId,

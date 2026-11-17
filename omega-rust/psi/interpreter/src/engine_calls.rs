@@ -3437,6 +3437,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             && operation.result.structural().is_some_and(|result| {
                 self.supports_provider_reference_result(boundary_declaration, result)
             });
+        let TerminalEffect::BoundaryCall { arguments, .. } = &effect else {
+            return Err(malformed());
+        };
+        crate::boundary::effects::boundary_predicates::validate_output_guarantees(
+            boundary_declaration,
+            arguments,
+            &returned,
+        )?;
         if matches!(&returned, TerminalEffectResult::Reference(_))
             && !provider_reference
             && !boundary_declaration

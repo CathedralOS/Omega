@@ -156,7 +156,9 @@ pub(crate) mod data {
             .then_some(lowerer.type_reference_exposure)
             .flatten();
         lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_data_definition_contents(lowerer, data_definition)
+            lowerer.with_source_owner(data_definition.symbol, |lowerer| {
+                lower_data_definition_contents(lowerer, data_definition)
+            })
         })
     }
 
@@ -573,7 +575,6 @@ pub(crate) mod domain {
             application,
             subject,
             authorization,
-            executable: symbols::SymbolHandle::invalid(),
         })
     }
 }
@@ -1845,7 +1846,7 @@ pub(crate) mod provider_defaults {
     }
 }
 pub(crate) mod state {
-    use crate::expressions::statement::lower_statement;
+    use crate::expressions::statement::{LocalTypes, lower_statement};
     use crate::lowerer::Lowerer;
     use crate::tables::{expression_table, resolved_statements, statement_table_mut};
     use diagnostics::Diagnostic;
@@ -1905,6 +1906,12 @@ pub(crate) mod state {
         }
         let statements =
             resolved_statements(lowerer.source_trees).statements(state.statement_nodes);
+        let mut local_types = LocalTypes::new(
+            &lowerer.typed_trees,
+            typed_state,
+            lowerer.source_trees,
+            statements,
+        )?;
         let mut pending = Vec::new();
         for (index, statement) in statements.iter().enumerate() {
             let closes_run = matches!(statement,
@@ -1968,6 +1975,7 @@ pub(crate) mod state {
                 lowerer,
                 attached_data,
                 state,
+                &mut local_types,
                 statement,
                 closes_run,
             )?);

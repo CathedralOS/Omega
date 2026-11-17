@@ -11,18 +11,20 @@ use crate::{
     AdmittedInstalledInterruptHelper, AdmittedInstalledInterruptScope,
 };
 use language_core::static_interrupts::StaticInterruptOperation;
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{MachineId, OperationId};
+
+type OperationSite = (MachineId, OperationId);
 use terminal_psi::{OperationKind, TerminalModule, TerminalPsiIdentity};
 
 /// Rows grouped by the operation they belong to, in operation order.
-pub struct Rows<T>(Vec<(OperationId, Vec<T>)>);
+pub struct Rows<T>(Vec<(OperationSite, Vec<T>)>);
 
 type HelperAnswer = (StaticInterruptOperation, Result<(), &'static str>);
 impl<T> Rows<T> {
-    pub fn new(rows: impl Iterator<Item = (OperationId, T)>) -> Self {
+    pub fn new(rows: impl Iterator<Item = (OperationSite, T)>) -> Self {
         let mut rows: Vec<_> = rows.collect();
         rows.sort_unstable_by_key(|(operation, _)| *operation);
-        let mut groups: Vec<(OperationId, Vec<T>)> = Vec::new();
+        let mut groups: Vec<(OperationSite, Vec<T>)> = Vec::new();
         for (operation, row) in rows {
             if let Some((_, values)) = groups.last_mut().filter(|(last, _)| *last == operation) {
                 values.push(row);
@@ -32,21 +34,21 @@ impl<T> Rows<T> {
         }
         Self(groups)
     }
-    pub fn get(&self, operation: OperationId) -> &[T] {
+    pub fn get(&self, operation: OperationSite) -> &[T] {
         self.0
             .binary_search_by_key(&operation, |(id, _)| *id)
             .map_or(&[], |index| self.0[index].1.as_slice())
     }
 }
 
-struct Associations<T>(Vec<((OperationId, u32), T)>);
+struct Associations<T>(Vec<((OperationSite, u32), T)>);
 impl<T> Associations<T> {
-    fn new(rows: impl Iterator<Item = ((OperationId, u32), T)>) -> Self {
+    fn new(rows: impl Iterator<Item = ((OperationSite, u32), T)>) -> Self {
         let mut rows: Vec<_> = rows.collect();
         rows.sort_unstable_by_key(|(key, _)| *key);
         Self(rows)
     }
-    fn unique(&self, installation: OperationId, application: u32) -> Option<&T> {
+    fn unique(&self, installation: OperationSite, application: u32) -> Option<&T> {
         let key = (installation, application);
         let index = self.0.partition_point(|(candidate, _)| *candidate < key);
         let (actual, value) = self.0.get(index)?;
@@ -61,19 +63,32 @@ pub(crate) struct PreparedHelperCohort<'a> {
     helpers: Rows<&'a AdmittedInstalledInterruptHelper>,
     scopes: Rows<&'a AdmittedInstalledInterruptScope>,
     entries: Associations<&'a AdmittedInstalledInterruptEntry>,
-    requirements: Vec<(OperationId, HelperAnswer)>,
+    requirements: Vec<(OperationSite, HelperAnswer)>,
 }
 impl<'a> PreparedHelperCohort<'a> {
     pub(crate) fn new(cohort: &'a AdmittedInstalledInterruptCohort) -> Self {
         let mut result = Self {
-            helpers: Rows::new(cohort.helpers().iter().map(|row| (row.operation(), row))),
-            scopes: Rows::new(cohort.scopes().iter().map(|row| (row.operation(), row))),
-            entries: Associations::new(
+            helpers: Rows::new(
                 cohort
-                    .entries()
+                    .helpers()
                     .iter()
-                    .map(|row| ((row.operation, row.placement.application_index), row)),
+                    .map(|row| ((row.machine(), row.operation()), row)),
             ),
+            scopes: Rows::new(
+                cohort
+                    .scopes()
+                    .iter()
+                    .map(|row| ((row.machine(), row.operation()), row)),
+            ),
+            entries: Associations::new(cohort.entries().iter().map(|row| {
+                (
+                    (
+                        (row.machine, row.operation),
+                        row.placement.application_index,
+                    ),
+                    row,
+                )
+            })),
             requirements: Vec::new(),
         };
         result.requirements = result
@@ -94,7 +109,10 @@ impl<'a> PreparedHelperCohort<'a> {
         &self,
         helper: &AdmittedInstalledInterruptHelper,
     ) -> Result<&'a AdmittedInstalledInterruptScope, &'static str> {
-        let [scope] = self.scopes.get(helper.installation()) else {
+        let [scope] = self
+            .scopes
+            .get((helper.installation_machine(), helper.installation()))
+        else {
             return Err("interrupt helper does not have exactly one admitted Scope");
         };
         if scope.acknowledgement_application() != helper.callback_application() {
@@ -107,20 +125,23 @@ impl<'a> PreparedHelperCohort<'a> {
         helper: &AdmittedInstalledInterruptHelper,
     ) -> Result<&'a AdmittedInstalledInterruptEntry, &'static str> {
         self.entries
-            .unique(helper.installation(), helper.callback_application())
+            .unique(
+                (helper.installation_machine(), helper.installation()),
+                helper.callback_application(),
+            )
             .copied()
             .ok_or("interrupt helper does not have exactly one admitted native entry")
     }
     pub(crate) fn require(
         &self,
-        operation: OperationId,
+        operation: OperationSite,
         kind: StaticInterruptOperation,
     ) -> Result<(), &'static str> {
         require_answer(&self.requirements, operation, kind)
     }
     fn validate(
         &self,
-        operation: OperationId,
+        operation: OperationSite,
         kind: StaticInterruptOperation,
     ) -> Result<(), &'static str> {
         if kind == StaticInterruptOperation::Install {
@@ -132,7 +153,12 @@ impl<'a> PreparedHelperCohort<'a> {
         }
         let mut roots: Vec<_> = helpers
             .iter()
-            .map(|helper| (helper.installation(), helper.callback_application()))
+            .map(|helper| {
+                (
+                    (helper.installation_machine(), helper.installation()),
+                    helper.callback_application(),
+                )
+            })
             .collect();
         roots.sort_unstable();
         if roots.windows(2).any(|pair| pair[0] == pair[1])
@@ -149,8 +175,8 @@ impl<'a> PreparedHelperCohort<'a> {
 }
 
 fn require_answer(
-    answers: &[(OperationId, HelperAnswer)],
-    operation: OperationId,
+    answers: &[(OperationSite, HelperAnswer)],
+    operation: OperationSite,
     kind: StaticInterruptOperation,
 ) -> Result<(), &'static str> {
     if kind == StaticInterruptOperation::Install {
@@ -169,7 +195,7 @@ fn require_answer(
 pub struct PreparedInstalledInterruptHelpers {
     psi: TerminalPsiIdentity,
     cohort_psi: TerminalPsiIdentity,
-    answers: Vec<(OperationId, HelperAnswer)>,
+    answers: Vec<(OperationSite, HelperAnswer)>,
 }
 impl PreparedInstalledInterruptHelpers {
     pub fn new(
@@ -185,12 +211,16 @@ impl PreparedInstalledInterruptHelpers {
             };
         }
         let prepared = PreparedHelperCohort::new(cohort);
-        let operations = Rows::new(module.operations().map(|row| (row.id, row)));
+        let operations = Rows::new(module.machines.iter().flat_map(|machine| {
+            machine
+                .operations()
+                .map(move |row| ((machine.id, row.id), row))
+        }));
         let registrations = Rows::new(
             module
                 .installed_interrupt_registrations
                 .iter()
-                .map(|row| (row.operation, row)),
+                .map(|row| ((row.machine, row.operation), row)),
         );
         let callbacks = Associations::new(
             module
@@ -198,7 +228,10 @@ impl PreparedInstalledInterruptHelpers {
                 .iter()
                 .flat_map(|row| {
                     row.callbacks.iter().map(move |callback| {
-                        ((row.operation, callback.application_index), callback)
+                        (
+                            ((row.machine, row.operation), callback.application_index),
+                            callback,
+                        )
                     })
                 }),
         );
@@ -226,12 +259,13 @@ impl PreparedInstalledInterruptHelpers {
                 }
                 for helper in helpers {
                     let scope = prepared.scope(helper)?;
-                    let [registration] = registrations.get(scope.operation()) else {
+                    let [registration] = registrations.get((scope.machine(), scope.operation()))
+                    else {
                         return Err(
                             "interrupt helper lost its unique retained installation request",
                         );
                     };
-                    let [source] = operations.get(scope.operation()) else {
+                    let [source] = operations.get((scope.machine(), scope.operation())) else {
                         return Err("interrupt helper installation has no unique source operation");
                     };
                     if !matches!(&source.kind, OperationKind::BoundaryCall { boundary, arguments, structural_arguments, .. }
@@ -243,10 +277,14 @@ impl PreparedInstalledInterruptHelpers {
                         );
                     }
                     let callback = callbacks
-                        .unique(scope.operation(), helper.callback_application())
+                        .unique(
+                            (scope.machine(), scope.operation()),
+                            helper.callback_application(),
+                        )
                         .ok_or("interrupt helper lost its designated acknowledgement entry")?;
                     let entry = prepared.entry(helper)?;
                     if !callback.entry_admitted
+                        || callback.registrar_machine != scope.machine()
                         || callback.registrar != scope.operation()
                         || entry.placement.static_machine_ordinal != callback.static_machine_ordinal
                         || entry.placement.canonical_requirement_overload != callback.requirement
@@ -272,7 +310,7 @@ impl PreparedInstalledInterruptHelpers {
     }
     pub fn verify(
         &self,
-        operation: OperationId,
+        operation: OperationSite,
         kind: StaticInterruptOperation,
     ) -> Result<(), &'static str> {
         if self.psi != self.cohort_psi {
@@ -302,6 +340,7 @@ pub fn bind_installations(
         .entries()
         .iter()
         .map(|entry| bound::BoundInterruptEntry {
+            machine: entry.machine,
             operation: entry.operation,
             placement_index: entry.placement_index,
             application: entry.placement.application_index,
@@ -321,7 +360,8 @@ pub fn bind_installations(
         .requirements
         .iter()
         .map(|(operation, (kind, answer))| bound::BoundInterruptHelper {
-            operation: *operation,
+            machine: operation.0,
+            operation: operation.1,
             kind: *kind,
             refusal: answer.err(),
         })

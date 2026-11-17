@@ -134,6 +134,7 @@ impl AcceptedClosure {
     /// uninhabited values use the same continuation rule (state_contracts.md,
     /// "Published no-return").
     pub fn advisories(&self) -> Vec<Diagnostic> {
+        let mut activity = crate::ProofSearchActivity::default();
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
@@ -159,8 +160,12 @@ impl AcceptedClosure {
         // premises").
         for (machine, branch) in self.elaboration.authored_branches() {
             let Some(impossible) = self.discharge.machines.get(machine).and_then(|discharge| {
+                let tables = self.elaboration.tables.machines.get(machine)?;
+                let lowered = self.elaboration.module.machine(machine)?;
+                let branches = &self.elaboration.sources.get(machine)?.branches;
                 discharge
-                    .impossible
+                    .branch_warnings
+                    .materialize(lowered, tables, branches, &mut activity)
                     .iter()
                     .find(|arm| arm.block == branch.block)
             }) else {
@@ -209,6 +214,17 @@ impl AcceptedClosure {
                 )),
                 arm,
             ));
+        }
+        for (_, names) in self.elaboration.names.iter() {
+            for (arm, earlier) in &names.shadowed_patterns {
+                advisories.push(Diagnostic::warning(
+                    "unreachable branch: an earlier unconditional pattern already matches this arm"
+                ).with_source_span(*arm));
+                advisories.push(
+                    Diagnostic::note("this earlier pattern already matches these values")
+                        .with_source_span(*earlier),
+                );
+            }
         }
         advisories
     }
@@ -942,7 +958,7 @@ pub(crate) fn judge_owing(
     )
 }
 
-fn judge_owing_with_activity(
+pub(super) fn judge_owing_with_activity(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
     activity: &mut crate::ProofSearchActivity,
@@ -1049,6 +1065,9 @@ fn examine(
                     None => Construct::Machine,
                 };
                 let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                        (RefusalReason::Unestablished, unavailable.message())
+                    }
                     terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (RefusalReason::Unsupported, detail)
                     }
@@ -1088,6 +1107,9 @@ fn examine(
                         None => Construct::Machine,
                     };
                     let (reason, detail) = match error {
+                        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                            (RefusalReason::Unestablished, unavailable.message())
+                        }
                         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                             (RefusalReason::Unsupported, detail)
                         }
@@ -1124,14 +1146,7 @@ fn examine(
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at).map_err(Err)?),
-                detail: if unavailable.unrestored {
-                    "an owned value was moved out of borrowed storage, and the place does not \
-                     hold a value again where the machine returns the borrow: a replacement \
-                     must be stored into the vacant place on every path that leaves the machine"
-                } else {
-                    "owned storage is used after its value was transferred or consumed"
-                }
-                .to_owned(),
+                detail: unavailable.message().to_owned(),
                 declared: None,
             });
         }

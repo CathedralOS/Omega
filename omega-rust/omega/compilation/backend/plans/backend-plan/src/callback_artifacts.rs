@@ -208,6 +208,21 @@ pub fn validate_callback_thunk_joins(
         let application = module
             .callback_application(occurrence.application_index)
             .ok_or("callback thunk has no portable application")?;
+        let registrar = module
+            .machine(application.registrar_machine)
+            .and_then(|machine| {
+                machine
+                    .operations()
+                    .find(|operation| operation.id == application.registrar)
+            });
+        if !registrar.is_some_and(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BoundaryCall { .. }
+            )
+        }) {
+            return Err("callback application lost its exact owning registrar machine");
+        }
         let body = thunk.artifact().semantic_module();
         let declaration = body
             .machine(thunk.entry())

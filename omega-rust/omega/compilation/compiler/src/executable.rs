@@ -46,21 +46,25 @@ pub(super) fn prepare(
         .and_then(|graph| graph.with_boundary_calls(calls))
         .and_then(|graph| graph.from_root(root))
         .map_err(refuse)?;
-    let active_operation = |identity| {
-        closure.machines.iter().any(|machine| {
-            machine
-                .operations()
-                .any(|operation| operation.id == identity)
-        })
+    let active_operation = |owner, identity| {
+        closure
+            .machines
+            .iter()
+            .filter(|machine| machine.id == owner)
+            .any(|machine| {
+                machine
+                    .operations()
+                    .any(|operation| operation.id == identity)
+            })
     };
     if module
         .callback_applications
         .iter()
-        .any(|callback| active_operation(callback.registrar))
+        .any(|callback| active_operation(callback.registrar_machine, callback.registrar))
         || module
             .installed_interrupt_registrations
             .iter()
-            .any(|registration| active_operation(registration.operation))
+            .any(|registration| active_operation(registration.machine, registration.operation))
     {
         return Err(refuse(
             "executable callback and interrupt entries need their canonical composition roots before application preparation".into(),
@@ -175,6 +179,7 @@ pub(super) fn prepare(
                 &native,
                 &permissions,
                 &request.installation_assumptions,
+                program.evidence().map(Arc::as_ref),
             )
             .map_err(refuse)
         })

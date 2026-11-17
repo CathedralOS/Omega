@@ -187,8 +187,11 @@ fn tag_tables() -> Vec<TagTable> {
     use crate::wire_fields;
 
     // A structural type declaration up to its shape tag: no quotient carrier,
-    // type id, two identity indexes, four flags and no nominal cleanup.
-    let structural_type_head: &[u8] = &[&[0][..], &ID, &[0; 4], &[0; 4], &[0; 4], &[0]].concat();
+    // type id, two identity indexes, three flags, Unrestricted multiplicity,
+    // and no nominal cleanup. Zero is not a multiplicity tag; it would make
+    // the decoder refuse before reaching the shape byte under test.
+    let structural_type_head: &[u8] =
+        &[&[0][..], &ID, &[0; 4], &[0; 4], &[0; 3], &[1], &[0]].concat();
     // A ranked cycle up to an edge's comparison byte: Natural, one component
     // with no block ranks and one edge whose successor tuple holds one `u32` value.
     let rank_edge_head: &[u8] = &[

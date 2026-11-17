@@ -75,18 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Claim verification hides an already identified restoration error
-- Category: Re-deriving
-- Where: [verdict.rs:939](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/verdict.rs#L939), [minted.rs:754](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L754), and [plain_affine.rs:786](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L786).
-- Saw: `examine` reconstructs the exact unavailable borrowed storage and its restoration flag. Later, `minted` calls `verify_claims_in`, which converts that same unavailable row into a blanket Unsupported before the ordinary restoration diagnostic is returned. In `a_whole_local_owned_home_is_repaired_before_its_reference_ends`, the restored positive passes and removing only `local = next;` gets this generic refusal.
-- Cost: The invalid program still refuses, but its strict restoration regression test fails and callers cannot distinguish a broken restoration obligation from missing compiler support. Keep one availability owner and carry its actual reason through claim validation.
-- Reported: 2026-11-16, Codex, while carrying Room A1 and the multiplication table through byte-observer checking.
-### Saved native inputs do not reproduce the product they were saved from
-- Category: tests that pin the bug
-- Where: [round-trip check](omega-rust/omega/build-system/orchestration/examples/installation_assumption_review/saved_project.rs#L88), [recovery](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs#L1876), [evidence attachment](omega-rust/omega/compilation/native-compiler/src/application.rs#L44)
-- Saw: `installation_assumption_review prepare tests/fixtures/run/calls/scalar_contract_route_exit/main.omg windows_x86_64 DIR` refuses with "saved native inputs do not reproduce the checked project" on `main`. The recovered `RetainedTerminalArtifact` differs from the original in two places. Recovery attaches no operation evidence, while `TerminalApplication` attaches it with `with_evidence`. And the proposal's provider-identity table numbers its rows in a different order: the first differing line maps `named(..Extent)` where the original has `trait-application(..ProgramStorageEntry)`.
-- Cost: The review workflow the native-compiler README documents cannot prepare a saved project, and nothing on the Windows host tests the round trip; the only test of it (`closed_native_binding_reloads_and_executes_the_descriptor_callback`) runs on macOS arm64 only. Save or re-derive the evidence, encode provider identities in their canonical order, and run the round trip in a host-independent test.
-- Reported: 2026-11-17, pi, while moving the saved native-input codec out of Omega 00.
 
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
@@ -100,18 +88,11 @@ framework or a list of unimplemented features.
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
 - Saw: [three layers](wiki/spec/build/platform_services.md) says a portable service "is identical on every target". A static diff of the two adapter families found three differences that #3864 did not cover:
   - `set_times` accepts any `i64` on POSIX, but Windows refuses times at or before 1601 and after about year 60056. The comment cites Win32, but the portable contract does not state the limit.
-  - `read_dir_nth` and `read_dir_is_empty` error on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
+  - `read_dir_nth` errors on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
   - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows. `read_at`, `write_at` and `copy` refuse a count over 4 GiB on Windows the same way.
   - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
-
-### A qualified collection gets builtin `[..]` indexing without a declared operator
-- Category: A verdict with nothing behind it
-- Where: [builtin meaning check](omega-rust/psi/compilation/representations/typed-trees/src/operator_declarations.rs#L2135), [typing selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L74), [byte-view tests](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L593)
-- Saw: [operands](wiki/spec/language/domains.md#L752) says builtin operators accept unqualified operands only, and indexing "follows the same rule through its operator declarations ... a qualified collection or index has such a declaration or is cast" (L777). Typing selects builtin indexing when `has_builtin_spelled_expression_meaning` holds, but that function never checks operand qualification. So with `domain [u8]::Path requires no_nul(self)`, `let x: &[u8] = &path[0..p];` on a `&[u8] in Path` is accepted as builtin indexing with no declaration and no cast, and the byte-view tests assert that acceptance. A declared range operator is still honoured; only the no-declaration case falls through. Found by a blind checklist replay of #3789 and confirmed on main at fdc89014463.
-- Cost: Qualified values lose the rule that their operators come from declarations, and a test pins the gap. Refuse builtin meaning for qualified operands in `has_builtin_spelled_expression_meaning`, require a declaration or cast, and turn the pinning test into a refusal twin.
-- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
 ### The Omega-written compiler binds static arguments by kind instead of position
 - Category: One idea, several implementations
@@ -119,34 +100,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
-### A read through a runtime index gets a field equation the spec says it never supplies
-- Category: The documents disagree
-- Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
-- Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L556) says a runtime-element read "supplies no field equation", and such a store "publishes no field equation" (L639). The write log records a store at `[RuntimeIndex i]` as `Stored::Value(v)`, and `read_equation` gives a later read of the same path `r == v`, so `a[i] = 7; need7(a[i]);` is accepted. This is sound (same selector, overlap-based retirement), but contradicts the page.
-- Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
-
-### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
-- Category: One idea, several implementations
-- Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
-- Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
-- Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
-- Category: A verdict with nothing behind it
-- Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
-- Saw: [patterns.md](wiki/spec/language/patterns.md#L30) says "`field: value` is ordinary projected equality", so `Reading::Value { level: 0 }` matches only some `Value` readings. `case_pattern` checks only that the arm names the case and ignores the pattern's fields, so `transition r { Reading::Value { level: 0 } -> 0  Reading::Missing -> 1 }` passes coverage and `Value { level: 5 }` matches nothing.
-- Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
-
-### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
-- Category: One idea, several implementations
-- Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
-- Saw: conformances.md says "Records and payload-bearing sums require an explicit named conformance", and data_and_literals.md forbids "silently changing tag equality into field equality". Psi 03 enforces that only when `DeclaredExpressionTypes` types both operands; otherwise it `continue`s, and the query returns `None` for receiver calls, calls with machine arguments and `match` expressions. Psi 05 then reads any `==` whose right side names a case as `IsCase`, without checking for payload cases or a selected `Equatable`. With `data Cmd { Stop; Move { dx: i32; } }`, `Codecs::decode(&bytes) == Cmd::Stop` compiles as a tag test while `let c: Cmd = Codecs::decode(&bytes); c == Cmd::Stop` is refused (or calls the custom `Equatable<Cmd>`).
-- Cost: The compiler accepts an equality the spec refuses, and `==` means different things depending on how the operand is spelled. Let Psi 05 read `==` as a case test only for payload-free sums, or have Psi 03 refuse a comparison it cannot type.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/conformances.md
 
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
@@ -169,18 +122,11 @@ framework or a list of unimplemented features.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
 
-### Native products evaluate their scalar conditions twice
-- Category: re-deriving
-- Where: [product checking](omega-rust/omega/compilation/compiler/src/terminal/terminal_artifact.rs#L94), [native completion](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L25)
-- Saw: `ProducedTerminalProduct::check_conditions` completes the artifact's scalar conditions for the target with no application roots. `complete_native` then completes them again with the program's application roots and the native demand before `native_compiler::compile`. The two closures differ in scope, so neither result can stand in for the other as built.
-- Cost: Every native compile with scalar conditions evaluates the deployed conditions twice. Extend one completed closure with the native demand and application roots, or complete once with both where the retained native product is formed, keeping product checking's refusals and their order.
-- Reported: 2026-11-16, pi, while making native compilation one call.
-
 ### Emission libraries still name earlier stage outputs
 - Category: knowledge crossing a boundary
 - Where: [emission facts](omega-rust/omega/compilation/backend/machine-emission/src/emission_facts.rs), [function realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
 - Saw: Fragment emission no longer keeps stage 02's output, and machine emission no longer depends on stages 05 to 09: it reads stage 09's output as `machine_code::OptimizedMachineLayout` and runs stage validators only through the `FunctionStageAudit` the driver attaches. Two reaches remain. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side.
-- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
+- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes. The [Atlas extra-arrow audit](atlas/plans/foundation-and-backend.md#start-with-the-extra-arrows) rechecks these mechanisms at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f` and links related source/evaluation, handler, generated-code and verifier repairs. Its contracts remain plan-first work for one coordinated cutover; consult the current plan before restructuring these routes.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output, and by pi after machine emission stopped naming stages 05 to 09.
 
 ### Borrowed field recasts lose the target carrier layout of the enclosing record
@@ -190,26 +136,12 @@ framework or a list of unimplemented features.
 - Cost: The standard-library POSIX stat decoders still refuse the whole buffer. Pass the existing target carrier layout to projected storage checks, preserve the short and misaligned refusals, and replay the unchanged [note vault](https://github.com/CathedralOS/Omega/pull/3722).
 - Reported: 2026-11-15, Codex, while validating shared recasts of an aligned record field.
 
-### Specialization failures discard the reason they stopped
-- Category: Verifying costs more than writing
-- Where: [specialization](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs)
-- Saw: many specialization checks still return `Stop::Unserved(None)`. The Console binding replay reached an anonymous nested-parameter mismatch; adding the missing reason required another optimized compiler build and replay. The current repair gives that mismatch a reason, but adjacent shape, lookup and argument checks still discard theirs.
-- Cost: the next failure names only the unavailable application, hiding the failed check. Carry each check's reason through the existing refusal path so one replay identifies the repair, without changing which programs are accepted.
-- Reported: 2026-11-15, Codex, while restoring Console preparation for stored-machine execution
-
 ### Focused compiler controls spend twenty-two minutes in code generation
 - Category: Verifying costs more than writing
 - Where: [compiler test targets](omega-rust/omega/compilation/compiler/Cargo.toml#L110), [compiler feature alignment](omega-rust/omega/compilation/compiler/Cargo.toml#L102), and the `coherent-native-controls-24-01` receipt in continuation claim `18e81ab82af520780000000018e96239`
 - Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. After integrating main `a2684962ce882`, 13 selected unit controls across six crates spent 15m49s building and 0.414s running on the same host and budget (`merge-a268-direct-controls-01`, with exact source patch and input records retained in the active claim). The source of this build cost has not been established.
 - Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
 - Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
-
-### Callback and interrupt records lose the machine that owns their operation
-- Category: Re-deriving
-- Where: [terminal-psi/src/lib.rs:352](omega-rust/psi/compilation/representations/terminal-psi/src/lib.rs#L352), [executable preparation](omega-rust/omega/compilation/compiler/src/executable.rs), and [codec/src/foundation_validation.rs:2261](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L2261)
-- Saw: each lowered machine allocates operation IDs from its own fresh `MachineSources`, but callback and interrupt records retain only `OperationId`. Executable preparation searches every reached machine for that number, while codec interrupt validation collects all machines into a map keyed by the same bare ID. Stage05 currently emits neither roster; the existing constructors are fixtures and decoding, and no failing customer execution was observed.
-- Cost: equal operation numbers in different machines can select an unrelated reached use or overwrite an installation site. Preserve the owning machine with the operation through the record, encoding and consumers so each registration names its actual call.
-- Reported: 2026-11-14, Codex, while reviewing stored-machine executable preparation
 
 ### Selected-body activation copies retained side records
 - Category: re-deriving

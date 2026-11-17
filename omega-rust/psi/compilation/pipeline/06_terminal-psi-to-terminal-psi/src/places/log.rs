@@ -603,10 +603,8 @@ impl<'a> Storage<'a> {
                         let root = region.root.ok_or_else(|| {
                             self.foreign(concerns, "a known call write region has no root")
                         })?;
-                        rows.push((
-                            self.stored_at(root, &region.projection.path, concerns)?,
-                            Stored::Established,
-                        ));
+                        let path = region.written_storage_path();
+                        rows.push((self.stored_at(root, &path, concerns)?, Stored::Established));
                     }
                     return Ok(rows);
                 }

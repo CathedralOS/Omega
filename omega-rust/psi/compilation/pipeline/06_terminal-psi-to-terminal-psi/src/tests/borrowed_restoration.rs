@@ -78,6 +78,145 @@ fn a_whole_local_owned_home_is_repaired_before_its_reference_ends() {
     );
 }
 
+fn missing_whole_local_repair() -> terminal_check_tables::program::Elaboration {
+    let source = format!(
+        "{DATA}machine take(value: Inner, next: Inner) -> Inner {{\n\
+         let mut owner: Inner = value;\n\
+         let local: &mut Inner = &mut owner;\n\
+         let taken: Inner = move local;\n\
+         taken\n}}\n"
+    );
+    let typed = super::boundary_calls::typed(&source);
+    typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .expect("lowering must retain the missing repair for the receiving checker")
+}
+
+#[test]
+fn claim_verification_preserves_the_exact_unavailable_storage() {
+    use terminal_check_tables::program::SourceOrigin as TerminalSourceOrigin;
+    use terminal_semantics::plain_affine::{Error, Site};
+
+    let mut elaboration = missing_whole_local_repair();
+    let machine = elaboration.module.machines[0].id;
+    let plan = terminal_semantics::plain_affine::verify_in(&elaboration.module, machine)
+        .expect("the supplied cleanup schedule must still be verified");
+    let expected = plan
+        .unavailable
+        .first()
+        .expect("the whole local home is still owed back when its reference ends");
+    assert!(expected.unrestored);
+    let error = terminal_semantics::plain_affine::verify_claims_in(&elaboration.module, machine)
+        .unwrap_err();
+    assert_eq!(error.site(), Some(expected.site));
+    let Error::Unavailable(actual) = error else {
+        panic!("claim verification must retain its exact storage error: {error:?}");
+    };
+    assert_eq!(actual.site, expected.site);
+    assert_eq!(actual.place, expected.place);
+    assert_eq!(actual.unrestored, expected.unrestored);
+    assert!(actual.message().contains(NOT_RESTORED));
+
+    let concerns = match actual.site {
+        Site::Operation(operation) => Construct::Operation(operation),
+        Site::Edge(edge) => Construct::Edge(edge),
+    };
+    let sources = elaboration.sources.get(machine).unwrap();
+    let origin = match actual.site {
+        Site::Operation(operation) => sources.operations.get(operation),
+        Site::Edge(edge) => sources.edges.get(edge),
+    };
+    let expected_span = origin
+        .copied()
+        .and_then(TerminalSourceOrigin::authored_span)
+        .or_else(|| {
+            elaboration
+                .names
+                .get(machine)
+                .and_then(|names| names.declared)
+        })
+        .expect("the whole-local program retains authored source correspondence");
+    let RouteVerdict::Rejected { unestablished, .. } = judge(Ok(elaboration.clone())).unwrap()
+    else {
+        panic!("the identified missing repair must be an ordinary source rejection");
+    };
+    let used = unestablished
+        .iter()
+        .find(|used| used.machine == machine && used.at == concerns)
+        .expect("the source rejection must retain the exact unavailable construct");
+    assert_eq!(
+        used.site,
+        Some(TerminalSourceOrigin::Authored(expected_span))
+    );
+    assert!(used.detail.contains(actual.message()));
+
+    // Direct proof preparation must refuse too, rather than pass the debt
+    // onward as if it were a completed claim-transport check.
+    let refused = crate::discharge(&mut elaboration, &mut Default::default()).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unestablished);
+    assert_eq!(refused.detail, actual.message());
+    assert_eq!(refused.concerns, concerns);
+}
+
+#[test]
+fn malformed_return_claims_are_refused_before_unrestored_storage() {
+    use terminal_semantics::plain_affine::{Error, Site};
+
+    let mut elaboration = missing_whole_local_repair();
+    let machine = elaboration.module.machines[0].id;
+    assert!(matches!(
+        terminal_semantics::plain_affine::verify_claims_in(&elaboration.module, machine),
+        Err(Error::Unavailable(_))
+    ));
+    let (edge, returned_claims) = elaboration.module.machines[0]
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            Terminator::ReturnStructural {
+                edge,
+                returned_claims,
+                ..
+            } => Some((*edge, returned_claims)),
+            _ => None,
+        })
+        .expect("the original missing-repair twin returns the detached value");
+    assert!(returned_claims.is_empty());
+    returned_claims.push(terminal_psi::StructuralResultClaimBinding {
+        claim: id(u64::MAX),
+        path: Vec::new(),
+    });
+    let error = terminal_semantics::plain_affine::verify_claims_in(&elaboration.module, machine)
+        .unwrap_err();
+    assert_eq!(error.site(), Some(Site::Edge(edge)));
+    assert!(matches!(
+        error,
+        Error::Malformed {
+            detail: "return claims differ from actual returned custody",
+            ..
+        }
+    ));
+    let refused = judge(Ok(elaboration)).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert!(
+        refused
+            .detail
+            .contains("return claims differ from actual returned custody")
+    );
+}
+
 #[test]
 fn a_whole_local_repair_must_fill_the_captured_home() {
     rejected(

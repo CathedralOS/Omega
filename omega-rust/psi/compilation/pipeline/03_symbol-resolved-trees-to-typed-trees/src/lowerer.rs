@@ -1937,7 +1937,7 @@ pub(crate) fn close_typed_cohort(
     crate::constructor_applications::retain_indexed_operand_types(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
-    );
+    )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
     crate::typing_queries::defer_unbound_calls(

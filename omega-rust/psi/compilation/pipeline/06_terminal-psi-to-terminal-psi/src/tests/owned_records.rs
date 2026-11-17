@@ -4,7 +4,7 @@ use terminal_psi::{TerminalAffineCleanupAction, Terminator};
 use typed_trees_to_terminal_psi::Borrowed;
 
 /// The moved contents, rather than a caller guard, establish the call bound.
-fn moved_record() -> typed_trees_to_terminal_psi::Elaboration {
+fn moved_record(first: u128) -> typed_trees_to_terminal_psi::Elaboration {
     elaborate_over(
         vec![
             Shaped {
@@ -13,7 +13,7 @@ fn moved_record() -> typed_trees_to_terminal_psi::Elaboration {
                 result: u32_type().into(),
                 requires: Vec::new(),
                 statements: vec![
-                    bind(0, point_of(unsigned(5), unsigned(7))),
+                    bind(0, point_of(unsigned(first), unsigned(7))),
                     bind(1, place(0, point())),
                     returns(call(2, vec![read(place(1, point()), 0)])),
                 ],
@@ -26,7 +26,7 @@ fn moved_record() -> typed_trees_to_terminal_psi::Elaboration {
 
 #[test]
 fn a_whole_move_preserves_the_fact_needed_by_a_bounded_call() {
-    let elaboration = moved_record();
+    let elaboration = moved_record(5);
     assert!(!elaboration.module.structural_types[0].is_copyable());
     let caller = &elaboration.module.machines[0];
     assert!(
@@ -49,6 +49,19 @@ fn a_whole_move_preserves_the_fact_needed_by_a_bounded_call() {
         judge(Ok(elaboration)).unwrap(),
         RouteVerdict::Accepted(_)
     ));
+}
+
+#[test]
+fn a_whole_move_does_not_establish_an_untrue_call_bound() {
+    let RouteVerdict::Rejected { unproved, .. } = judge(Ok(moved_record(20))).unwrap() else {
+        panic!("moving the record must not prove its field meets the call requirement");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })),
+        "the moved field still exceeds the callee's bound"
+    );
 }
 
 #[test]

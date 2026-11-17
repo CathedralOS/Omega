@@ -16,7 +16,44 @@ use super::Program;
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
+/// Machine contracts name their entry State; source traversal owns the
+/// same clause under its uniquely registered machine declaration.
+fn operator_owner(typed: &typed_trees::TypedTrees, source_owner: SymbolHandle) -> SymbolHandle {
+    typed
+        .unique_machine_by_entry_state_symbol(source_owner)
+        .map_or(source_owner, |(declaration, _)| declaration.symbol)
+}
+
 impl Program<'_> {
+    /// Disjuncts that static type equations decide false are not read
+    /// (`guarded_false`). Record them so source capture skips the same
+    /// subtrees, and complete each `||` the reader resolved around them.
+    pub(super) fn skip_vacuous_disjuncts(
+        &mut self,
+        machine: MachineId,
+        source_owner: SymbolHandle,
+        disjunction: ExpressionHandle,
+        vacuous: &[ExpressionHandle],
+    ) -> Checked<()> {
+        let boolean = self.operator_operand_reference(ValueType::plain(ScalarType::Boolean));
+        let mut pending = vec![disjunction];
+        while let Some(expression) = pending.pop() {
+            if let ExpressionNode::Binary(binary) =
+                self.typed.expression_table.expression(expression)
+                && binary.operator == BinaryOperator::Or
+            {
+                let (left, right) = (binary.left, binary.right);
+                self.complete_builtin_operator(machine, source_owner, expression, &[boolean; 2])?;
+                pending.extend([left, right].into_iter().filter(|side| side.is_valid()));
+            }
+        }
+        let owner = operator_owner(self.typed, source_owner);
+        for &disjunct in vacuous {
+            self.completed_operators.record_vacuous(owner, disjunct);
+        }
+        Ok(())
+    }
+
     /// Complete only the static proposition this reader actually evaluated.
     /// Folding its result must retain the operator questions of its operands,
     /// including a guard whose known-false branch is never read as a value.
@@ -362,6 +399,14 @@ impl Program<'_> {
             match selection.target() {
                 Target::LateBound(Binding::CheckedOperator) => pending = true,
                 Target::Intrinsic(Intrinsic::BuiltinOperator) => {}
+                Target::Intrinsic(Intrinsic::CoreIntegerOperator(application)) => {
+                    self.validate_core_operator_application(
+                        machine,
+                        expression,
+                        operands,
+                        application,
+                    )?;
+                }
                 _ => {
                     return Err(refuse(format!(
                         "primitive operation {expression:?} conflicts with its authored selection {:?}",
@@ -375,9 +420,7 @@ impl Program<'_> {
         }
         // Machine contracts name their entry State; source traversal owns the
         // same clause under its uniquely registered machine declaration.
-        let owner = typed
-            .unique_machine_by_entry_state_symbol(source_owner)
-            .map_or(source_owner, |(declaration, _)| declaration.symbol);
+        let owner = operator_owner(typed, source_owner);
         if !owner.is_valid() || !typed.symbols.symbols().nodes().is_valid(owner) {
             return Err(refuse(format!(
                 "completed operator {expression:?} has no exact source owner {source_owner:?}"
@@ -423,6 +466,56 @@ impl Program<'_> {
             .record_builtin(typed, owner, expression)
             .map_err(|error| refuse(error.to_string()))
     }
+    /// Check the already selected catalog application against the operands
+    /// this reader formed. This never searches for another operator.
+    fn validate_core_operator_application(
+        &self,
+        machine: MachineId,
+        expression: ExpressionHandle,
+        operands: &[Option<TypeReferenceHandle>],
+        selected: language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature,
+    ) -> Checked<()> {
+        use language_semantics::numeric_intrinsics::{
+            CoreIntegerOperand, CoreIntegerOperatorSignature,
+        };
+        let mismatch = || {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression(
+                    "core operator application differs from its checked operand signature",
+                ),
+            )
+        };
+        let ExpressionNode::Binary(binary) = self.typed.expression_table.expression(expression)
+        else {
+            return Err(mismatch());
+        };
+        let [Some(left), Some(right)] = operands else {
+            return Err(mismatch());
+        };
+        let operand = |reference| {
+            let (_, BuiltinTypeAtom::Integer(carrier), policy) =
+                typed_trees::operator::core_integer_operand(self.typed, reference)?
+            else {
+                return None;
+            };
+            Some(CoreIntegerOperand { carrier, policy })
+        };
+        let actual = binary
+            .operator
+            .scalar_operation()
+            .zip(operand(*left).zip(operand(*right)))
+            .and_then(|(operation, (left, right))| {
+                CoreIntegerOperatorSignature::select(operation, [left, right])
+            });
+        if selected.is_valid() && actual == Some(selected) {
+            Ok(())
+        } else {
+            Err(mismatch())
+        }
+    }
+
     /// Select only a successfully formed pure source operator. The canonical
     /// guarantee remains separate; this is not a semantic-call evaluator.
     pub(super) fn complete_typed_contract_operator(

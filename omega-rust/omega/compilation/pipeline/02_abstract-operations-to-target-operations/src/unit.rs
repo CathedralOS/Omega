@@ -831,7 +831,7 @@ pub(crate) mod boundary_call {
         boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         native_callbacks: &BTreeMap<
-            OperationId,
+            (semantic_vocabulary::MachineId, OperationId),
             Vec<target_operations::TargetNativeCallbackArgument>,
         >,
         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
@@ -865,7 +865,7 @@ pub(crate) mod boundary_call {
                 completion_receipts,
             } => {
                 let native_callbacks_slice = native_callbacks
-                    .get(psi_operation)
+                    .get(&(function.machine, *psi_operation))
                     .map_or(&[][..], Vec::as_slice);
                 let binding = settlements
                     .get(boundary)
@@ -939,7 +939,8 @@ pub(crate) mod boundary_call {
                         || !foreign.has_valid_entry_mechanism()
                         || foreign.native_target() != Some(target)
                         || native_callbacks_slice.iter().any(|callback| {
-                            callback.terminal_operation != *psi_operation
+                            callback.registrar_machine != function.machine
+                                || callback.terminal_operation != *psi_operation
                                 || callback.registrar_boundary_entry_plan
                                     != foreign.boundary_entry_plan
                         })

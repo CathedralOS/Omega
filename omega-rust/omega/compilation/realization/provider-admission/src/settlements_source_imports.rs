@@ -266,9 +266,18 @@ fn join_import_coverage_rows<'input>(
     let mut demanded = BTreeMap::new();
     let mut callback_boundaries = native_callbacks
         .iter()
-        .map(|callback| (callback.terminal_operation, None))
+        .map(|callback| {
+            (
+                (callback.registrar_machine, callback.terminal_operation),
+                None,
+            )
+        })
         .collect::<BTreeMap<_, _>>();
-    for operation in plan.operations() {
+    for (machine, operation) in plan.functions.iter().flat_map(|function| {
+        function
+            .operations()
+            .map(move |operation| (function.machine, operation))
+    }) {
         let (boundary, site) = match operation {
             abstract_operations::AbstractOperation::BoundaryCall {
                 boundary,
@@ -306,7 +315,7 @@ fn join_import_coverage_rows<'input>(
             });
         if let Some(matching) = site
             .operation()
-            .and_then(|operation| callback_boundaries.get_mut(&operation))
+            .and_then(|operation| callback_boundaries.get_mut(&(machine, operation)))
         {
             let (count, _) = matching.get_or_insert((0usize, *boundary));
             *count += 1;
@@ -363,7 +372,7 @@ fn join_import_coverage_rows<'input>(
 
     for callback in native_callbacks {
         let matching = callback_boundaries
-            .get(&callback.terminal_operation)
+            .get(&(callback.registrar_machine, callback.terminal_operation))
             .copied()
             .flatten();
         let count = matching.map_or(0, |(count, _)| count);

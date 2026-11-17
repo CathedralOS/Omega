@@ -2,7 +2,7 @@
 
 use provider_admission::AdmittedInstalledInterruptCohort;
 use provider_admission::installed_interrupt_helpers::{PreparedInstalledInterruptHelpers, Rows};
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{MachineId, OperationId};
 use terminal_psi::TerminalModule;
 
 pub(crate) struct PreparedInstallationSources<'a> {
@@ -11,21 +11,24 @@ pub(crate) struct PreparedInstallationSources<'a> {
 impl<'a> PreparedInstallationSources<'a> {
     fn new(source: &'a abstract_operations::AbstractOperationPlan) -> Self {
         Self {
-            operations: Rows::new(source.operations().filter_map(|row| {
-                if let abstract_operations::AbstractOperation::BoundaryCall {
-                    psi_operation, ..
-                } = row
-                {
-                    Some((*psi_operation, row))
-                } else {
-                    None
-                }
+            operations: Rows::new(source.functions.iter().flat_map(|function| {
+                function.operations().filter_map(move |row| {
+                    if let abstract_operations::AbstractOperation::BoundaryCall {
+                        psi_operation,
+                        ..
+                    } = row
+                    {
+                        Some(((function.machine, *psi_operation), row))
+                    } else {
+                        None
+                    }
+                })
             })),
         }
     }
     pub(crate) fn boundary_calls(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
     ) -> &[&'a abstract_operations::AbstractOperation] {
         self.operations.get(operation)
     }
@@ -54,20 +57,21 @@ pub(crate) fn authorize_target(
         cohort
             .scopes()
             .iter()
-            .map(|scope| (scope.operation(), scope)),
+            .map(|scope| ((scope.machine(), scope.operation()), scope)),
     );
-    for row in target
-        .functions
-        .iter()
-        .flat_map(|function| function.graph.operations())
-    {
+    for (machine, row) in target.functions.iter().flat_map(|function| {
+        function
+            .graph
+            .operations()
+            .map(move |row| (function.machine, row))
+    }) {
         match row {
             TargetUnitOperation::StaticInterrupt {
                 psi_operation,
                 operation,
                 ..
             } => helpers
-                .verify(*psi_operation, *operation)
+                .verify((machine, *psi_operation), *operation)
                 .map_err(|reason| fail(Some(*psi_operation), reason))?,
             TargetUnitOperation::InstallStaticInterrupt {
                 psi_operation,
@@ -76,7 +80,7 @@ pub(crate) fn authorize_target(
                 calls,
                 ..
             } => {
-                let [scope] = scopes.get(*psi_operation) else {
+                let [scope] = scopes.get((machine, *psi_operation)) else {
                     return Err(fail(
                         Some(*psi_operation),
                         "installation has no unique admitted Scope",
@@ -124,18 +128,19 @@ pub(crate) fn validate_target(
         reason,
     };
     let sources = PreparedInstallationSources::new(abstract_plan);
-    for row in target
-        .functions
-        .iter()
-        .flat_map(|function| function.graph.operations())
-    {
+    for (machine, row) in target.functions.iter().flat_map(|function| {
+        function
+            .graph
+            .operations()
+            .map(move |row| (function.machine, row))
+    }) {
         if let target_operations::TargetUnitOperation::StaticInterrupt {
             psi_operation,
             boundary,
             token,
             ..
         } = row
-            && !sources.boundary_calls(*psi_operation).iter().any(|source|
+            && !sources.boundary_calls((machine, *psi_operation)).iter().any(|source|
                 matches!(source, abstract_operations::AbstractOperation::BoundaryCall { psi_operation: actual_operation, boundary: actual, arguments, structural_arguments, .. }
                     if actual_operation == psi_operation && actual == boundary && arguments.is_empty() && structural_arguments.as_slice() == std::slice::from_ref(token))) {
                 return Err(fail(Some(*psi_operation), "interrupt helper changed its exact boundary or token operand"));

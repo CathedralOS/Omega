@@ -457,24 +457,61 @@ pub(crate) mod reference_completion {
         {
             return Ok(BorrowedLoanSource::Owner);
         }
-        if crate::arrival_parameter(machine, descriptor.root)
-            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
-            && let Some(original) = analysis.location(machine.id, at, descriptor)
-            && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == original.root && parameter.access != StructuralAccess::Owned
-            })
+        if let Some(arrival) = crate::arrival_parameter(machine, descriptor.root)
+            && arrival.access != StructuralAccess::Owned
+            && let Some(crate::descriptor_results::DescriptorCallOrigin::Argument {
+                source,
+                projection,
+            }) = analysis.storage_projection(machine.id, at, descriptor)
+            && let Some(parameter) =
+                crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                    parameter.place == source
+                })
+                .filter(|parameter| parameter.access != StructuralAccess::Owned)
         {
-            let path = crate::descriptor_lifetimes::descriptor_path(
-                &module.structural_types,
-                parameter.structural_type,
-                &original.path,
-            )
-            .ok_or("borrowed successor has no exact original input path")?;
+            // Arrival replay retains the original captured address, including
+            // indexed paths that cannot be named as descriptor-slot locations.
+            // That address continues an input loan only within its inline
+            // storage, with the same referent type and permitted access.
+            let path = projection
+                .captured_storage_path()
+                .ok_or("borrowed successor has no exact captured original input path")?;
             if crate::projection_stays_in_inline_storage(
                 module.structural_types.iter(),
                 parameter.structural_type,
                 &path,
             ) {
+                let current_path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    arrival.structural_type,
+                    &descriptor.path,
+                )
+                .ok_or("borrowed successor has no exact current referent path")?;
+                let original = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    &path,
+                )
+                .ok_or("borrowed successor has no exact original referent type")?;
+                let current = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    arrival.structural_type,
+                    &current_path,
+                )
+                .ok_or("borrowed successor has no exact current referent type")?;
+                if original.id != current.id {
+                    return Err("borrowed successor changes its original incoming referent type");
+                }
+                if !crate::reference_source_projection_accessible(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                    &path,
+                    arrival.access,
+                ) {
+                    return Err("borrowed successor exceeds its original incoming access");
+                }
                 return Ok(BorrowedLoanSource::Incoming);
             }
         }

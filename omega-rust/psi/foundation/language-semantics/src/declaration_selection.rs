@@ -94,9 +94,28 @@ mod product_policy {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AuthoredRootGrant {
+        /// Authored display text; settlement uses `subject`.
         pub selector: String,
+        pub subject: RootGrantSubject,
+        pub subject_package: Option<semantic_vocabulary::PackageKeyIdentity>,
         pub selecting_machine: SymbolHandle,
         pub source_span: source::SourceSpan,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum RootGrantSubject {
+        Provider {
+            declaration: String,
+            application: Option<String>,
+        },
+        BoundaryRequirement {
+            declaration: String,
+            callable: String,
+        },
+        AcceptedMachine {
+            declaration: String,
+            machine: SymbolHandle,
+        },
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,7 +142,7 @@ mod product_policy {
     }
 }
 pub use product_policy::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant, RootGrantSubject,
 };
 mod product {
     use super::{BuildOperation, ProductTarget};
@@ -272,6 +291,7 @@ mod product {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum ProductOperandRole {
         BoundarySubject,
+        RootGrantSubject,
         Provider,
         Requirement,
         // An ordinary (non-boundary) trait machine requirement: the exact
@@ -288,11 +308,11 @@ mod product {
         pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
             use ProductOperandRole as Role;
             match (self, position) {
-                (Self::ProviderSelection, 0)
-                | (Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance, 0) => {
+                (Self::ProviderSelection, 0) | (Self::ServiceExclusion | Self::ServiceAudit, 0) => {
                     Some(Role::BoundarySubject)
                 }
                 (Self::ProviderSelection, 1) => Some(Role::Provider),
+                (Self::BoundaryAcceptance, 0) => Some(Role::RootGrantSubject),
                 (Self::ParameterDescription, 0) => Some(Role::Formal),
                 (Self::FieldDescription, 0) => Some(Role::Field),
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
@@ -1323,6 +1343,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     QuotientLift,
     BuildParameterDescription,
     BuildFieldDescription,
+    CoreIntegerOperator(crate::numeric_intrinsics::CoreIntegerOperatorSignature),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

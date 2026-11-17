@@ -1,4 +1,4 @@
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 use tokens::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
     NumericLiteralKind, TokenKind,
@@ -305,3 +305,6 @@ fn assert_profile_rejection(source: &str, expected_start: usize, expected_end: u
     assert_eq!(error.span.start, expected_start, "source: {source:?}");
     assert_eq!(error.span.end, expected_end, "source: {source:?}");
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

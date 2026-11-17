@@ -307,6 +307,33 @@ pub(crate) mod record {
                         structural_type: result.structural_type,
                     });
                 }
+                // A separately owned component may still hold a linear claim.
+                // Compare cleanup regions after those claims take their own
+                // regions out, as when forming the destination frontier.
+                let covered_claims = self
+                    .live_claims
+                    .values()
+                    .filter_map(|claim| {
+                        (claim.place == Some(source.place)
+                            && actual.iter().any(|entry| {
+                                entry.place == source.place && claim.path.starts_with(&entry.path)
+                            }))
+                        .then_some((source.place, claim.path.as_slice()))
+                    })
+                    .collect::<Vec<_>>();
+                crate::engine::custody::exclude_linear_regions(
+                    &types,
+                    &mut actual,
+                    covered_claims,
+                    &|current| {
+                        crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                            &types,
+                            self.structural_values.get(&current.place)?,
+                            self.structural_cases.as_map(),
+                            &current.path,
+                        )
+                    },
+                )?;
                 let mut remaining = result_frontier
                     .iter()
                     .filter(|entry| entry.place == result.place)

@@ -1,9 +1,18 @@
 # Parsing
 
-Start at [parser.rs](parser.rs). `parse` consumes one token stream, asks
-[declarations/items.rs](declarations/items.rs) for each declaration and publishes
-its syntax roots. The same entry file coordinates batches and independent syntax
-pages. Grammar dispatch is visible here and in the domain entries below.
+Start at [parser.rs](parser.rs). Its only public operation is
+`parse(&LexedSources, ParseOptions) -> Result<ParsedSyntaxPages, ParseError>`.
+It creates the trees, schedules independent pages, asks
+[declarations/items.rs](declarations/items.rs) for declarations, and publishes
+the complete syntax and source records. Grammar dispatch is visible here and
+in the domain entries below.
+
+`ParseOptions` carries the first page identity and whether sources may share
+pages or need independently reusable units. These are input data, not separate
+execution routes. The compiler sequences `lex` then `parse`; it does not supply
+mutable trees, assemble parsed roots, or duplicate either stage's source loop.
+Invalid page coordinates return a parse error, including identity zero for an
+empty batch. A failed parse returns no syntax pages and leaves its tokens intact.
 
 | Follow this path | It owns |
 | --- | --- |
@@ -22,6 +31,9 @@ pages. Grammar dispatch is visible here and in the domain entries below.
 | [errors/parse_error.rs](errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
 
 The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
+Its [files/pages.rs](../../representations/syntax-trees/files/pages.rs) owns
+`ParsedSyntaxPages` and the source-to-page associations. Converting `ParseError`
+to a diagnostic retains the existing path, line, column and message format.
 Generic spans come from [foundation/arena](../../../foundation/arena/src/arena.rs);
 [tree copying](../../representations/syntax-trees/copying/statement_paths.rs) belongs
 to the representation. The parser accesses its public tables directly.
@@ -39,9 +51,15 @@ loop that applies them.
 helper tests remain registered with their owner, but their bodies live there too.
 [tests/diagnostics.rs](tests/diagnostics.rs) checks public errors;
 [tests/sample_files.rs](tests/sample_files.rs) checks sample source parsing.
+Small fixtures use [tests/support/frontend.rs](../../../../../tests/support/frontend.rs)
+to construct complete stage inputs. Private grammar tests can still inspect
+partial construction; that is not an external parser operation.
 There are no inline test bodies in production files.
 
 ## Comparing parser designs
+
+The timing harness uses one persistent invocation worker, preserving the large
+parsing stack without timing worker creation for each parse.
 
 The closest fit for discoverability is Clang's named entry and grammar domains.
 The useful part of Rust's layout is also its grammar names, independent of its

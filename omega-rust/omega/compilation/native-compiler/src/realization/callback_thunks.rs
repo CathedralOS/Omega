@@ -124,10 +124,20 @@ pub(crate) fn prepare_installed_callbacks(
     // The plan lists the installations that survived lowering, sorted and unique.
     let operations = &target.execution_plan().plan().installation_operations;
     let mut entries: Vec<_> = cohort.entries().iter().collect();
-    entries.sort_unstable_by_key(|entry| (entry.operation, entry.placement.application_index));
+    entries.sort_unstable_by_key(|entry| {
+        (
+            (entry.machine, entry.operation),
+            entry.placement.application_index,
+        )
+    });
     if entries.windows(2).any(|pair| {
-        (pair[0].operation, pair[0].placement.application_index)
-            == (pair[1].operation, pair[1].placement.application_index)
+        (
+            (pair[0].machine, pair[0].operation),
+            pair[0].placement.application_index,
+        ) == (
+            (pair[1].machine, pair[1].operation),
+            pair[1].placement.application_index,
+        )
     }) {
         return Err(realization_error(
             "installed handler stack",
@@ -135,13 +145,17 @@ pub(crate) fn prepare_installed_callbacks(
         ));
     }
     let mut requirements = Vec::new();
-    for scope in cohort
-        .scopes()
-        .iter()
-        .filter(|scope| operations.binary_search(&scope.operation()).is_ok())
-    {
-        let first = entries.partition_point(|entry| entry.operation < scope.operation());
-        let last = entries.partition_point(|entry| entry.operation <= scope.operation());
+    for scope in cohort.scopes().iter().filter(|scope| {
+        operations
+            .binary_search(&(scope.machine(), scope.operation()))
+            .is_ok()
+    }) {
+        let first = entries.partition_point(|entry| {
+            (entry.machine, entry.operation) < (scope.machine(), scope.operation())
+        });
+        let last = entries.partition_point(|entry| {
+            (entry.machine, entry.operation) <= (scope.machine(), scope.operation())
+        });
         let scope_entries = &entries[first..last];
         objects.installed_plans.retain(scope, scope_entries)?;
         let first_requirement = requirements.len();
@@ -163,9 +177,12 @@ pub(crate) fn prepare_installed_callbacks(
                     )
                 })?;
             let object = objects.realize(request, settlement)?;
-            let requirement =
-                image_emission::installed_interrupt_stack_requirement(object, entry.operation)
-                    .map_err(|error| realization_error("installed handler stack", error))?;
+            let requirement = image_emission::installed_interrupt_stack_requirement(
+                object,
+                entry.machine,
+                entry.operation,
+            )
+            .map_err(|error| realization_error("installed handler stack", error))?;
             requirements.push(requirement);
         }
         image_emission::compose_installed_arrival_demands(
@@ -416,6 +433,7 @@ impl PreparedEntryPlans {
             return Err(fail("timer anchor has no unique admitted callback"));
         };
         if timer.callback_function != anchor.function()
+            || timer.machine != scope.machine()
             || timer.operation != scope.operation()
             || timer.placement.application_index != scope.acknowledgement_application()
         {
@@ -425,7 +443,8 @@ impl PreparedEntryPlans {
         }
         let scope = Arc::new(scope.clone());
         for entry in entries {
-            if entry.operation != scope.operation()
+            if entry.machine != scope.machine()
+                || entry.operation != scope.operation()
                 || entry.entry().psi() != timer.entry().psi()
                 || entry.entry().target() != timer.entry().target()
             {
@@ -503,6 +522,7 @@ impl PreparedEntryPlans {
                     && entry.entry().machine() == settlement.entry
                     && entry.operation == settlement.terminal_operation
                     && entry.callback_function == settlement.callback_function
+                    && retained.scope.machine() == entry.machine
                     && retained.scope.operation() == entry.operation =>
             {
                 let execution = terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution::for_entry(

@@ -1,11 +1,12 @@
 //! Normalize the exact selections of every accepted source form. The output
 //! is a question packet; only receiving execution admission grants permission.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
 use compiler_storage::Record;
 use diagnostics::Diagnostic;
+use language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
@@ -14,7 +15,7 @@ use semantic_vocabulary::source_selections::{
 };
 use semantic_vocabulary::{
     CallableInvocationSite, ContractId, InvocationSite, MachineId, SelectionDeclarationId,
-    SelectionQuestionId, TargetMachineCallable,
+    SelectionQuestionId, StructuralTypeId, TargetMachineCallable,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
@@ -130,6 +131,13 @@ pub(crate) fn prepare(
 pub(crate) struct PreparedSelections {
     pub(crate) questions: SelectionQuestions,
     pub(crate) invocation_consent: Vec<SelectionQuestionId>,
+}
+
+struct CleanupSelectionBinding {
+    carrier: StructuralTypeId,
+    author: SelectionDeclarationId,
+    question: SelectionQuestionId,
+    target: MachineId,
 }
 
 struct Questions<'source> {
@@ -654,8 +662,127 @@ impl<'source> Questions<'source> {
         Ok(())
     }
 
+    /// Cleanup calls use the carrier author's actual choice, including its
+    /// type application and static arguments, rather than a caller expression.
+    fn cleanup_bindings(&mut self) -> Result<Vec<CleanupSelectionBinding>, Diagnostic> {
+        let source = self.source;
+        let typed = source.source();
+        let mut questions = self
+            .output
+            .questions
+            .iter()
+            .filter_map(|(id, question)| {
+                let SelectionReference::Declaration(target) = question.selected else {
+                    return None;
+                };
+                (question.form == SelectionForm::Published).then_some((
+                    (
+                        question.occurrence.lexical_owner,
+                        question.occurrence.node,
+                        target,
+                    ),
+                    id,
+                ))
+            })
+            .collect::<Vec<_>>();
+        questions.sort_unstable_by_key(|(key, _)| *key);
+        let mut bindings = Vec::new();
+        for record in &source.correspondence().records {
+            let Some(cleanup) = &record.cleanup else {
+                continue;
+            };
+            let subject = typed
+                .closed_data_field_definition(cleanup.selection.subject)
+                .ok_or_else(|| refused("cleanup source lost its actual carrier application"))?;
+            if subject.symbol != record.declaration {
+                return Err(refused(
+                    "cleanup source differs from its actual carrier application",
+                ));
+            }
+            if let Some(application) = &record.application {
+                let actual = typed
+                    .closed_data_field_definition(application.reference)
+                    .ok_or_else(|| {
+                        refused("cleanup carrier has no retained complete application")
+                    })?;
+                if actual != subject {
+                    return Err(refused("cleanup carrier changed its complete application"));
+                }
+            } else if subject.generic_instance.is_some() || !subject.type_parameters.is_empty() {
+                return Err(refused(
+                    "applied cleanup carrier lost its complete type arguments",
+                ));
+            }
+            let application = cleanup.selection.application;
+            if !typed
+                .expression_table
+                .static_machine_application_is_valid(application)
+            {
+                return Err(refused(
+                    "cleanup source lost its selected static application",
+                ));
+            }
+            let registered = typed
+                .expression_table
+                .static_machine_application(application)
+                .registration_operation;
+            let target = self.source_target(TargetMachineCallable::Machine(cleanup.target))?;
+            if self.declarations.dictionary_symbol(registered)? != target {
+                return Err(refused(
+                    "cleanup application differs from its selected executable",
+                ));
+            }
+            let occurrence = cleanup
+                .selection
+                .authorization
+                .ok_or_else(|| refused("cleanup source lost its authored selection occurrence"))?;
+            let ledger = typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| refused("cleanup source selection is outside its typed owner"))?;
+            if ledger.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainCleanupSelection {
+                return Err(refused("cleanup source occurrence is not a cleanup choice"));
+            }
+            let author = self
+                .declarations
+                .declaration(&mut self.output, record.declaration)?;
+            let selected = self.declarations.declaration(&mut self.output, target)?;
+            let node = SelectionNode::AuthoredSelection {
+                occurrence: occurrence.ordinal(),
+                partition: ledger
+                    .compiler_partition()
+                    .map(|partition| partition.ordinal()),
+            };
+            let key = (author, node, selected);
+            let start = questions.partition_point(|(candidate, _)| *candidate < key);
+            let end = questions.partition_point(|(candidate, _)| *candidate <= key);
+            let [(_, question)] = &questions[start..end] else {
+                return Err(refused(
+                    "cleanup application has no unique captured source question",
+                ));
+            };
+            bindings.push(CleanupSelectionBinding {
+                carrier: record.record,
+                author,
+                question: *question,
+                target: cleanup.target,
+            });
+        }
+        bindings.sort_unstable_by_key(|binding| binding.carrier);
+        if bindings
+            .windows(2)
+            .any(|pair| pair[0].carrier == pair[1].carrier)
+        {
+            return Err(refused(
+                "cleanup carrier has competing source application choices",
+            ));
+        }
+        Ok(bindings)
+    }
+
     fn retain_physical_joins(&mut self) -> Result<(), Diagnostic> {
         use semantic_vocabulary::source_selections::SelectionCallTarget;
+        let cleanup_bindings = self.cleanup_bindings()?;
         let module = self.module;
         let elaboration = &self.source.closure().elaboration;
         for machine in &module.machines {
@@ -757,6 +884,42 @@ impl<'source> Questions<'source> {
                             selected: declaration,
                             machine: machine.id,
                             operation: operation.id,
+                        });
+                    }
+                }
+                for (edge, actions) in block.terminator.cleanup_rosters() {
+                    for (ordinal, action) in actions.iter().enumerate() {
+                        let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
+                            action
+                        else {
+                            continue;
+                        };
+                        let position = cleanup_bindings
+                            .binary_search_by_key(&cleanup.structural_type, |binding| {
+                                binding.carrier
+                            })
+                            .map_err(|_| {
+                                refused("cleanup action lost its exact carrier source application")
+                            })?;
+                        let binding = &cleanup_bindings[position];
+                        if binding.target != cleanup.cleanup_machine {
+                            return Err(refused(
+                                "cleanup action changed its selected source target",
+                            ));
+                        }
+                        self.output.joins.push(SelectionJoin::Invocation {
+                            question: binding.question,
+                            original_caller: binding.author,
+                            machine: machine.id,
+                            site: CallableInvocationSite::CleanupAction {
+                                edge,
+                                action_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                    refused("cleanup action ordinal exceeds its namespace")
+                                })?,
+                            },
+                            target: SelectionCallTarget::Declared(TargetMachineCallable::Machine(
+                                binding.target,
+                            )),
                         });
                     }
                 }
@@ -1019,6 +1182,12 @@ impl<'source> Questions<'source> {
                 symbol,
                 owner,
             )?,
+            RawSelectionTarget::CoreIntegerOperator(application) => {
+                SelectionReference::Declaration(
+                    self.declarations
+                        .core_integer_operator(&mut self.output, application)?,
+                )
+            }
             RawSelectionTarget::Intrinsic(intrinsic) => SelectionReference::Intrinsic {
                 identity: intrinsic_identity(&intrinsic, "authored-intrinsic-v1:")?,
             },
@@ -1178,6 +1347,7 @@ struct Declarations<'source> {
     identities: SymbolRows<String>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
     sources: Vec<(SelectionDeclarationId, source::SourceSpan)>,
+    core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
 
 impl<'source> Declarations<'source> {
@@ -1279,7 +1449,33 @@ impl<'source> Declarations<'source> {
             identities,
             contracts,
             sources: Vec::new(),
+            core_operators: BTreeMap::new(),
         })
+    }
+
+    fn core_integer_operator(
+        &mut self,
+        output: &mut SelectionQuestions,
+        application: CoreIntegerOperatorSignature,
+    ) -> Result<SelectionDeclarationId, Diagnostic> {
+        if !application.is_valid() {
+            return Err(refused(
+                "core integer operator has an invalid catalog application",
+            ));
+        }
+        if let Some(id) = self.core_operators.get(&application) {
+            return Ok(*id);
+        }
+        let identity = intrinsic_identity(&application, "core-integer-policy-operator-v1:")?;
+        let id = output.declarations.push(SelectionDeclaration {
+            identity: identity.clone(),
+            callable_identity: Some(identity),
+            name: format!("Core integer {:?}", application.operation()),
+            custody: DeclarationCustody::Toolchain,
+            purpose: SelectionPurpose::Product,
+        });
+        self.core_operators.insert(application, id);
+        Ok(id)
     }
 
     fn source_span(
@@ -1502,7 +1698,24 @@ impl<'source> Declarations<'source> {
                 visible = true;
                 break;
             }
-            let parent = self.typed.symbols.get(scope).parent;
+            // A machine an implementation owns is written inside that
+            // implementation, so it sees the implementation's own binders
+            // (`Selected<Value> satisfies Step<Value>` gives its members
+            // `Value`) even though its symbol is not nested under it. A copy
+            // stage 04 generated to close an application is its template's
+            // body, so it sees the template's binders the same way.
+            let parent = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                owner.symbol
+            } else if let Some(template) = self
+                .typed
+                .executable_application_template(scope)
+                .ok()
+                .flatten()
+            {
+                template
+            } else {
+                self.typed.symbols.get(scope).parent
+            };
             scope = parent;
         }
         if !visible {
@@ -1563,6 +1776,13 @@ impl<'source> Declarations<'source> {
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
             return Ok(SelectionReference::Intrinsic {
                 identity: intrinsic_identity(&atom, "builtin-type-v1:")?,
+            });
+        }
+        // The open-ended integer family (`u<N>`, `i<N>`) is builtin like each
+        // width it names; it has no authored source or package.
+        if let Some(sign) = self.typed.symbols.integer_family(symbol) {
+            return Ok(SelectionReference::Intrinsic {
+                identity: intrinsic_identity(&sign, "builtin-integer-family-v1:")?,
             });
         }
         if let Some(function) = self.typed.symbols.builtin_function_for_symbol(symbol) {
@@ -1636,6 +1856,7 @@ mod symbol_rows_tests {
             identities: SymbolRows::new(count),
             contracts: SymbolRows::new(count),
             sources: Vec::new(),
+            core_operators: BTreeMap::new(),
         };
         let mut output = SelectionQuestions::default();
         let mut identities = std::collections::BTreeSet::new();
@@ -1786,8 +2007,10 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let mut syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../source/library/core");
         let mut bindings = Vec::new();
@@ -1802,8 +2025,10 @@ machine entry() -> u64 crashes none {
                     source::SourceOrigin::Toolchain,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
             bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
                 id,
                 source,
@@ -1926,15 +2151,17 @@ machine entry() -> u32 crashes none {{
             if scope == source::DependencyScope::Build {
                 build_source = Some(id);
             }
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
                     )
                 }
                 Some(syntax) => {
-                    tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
                 }
             }
         }
@@ -2089,6 +2316,146 @@ machine entry() -> u32 crashes none {{
                 "{refusal:?}"
             );
         }
+    }
+
+    #[test]
+    fn generated_cleanup_calls_keep_the_carriers_actual_selection() {
+        let source = accepted_source(
+            r#"
+data First dropped by end_first { value: u64; }
+data Second dropped by end_second { value: u64; }
+machine end_first(owned: First) { let { value as _ } = move owned; }
+machine end_second(owned: Second) { let { value as _ } = move owned; }
+machine entry() {
+    let first: First = First { value: 7u64 };
+    let second: Second = Second { value: 7u64 };
+}
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).expect("cleanup choices must publish");
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .expect("each generated call must retain its carrier author's exact selection");
+        let calls = prepared
+            .questions
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Invocation {
+                    question,
+                    original_caller,
+                    site: CallableInvocationSite::CleanupAction { .. },
+                    target,
+                    ..
+                } => Some((position, *question, *original_caller, *target)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("two exact cleanup calls: {calls:?}")
+        };
+        assert_ne!(first.1, second.1);
+        assert_ne!(first.2, second.2);
+        assert_ne!(first.3, second.3);
+
+        let mut wrong_author = prepared.questions.clone();
+        wrong_author
+            .questions
+            .get_mut(first.1)
+            .unwrap()
+            .occurrence
+            .lexical_owner = second.2;
+        let SelectionJoin::Invocation {
+            original_caller, ..
+        } = &mut wrong_author.joins[first.0]
+        else {
+            unreachable!()
+        };
+        *original_caller = second.2;
+
+        let mut wrong_target = prepared.questions.clone();
+        let SelectionJoin::Invocation { target, .. } = &mut wrong_target.joins[first.0] else {
+            unreachable!()
+        };
+        *target = second.3;
+
+        let mut wrong_application = prepared.questions.clone();
+        let structures = wrong_application
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Structure {
+                    declaration,
+                    storage_identity,
+                    ..
+                } if *declaration == first.2 || *declaration == second.2 => {
+                    Some((position, *declaration, storage_identity.clone()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(structures.len(), 2, "two carrier applications");
+        let (first_structure, _, _) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == first.2)
+            .unwrap();
+        let (_, _, second_identity) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == second.2)
+            .unwrap();
+        let SelectionJoin::Structure {
+            storage_identity, ..
+        } = &mut wrong_application.joins[*first_structure]
+        else {
+            unreachable!()
+        };
+        *storage_identity = second_identity.clone();
+
+        // Collect every verdict before asserting, so a failure reports all
+        // mismatched ownership and target relationships in one test run.
+        let cases = [
+            (
+                "carrier author",
+                wrong_author,
+                "cleanup selection differs from its exact carrier application or author",
+            ),
+            (
+                "selected target",
+                wrong_target,
+                "invocation selection differs from its actual emitted target",
+            ),
+            (
+                "carrier application",
+                wrong_application,
+                "source selection structure differs from its applied storage identity",
+            ),
+        ];
+        let observations = cases
+            .into_iter()
+            .map(|(name, packet, expected)| {
+                (
+                    name,
+                    expected,
+                    terminal_installation::selection_questions::validate_selection_questions(
+                        module, &packet,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            observations.iter().all(|(_, expected, result)| {
+                result
+                    .as_ref()
+                    .is_err_and(|reason| reason.contains(expected))
+            }),
+            "{observations:?}"
+        );
     }
 
     #[test]
@@ -2631,5 +2998,66 @@ machine entry() reaches Input {}
                 "{error:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod core_catalog_tests {
+    use super::*;
+    use language_semantics::numeric_intrinsics::{CoreIntegerOperand, ScalarBinaryOperation};
+
+    #[test]
+    fn core_operator_declarations_keep_their_actual_applied_signatures() {
+        let typed = TypedTrees::default();
+        let mut declarations = Declarations {
+            typed: &typed,
+            build_entry_source: None,
+            ids: SymbolRows::new(0),
+            identities: SymbolRows::new(0),
+            contracts: SymbolRows::new(0),
+            sources: Vec::new(),
+            core_operators: BTreeMap::new(),
+        };
+        let mut output = SelectionQuestions::default();
+        let carrier = numerics::integer_carrier::FixedInteger::signed(64);
+        let plain = CoreIntegerOperand {
+            carrier,
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+        };
+        let qualified = CoreIntegerOperand {
+            policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+            ..plain
+        };
+        let selected = CoreIntegerOperatorSignature::select(
+            ScalarBinaryOperation::GreaterOrEqual,
+            [qualified, plain],
+        )
+        .unwrap();
+        let reversed = CoreIntegerOperatorSignature::select(
+            ScalarBinaryOperation::GreaterOrEqual,
+            [plain, qualified],
+        )
+        .unwrap();
+        let first = declarations
+            .core_integer_operator(&mut output, selected)
+            .unwrap();
+        assert_eq!(
+            declarations
+                .core_integer_operator(&mut output, selected)
+                .unwrap(),
+            first
+        );
+        let second = declarations
+            .core_integer_operator(&mut output, reversed)
+            .unwrap();
+        assert_ne!(first, second);
+        let row = output.declarations.get(first).unwrap();
+        assert_eq!(row.custody, DeclarationCustody::Toolchain);
+        assert!(row.identity.starts_with("core-integer-policy-operator-v1:"));
+        assert_eq!(row.callable_identity.as_ref(), Some(&row.identity));
+        assert_ne!(
+            row.identity,
+            output.declarations.get(second).unwrap().identity
+        );
     }
 }

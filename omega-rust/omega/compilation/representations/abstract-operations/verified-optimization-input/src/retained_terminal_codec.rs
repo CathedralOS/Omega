@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI37`) for retained native
+  Compiler-private binary persistence (`OMGNTI39`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1487,8 +1487,9 @@ use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
 // Structural type rows now retain their declared three-way multiplicity.
-// The previous schema carried only the copy bit.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI38";
+// Schema 39 retains optional operation evidence beside the immutable Psi bytes.
+// Older native records cannot carry this field and reject before decoding.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI39";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1515,6 +1516,87 @@ mod tests {
             encoded.push(bytes);
         }
         assert_ne!(encoded[0], encoded[1]);
+    }
+
+    #[test]
+    fn saved_provider_identity_tables_preserve_recorded_coordinates() {
+        use effects::provider_plan::ProviderPlan;
+        let texts = [
+            "trait-application(test::ProgramStorageEntry)",
+            "named(test::Extent)",
+            "test::z",
+            "test::a",
+        ];
+        let mut plan = ProviderPlan::default();
+        for text in texts {
+            plan.identities.intern(text);
+        }
+        plan.provider_application = plan.identities.id_at(texts[0]).unwrap();
+        let surface = Arc::make_mut(&mut plan.schema.declaration);
+        surface.trait_name = surface.identities.intern("test::Service");
+        for text in texts.into_iter().rev() {
+            surface.identities.intern(text);
+        }
+        let encode = |plan: &ProviderPlan| {
+            let mut output = RecordWriter::new(RecordLimits::default());
+            plan.write(&mut output).unwrap();
+            output.finish()
+        };
+        let bytes = encode(&plan);
+        let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+        let recovered = ProviderPlan::read(&mut input).unwrap();
+        input.finish().unwrap();
+        assert_eq!(recovered.identities.texts().collect::<Vec<_>>(), texts);
+        for text in texts {
+            assert_eq!(
+                recovered.identities.id_at(text),
+                plan.identities.id_at(text)
+            );
+        }
+        assert_eq!(
+            recovered
+                .schema
+                .declaration
+                .identities
+                .texts()
+                .collect::<Vec<_>>(),
+            plan.schema
+                .declaration
+                .identities
+                .texts()
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(recovered, plan);
+        assert_eq!(encode(&recovered), bytes);
+    }
+
+    #[test]
+    fn saved_selected_provider_closure_preserves_retained_identity_coordinates() {
+        // Stripping specialization rows leaves their identity coordinates in
+        // the retained table. Recovery must preserve that table's numbering.
+        let mut candidate = effects::SelectedProviderPlanFacts::default().recovery_candidate();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        for text in [
+            "trait-application(test::ProgramStorageEntry)",
+            "named(test::Extent)",
+            "test::z",
+            "test::a",
+        ] {
+            identities.intern(text);
+        }
+        candidate.identities = identities.build();
+        let selected = candidate.validate().unwrap();
+        let mut output = RecordWriter::new(RecordLimits::default());
+        selected.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+        let recovered = effects::SelectedProviderPlanFacts::read(&mut input).unwrap();
+        input.finish().unwrap();
+        assert_eq!(
+            recovered.identities().entries(),
+            selected.identities().entries()
+        );
+        assert_eq!(recovered, selected);
     }
 
     #[test]
@@ -1576,6 +1658,7 @@ mod tests {
             b"OMGNTI35",
             b"OMGNTI36",
             b"OMGNTI37",
+            b"OMGNTI38",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1599,7 +1682,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI39", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI40", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -1624,6 +1707,7 @@ pub fn retain_native_derivation_inputs(
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
     installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
+    operation_evidence: Option<&terminal_codec::EvidenceSeals>,
 ) -> Result<Vec<u8>, String> {
     capture(
         checked_entry,
@@ -1632,6 +1716,7 @@ pub fn retain_native_derivation_inputs(
         request,
         accepted_package_permissions,
         installation_assumptions,
+        operation_evidence,
     )
     .map_err(|reason| reason.to_string())
 }
@@ -1643,6 +1728,7 @@ fn capture(
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
     installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
+    operation_evidence: Option<&terminal_codec::EvidenceSeals>,
 ) -> Result<Vec<u8>, RecordError> {
     let TerminalNativeProposalRequest {
         evaluated_binding_identities,
@@ -1716,6 +1802,11 @@ fn capture(
     let retained = provider_admission::RetainedNativeBindings::retain(native_bindings)
         .map_err(|reason| output.error(reason))?;
     retained.write(&mut output)?;
+    let operation_evidence = operation_evidence
+        .map(terminal_codec::encode_operation_evidence)
+        .transpose()
+        .map_err(|reason| output.error(format!("operation evidence: {reason}")))?;
+    operation_evidence.write(&mut output)?;
     Ok(output.finish())
 }
 
@@ -1847,7 +1938,9 @@ struct DerivationInputs {
     accepted_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     accepted_identities: terminal_psi::TerminalIdentityTable,
     installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
+    operation_evidence: Option<Vec<u8>>,
 }
+
 impl DerivationInputs {
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
         let schema = input.take(RECORD_SCHEMA.len())?;
@@ -1890,6 +1983,7 @@ impl DerivationInputs {
             accepted_identities: RecordValue::read(input)?,
             installation_assumptions: RecordValue::read(input)?,
             native_bindings: RecordValue::read(input)?,
+            operation_evidence: RecordValue::read(input)?,
         })
     }
 }
@@ -1936,7 +2030,16 @@ pub fn recover_native_derivation_inputs(
         accepted_permissions,
         accepted_identities,
         installation_assumptions,
+        operation_evidence,
     } = inputs;
+    // These are side records for an already authorized artifact. Decoding
+    // supplies neither producer trust nor independent source-proof authority.
+    let operation_evidence = operation_evidence
+        .as_deref()
+        .map(terminal_codec::decode_operation_evidence)
+        .transpose()
+        .map_err(|reason| error(format!("recovered operation evidence: {reason}")))?
+        .map(Arc::new);
     provider_admission::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
         accepted_permissions.iter(), &accepted_identities)?;
     let accepted =
@@ -1994,7 +2097,8 @@ pub fn recover_native_derivation_inputs(
         RetainedTerminalArtifact::new_with_native_realization_proposal(
             authorization,
             proposal.with_target_provider_proposals(provider_proposals),
-        ),
+        )
+        .with_evidence(operation_evidence)?,
         accepted,
         installation_assumptions,
     ))

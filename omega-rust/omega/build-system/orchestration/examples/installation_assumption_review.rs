@@ -107,9 +107,8 @@ fn write_inspection(
     }
     for registration in &module.installed_interrupt_registrations {
         let body = module
-            .machines
-            .iter()
-            .find(|machine| machine.operation(registration.operation).is_some())
+            .machine(registration.machine)
+            .filter(|machine| machine.operation(registration.operation).is_some())
             .ok_or("installation has no owning machine")?;
         let declaration = body
             .declaration

@@ -1,7 +1,7 @@
 use crate::expressions::parse::parse_expression_handle;
+use crate::frontend_fixture::Lexer;
 use crate::token_input::cursor::Input;
 use source::SourceId;
-use source_files_to_tokens::Lexer;
 use syntax_trees::expression::{ExpressionNode, MatchPattern};
 
 #[test]

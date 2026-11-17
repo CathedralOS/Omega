@@ -111,18 +111,18 @@ fn judged(
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("lex source");
         match &mut syntax {
             None => {
                 syntax = Some(
-                    tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens)
+                    crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                         .expect("parse source"),
                 );
             }
             Some(syntax) => {
-                tokens_to_syntax_trees::parse(syntax, id, &tokens).expect("parse source");
+                crate::frontend_fixture::parse(syntax, id, &tokens).expect("parse source");
             }
         }
     }
@@ -1758,3 +1758,6 @@ machine build(builder: &mut Build) {{
     }).unwrap_or_else(|refused| panic!("completed plain binding: {refused:?}"));
     std::fs::remove_dir_all(workspace).unwrap();
 }
+
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

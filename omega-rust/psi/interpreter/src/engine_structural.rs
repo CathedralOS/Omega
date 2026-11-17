@@ -1272,12 +1272,20 @@ impl TerminalExecution<'_> {
             subject,
         )
         .map_err(|_| malformed())?;
-        crate::engine::custody::decompose_affine_subject(
+        self.require_owned_value_claims(subject)?;
+        let root = self.structural_value(subject.place)?;
+        self.validate_complete_owned_value_claims(
+            subject.place,
+            root.structural_type,
+            &subject.path,
+        )?;
+        crate::engine::custody::decompose_owned_subject(
             &self.program.structural_types(),
             &self.structural_values,
             self.reference_referents.as_map(),
+            self.structural_cases.as_map(),
             &mut self.live_affine_frontier,
-            &self.live_claims,
+            &mut self.live_claims,
             subject,
             structural_type,
         )?;

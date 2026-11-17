@@ -104,8 +104,10 @@ pub(super) fn admit_exact_foreign_call(
             "foreign call binding retains callback materializations",
         ));
     }
+    // Scalar promises are checked against the actual normal result by the
+    // interpreter's shared boundary completion. Materialized obligations below
+    // still need a provider that can supply them.
     if !declaration.normal_qualifications.is_empty()
-        || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.crash_routes.is_empty()

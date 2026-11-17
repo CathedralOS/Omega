@@ -82,8 +82,10 @@ fn packages(
             )
             .source_id;
         source_ids.push(id);
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let parsed = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         parsed_units.push(parsed);
     }
     sources.retain_product_dependency_scope(
@@ -91,6 +93,48 @@ fn packages(
             .iter()
             .map(|(from, alias, to)| (identity(*from), *alias, identity(*to))),
     );
+    let mut top_level_bindings = imports
+        .iter()
+        .map(|(reference, declaration, path, prefix)| {
+            symbols::SourceScopedTopLevelBinding::logical_module_import(
+                source_ids[*reference],
+                source_ids[*declaration],
+                path,
+                *prefix,
+            )
+        })
+        .collect::<Vec<_>>();
+    // Package 0 contains the admitted Core fixtures. Each file keeps its own
+    // authored imports; caller associations remain explicitly supplied above.
+    if let Some(anchor) = units.iter().position(|(package, _, _)| *package == 0) {
+        use syntax_trees::identifier::JoinedSyntaxPath;
+        for ((package, _, _), unit) in units.iter().zip(&parsed_units) {
+            if *package != 0 {
+                continue;
+            }
+            for item in unit.root_items() {
+                let syntax_trees::item::Item::Use(import) = item else {
+                    continue;
+                };
+                let members = unit.items.identifier_path_members(import.path);
+                if members
+                    .iter()
+                    .take(3)
+                    .map(|member| member.as_str(unit))
+                    .eq(["omega", "language", "core"])
+                {
+                    top_level_bindings.push(
+                        symbols::SourceScopedTopLevelBinding::logical_module_import(
+                            unit.source_id,
+                            source_ids[anchor],
+                            &members.joined_path_in(unit),
+                            3,
+                        ),
+                    );
+                }
+            }
+        }
+    }
     let syntax = parsed_units
         .into_iter()
         .reduce(|mut combined, unit| {
@@ -101,17 +145,7 @@ fn packages(
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     // Package-qualified imports enter resolution with the loader's exact
     // source/alias association, alongside the authored `use` declaration.
-    request.top_level_bindings = imports
-        .iter()
-        .map(|(reference, declaration, path, prefix)| {
-            symbols::SourceScopedTopLevelBinding::logical_module_import(
-                source_ids[*reference],
-                source_ids[*declaration],
-                path,
-                *prefix,
-            )
-        })
-        .collect();
+    request.top_level_bindings = top_level_bindings;
     request.sources = Some(Arc::new(sources));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).map_err(|errors| {
         errors
@@ -128,6 +162,67 @@ const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, ri
 
 const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
+
+#[test]
+fn bundled_core_fixtures_resolve_their_authored_imports() {
+    let core =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+    let mut files = std::fs::read_dir(core)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
+        .collect::<Vec<_>>();
+    files.sort_unstable();
+    let files = files
+        .into_iter()
+        .map(|path| {
+            (
+                path.file_name().unwrap().to_str().unwrap().to_owned(),
+                std::fs::read_to_string(path).unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut units = files
+        .iter()
+        .map(|(name, text)| (0, name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    units.push((
+        31,
+        "unimported.omg",
+        "machine unimported(value: f32) { classify_f32(value); }",
+    ));
+    let imported = units.len();
+    units.push((31, "imported.omg", "use omega::language::core::float_accuracy::classify_f32; machine imported(value: f32) { classify_f32(value); }"));
+    let program = packages(
+        &units,
+        &[],
+        &[(
+            imported,
+            0,
+            "omega::language::core::float_accuracy::classify_f32",
+            3,
+        )],
+    )
+    .expect("bundled Core imports resolve against the admitted Core package");
+    use typed_trees::deferred_refusals::DeferredRequest;
+    for (name, expected) in [
+        ("unimported", Some(DeferredRequest::UndeclaredCallName)),
+        ("imported", None),
+    ] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        assert_eq!(
+            program
+                .deferred_refusal(machine.symbol)
+                .map(|row| row.request),
+            expected,
+            "Core's imports do not expose classify_f32 in another file: {name}"
+        );
+    }
+}
 
 #[test]
 fn a_carrier_generic_domain_retains_each_exact_application() {

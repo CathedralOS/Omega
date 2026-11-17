@@ -4823,7 +4823,7 @@ pub(crate) mod physical_entry {
         mod cpu {
             use crate::ObjectArtifact;
             use diagnostics::Diagnostic;
-            use semantic_vocabulary::OperationId;
+            use semantic_vocabulary::{MachineId, OperationId};
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum InstalledPhysicalCpuRequirement {
@@ -4832,7 +4832,7 @@ pub(crate) mod physical_entry {
 
             pub(super) fn derive(
                 artifact: &ObjectArtifact,
-                scopes: &[OperationId],
+                scopes: &[(MachineId, OperationId)],
             ) -> Result<Option<InstalledPhysicalCpuRequirement>, Diagnostic> {
                 if scopes.is_empty() {
                     return Ok(None);
@@ -4854,7 +4854,7 @@ pub(crate) mod physical_entry {
                     let execution = private.body.installed_entry_execution().ok_or_else(|| {
                         invalid("installed CPU transition has no admitted parent execution")
                     })?;
-                    let operation = execution.scope().operation();
+                    let operation = (execution.scope().machine(), execution.scope().operation());
                     let Ok(index) = scopes.binary_search(&operation) else {
                         continue;
                     };
@@ -4914,7 +4914,7 @@ pub(crate) mod physical_entry {
             contract: ProgramEntryPhysicalContractPlan,
             stack: PhysicalEntryStackRequirement,
             retained_storage: PhysicalEntryPartitions,
-            installed_scopes: Vec<OperationId>,
+            installed_scopes: Vec<(MachineId, OperationId)>,
             installed_cpu: Option<InstalledPhysicalCpuRequirement>,
         }
 
@@ -4940,7 +4940,7 @@ pub(crate) mod physical_entry {
             pub const fn retained_storage(&self) -> PhysicalEntryPartitions {
                 self.retained_storage
             }
-            pub fn installed_scopes(&self) -> &[OperationId] {
+            pub fn installed_scopes(&self) -> &[(MachineId, OperationId)] {
                 &self.installed_scopes
             }
             pub const fn installed_cpu(&self) -> Option<InstalledPhysicalCpuRequirement> {
@@ -5034,7 +5034,7 @@ pub(crate) mod physical_entry {
                         "physical memory requirement changed its installed occurrence",
                     ));
                 }
-                installed_scopes.push(requirement.operation);
+                installed_scopes.push((requirement.installation_machine, requirement.operation));
             }
             installed_scopes.sort_unstable();
             installed_scopes.dedup();
@@ -6067,10 +6067,9 @@ pub(crate) mod private_entry_origin {
             ));
         }
         for row in installed.entries() {
-            let mut scopes = installed
-                .scopes()
-                .iter()
-                .filter(|scope| scope.operation() == row.operation);
+            let mut scopes = installed.scopes().iter().filter(|scope| {
+                scope.machine() == row.machine && scope.operation() == row.operation
+            });
             let scope = scopes.next();
             if scopes.next().is_some() {
                 return Err(Error::Mismatch(

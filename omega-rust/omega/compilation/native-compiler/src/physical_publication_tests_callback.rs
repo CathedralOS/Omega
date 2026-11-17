@@ -204,6 +204,7 @@ fn build_fixture() -> Fixture {
         .callback_applications
         .push(TerminalCallbackApplication {
             application_index: 0,
+            registrar_machine: MachineId::new(1).unwrap(),
             registrar: OperationId::new(1).unwrap(),
             static_machine_ordinal: 0,
             requirement: ENTRY.into(),
@@ -346,6 +347,7 @@ fn build_fixture() -> Fixture {
         Vec::new(),
     );
     let callback = terminal_psi_to_abstract_operations::NativeCallbackArgumentProposal {
+        registrar_machine: MachineId::new(1).unwrap(),
         registrar_invokes_callback: true,
         terminal_operation: OperationId::new(1).unwrap(),
         placement_index: 0,

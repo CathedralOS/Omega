@@ -3057,7 +3057,6 @@ pub mod inspection {
                 pub target: String,
                 pub arguments: Vec<super::StaticArgumentSnapshot>,
                 pub subject: TypeReferenceSnapshot,
-                pub has_executable: bool,
                 pub has_authorization: bool,
             }
 
@@ -3080,7 +3079,6 @@ pub mod inspection {
                         })
                         .collect(),
                     subject: type_reference_snapshot(program, selection.subject),
-                    has_executable: selection.executable.is_valid(),
                     has_authorization: selection.authorization.is_some(),
                 }
             }
@@ -5564,6 +5562,9 @@ pub mod inspection {
                 Intrinsic::BuildNativeBinding => ("build_native_binding", None),
                 Intrinsic::StorageAddress => ("storage_address", None),
                 Intrinsic::BuiltinOperator => ("builtin_operator", None),
+                Intrinsic::CoreIntegerOperator(application) => {
+                    ("core_integer_operator", Some(format!("{application:?}")))
+                }
                 Intrinsic::CarryPermission(permission) => {
                     ("carry_permission", Some(format!("{permission:?}")))
                 }

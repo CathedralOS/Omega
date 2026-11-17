@@ -177,6 +177,8 @@ pub enum SelectionJoin {
     },
     Invocation {
         question: SelectionQuestionId,
+        /// The declaration that authored the choice: the lexical caller for
+        /// ordinary calls, or the exact carrier for generated cleanup calls.
         original_caller: SelectionDeclarationId,
         machine: MachineId,
         site: CallableInvocationSite,

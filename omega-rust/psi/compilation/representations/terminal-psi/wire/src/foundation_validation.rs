@@ -2935,7 +2935,11 @@ pub(crate) mod installed_interrupts {
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         let mut calls = std::collections::BTreeMap::new();
-        for operation in module.operations() {
+        for (machine, operation) in module.machines.iter().flat_map(|machine| {
+            machine
+                .operations()
+                .map(move |operation| (machine.id, operation))
+        }) {
             let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
                 continue;
             };
@@ -2949,7 +2953,7 @@ pub(crate) mod installed_interrupts {
                     )
                 })
             {
-                calls.insert(operation.id, boundary);
+                calls.insert((machine, operation.id), boundary);
             }
         }
         let mut previous = None;
@@ -2959,12 +2963,14 @@ pub(crate) mod installed_interrupts {
             .map(|row| row.application_index)
             .collect::<std::collections::BTreeSet<_>>();
         for registration in &module.installed_interrupt_registrations {
-            if previous.is_some_and(|previous| previous >= registration.operation)
-                || calls.remove(&registration.operation) != Some(registration.installer)
+            if previous
+                .is_some_and(|previous| previous >= (registration.machine, registration.operation))
+                || calls.remove(&(registration.machine, registration.operation))
+                    != Some(registration.installer)
             {
                 return malformed("interrupt installation has no unique exact core operation");
             }
-            previous = Some(registration.operation);
+            previous = Some((registration.machine, registration.operation));
             let installer = module.boundary_machine(registration.installer).ok_or(
                 CodecError::MalformedStructuralFoundation(
                     "interrupt installation lost its boundary",
@@ -3025,7 +3031,8 @@ pub(crate) mod installed_interrupts {
             }
             let mut previous_callback = None;
             for callback in &registration.callbacks {
-                if callback.registrar != registration.operation
+                if callback.registrar_machine != registration.machine
+                    || callback.registrar != registration.operation
                     || !callback.entry_admitted
                     || !callback_ids.insert(callback.application_index)
                     || previous_callback
@@ -12109,14 +12116,18 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
                 .iter()
                 .flat_map(|registration| &registration.callbacks),
         )
-        .map(|application| application.registrar)
+        .map(|application| (application.registrar_machine, application.registrar))
         .collect::<BTreeSet<_>>();
     if registrars.is_empty() {
         return Ok(());
     }
-    for operation in module.operations() {
+    for (machine, operation) in module.machines.iter().flat_map(|machine| {
+        machine
+            .operations()
+            .map(move |operation| (machine.id, operation))
+    }) {
         if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
-            registrars.remove(&operation.id);
+            registrars.remove(&(machine, operation.id));
         }
     }
     if !registrars.is_empty() {
@@ -13438,4 +13449,253 @@ fn require_unique_nonempty_identities(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod callback_registrar_owner_tests {
+    use super::*;
+    use semantic_vocabulary::{MachineId, OperationId};
+    use terminal_psi::{Operation, OperationKind, OperationResult, TerminalCallbackApplication};
+
+    #[test]
+    fn callback_registrar_is_scoped_to_its_machine_even_when_operation_ids_repeat() {
+        let owner = MachineId::new(1).unwrap();
+        let other = MachineId::new(2).unwrap();
+        let operation = OperationId::new(1).unwrap();
+        let mut module = TerminalModule::declarations();
+        let mut registrar = crate::semantic_module::entry_tests::unit_machine(owner);
+        registrar.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::BoundaryCall {
+                boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        ));
+        let mut unrelated = crate::semantic_module::entry_tests::unit_machine(other);
+        unrelated.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::BooleanConstant { value: true },
+        ));
+        module
+            .callback_applications
+            .push(TerminalCallbackApplication {
+                application_index: 0,
+                registrar_machine: owner,
+                registrar: operation,
+                static_machine_ordinal: 0,
+                requirement: "Callback::call".into(),
+                calling_owner_application: "Callback".into(),
+                boundary: None,
+                published_contract: [1; 32],
+                entry_admitted: false,
+                body: registrar.contract.declaration.clone().unwrap(),
+            });
+        module.machines.extend([registrar, unrelated]);
+        assert!(validate_callback_registrars(&module).is_ok());
+        module.callback_applications[0].registrar_machine = other;
+        assert!(
+            validate_callback_registrars(&module).is_err(),
+            "another machine's boundary call cannot supply the registrar"
+        );
+        module.machines[1].blocks[0].operations[0].kind =
+            module.machines[0].blocks[0].operations[0].kind.clone();
+        let mut first = module.callback_applications[0].clone();
+        first.application_index = 1;
+        first.registrar_machine = owner;
+        module.callback_applications.push(first);
+        assert!(
+            validate_callback_registrars(&module).is_ok(),
+            "equal local operation ids in different machines are distinct registrar sites"
+        );
+    }
+}
+
+#[cfg(test)]
+mod installed_interrupt_owner_tests {
+    use super::installed_interrupts::validate;
+    use crate::CodecError;
+    use crate::semantic_module::entry_tests::unit_machine;
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
+    use terminal_psi::*;
+
+    // This fixture exercises the receiving interrupt-record validator directly;
+    // the unrelated Boolean operation deliberately shares the installer number.
+    fn installed_module() -> TerminalModule {
+        let owner = MachineId::new(1).unwrap();
+        let other = MachineId::new(2).unwrap();
+        let operation = OperationId::new(1).unwrap();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let service = ServiceId::new(1).unwrap();
+        let mut module = TerminalModule::declarations();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let requirement = identities.intern("test::install");
+        let nominal = NominalDeclarationIdentity::new(identities.intern("test::Installer"));
+        let service_identity = identities.intern(
+            language_core::static_interrupts::StaticInterruptOperation::Install
+                .required_service_identity()
+                .unwrap(),
+        );
+        module.identities = identities.build();
+        module.services.push(ServiceDeclaration {
+            id: service,
+            identity: service_identity,
+            parents: Vec::new(),
+        });
+        let mut installer = unit_machine(owner);
+        installer.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::BoundaryCall {
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        ));
+        let mut unrelated = unit_machine(other);
+        unrelated.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::BooleanConstant { value: true },
+        ));
+        let mut source = installer.contract.declaration.clone().unwrap();
+        source.semantic_declaration = requirement;
+        source.callable = requirement;
+        source.result_type = requirement;
+        source.machine = nominal.clone();
+        source.state = nominal.clone();
+        module.boundary_machines.push(BoundaryMachineDeclaration {
+            id: boundary,
+            declaration: Some(CheckedBoundaryCallable {
+                service_declaration: [1; 32],
+                source: source.clone(),
+                execution: CheckedBoundaryExecution::StaticInterruptInstall,
+                method_arguments: Vec::new(),
+            }),
+            numeric_intrinsic: None,
+            role: BoundaryDeclarationRole::Callable,
+            kind: BoundaryRequirementKind::Machine,
+            completion: BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: requirement,
+            owner: nominal.clone(),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            result_reference_regions: Vec::new(),
+            result_lifetimes: None,
+            requires: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
+            owning_service: None,
+            published_service_ceiling: vec![service],
+            published_synchronous_entries: Vec::new(),
+        });
+        let slot_encoding = vec![1];
+        module
+            .installed_interrupt_registrations
+            .push(TerminalInstalledInterruptRegistration {
+                machine: owner,
+                operation,
+                installer: boundary,
+                service,
+                registrar_boundary: boundary,
+                registrar: nominal.clone(),
+                registrar_owner: nominal.clone(),
+                registrar_application: "test::Installer".into(),
+                registrar_declaring_application: "test::Installer".into(),
+                registrar_arguments: Vec::new(),
+                registrar_lifetimes: Vec::new(),
+                registrar_requirement: "test::install".into(),
+                slot_declaration: nominal,
+                slot_commitment:
+                    language_semantics::conformance_identity::source_identity_commitments(
+                        &slot_encoding,
+                    )
+                    .1,
+                slot_encoding,
+                callbacks: vec![TerminalCallbackApplication {
+                    application_index: 0,
+                    registrar_machine: owner,
+                    registrar: operation,
+                    static_machine_ordinal: 0,
+                    requirement: "test::handle".into(),
+                    calling_owner_application: "test::Installer".into(),
+                    boundary: Some(boundary),
+                    published_contract: source.contract,
+                    entry_admitted: true,
+                    body: source,
+                }],
+            });
+        module.machines.extend([installer, unrelated]);
+        module
+    }
+
+    #[test]
+    fn installed_interrupts_keep_machine_owners_when_operation_ids_repeat() {
+        let module = installed_module();
+        validate(&module).unwrap();
+        let other = module.machines[1].id;
+
+        let mut wrong_installation_owner = module.clone();
+        wrong_installation_owner.installed_interrupt_registrations[0].machine = other;
+        wrong_installation_owner.installed_interrupt_registrations[0].callbacks[0]
+            .registrar_machine = other;
+        assert_eq!(
+            validate(&wrong_installation_owner),
+            Err(CodecError::MalformedStructuralFoundation(
+                "interrupt installation has no unique exact core operation"
+            )),
+            "a Boolean operation cannot borrow another machine's installation call",
+        );
+
+        let mut wrong_callback_owner = module.clone();
+        wrong_callback_owner.installed_interrupt_registrations[0].callbacks[0].registrar_machine =
+            other;
+        assert_eq!(
+            validate(&wrong_callback_owner),
+            Err(CodecError::MalformedStructuralFoundation(
+                "interrupt callback does not belong to its exact installation"
+            )),
+        );
+
+        let mut two_installers = module;
+        two_installers.machines[1].blocks[0].operations[0].kind =
+            two_installers.machines[0].blocks[0].operations[0]
+                .kind
+                .clone();
+        let mut second = two_installers.installed_interrupt_registrations[0].clone();
+        second.machine = other;
+        second.callbacks[0].registrar_machine = other;
+        second.callbacks[0].application_index = 1;
+        two_installers
+            .installed_interrupt_registrations
+            .push(second);
+        validate(&two_installers).expect("distinct machine owners may reuse a local operation id");
+
+        two_installers.installed_interrupt_registrations.pop();
+        assert_eq!(
+            validate(&two_installers),
+            Err(CodecError::MalformedStructuralFoundation(
+                "interrupt installation call has no checked registrar and slot record"
+            )),
+            "one owner's record cannot cover two machines' installation calls",
+        );
+    }
 }

@@ -7,6 +7,7 @@ pub use language_core::operator_spelling;
 pub use relocation::{PageRelocation, SyntaxRelocate};
 pub use snapshot::SyntaxTreesSnapshot;
 pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources, ParsedUnit};
+pub use source_pages::{ParsedSyntaxPages, ParsedSyntaxSource};
 pub use text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -199,6 +200,9 @@ impl SyntaxTrees {
 
     pub fn adopt_page(&mut self, other: SyntaxTrees) {
         self.roots.items.extend(other.roots.items);
+        self.roots
+            .constant_extent_probes
+            .extend(other.roots.constant_extent_probes);
         self.roots
             .mathematical_definitions
             .extend(other.roots.mathematical_definitions);
@@ -427,3 +431,6 @@ pub(crate) mod tests;
 
 #[path = "copying/statement_paths.rs"]
 mod statement_paths;
+
+#[path = "files/pages.rs"]
+mod source_pages;

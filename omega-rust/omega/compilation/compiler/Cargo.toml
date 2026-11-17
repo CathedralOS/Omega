@@ -58,6 +58,8 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
+tokens = { path = "../../../psi/compilation/representations/tokens" }
 native-preparation = { path = "../pipeline/02_abstract-operations-to-target-operations/native-preparation" }
 typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
 terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
@@ -113,6 +115,11 @@ libc = { version = "0.2.186", features = ["extra_traits"] }
 [[test]]
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
+
+# Product's completed scalar conditions extend through native and Psi execution.
+[[test]]
+name = "scalar_completion_handoff"
+path = "tests/scalar_completion_handoff.rs"
 
 # Direct and stored byte views execute after independent artifact admission.
 [[test]]
@@ -267,6 +274,11 @@ path = "tests/executed_fixture_discovery.rs"
 [[test]]
 name = "selected_allocation_handoff"
 path = "tests/selected_allocation_handoff.rs"
+
+# Case payload tests retain ordered fallback decisions and ordinary equality.
+[[test]]
+name = "lowered_route_field_patterns"
+path = "tests/lowered_route_field_patterns.rs"
 
 # Independent receiver admission of the existing Windows filesystem customer.
 [[test]]

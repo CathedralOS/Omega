@@ -40,7 +40,26 @@ fn guarded_program(unrelated: usize, contradictory: bool, impossible_entry: bool
 fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm() {
     for unrelated in [0, 32, 128] {
         let (elaboration, result) = run(vec![guarded_program(unrelated, true, false)]);
-        let warnings = &result.machines.get(id(1)).unwrap().impossible;
+        let mut activity = crate::ProofSearchActivity::default();
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        let lowered = &elaboration.module.machines[0];
+        let branches = &elaboration.sources.get(id(1)).unwrap().branches;
+        let deferred = &result.machines.get(id(1)).unwrap().branch_warnings;
+        let warnings = deferred.materialize(lowered, tables, branches, &mut activity);
+        let searches = activity.started();
+        assert!(
+            searches > 0,
+            "diagnostics must perform the real warning search"
+        );
+        assert_eq!(
+            deferred.materialize(lowered, tables, branches, &mut activity),
+            warnings
+        );
+        assert_eq!(
+            activity.started(),
+            searches,
+            "repeated diagnostics redo no search"
+        );
         assert_eq!(warnings.len(), 1);
         assert_eq!(
             warnings[0].premises,
@@ -74,11 +93,81 @@ fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm(
 #[test]
 fn consistent_arms_and_arrivals_already_impossible_before_the_branch_stay_quiet() {
     for (contradictory, impossible_entry) in [(false, false), (true, true)] {
-        let (_, result) = run(vec![guarded_program(32, contradictory, impossible_entry)]);
-        let warnings = &result.machines.get(id(1)).unwrap().impossible;
+        let (elaboration, result) = run(vec![guarded_program(32, contradictory, impossible_entry)]);
+        let warnings = result
+            .machines
+            .get(id(1))
+            .unwrap()
+            .branch_warnings
+            .materialize(
+                &elaboration.module.machines[0],
+                elaboration.tables.machines.get(id(1)).unwrap(),
+                &elaboration.sources.get(id(1)).unwrap().branches,
+                &mut crate::ProofSearchActivity::default(),
+            );
         assert!(
             warnings.is_empty(),
             "contradictory={contradictory}, impossible_entry={impossible_entry}: {warnings:?}"
+        );
+    }
+}
+
+#[test]
+fn mandatory_checking_leaves_warning_search_to_accepted_diagnostics() {
+    let mut searches = Vec::new();
+    for fails_guarantee in [true, false] {
+        let lower_program = |without_warning_sites| {
+            let mut machine = guarded_program(0, true, false);
+            if fails_guarantee {
+                machine.ensures.push(Proposition::Falsehood);
+            }
+            let mut input = lower(vec![machine]).unwrap();
+            if without_warning_sites {
+                // Keep the operations and contracts identical; remove only
+                // the source coordinates used to explain optional warnings.
+                input.sources.get_mut(id(1)).unwrap().branches.clear();
+            }
+            input
+        };
+        let mut activity = crate::ProofSearchActivity::default();
+        let verdict = crate::verdict::judge_owing_with_activity(
+            Ok(lower_program(false)),
+            crate::verdict::AppliedContracts::Undecided,
+            &mut activity,
+        )
+        .unwrap();
+        let mut mandatory = crate::ProofSearchActivity::default();
+        let control = crate::verdict::judge_owing_with_activity(
+            Ok(lower_program(true)),
+            crate::verdict::AppliedContracts::Undecided,
+            &mut mandatory,
+        )
+        .unwrap();
+        searches.push((fails_guarantee, activity.started(), mandatory.started()));
+        if fails_guarantee {
+            for rejected in [verdict, control] {
+                let RouteVerdict::Rejected { unproved, .. } = rejected else {
+                    panic!("the false guarantee must be rejected");
+                };
+                assert!(!unproved.is_empty(), "the guarantee must remain unproved");
+            }
+        } else {
+            let RouteVerdict::Accepted(accepted) = verdict else {
+                panic!("the guarded program must be accepted");
+            };
+            assert!(matches!(control, RouteVerdict::Accepted(_)));
+            let diagnostics = accepted.advisories();
+            assert_eq!(diagnostics.len(), 1);
+            assert!(diagnostics[0].message.contains("unreachable branch:"));
+            assert!(diagnostics[0].message.contains("an entry requirement"));
+            assert_eq!(accepted.advisories(), diagnostics);
+        }
+    }
+    // Check both semantic outcomes before comparing the optional work.
+    for (fails_guarantee, actual, mandatory) in searches {
+        assert_eq!(
+            actual, mandatory,
+            "mandatory checking searched warning coordinates: fails_guarantee={fails_guarantee}"
         );
     }
 }

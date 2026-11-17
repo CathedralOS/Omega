@@ -151,15 +151,17 @@ impl Fixture {
                 )
                 .source_id;
             ids.push(id);
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
                     )
                 }
                 Some(syntax) => {
-                    tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
                 }
             }
         }
@@ -585,4 +587,200 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
             )
             .is_err()
     );
+}
+
+#[test]
+fn root_grants_require_the_exact_executed_request_and_author() {
+    use super::product_policy::collect_product_root_grants;
+    let fixture = Fixture::for_operation(
+        "machine build(builder: &mut Build) { configure(builder); }\n\
+         machine configure(builder: &mut Build) { Build::accept_boundary<First>(builder); }\n\
+         machine untaken(builder: &mut Build) { Build::accept_boundary<Second>(builder); }",
+        PRODUCT,
+        None,
+        BuildOperation::BoundaryAcceptance,
+    );
+    let events = fixture.events(&[
+        (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+        (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+    ]);
+    let collect = |activation,
+                   declared: &[Arc<ProductDeclarationRequest>],
+                   events: &[ExecutedProductSelection]| {
+        collect_product_root_grants(&fixture.typed, activation, declared, events)
+    };
+    let positive = collect(Some(fixture.activation), &fixture.declared, &events[..1]).unwrap();
+    assert_eq!(positive.len(), 1);
+    assert_eq!(positive[0].selector, "First");
+    assert_eq!(positive[0].selecting_machine, fixture.authors[0]);
+    assert!(collect(None, &fixture.declared, &[]).unwrap().is_empty());
+
+    let mut missing_author = events[0].clone();
+    missing_author.selecting_machine = None;
+    let mut foreign_author = events[0].clone();
+    foreign_author.selecting_machine = fixture.typed.symbols.symbol_source_span(fixture.authors[1]);
+    let mut changed_subject = events[0].clone();
+    let mut changed = (*changed_subject.request).clone();
+    changed.operands[0].path = "Second".into();
+    changed_subject.request = Arc::new(changed);
+    let cases = [
+        (
+            "activation",
+            collect(None, &fixture.declared, &events[..1]),
+            "no original Build activation",
+        ),
+        (
+            "missing author",
+            collect(
+                Some(fixture.activation),
+                &fixture.declared,
+                &[missing_author],
+            ),
+            "lost its lexical author",
+        ),
+        (
+            "foreign author",
+            collect(
+                Some(fixture.activation),
+                &fixture.declared,
+                &[foreign_author],
+            ),
+            "does not match its declared source occurrence and author",
+        ),
+        (
+            "changed subject",
+            collect(
+                Some(fixture.activation),
+                &fixture.declared,
+                &[changed_subject],
+            ),
+            "does not match its declared source occurrence and author",
+        ),
+        (
+            "undeclared event",
+            collect(Some(fixture.activation), &[], &events[..1]),
+            "does not match its declared source occurrence and author",
+        ),
+    ];
+    let observed = cases
+        .map(|(name, verdict, expected)| (name, verdict.unwrap_err()[0].message.clone(), expected));
+    for (name, message, _) in &observed {
+        eprintln!("{name}: {message}");
+    }
+    for (name, message, expected) in observed {
+        assert!(message.contains(expected), "{name}: {message}");
+    }
+}
+
+#[test]
+fn root_grants_keep_the_actual_provider_application() {
+    use super::product_policy::collect_product_root_grants;
+    use typed_trees::product_operand::{ProductApplicationDemand, ProductSourceLookups};
+    let product = "public data Tag {} public data Other {}\n\
+        public boundary trait Service<T> { machine tick() reaches none crashes none; }\n\
+        public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
+    let mut fixture = Fixture::for_operation(
+        "machine build(builder: &mut Build) { Build::accept_boundary<First<Tag>>(builder); Build::accept_boundary<First<Other>>(builder); }",
+        product,
+        None,
+        BuildOperation::BoundaryAcceptance,
+    );
+    let source = fixture.typed.clone();
+    let lookups = ProductSourceLookups::new(&source);
+    for (request, author) in fixture.declared.iter().zip(&fixture.authors) {
+        typed_trees_to_typed_trees::prepare_product_operand_application(
+            &mut fixture.typed,
+            &lookups,
+            &request.operands[0],
+            request.operation.product_operand_role(0).unwrap(),
+            *author,
+            None,
+            ProductApplicationDemand::FormationOnly,
+        )
+        .unwrap();
+    }
+    let events = fixture.events(&[
+        (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+        (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+    ]);
+    let grants = collect_product_root_grants(
+        &fixture.typed,
+        Some(fixture.activation),
+        &fixture.declared,
+        &events,
+    )
+    .unwrap();
+    assert_eq!(grants.len(), 2);
+    assert_ne!(grants[0].selector, grants[1].selector);
+    assert_ne!(grants[0].subject, grants[1].subject);
+    assert!(grants[0].selector.contains("Tag"), "{}", grants[0].selector);
+    assert!(
+        grants[1].selector.contains("Other"),
+        "{}",
+        grants[1].selector
+    );
+    let mut changed = events[0].clone();
+    Arc::make_mut(&mut changed.request).operands[0].application =
+        fixture.declared[1].operands[0].application.clone();
+    let error = collect_product_root_grants(
+        &fixture.typed,
+        Some(fixture.activation),
+        &fixture.declared,
+        &[changed],
+    )
+    .unwrap_err();
+    assert!(
+        error[0]
+            .message
+            .contains("does not match its declared source occurrence and author"),
+        "{}",
+        error[0].message
+    );
+}
+
+#[test]
+fn trust_census_keeps_unrequested_claims_and_missing_receipts() {
+    use language_semantics::declaration_selection::RootGrantSubject;
+    use language_semantics::trust_declarations::TrustDeclarationCardinality;
+    let fixture = Fixture::for_operation(
+        "machine build(builder: &mut Build) { Build::accept_boundary<First>(builder); }",
+        "public boundary machine First() ensures true; public boundary machine Second() ensures true;",
+        None,
+        BuildOperation::BoundaryAcceptance,
+    );
+    let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+    let grants = super::product_policy::collect_product_root_grants(
+        &fixture.typed,
+        Some(fixture.activation),
+        &fixture.declared,
+        &events,
+    )
+    .unwrap();
+    let inventory = typed_trees::provider_declarations::PreparedProviderInventory::new(
+        Arc::new(typed_trees::FrozenTypedTrees::from(fixture.typed.clone())),
+        &[],
+    );
+    let census = inventory.trust_declarations().unwrap();
+    assert_eq!(census.machines.len(), 2);
+    for row in &census.machines {
+        assert!(!row.declaration_identity.is_empty());
+        assert_eq!(row.template, Err(TrustDeclarationCardinality::Missing));
+        assert_eq!(row.contract, Err(TrustDeclarationCardinality::Missing));
+    }
+    let RootGrantSubject::AcceptedMachine {
+        declaration,
+        machine,
+    } = &grants[0].subject
+    else {
+        panic!("the grant retains an accepted-machine subject");
+    };
+    let selected = census
+        .machines
+        .iter()
+        .find(|row| row.machine == *machine)
+        .unwrap();
+    assert_eq!(&selected.declaration_identity, declaration);
+    assert_eq!(selected.package_identity, grants[0].subject_package);
+    assert_eq!(selected.name, "First");
+    assert!(census.machines.iter().any(|row| row.name == "Second"));
 }

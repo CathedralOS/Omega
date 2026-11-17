@@ -28,21 +28,41 @@ pub(crate) mod complete_values {
                 .map_err(
                     |reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason },
                 )?;
+            // A complete pattern leaves each component in the same storage.
+            // Check the live component covering this projection; its ended
+            // wrapper no longer supplies a whole-value claim.
+            let component = self
+                .live_affine_frontier
+                .iter()
+                .find(|entry| entry.place == place && region.starts_with(&entry.path));
+            let prefix = component
+                .filter(|entry| {
+                    !self.live_claims.values().any(|claim| {
+                        claim.place == Some(place)
+                            && entry.path.starts_with(&claim.path)
+                            && entry.path != claim.path
+                    })
+                })
+                .map_or(&[][..], |entry| entry.path.as_slice());
+            let selected = super::resolve_structural_path_type(&types, structural_type, prefix)?;
             terminal_semantics::owned_structure::validate_complete_claim_frontier(
                 &claim_types,
-                structural_type,
-                region,
+                selected,
+                &region[prefix.len()..],
                 self.live_claims.values().filter_map(|claim| {
                     (claim.place == Some(place)
                         && claim.multiplicity == Some(StructuralMultiplicity::Linear))
-                    .then_some(claim.path.as_slice())
+                    .then(|| claim.path.strip_prefix(prefix))
+                    .flatten()
                 }),
                 &|path, case| {
+                    let mut original = prefix.to_vec();
+                    original.extend_from_slice(path);
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &types,
                         root,
                         self.structural_cases.as_map(),
-                        path,
+                        &original,
                     ) == Some(case)
                 },
             )
@@ -592,6 +612,40 @@ impl crate::engine::execution::TerminalExecution<'_> {
             )
         {
             return Ok(());
+        }
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.structural_types().values(),
+            root_type,
+            &argument.path,
+        )
+        .ok_or(malformed())?;
+        let component_covers_operand = self.live_affine_frontier.iter().any(|component| {
+            component.place == argument.place && argument.path.starts_with(&component.path)
+        });
+        if selected.multiplicity != StructuralMultiplicity::Unrestricted
+            && !component_covers_operand
+        {
+            validate_complete_affine_frontier(
+                &self.structural_types(),
+                &self.structural_values,
+                self.structural_cases.as_map(),
+                &self.live_affine_frontier,
+                self.live_claims.values(),
+                argument,
+                selected.id,
+            )
+            .map_err(|error| match error {
+                TerminalInterpretError::AffineFrontierMismatch => {
+                    TerminalInterpretError::OwnedValueCustodyMismatch {
+                        source: argument.place,
+                        structural_type: selected.id,
+                        path_length: argument.path.len(),
+                        path_prefix: argument.path.iter().take(4).cloned().collect(),
+                        reason: "owned operand is not a complete live value",
+                    }
+                }
+                other => other,
+            })?;
         }
         require_owned_value_claims(
             &self.structural_types(),
@@ -1515,15 +1569,82 @@ pub(crate) fn consume_affine_projection(
     Ok(())
 }
 
+/// Compare the live entries with an intact value's affine custody. Linear
+/// claims own their regions separately; component entries do not restore an
+/// ended wrapper's availability.
+pub(crate) fn validate_complete_affine_frontier<'claims>(
+    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &BTreeSet<StructuralAffineDiscard>,
+    claims: impl Iterator<Item = &'claims LiveClaim>,
+    subject: &StructuralArgument,
+    structural_type: StructuralTypeId,
+) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
+    let invalid = || TerminalInterpretError::AffineFrontierMismatch;
+    let root = verified_structural_place(values, subject.place)?;
+    if resolve_structural_path_type(types, root.structural_type, &subject.path)? != structural_type
+    {
+        return Err(invalid());
+    }
+    let declaration = types.declaration(&structural_type)?;
+    // Linear claims split an affine whole around their paths. Validate that
+    // whole frontier, including surviving siblings, before replacing it with
+    // components. A component at a claim's path is absent from the whole
+    // frontier, so an already decomposed wrapper cannot pass again.
+    let expected = whole_value_frontier(
+        types,
+        subject.place,
+        structural_type,
+        declaration.multiplicity,
+        claims.filter_map(|claim| {
+            (claim.place == Some(subject.place))
+                .then(|| claim.path.strip_prefix(subject.path.as_slice()))
+                .flatten()
+        }),
+        &|current| {
+            let mut path = subject.path.clone();
+            path.extend_from_slice(&current.path);
+            crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                types, root, cases, &path,
+            )
+        },
+    )?
+    .into_iter()
+    .map(|mut entry| {
+        let mut path = subject.path.clone();
+        path.extend(entry.path);
+        entry.path = path;
+        entry
+    })
+    .collect::<BTreeSet<_>>();
+    let actual = frontier.iter().filter(|entry| {
+        entry.place == subject.place
+            && terminal_semantics::structural_paths_may_overlap(&entry.path, &subject.path)
+    });
+    if !actual.eq(expected.iter()) {
+        return Err(invalid());
+    }
+    Ok(expected)
+}
+
 /// Decomposition changes custody, never the allocation or its payload bytes.
-/// Only the exact whole wrapper entry can be partitioned; after this event
-/// each structural component is consumed by the ordinary projection machinery.
-pub(crate) fn decompose_affine_subject(
+/// The exact intrinsic claim or affine wrapper entry ends here. Each component
+/// keeps its own claims and is consumed through the ordinary projection machinery.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn decompose_owned_subject(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     references: &BTreeMap<StructuralRuntimePlace, crate::storage::reference::ReferenceReferent>,
+    cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
+    >,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    claims: &BTreeMap<ClaimId, LiveClaim>,
+    claims: &mut BTreeMap<ClaimId, LiveClaim>,
     subject: &StructuralArgument,
     structural_type: StructuralTypeId,
 ) -> Result<(), TerminalInterpretError> {
@@ -1535,20 +1656,29 @@ pub(crate) fn decompose_affine_subject(
         || has_live_loan(references, &selected)
         || claims.values().any(|claim| {
             claim.place == Some(subject.place)
-                && terminal_semantics::structural_paths_may_overlap(&claim.path, &subject.path)
+                && subject.path.starts_with(&claim.path)
+                && claim.path != subject.path
         })
     {
         return Err(invalid());
     }
-    let wrapper = StructuralAffineDiscard {
-        place: subject.place,
-        path: subject.path.clone(),
-        structural_type,
-    };
-    if !frontier.contains(&wrapper) {
+    let declaration = types.declaration(&structural_type)?;
+    let mut exact = claims
+        .iter()
+        .filter(|(_, claim)| claim.place == Some(subject.place) && claim.path == subject.path);
+    let intrinsic_claim = exact.next().map(|(identity, _)| *identity);
+    if exact.next().is_some() || declaration.owns_linear_claim != intrinsic_claim.is_some() {
         return Err(invalid());
     }
-    let declaration = types.declaration(&structural_type)?;
+    let expected = validate_complete_affine_frontier(
+        types,
+        values,
+        cases,
+        frontier,
+        claims.values(),
+        subject,
+        structural_type,
+    )?;
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(malformed());
     };
@@ -1567,13 +1697,15 @@ pub(crate) fn decompose_affine_subject(
                 path,
                 structural_type,
             };
-            if frontier.contains(&component) {
-                return Err(invalid());
-            }
             components.push(component);
         }
     }
-    frontier.remove(&wrapper);
+    if let Some(identity) = intrinsic_claim {
+        claims.remove(&identity);
+    }
+    for entry in expected {
+        frontier.remove(&entry);
+    }
     frontier.extend(components);
     Ok(())
 }
@@ -2487,24 +2619,26 @@ pub(crate) mod tests {
         let mut frontier = std::collections::BTreeSet::from([wrapper.clone()]);
         // Independent claims must remain settled by an explicit correspondence.
         assert!(
-            super::decompose_affine_subject(
+            super::decompose_owned_subject(
                 &types,
                 &values,
                 &BTreeMap::new(),
+                &BTreeMap::new(),
                 &mut frontier,
-                &BTreeMap::from([(claim(1), linear(1, Vec::new()))]),
+                &mut BTreeMap::from([(claim(1), linear(1, Vec::new()))]),
                 &subject,
                 structural_type(1)
             )
             .is_err()
         );
         assert_eq!(frontier, std::collections::BTreeSet::from([wrapper]));
-        super::decompose_affine_subject(
+        super::decompose_owned_subject(
             &types,
             &values,
             &BTreeMap::new(),
-            &mut frontier,
             &BTreeMap::new(),
+            &mut frontier,
+            &mut BTreeMap::new(),
             &subject,
             structural_type(1),
         )
@@ -2519,12 +2653,13 @@ pub(crate) mod tests {
             }])
         );
         assert!(
-            super::decompose_affine_subject(
+            super::decompose_owned_subject(
                 &types,
                 &values,
                 &BTreeMap::new(),
-                &mut frontier,
                 &BTreeMap::new(),
+                &mut frontier,
+                &mut BTreeMap::new(),
                 &subject,
                 structural_type(1)
             )
@@ -2540,6 +2675,96 @@ pub(crate) mod tests {
             )
             .is_err()
         );
+
+        for has_sibling in [false, true] {
+            let mut declarations = declarations.to_vec();
+            declarations[1].multiplicity = StructuralMultiplicity::Linear;
+            declarations[1].owns_linear_claim = true;
+            if has_sibling {
+                let sibling = declaration(3, StructuralTypeShape::Opaque);
+                declarations.push(sibling);
+                let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
+                    panic!("record wrapper");
+                };
+                let mut sibling = fields[0].clone();
+                sibling.id = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+                sibling.identity = terminal_psi::TerminalIdentityIndex(2);
+                sibling.declaration_identity = sibling.identity;
+                sibling.field_type = StructuralFieldType::Structural(structural_type(3));
+                fields.push(sibling);
+            }
+            let types = crate::embedding::program::ProgramDeclarations::new(&declarations);
+            let mut claims = BTreeMap::from([(claim(1), linear(1, vec![field("left")]))]);
+            let retained_claims = claims.clone();
+            let mut frontier = super::whole_value_frontier(
+                &types,
+                place(1),
+                structural_type(1),
+                StructuralMultiplicity::Affine,
+                claims.values().map(|claim| claim.path.as_slice()),
+                &|_| None,
+            )
+            .unwrap();
+            assert_eq!(frontier.len(), usize::from(has_sibling));
+            super::validate_complete_affine_frontier(
+                &types,
+                &values,
+                &BTreeMap::new(),
+                &frontier,
+                claims.values(),
+                &subject,
+                structural_type(1),
+            )
+            .unwrap();
+            super::decompose_owned_subject(
+                &types,
+                &values,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &mut frontier,
+                &mut claims,
+                &subject,
+                structural_type(1),
+            )
+            .unwrap();
+            assert_eq!(claims, retained_claims);
+            assert_eq!(frontier.len(), 1 + usize::from(has_sibling));
+            let retained_frontier = frontier.clone();
+            // A whole-parent move uses this same validator when no component
+            // covers its root. Its separately owned child cannot stand in for it.
+            assert!(
+                !frontier
+                    .iter()
+                    .any(|entry| subject.path.starts_with(&entry.path))
+            );
+            assert_eq!(
+                super::validate_complete_affine_frontier(
+                    &types,
+                    &values,
+                    &BTreeMap::new(),
+                    &frontier,
+                    claims.values(),
+                    &subject,
+                    structural_type(1),
+                ),
+                Err(TerminalInterpretError::AffineFrontierMismatch)
+            );
+            assert_eq!(
+                super::decompose_owned_subject(
+                    &types,
+                    &values,
+                    &BTreeMap::new(),
+                    &BTreeMap::new(),
+                    &mut frontier,
+                    &mut claims,
+                    &subject,
+                    structural_type(1),
+                ),
+                Err(TerminalInterpretError::AffineFrontierMismatch)
+            );
+            assert_eq!(claims, retained_claims);
+            assert_eq!(frontier, retained_frontier);
+        }
     }
 
     fn pair_transfer(

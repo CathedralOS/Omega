@@ -33,7 +33,9 @@ pub use callback_artifacts::{
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact, native_callback_thunks,
     validate_callback_thunk_joins,
 };
-pub use direct_boundary_leaves::{DirectBoundaryExecution, DirectBoundaryLeaf};
+pub use direct_boundary_leaves::{
+    DirectBoundaryExecution, DirectBoundaryLeaf, NativeRequirementTrust,
+};
 pub use target_providers::{
     SelectedCheckedInvocationCandidate, SelectedCheckedInvocationRow, SelectedProviderCandidateRow,
     TerminalTargetProviderProposal, TerminalTargetProviderSelection,

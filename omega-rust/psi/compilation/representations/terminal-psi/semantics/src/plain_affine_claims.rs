@@ -757,6 +757,32 @@ impl<'types> Flow<'types> {
             }
         } else {
             match &operation.kind {
+                Op::DecomposeStructuralValue { subject } => {
+                    let selected = crate::runtime_structural_path_tip(
+                        types.iter(),
+                        root_type(subject.place)?,
+                        &subject.path,
+                    )
+                    .ok_or_else(|| Error::malformed("decomposition has no exact claim carrier"))?;
+                    // Only the declaration's own wrapper obligation ends here.
+                    // Its component claims remain at their original paths.
+                    if selected.owns_linear_claim {
+                        if state.at(subject.place).any(|claim| {
+                            subject.path.starts_with(&claim.path) && claim.path != subject.path
+                        }) {
+                            return Err(Error::unsupported(
+                                "decomposition crosses an intact logical claim",
+                            ));
+                        }
+                        let retired =
+                            state.take_at(subject.place, |claim| claim.path == subject.path);
+                        if retired.len() != 1 {
+                            return Err(Error::malformed(
+                                "decomposition has no unique intrinsic wrapper claim",
+                            ));
+                        }
+                    }
+                }
                 Op::MoveStructuralValue { source } | Op::TransformContent { source, .. } => {
                     if let Some(result) = operation.result.as_structural() {
                         Self::relocate(state, source, result.place, &[])?;
