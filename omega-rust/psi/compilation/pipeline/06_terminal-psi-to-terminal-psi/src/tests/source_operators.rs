@@ -56,6 +56,65 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 }
 
 #[test]
+fn mutable_byte_formals_keep_their_source_operator_access() {
+    let source = r#"
+machine store(bytes: &mut [u8], peer: &[u8]) requires bytes.len > 0u64 {
+    bytes[0u64] = 7u8;
+}
+machine entry() -> bool {
+    let mut bytes: [u8; 2] = [19u8, 23u8];
+    let peer: [u8; 1] = [42u8];
+    store(&mut bytes[..], &peer[..]);
+    bytes[0u64] == 7u8 && bytes[1u64] == 23u8
+}
+"#;
+    let mut typed = super::boundary_calls::typed(source);
+    assert_operator_value(operator_program(&typed), true);
+    let store = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")
+        .unwrap();
+    let states = typed.machine_states.span(store.states).unwrap();
+    let state = &states[0];
+    let peer = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "peer")
+        .unwrap()
+        .type_reference;
+    let base = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Indexed(indexed) = node else {
+                return None;
+            };
+            let reference = typed
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            (reference.is_valid()
+                && matches!(
+                    typed.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::Reference {
+                        access: language_core::ReferenceAccess::Mutable,
+                        ..
+                    }
+                ))
+            .then_some(indexed.collection)
+        })
+        .expect("the indexed store retains its mutable source reference");
+    typed
+        .expression_table
+        .set_constructed_value_type_reference(base, peer);
+    let refused = operator_program(&typed).unwrap_err();
+    assert!(
+        refused.contains("a formed operator operand differs from its retained declared type"),
+        "{refused}"
+    );
+}
+
+#[test]
 fn enum_case_comparisons_keep_their_validated_operand_types() {
     for (operator, case, expected) in [
         ("==", "On", true),

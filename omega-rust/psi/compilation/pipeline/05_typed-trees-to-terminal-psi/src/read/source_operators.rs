@@ -145,11 +145,16 @@ impl Program<'_> {
         let agrees = if declared.erased() == operand.erased() {
             true
         } else {
-            // A borrowed formal and an ordinary implicit reference read name
-            // the referent in the body. Normalize that same single layer for
-            // correspondence; lookup still receives the full original ref.
-            self.reference_referent(machine, declared)?
-                .is_some_and(|(referent, _)| referent.erased() == operand.erased())
+            // The formal reader separates a loan's access from its referent
+            // carrier, including mutable slice descriptors. Use that same
+            // representation here; lookup keeps the complete source reference.
+            match self.typed.type_reference_table.type_reference(reference) {
+                typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                    let (carrier, referent) = self.borrowed_formal_carrier(reference, *referee);
+                    self.formal_value_type(machine, carrier, referent)?.erased() == operand.erased()
+                }
+                _ => false,
+            }
         };
         if !agrees {
             return Err(fail(
