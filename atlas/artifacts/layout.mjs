@@ -110,17 +110,18 @@ for(const e of edges.filter(e=>!e.main&&e.label)){
   for(const s of e.sections)for(let i=1;i<s.points.length;i++){
     const a=s.points[i-1],b=s.points[i],length=Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
     if(length<12)continue;
-    for(const t of [0.5,0.3,0.7]){
+    for(const t of [0.5,0.3,0.7,0.1,0.9]){
       const x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
-      for(const gap of [8,20,36,60]){
+      for(const gap of [8,20,36,60,86,120,160,210,270]){
         const locations=a.y===b.y?[[x-l.width/2,y-l.height-gap],[x-l.width/2,y+gap]]:[[x-l.width-gap,y-l.height/2],[x+gap,y-l.height/2]];
-        for(const [lx,ly] of locations)candidates.push({...l,x:lx,y:ly,cost:1000/(length+1)+Math.abs(t-.5)*10+gap/8});
+        for(const [lx,ly] of locations)candidates.push({...l,x:lx,y:ly,anchor:{x,y},cost:1000/(length+1)+Math.abs(t-.5)*10+gap/8});
       }
     }
   }
   const chosen=candidates.sort((a,b)=>a.cost-b.cost).find(c=>!occupied.some(o=>overlap(c,o)));
   if(!chosen)throw Error('No clear label position: '+e.id);
-  // Supporting labels appear one at a time when their arrow is selected.
+  // Reserve each supporting label before placing the next one.
+  occupied.push(chosen);
   e.labels=[chosen];
 }
 const allLabels=[...reserved,...edges.flatMap(e=>e.labels)];
@@ -131,7 +132,7 @@ const sx=20-minX,sy=20-minY;
 for(const n of nodes.values()){n.x+=sx;n.y+=sy;for(const l of n.labels){l.x+=sx;l.y+=sy;}}
 for(const g of groups){g.x+=sx;g.y+=sy;g.caption.x+=sx;g.caption.y+=sy;}
 startLabel.x+=sx;startLabel.y+=sy;
-for(const e of edges){for(const s of e.sections)for(const p of s.points){p.x+=sx;p.y+=sy;}for(const l of e.labels){l.x+=sx;l.y+=sy;}}
+for(const e of edges){for(const s of e.sections)for(const p of s.points){p.x+=sx;p.y+=sy;}for(const l of e.labels){l.x+=sx;l.y+=sy;if(l.anchor){l.anchor.x+=sx;l.anchor.y+=sy;}}}
 const width=Math.max(...[...nodes.values()].map(n=>n.x+n.width),...allPoints.map(p=>p.x),...allLabels.map(l=>l.x+l.width))+30;
 const bottom=Math.max(...[...nodes.values()].map(n=>n.y+n.height),...allPoints.map(p=>p.y),...allLabels.map(l=>l.y+l.height))+30;
 process.stdout.write(JSON.stringify({width,height:bottom,nodes:[...nodes.values()],edges,groups,startLabel}));

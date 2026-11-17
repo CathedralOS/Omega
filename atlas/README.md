@@ -165,8 +165,7 @@ templates and build entrypoints have been removed.
 
 The [interactive architecture page](pages/architecture.html) has one connected
 SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
-remembers each view's camera; pan, zoom, Find, selection and the minimap serve
-both. The proposed graph cites its recorded migration plan, uses its named
+remembers each view's camera; both support pan, zoom, Find and selection. The proposed graph cites its recorded migration plan, uses its named
 stages numbered 00–10, and exposes unresolved contracts on
 selection. It remains a proposal, separate from the compiler snapshot.
 
@@ -176,10 +175,10 @@ execution. The source and policy evaluators connect to the same interpreter as
 the runtime host. Provider closure repeats policy-input preparation using
 accepted code. Extra inputs terminate at the operations that consume them.
 
-Drag to pan, scroll or pinch to zoom, and use Find to reach a component.
+In Proposed, scroll down the numbered stages or jump directly from the stage index. In Current, drag to pan and scroll to zoom. Find reaches individual components in either view.
 Select a box or arrow to highlight its connections and open pinned source.
 Follow the bold route down from START; phase frames and numbered stages show
-its order. Dashed supporting connections reveal their labels when selected.
+its order. Dashed supporting connections show their labels beside the lines.
 Start returns to Build; the minimap and Fit whole compiler locate the view.
 100% restores natural-scale type. Expand
 keeps the same graph and camera. Arrow keys pan, F fits all, and Escape clears
@@ -188,7 +187,7 @@ its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
 `artifacts/proposed.py` defines the recorded proposed contracts and plan citations;
-both models use the same layout and SVG renderer. Only one graph is mounted in
+both models use the same SVG renderer. Proposed stages use the vertical layout in `artifacts/stage_flow.py`. Only one graph is mounted in
 the interactive canvas. The proposed contract list remains readable without JS.
 `artifacts/layout.mjs` uses ELK.js to order the main route and Graphviz `neato`
 to route supporting connections around fixed boxes during the build.
