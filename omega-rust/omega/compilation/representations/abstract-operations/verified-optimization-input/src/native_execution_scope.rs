@@ -241,6 +241,27 @@ impl NativeExecutionScope {
         };
         let installed_helpers =
             provider_selection::CallbackProviderDeclarations::installed_helper_roots(module);
+        // Resolve each occurrence once. A registrar's local operation number
+        // identifies its callback entries only together with the owning machine.
+        let mut callback_entries = std::collections::BTreeMap::<_, Vec<MachineId>>::new();
+        for callback in callbacks {
+            let application = module
+                .callback_application(callback.application_index())
+                .ok_or_else(|| {
+                    NativeExecutionScopeError::TargetContext(
+                        "callback occurrence lost its canonical application".into(),
+                    )
+                })?;
+            if application.registrar != callback.terminal_operation() {
+                return Err(NativeExecutionScopeError::TargetContext(
+                    "callback occurrence changed its canonical registrar operation".into(),
+                ));
+            }
+            callback_entries
+                .entry((application.registrar_machine, application.registrar))
+                .or_default()
+                .push(callback.callback_thunk_artifact().entry());
+        }
         let mut visited = vec![false; module.machines.len()];
         let mut pending = vec![entry];
         pending.extend(
@@ -298,26 +319,8 @@ impl NativeExecutionScope {
                                     .copied(),
                             );
                         }
-                        for callback in callbacks
-                            .iter()
-                            .filter(|callback| callback.terminal_operation() == operation.id)
-                        {
-                            let application = module
-                                .callback_application(callback.application_index())
-                                .ok_or_else(|| {
-                                    NativeExecutionScopeError::TargetContext(
-                                        "callback occurrence lost its canonical application".into(),
-                                    )
-                                })?;
-                            if application.registrar != callback.terminal_operation() {
-                                return Err(NativeExecutionScopeError::TargetContext(
-                                    "callback occurrence changed its canonical registrar operation"
-                                        .into(),
-                                ));
-                            }
-                            if application.registrar_machine == body.id {
-                                pending.push(callback.callback_thunk_artifact().entry());
-                            }
+                        if let Some(entries) = callback_entries.get(&(body.id, operation.id)) {
+                            pending.extend(entries.iter().copied());
                         }
                     }
                     if let Some(invocation) = operation.kind.module_invocation() {
