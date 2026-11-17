@@ -1959,7 +1959,12 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         call: &StaticInvocation<'_>,
-    ) -> Checked<Option<Vec<crate::body::ValueType>>> {
+    ) -> Checked<
+        Option<(
+            Vec<crate::body::ValueType>,
+            Vec<typed_trees::types::TypeReferenceHandle>,
+        )>,
+    > {
         let owner = self.symbols.get(id).copied().ok_or_else(|| {
             refuse(
                 id,
@@ -1972,11 +1977,11 @@ impl<'t> Program<'t> {
         else {
             return Ok(None);
         };
-        references
-            .into_iter()
-            .map(|reference| self.value_type(id, reference))
-            .collect::<Checked<Vec<_>>>()
-            .map(Some)
+        let values = references
+            .iter()
+            .map(|reference| self.value_type(id, *reference))
+            .collect::<Checked<Vec<_>>>()?;
+        Ok(Some((values, references)))
     }
 
     /// One retained type-only application, shared by body reading and static
@@ -2198,7 +2203,10 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         call: StaticInvocation<'_>,
-        type_arguments: Vec<crate::body::ValueType>,
+        type_arguments: (
+            Vec<crate::body::ValueType>,
+            Vec<typed_trees::types::TypeReferenceHandle>,
+        ),
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
@@ -2220,7 +2228,7 @@ impl<'t> Program<'t> {
             }
             other => return unserved(symbol_kind(other)),
         };
-        let callee = self.application(id, machine, type_arguments)?;
+        let callee = self.application(id, machine, type_arguments.0, Some(type_arguments.1))?;
         self.call_of(
             id,
             slots,
@@ -2564,7 +2572,7 @@ impl<'t> Program<'t> {
             self.static_application(target)?
         } else {
             match self.inherited_type_arguments(id, target) {
-                Some(arguments) => self.application(id, target, arguments)?,
+                Some(arguments) => self.application(id, target, arguments, None)?,
                 None => self.machine(target)?,
             }
         };

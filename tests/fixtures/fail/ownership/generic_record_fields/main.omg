@@ -1,0 +1,4 @@
+// Invalid: an unused generic declaration still owes its field's ownership debt.
+data Envelope<T> { before: u32; item: T; after: u32; }
+machine abandon<T>(value: Envelope<T>) {}
+machine main() {}

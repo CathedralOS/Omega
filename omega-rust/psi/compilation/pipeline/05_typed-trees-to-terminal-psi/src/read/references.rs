@@ -59,36 +59,34 @@ impl Program<'_> {
             self.lifetime_owner
         };
         super::places::reference_lifetime_declared(self.typed, machine, reference, owner)?;
-        let occurrence = typed_trees::type_identity::applied_carrier_identity_in_region_scope(
-            self.typed, reference, owner, owner,
-        )
-        .and_then(|identity| self.typed.type_identity_text(identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("reference without its complete source type identity"),
-            )
-        })?;
+        let occurrence = self
+            .source_scope
+            .carrier_identity_in_region_scope(self.typed, reference, owner)
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("reference without its complete source type identity"),
+                )
+            })?;
         let outer = self.borrowed_view_region(machine, reference, owner, &occurrence)?;
         // Erase regions only for the shared storage row, through the existing
         // declared-carrier identity owner. The occurrence's qualification and
         // complete region tuple remain on ValueType and are compared at use.
-        let identity = typed_trees::type_identity::applied_declared_carrier_identity(
-            self.typed,
-            reference,
-            &[],
-        )
-        .and_then(|identity| self.typed.type_identity_text(identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("reference without its declared storage identity"),
-            )
-        })?;
+        let identity = self
+            .source_scope
+            .declared_carrier_identity(self.typed, reference)
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("reference without its declared storage identity"),
+                )
+            })?;
         let referent = self.value_type(machine, referee)?;
         let qualification = referent.qualification();
         let bare = referent.qualified(Qualification::NONE).ok_or_else(|| {
@@ -139,6 +137,7 @@ impl Program<'_> {
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: self.source_scope.clone(),
             }),
             region_owner: owner,
             fields: Vec::new(),
