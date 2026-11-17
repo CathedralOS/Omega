@@ -4420,10 +4420,25 @@ mod declaration_invocations {
                 });
             }
             self.require_declared_application_operands(&types, invocation.lexical_owner)?;
-            if self
-                .require_owned_application_operands(&types, invocation.lexical_owner)
-                .is_err()
-            {
+            let type_arguments = parameters
+                .iter()
+                .zip(&types)
+                .filter_map(|(parameter, actual)| {
+                    (parameter.kind == crate::data::TypeParameterKind::Type).then_some(*actual)
+                })
+                .collect::<Vec<_>>();
+            let open_value = parameters
+                .iter()
+                .zip(&arguments)
+                .any(|(parameter, argument)| {
+                    matches!(parameter.kind, crate::data::TypeParameterKind::Const { .. })
+                        && self
+                            .data_type_parameter_by_symbol(argument.symbol)
+                            .is_some()
+                });
+            let closure =
+                self.require_owned_application_operands(&type_arguments, invocation.lexical_owner);
+            if open_value || closure.is_err() {
                 // A declared outer binder is still open. Its generated
                 // callers prepare their own exact closed applications.
                 return Ok(false);

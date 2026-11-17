@@ -577,7 +577,6 @@ fn assign_machine_references(
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
                 data_definitions,
-                type_aliases,
                 conformances,
                 traits,
                 machines,
@@ -648,7 +647,6 @@ fn assign_machine_references(
             prior_statements: &[],
             contract_result_data: symbols::SymbolHandle::invalid(),
             data_definitions,
-            type_aliases,
             conformances,
             traits,
             operand_owners: &tables.types.operand_lifetime_owners,

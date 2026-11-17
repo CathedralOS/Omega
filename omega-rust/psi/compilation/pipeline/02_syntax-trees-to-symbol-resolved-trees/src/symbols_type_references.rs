@@ -1294,7 +1294,6 @@ mod value_expressions {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
-                type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
                 traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -1329,7 +1328,6 @@ mod value_expressions {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
-                type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
                 traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -1363,7 +1361,6 @@ mod value_expressions {
                     prior_statements: &[],
                     contract_result_data: symbols::SymbolHandle::invalid(),
                     data_definitions: &program.roots.data_definitions,
-                    type_aliases: &program.roots.type_aliases,
                     conformances: &program.roots.conformances,
                     traits: &program.roots.traits,
                     operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -1401,7 +1398,6 @@ mod value_expressions {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
-                type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
                 traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -1445,7 +1441,6 @@ mod value_expressions {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
-                type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
                 traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -1647,51 +1642,14 @@ mod value_expressions {
                     }
                     return;
                 }
-                let telescope = machine
-                    .data_definitions
-                    .iter()
-                    .find(|data| data.symbol == generic.base_symbol)
-                    .map(|data| {
-                        machine
-                            .data_type_parameters
-                            .span_or_empty(data.type_parameters)
-                    })
-                    .or_else(|| {
-                        if symbols.get(generic.base_symbol).kind != SymbolKind::TypeAlias {
-                            return None;
-                        }
-                        let mut aliases = machine
-                            .type_aliases
-                            .iter()
-                            .filter(|alias| alias.symbol == generic.base_symbol);
-                        let alias = aliases.next()?;
-                        if aliases.next().is_some() {
-                            return None;
-                        }
-                        Some(
-                            machine
-                                .data_type_parameters
-                                .span_or_empty(alias.type_parameters),
-                        )
-                    });
-                if let Some(telescope) = telescope {
-                    for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
-                        if !matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Value { .. }
-                                | symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-                        ) {
-                            continue;
-                        }
-                        if let TypeReference::Named { symbol, name, .. } =
-                            child_types.get_mut(argument)
-                            && let Some(selected) =
-                                resolve_index_subject(symbols, machine, parameters, name)
-                        {
-                            *symbol = selected;
-                        }
-                    }
-                }
+                bind_named_value_arguments(
+                    symbols,
+                    machine,
+                    parameters,
+                    child_types,
+                    generic.base_symbol,
+                    generic.arguments,
+                );
             }
             TypeReference::Constrained(constrained) => {
                 child(constrained.base_type);
@@ -1715,6 +1673,19 @@ mod value_expressions {
                                 );
                                 *child_types.get_mut(handle) = reference;
                             }
+                            let declaration = crate::symbols::lookup::top_level_symbol_for_source(
+                                symbols,
+                                SymbolKind::Domain,
+                                &domain.name,
+                            );
+                            bind_named_value_arguments(
+                                symbols,
+                                machine,
+                                parameters,
+                                child_types,
+                                declaration,
+                                domain.arguments,
+                            );
                         }
                         TypeConstraint::Named(_) | TypeConstraint::ArithmeticDomain(_) => {}
                     }
@@ -1824,6 +1795,29 @@ mod value_expressions {
             &mut type_reference,
         );
         *child_types.get_mut(handle) = type_reference;
+    }
+
+    // Type and domain applications read named values in the same lexical scope.
+    fn bind_named_value_arguments(
+        symbols: &SymbolTable,
+        scope: &MachineScope<'_>,
+        parameters: &[StateParameter],
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
+        declaration: SymbolHandle,
+        arguments: arena::HandleSpan<TypeReference>,
+    ) {
+        for (position, argument) in arguments.handles().enumerate() {
+            if scope.binder_roles.role(symbols, declaration, position)
+                != crate::symbols::scope::BinderRole::Value
+            {
+                continue;
+            }
+            if let TypeReference::Named { symbol, name, .. } = child_types.get_mut(argument)
+                && let Some(selected) = resolve_index_subject(symbols, scope, parameters, name)
+            {
+                *symbol = selected;
+            }
+        }
     }
 
     /*
@@ -2111,7 +2105,6 @@ mod value_expressions {
                         prior_statements: if has_prior { &prior } else { &[] },
                         contract_result_data: SymbolHandle::invalid(),
                         data_definitions: &program.roots.data_definitions,
-                        type_aliases: &program.roots.type_aliases,
                         conformances: &program.roots.conformances,
                         traits: &program.roots.traits,
                         operand_owners: &program.tables.types.operand_lifetime_owners,

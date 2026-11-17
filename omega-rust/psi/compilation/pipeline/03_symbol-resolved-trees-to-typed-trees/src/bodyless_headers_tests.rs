@@ -85,6 +85,9 @@ use omega::language::core::AccessPlan;
 use omega::language::core::Issuance;
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::access;
+use omega::language::core::Run;
+use omega::language::core::RunParts;
+use omega::language::core::Live;
 First satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
         access::new_plan(&schema, Issuance::Unrestricted)
@@ -98,13 +101,16 @@ Second satisfies AccessPolicy {
 trait ForeignPolicy<T> { machine identity(value: T) -> T; }
 Different satisfies ForeignPolicy<u32> { machine identity(value: u32) -> u32 { value } }
 boundary machine retain<const P: AccessPolicy, T>(value: T) -> T
-reaches none crashes none terminates requires true ensures true;
+reaches none crashes none terminates requires true;
 machine first(value: u32) -> u32 { retain<First, u32>(value) }
 machine second(value: bool) -> bool { retain<Second, bool>(value) }
 boundary machine foreign_retain<const P: ForeignPolicy<T>, T>(value: T) -> T
-reaches none crashes none terminates requires true ensures true;
+reaches none crashes none terminates requires true;
 machine different(value: u32) -> u32 { foreign_retain<Different, u32>(value) }
 boundary machine unsealed<T>(value: T) -> T;
+machine split_run(run: Run<First, u32> in Live<First, u32>, cut: u64) -> RunParts<First, u32>
+requires cut <= run.count
+{ Run::split<First, u32>(run, cut) }
 "#;
     // Match the real source-loading path: the bundled file is not cut down to
     // an invented AccessPolicy or a synthetic compiler declaration.
@@ -169,6 +175,14 @@ boundary machine unsealed<T>(value: T) -> T;
             "omega::language::core::access",
             3,
         ),
+        (product, file("run.omg"), "omega::language::core::Run", 3),
+        (
+            product,
+            file("run.omg"),
+            "omega::language::core::RunParts",
+            3,
+        ),
+        (product, file("run.omg"), "omega::language::core::Live", 3),
     ];
     super::qualified_operator_home_tests::packages_with_equality(&units, &[], &imports)
         .expect("the real policy source retains implementation and type operands")
@@ -220,6 +234,14 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
     let (first, target) = retained_policy_call(&program, "first");
     let (second, second_target) = retained_policy_call(&program, "second");
     let (foreign, foreign_target) = retained_policy_call(&program, "different");
+    assert!(
+        program
+            .retained_bodyless_declaration(foreign_target)
+            .unwrap()
+            .is_some(),
+        "foreign call target must be the retained boundary: {:?}",
+        program.machine_by_own_or_state_symbol(foreign_target)
+    );
     assert!(
         program
             .bodyless_callable_signature(first, target, &sources)
@@ -283,6 +305,43 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
                 .unwrap()
         );
     }
+    let (split, split_target) = retained_policy_call(&program, "split_run");
+    let split_source = program
+        .bodyless_machine_signature(split_target)
+        .unwrap()
+        .unwrap()
+        .1;
+    assert!(
+        program
+            .prepare_bodyless_callable_application(split, split_target, &sources)
+            .unwrap()
+    );
+    let (operation, split_signature) = program
+        .compiler_primitive_callable_signature(split, split_target, &sources)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        operation,
+        language_core::sealed_intrinsics::CompilerPrimitive::RunCustody(
+            language_core::sealed_intrinsics::RunCustodyOperation::Split
+        )
+    );
+    let contract_kinds = |signature: &typed_trees::signature::StateSignature| {
+        program
+            .state_signature_contracts(signature)
+            .iter()
+            .map(|clause| clause.kind.clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(!contract_kinds(&split_source).is_empty());
+    assert_eq!(
+        contract_kinds(split_signature),
+        contract_kinds(&split_source)
+    );
+    assert_eq!(
+        split_signature.termination_guarantee,
+        split_source.termination_guarantee
+    );
     let source = program.bodyless_declaration(target).unwrap().unwrap().1;
     let parameters = program.state_signature_type_parameters(&source);
     let typed_trees::data::TypeParameterKind::Const {

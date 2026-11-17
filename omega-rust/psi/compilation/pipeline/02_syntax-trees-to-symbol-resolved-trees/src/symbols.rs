@@ -99,7 +99,6 @@ mod contracts {
             binder_roles: &binder_roles,
             resolution_indexes: &program.resolution_indexes,
             data_definitions,
-            type_aliases: &roots.type_aliases,
             conformances: &roots.conformances,
             traits: &roots.traits,
             operand_owners: &tables.types.operand_lifetime_owners,
@@ -2480,7 +2479,6 @@ mod measures {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: &program.roots.data_definitions,
-                type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
                 traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
@@ -3893,7 +3891,6 @@ mod scope {
     use symbol_resolved_trees::SymbolResolvedTrees;
     use symbol_resolved_trees::data::{DataDefinition, DataMember, TypeParameter};
     use symbol_resolved_trees::lookup_indexes::ResolvedIndexes;
-    use symbol_resolved_trees::type_aliases::TypeAliasDefinition;
     use symbol_resolved_trees::types::TypeReference;
     use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 
@@ -4238,19 +4235,19 @@ mod scope {
     }
 
     /*
-        Every machine's authored binder roles in declaration order, so a call
+        Each declaration's authored binder roles in order, so an application
         reads each static argument by the binder it fills once its target is
-        selected. Built once per assignment pass from the resolved machine
-        headers: one flat role list and one row per machine, sorted by symbol.
+        selected. Built once per assignment pass from the resolved declaration
+        headers: one flat role list and one row per declaration, sorted by symbol.
     */
     pub(super) struct BinderRoles {
-        machines: Vec<(SymbolHandle, u32, u32)>,
+        declarations: Vec<(SymbolHandle, u32, u32)>,
         roles: Vec<BinderRole>,
     }
 
     impl BinderRoles {
         pub(super) fn of(program: &SymbolResolvedTrees) -> Self {
-            let mut machines = Vec::with_capacity(program.machines.len());
+            let mut declarations = Vec::new();
             let mut roles = Vec::new();
             for machine in program.machines.iter() {
                 let binders = program.machine_type_parameters(machine);
@@ -4259,15 +4256,49 @@ mod scope {
                 }
                 let start = roles.len() as u32;
                 roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
-                machines.push((machine.symbol, start, roles.len() as u32));
+                declarations.push((machine.symbol, start, roles.len() as u32));
             }
-            machines.sort_unstable_by_key(|(symbol, _, _)| symbol.arena_index());
-            Self { machines, roles }
+            for (symbol, parameters) in program
+                .data_definitions
+                .iter()
+                .map(|declaration| (declaration.symbol, declaration.type_parameters))
+                .chain(
+                    program
+                        .type_aliases
+                        .iter()
+                        .map(|declaration| (declaration.symbol, declaration.type_parameters)),
+                )
+                .chain(
+                    program
+                        .domain_definitions
+                        .iter()
+                        .map(|declaration| (declaration.symbol, declaration.type_parameters)),
+                )
+                .chain(
+                    program
+                        .traits
+                        .iter()
+                        .map(|declaration| (declaration.symbol, declaration.type_parameters)),
+                )
+            {
+                let binders = program.data_type_parameters(parameters);
+                if !symbol.is_valid() || binders.is_empty() {
+                    continue;
+                }
+                let start = roles.len() as u32;
+                roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
+                declarations.push((symbol, start, roles.len() as u32));
+            }
+            declarations.sort_unstable_by_key(|(symbol, _, _)| symbol.arena_index());
+            Self {
+                declarations,
+                roles,
+            }
         }
 
         /*
-            The role of the binder at `position` of the machine a call selected,
-            whether the call names the machine or one of its states. A target
+            The role of the binder at `position` of the selected declaration.
+            A machine entry uses its owning machine's binders. A target
             with no known telescope, or a position past its binders, selects a
             declaration and never a role.
         */
@@ -4283,19 +4314,30 @@ mod scope {
             let selected = symbols.get(target);
             let machine = match selected.kind {
                 symbols::SymbolKind::State => selected.parent,
-                symbols::SymbolKind::Machine => target,
+                symbols::SymbolKind::Machine
+                | symbols::SymbolKind::Data
+                | symbols::SymbolKind::TypeAlias
+                | symbols::SymbolKind::Domain
+                | symbols::SymbolKind::Trait => target,
                 _ => return BinderRole::Declaration,
             };
             let Ok(row) = self
-                .machines
+                .declarations
                 .binary_search_by_key(&machine.arena_index(), |(symbol, _, _)| {
                     symbol.arena_index()
                 })
             else {
                 return BinderRole::Declaration;
             };
-            let (symbol, start, end) = self.machines[row];
-            if symbol != machine {
+            let (symbol, start, end) = self.declarations[row];
+            let duplicate = row
+                .checked_sub(1)
+                .is_some_and(|previous| self.declarations[previous].0 == symbol)
+                || self
+                    .declarations
+                    .get(row + 1)
+                    .is_some_and(|next| next.0 == symbol);
+            if symbol != machine || duplicate {
                 return BinderRole::Declaration;
             }
             self.roles[start as usize..end as usize]
@@ -4466,8 +4508,6 @@ mod scope {
             receivers do not occur.
         */
         pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
-        /* Alias headers supply argument roles, never runtime receiver members. */
-        pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
         pub(super) conformances:
             &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
         pub(super) traits:
@@ -4490,7 +4530,6 @@ mod scope {
         pub(super) binder_roles: &'program BinderRoles,
         pub(super) resolution_indexes: &'program ResolvedIndexes,
         pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
-        pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
         pub(super) conformances:
             &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
         pub(super) traits:
@@ -4526,7 +4565,6 @@ mod scope {
                 prior_statements: &[],
                 contract_result_data: symbols::SymbolHandle::invalid(),
                 data_definitions: self.data_definitions,
-                type_aliases: self.type_aliases,
                 conformances: self.conformances,
                 traits: self.traits,
                 operand_owners: self.operand_owners,
@@ -6321,7 +6359,6 @@ pub(crate) fn assign_constant_expression_symbols(
         prior_statements: &[],
         contract_result_data: symbols::SymbolHandle::invalid(),
         data_definitions: &program.roots.data_definitions,
-        type_aliases: &program.roots.type_aliases,
         conformances: &program.roots.conformances,
         traits: &program.roots.traits,
         operand_owners: &program.tables.types.operand_lifetime_owners,

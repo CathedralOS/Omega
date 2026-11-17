@@ -348,7 +348,6 @@ mod machines {
         let child_type_references = &mut declarations.child_type_references;
         let symbol_resolved_trees::SymbolResolvedRoots {
             data_definitions,
-            type_aliases,
             conformances,
             traits,
             machines,
@@ -452,7 +451,6 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
         contract_result_data: symbols::SymbolHandle::invalid(),
             inherited_data_members: None,
             data_definitions,
-            type_aliases,
             conformances,
             traits,
             operand_owners: &tables.types.operand_lifetime_owners,

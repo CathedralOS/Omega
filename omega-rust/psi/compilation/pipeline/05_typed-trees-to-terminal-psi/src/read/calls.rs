@@ -1130,7 +1130,7 @@ impl<'t> Program<'t> {
                 call.target_symbol,
                 self.shared
                     .exact_toolchain_sources(typed)
-                    .map_err(unavailable)?,
+                    .map_err(|reason| super::services::unavailable(id, reason))?,
             )
             .map_err(unavailable)?
             .ok_or_else(|| {

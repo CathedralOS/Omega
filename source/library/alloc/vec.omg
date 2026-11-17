@@ -18,6 +18,7 @@ use omega::language::core::Issuance;
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::access;
 use omega::language::core::split_vacant_extent;
+use omega::language::core::VacantExtentParts;
 use omega::language::core::merge_vacant_extents;
 
 use omega::language::core::Schema;
@@ -93,7 +94,7 @@ ensures result.live.count == 0, result.capacity == capacity,
     result.spare.base == storage.base, result.spare.length == storage.length
 {
     let cell_size: u64 = size_of<T>();
-    let parts = split_vacant_extent(move storage, 0);
+    let parts: VacantExtentParts = split_vacant_extent(move storage, 0);
     let live: Run<Elements, T> in Live<Elements, T> = Run::empty<Elements, T>(move parts.taken);
     Vec { live: move live, spare: move parts.rest, capacity: capacity, cell_size: cell_size }
 }
@@ -182,7 +183,7 @@ ensures (match result {
 })
 {
     let { live, spare, capacity, cell_size } = move vector;
-    let parts = split_vacant_extent(move spare, cell_size);
+    let parts: VacantExtentParts = split_vacant_extent(move spare, cell_size);
     transition Run::initialize_cell<Elements, T, Role>(move parts.taken, move value) {
         AccessOutcome::Ready { view } -> PushOutcome::Inserted {
             vector: Vec {
@@ -333,7 +334,7 @@ ensures (match result {
 {
     let { live, spare, capacity as old_capacity, cell_size } = move vector;
     let occupied_bytes: u64 = live.storage.length;
-    let destination = split_vacant_extent(move replacement, occupied_bytes);
+    let destination: VacantExtentParts = split_vacant_extent(move replacement, occupied_bytes);
     transition Run::relocate<Elements, T, SourceRole, DestinationRole>(move live, move destination.taken) {
         AccessOutcome::Ready { view } -> GrowthOutcome::Grown {
             vector: Vec {
@@ -362,7 +363,7 @@ ensures result.base == vector.live.storage.base,
     embed(result.length) == embed(vector.live.storage.length) + embed(vector.spare.length)
 {
     let { live, spare, capacity, cell_size } = move vector;
-    let vacant = Run::release_empty<Elements, T>(move live);
+    let vacant: Extent in Granted & Vacant = Run::release_empty<Elements, T>(move live);
     merge_vacant_extents(move vacant, move spare)
 }
 

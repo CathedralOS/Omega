@@ -158,8 +158,13 @@ pub fn access_borrow_factory_of(
                     "resident policy must be a static AccessPolicy implementation; source and view must be type parameters",
                 ));
             }
-            let backing = resident_backing(program, source.referee, policy.symbol, source_parameter.symbol)
-                .ok_or_else(|| malformed("resident source must retain exact core Extent, Granted and Resident<P, Source> declarations"))?;
+            let backing = resident_backing(
+                program,
+                source.referee,
+                policy.symbol,
+                source_parameter.symbol,
+            )
+            .map_err(malformed)?;
             (source_parameter.symbol, view_parameter.symbol, backing)
         }
         _ => {
@@ -193,20 +198,20 @@ fn resident_backing(
     source: arena::Handle<resolved::types::TypeReference>,
     policy: symbols::SymbolHandle,
     schema: symbols::SymbolHandle,
-) -> Option<typed::expression::AccessBorrowBacking> {
+) -> Result<typed::expression::AccessBorrowBacking, &'static str> {
     use resolved::types::{TypeConstraint, TypeReference};
     let TypeReference::Constrained(qualified) = program.child_type_reference(source) else {
-        return None;
+        return Err("resident source is not a qualified Extent");
     };
     let TypeReference::Named { symbol: extent, .. } =
         program.child_type_reference(qualified.base_type)
     else {
-        return None;
+        return Err("resident source base is not a named Extent");
     };
     if program.symbols.core_vocabulary(*extent)
         != Some(language_core::core_vocabulary::CoreVocabulary::Extent)
     {
-        return None;
+        return Err("resident source base is not the exact Core Extent");
     }
     let domain = |name: &str| {
         let mut definitions = program.domain_definitions.iter().filter(|definition| {
@@ -219,11 +224,15 @@ fn resident_backing(
         let definition = definitions.next()?;
         definitions.next().is_none().then_some(definition)
     };
-    let granted = domain("Granted")?;
-    let resident = domain("Resident")?;
-    let constraints = type_constraints(program).span(qualified.constraints)?;
+    let granted =
+        domain("Granted").ok_or("resident source has no unique Core Granted declaration")?;
+    let resident =
+        domain("Resident").ok_or("resident source has no unique Core Resident declaration")?;
+    let constraints = type_constraints(program)
+        .span(qualified.constraints)
+        .ok_or("resident source has a stale constraint list")?;
     if constraints.len() != 2 {
-        return None;
+        return Err("resident source must have exactly Granted and Resident qualifiers");
     }
     let names = |name: &str, definition: &resolved::domain::DomainDefinition| {
         let declared = definition.name.as_str();
@@ -250,19 +259,22 @@ fn resident_backing(
                 let [actual_policy, actual_schema] =
                     program.child_type_references(application.arguments)
                 else {
-                    return None;
+                    return Err("resident source must supply policy and value type");
                 };
                 if !matches!(actual_policy, TypeReference::Named { symbol, .. } if *symbol == policy)
                     || !matches!(actual_schema, TypeReference::Named { symbol, .. } if *symbol == schema)
                 {
-                    return None;
+                    return Err("resident source does not use its exact policy and value binders");
                 }
                 has_resident = true;
             }
-            _ => return None,
+            _ => return Err("resident source has an unexpected qualifier"),
         }
     }
-    (has_granted && has_resident).then_some(typed::expression::AccessBorrowBacking::Resident {
+    if !has_granted || !has_resident {
+        return Err("resident source is missing Granted or Resident");
+    }
+    Ok(typed::expression::AccessBorrowBacking::Resident {
         extent: *extent,
         granted: granted.symbol,
         resident: resident.symbol,

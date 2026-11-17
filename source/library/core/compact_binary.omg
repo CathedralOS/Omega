@@ -297,7 +297,7 @@ requires remaining_steps > 0u64
     requires remaining_steps > 0u64
     {
         transition compact_copy(bytes, 0u64, bytes.len, out, next, remaining_steps) {
-            CompactCopy::Copied { next, remaining_steps } -> EncodeResult::Encoded { next: next }
+            CompactCopy::Copied { next as copied_end, remaining_steps as unused_steps } -> EncodeResult::Encoded { next: copied_end }
             _ -> EncodeResult::Exhausted
         }
     }

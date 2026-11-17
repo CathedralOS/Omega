@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Learned incremental build state can fill the disk despite Cargo being disabled
+- Category: Verifying costs more than writing
+- Where: mbx `learned_incremental` setting and the host build environment in [build slots](tools/docs/build_slot.md).
+- Saw: This Mac accumulated 23 GiB of mbx incremental state while the chains explicitly set `CARGO_INCREMENTAL=0`. mbx still had `learned_incremental=true` and injected `-Cincremental`. Disk exhaustion stopped the byte CLI build after its 19 tests passed, and stopped two other chains before tests began. Protected collection removed 18.65 GB of logical incremental data while preserving targets and shared objects.
+- Cost: Repeated foundational builds regenerate enough private data to stop builds and even Git fetches. Current owned chains set the supported `MBX_LEARNED_INCREMENTAL=false` override; the resumed byte build kept about 17 GiB free. Host setup should respect explicit incremental settings or bound learned state without deleting live outputs. The audit is `/tmp/omega-protected-gc-sixth-20261116.json`; the completed producer records the override.
+- Reported: 2026-11-16, Codex, while completing the draft PR takeovers.
+
 ### Editing bundled Core source recompiles most of the Rust compiler
 - Category: Verifying costs more than writing
 - Where: [bundled source in language-core](omega-rust/psi/foundation/language-core/src/sealed_intrinsics.rs#L221), [core vocabulary sources](omega-rust/psi/foundation/language-core/src/core_vocabulary.rs)
