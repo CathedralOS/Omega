@@ -488,6 +488,53 @@ fn parses_slice_range_indexing_into_range_expression() {
 }
 
 #[test]
+fn borrows_bind_before_casts_and_after_field_and_index_access() {
+    let parsed = crate::tests::parse_source(
+        r#"machine view(packet: &mut Packet) {
+            let shared: &u8 = &packet.parts[0] as -Marked;
+            let mutable: &mut u8 = &mut packet.parts[1] as -Marked;
+        }"#,
+        "borrowed projections with domain casts should parse",
+    );
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
+    let locals = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .filter_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::LocalData(local) => Some(local),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(locals.len(), 2);
+    for (local, access) in locals
+        .iter()
+        .zip([ReferenceAccess::Shared, ReferenceAccess::Mutable])
+    {
+        let ExpressionNode::Cast(cast) = parsed.expressions.expression(local.initial_value) else {
+            panic!("the cast applies to the completed borrow");
+        };
+        let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(cast.value) else {
+            panic!("the cast operand retains its borrow");
+        };
+        assert_eq!(borrow.access, access);
+        let ExpressionNode::Indexed(indexed) = parsed.expressions.expression(borrow.target) else {
+            panic!("the borrow applies after indexing");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(indexed.collection),
+            ExpressionNode::Member(_)
+        ));
+    }
+    let tokens = Lexer::new("machine unfinished() -> u8 { 1 +")
+        .tokenize()
+        .unwrap();
+    let error = parse_syntax_trees(&tokens).expect_err("a missing operand must report an error");
+    assert!(error.message.contains("expected expression"), "{error:?}");
+}
+
+#[test]
 fn parses_structural_recast_targets_as_type_references() {
     let source = r#"
         machine inspect(bytes: [u8; 4]) {
@@ -511,15 +558,13 @@ fn parses_structural_recast_targets_as_type_references() {
         })
         .collect::<Vec<_>>();
 
-    let ExpressionNode::Borrow(fixed_borrow) =
-        parsed.expressions.expression(locals[0].initial_value)
-    else {
-        panic!("fixed-array initializer should retain its shared borrow");
+    let ExpressionNode::Cast(fixed) = parsed.expressions.expression(locals[0].initial_value) else {
+        panic!("the fixed-array recast applies to its completed borrow");
+    };
+    let ExpressionNode::Borrow(fixed_borrow) = parsed.expressions.expression(fixed.value) else {
+        panic!("the fixed-array recast retains its shared borrow operand");
     };
     assert_eq!(fixed_borrow.access, ReferenceAccess::Shared);
-    let ExpressionNode::Cast(fixed) = parsed.expressions.expression(fixed_borrow.target) else {
-        panic!("fixed-array borrow target should be a recast");
-    };
     let TypeReferenceNode::FixedArray {
         element_type,
         length: syntax_trees::types::FixedArrayLength::Literal(4),
@@ -532,15 +577,13 @@ fn parses_structural_recast_targets_as_type_references() {
         TypeReferenceNode::Named(name) if name.as_str(&parsed) == "u8"
     ));
 
-    let ExpressionNode::Borrow(slice_borrow) =
-        parsed.expressions.expression(locals[1].initial_value)
-    else {
-        panic!("slice initializer should retain its shared borrow");
+    let ExpressionNode::Cast(slice) = parsed.expressions.expression(locals[1].initial_value) else {
+        panic!("the slice recast applies to its completed borrow");
+    };
+    let ExpressionNode::Borrow(slice_borrow) = parsed.expressions.expression(slice.value) else {
+        panic!("the slice recast retains its shared borrow operand");
     };
     assert_eq!(slice_borrow.access, ReferenceAccess::Shared);
-    let ExpressionNode::Cast(slice) = parsed.expressions.expression(slice_borrow.target) else {
-        panic!("slice borrow target should be a recast");
-    };
     let TypeReferenceNode::Slice { element_type } =
         parsed.type_references.type_reference(slice.target_type)
     else {

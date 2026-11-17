@@ -5,7 +5,12 @@ use crate::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-fn source(text: &str) -> (symbol_resolved_trees::SymbolResolvedTrees, TypedTrees) {
+fn source_result(
+    text: &str,
+) -> (
+    symbol_resolved_trees::SymbolResolvedTrees,
+    Result<TypedTrees, diagnostics::Diagnostic>,
+) {
     let mut sources = source::SourceMap::default();
     let id = sources
         .add("cast_contexts/main.omg".into(), text.to_owned())
@@ -17,8 +22,13 @@ fn source(text: &str) -> (symbol_resolved_trees::SymbolResolvedTrees, TypedTrees
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    let typed = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::lower_symbol_resolved_trees(&resolved);
     (resolved, typed)
+}
+
+fn source(text: &str) -> (symbol_resolved_trees::SymbolResolvedTrees, TypedTrees) {
+    let (resolved, typed) = source_result(text);
+    (resolved, typed.unwrap())
 }
 
 fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
@@ -28,6 +38,104 @@ fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
         .find(|machine| machine.name.as_str() == name)
         .unwrap()
         .symbol
+}
+
+#[test]
+fn a_borrowed_collection_cast_keeps_its_declared_field_type() {
+    let (_, typed) = source(
+        r#"
+domain [u8; 2]::Marked;
+data Packet { bytes: [u8; 2] in Marked; }
+machine update(packet: &mut Packet) {
+    (&mut packet.bytes as -Marked)[0] = 1;
+}
+"#,
+    );
+    let owner = machine(&typed, "update");
+    let (handle, borrow) = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(handle, node)| match node {
+            ExpressionNode::Borrow(borrow) => Some((handle, borrow)),
+            _ => None,
+        })
+        .unwrap();
+    let reference = typed
+        .expression_table
+        .constructed_value_type_reference(handle);
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = typed.type_reference_table.type_reference(reference)
+    else {
+        panic!("the field borrow retains its reference type");
+    };
+    assert_eq!(*access, language_core::ReferenceAccess::Mutable);
+    let declared = declared_callable_value_type(&typed, owner, borrow.target).unwrap();
+    assert_eq!(
+        typed.normalized_type_identity(*referee),
+        typed.normalized_type_identity(declared)
+    );
+    assert!(!matches!(
+        typed.type_reference_table.type_reference(declared),
+        TypeReferenceNode::Unit
+    ));
+    let cast = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, node)| match node {
+            ExpressionNode::Cast(cast) if cast.form.entry().is_some() => Some(cast),
+            _ => None,
+        })
+        .unwrap();
+    let TypeReferenceNode::Reference {
+        referee: plain,
+        access: after_access,
+        ..
+    } = typed.type_reference_table.type_reference(cast.result_type)
+    else {
+        panic!("domain removal keeps a reference result");
+    };
+    assert_eq!(*after_access, *access);
+    let domain = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str().ends_with("Marked"))
+        .unwrap();
+    assert_eq!(cast.semantic_domain_symbol, domain.symbol);
+    assert_ne!(
+        cast.semantic_domain_id,
+        language_semantics::SemanticDomainId::NULL
+    );
+    assert_eq!(
+        typed.normalized_type_identity(flatten(&typed, declared).0),
+        typed.normalized_type_identity(*plain)
+    );
+    assert!(
+        !typed
+            .deferred_refusals_of(owner)
+            .any(|row| row.request == DeferredRequest::DomainCastThroughReference)
+    );
+}
+
+#[test]
+fn a_declared_receiving_type_still_constrains_a_cast_initializer() {
+    let (_, result) = source_result(
+        r#"
+domain [u8; 2]::Marked;
+data Packet { bytes: [u8; 2] in Marked; }
+machine update(packet: &mut Packet) {
+    let wrong: bool = &mut packet.bytes as -Marked;
+}
+"#,
+    );
+    let error = match result {
+        Ok(_) => panic!("a declared Boolean cannot become an inferred byte reference"),
+        Err(error) => error,
+    };
+    assert!(
+        error.message.contains("Marked") && error.message.contains("bool"),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -425,4 +533,44 @@ machine second(value: i64 in Marked) -> i64 { value as -Marked }
             .insert(ExpressionNode::Call(malformed));
         assert!(declared_callable_value_type(&typed, first, malformed).is_err());
     }
+}
+
+#[test]
+fn a_captured_cast_index_retains_its_declared_result_type() {
+    let (_, typed) = source(
+        r#"
+domain [u8; 8]::Terminated requires self[7] == 0;
+data Packet { bytes: [u8; 8] in Terminated; index: i32 in Wrapping; }
+machine update(packet: &mut Packet) {
+    (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+}
+"#,
+    );
+    let update = typed.machine_by_symbol(machine(&typed, "update")).unwrap();
+    let mut captures = 0;
+    for state in typed.machine_states(update) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement
+                && local.is_operand_capture
+            {
+                captures += 1;
+                assert!(
+                    typed
+                        .type_reference_table
+                        .contains_type_reference(local.type_reference),
+                    "a captured index must retain its actual cast result: {local:?}"
+                );
+                let ExpressionNode::Cast(cast) =
+                    typed.expression_table.expression(local.initial_value)
+                else {
+                    panic!("the variable selector retains its domain-removal cast");
+                };
+                assert_eq!(
+                    typed.normalized_type_identity(local.type_reference),
+                    typed.normalized_type_identity(cast.result_type)
+                );
+            }
+        }
+    }
+    assert_eq!(captures, 1);
 }
