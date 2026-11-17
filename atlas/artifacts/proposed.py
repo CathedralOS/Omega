@@ -70,7 +70,7 @@ def proposed_model():
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
                badge=f'Proposed 00–10 · plan {PLAN_REVISION[:12]}',
-               intro='Read down each column, then follow the arrow to the next. Decimal numbers mark operations inside a stage. Proposed order · unverified.',
+               intro='Follow the numbered operations down the canvas. Source and native planning can revisit work. Proposed order · unverified.',
                phaseGaps={n['id']:32 for n in nodes if n['role']=='owner'},
                phases=phases,placements=[])
     validate(model)

@@ -240,8 +240,8 @@ def overview_model(architecture):
 
 def layout_model(model):
     if model.get('view')=='proposed':
-        from .stage_columns import layout_columns
-        return layout_columns(model)
+        from .stage_flow import layout_stages
+        return layout_stages(model)
     result = subprocess.run(['node', str(Path(__file__).with_name('layout.mjs'))],
                             input=json.dumps(model), text=True, encoding='utf-8',
                             capture_output=True)
@@ -277,13 +277,18 @@ def render_scene(model):
             path='M'+' L'.join(f'{p["x"]:g} {p["y"]:g}' for p in section['points'])
             parts.append(f'<path d="{path}"{arrow}/><path class="connected-hit" d="{path}"/>')
         for label in e.get('labels',[]):
+            if 'anchor' in label:
+                ax,ay=label['anchor']['x'],label['anchor']['y']
+                tx=max(label['x'],min(ax,label['x']+label['width']))
+                ty=max(label['y'],min(ay,label['y']+label['height']))
+                parts.append(f'<line class="label-guide" x1="{ax:g}" y1="{ay:g}" x2="{tx:g}" y2="{ty:g}"/>')
             for i,line in enumerate(label['lines']):
                 parts.append(f'<text x="{label["x"]+4}" y="{label["y"]+20+26*i}">{esc(line)}</text>')
         parts.append('</g>')
     for n in model['nodes']:
         x,y,w,h=(n[k] for k in ('x','y','width','height'))
         href=f'{n["page"]}.html#{n["anchor"]}' if model.get('view')=='proposed' else f'#layer-{n["group"]}'
-        parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
+        parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-role="{n["role"]}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
         if n['role']=='transform':
             parts.append(f'<circle class="overview-join" cx="{x+w/2}" cy="{y+h/2}" r="3"/>')
             for label in n['labels']:
@@ -291,11 +296,11 @@ def render_scene(model):
                     parts.append(f'<text class="overview-action" x="{label["x"]+4}" y="{label["y"]+20+26*i}">{esc(line)}</text>')
         elif model.get('view')=='proposed':
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
-            parts.append(f'<text class="column-title" x="{x+9}" y="{y+20}">{esc(n["title"])}</text>')
+            parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')
             for i,line in enumerate(n.get('notes',[])):
-                parts.append(f'<text class="overview-step-note" x="{x+9}" y="{y+35+i*15}">{esc(line)}</text>')
+                parts.append(f'<text class="overview-step-note" x="{x+16}" y="{y+47+i*19}">{esc(line)}</text>')
             if n['reference']:
-                parts.append(f'<text class="overview-step-note" x="{x+w-7}" y="{y+35}" text-anchor="end">{esc(n["reference"])}</text>')
+                parts.append(f'<text class="overview-step-note" x="{x+w-12}" y="{y+25}" text-anchor="end">{esc(n["reference"])}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             lines=textwrap.wrap(n['title'],21 if model.get('view')=='proposed' else 23,break_long_words=False,break_on_hyphens=False)
@@ -330,12 +335,13 @@ def render_overview(architecture):
     for n in model['nodes']:
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
-    parts.append('</select></label><button type="button" data-camera="clear">Clear selection</button></div><div class="connected-workspace"><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
+    stage_links=''.join(f'<button type="button" data-stage="{n["id"]}"><span>{n["number"]:02d}</span> {esc(n["title"][3:])}</button>' for n in proposed['nodes'] if n['role']=='owner')
+    parts.append(f'</select></label><button type="button" data-camera="clear">Clear selection</button></div><div class="connected-workspace"><nav class="stage-index" aria-label="Proposed stages" hidden><h3>Stages</h3>{stage_links}</nav><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
     parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Current compiler architecture"><defs>')
     for name in ('arrow','return','check'):
         parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs>'+render_scene(model))
-    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div></div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
+    parts.append('</svg></div><aside class="stage-context" aria-label="Stage output" hidden><h3></h3><div class="stage-output-label">Output</div><strong class="stage-result"></strong><p></p><a href="foundation-backend-plan.html">Recorded plan</a></aside><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div></div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
     for e in model['edges']:
         if e['label']:
             parts.append(f'<li>{esc(nodes[e["start"]]["title"])} → {esc(nodes[e["end"]]["title"])}: {esc(e["label"])} · <a href="{e["source"]}">Source</a></li>')

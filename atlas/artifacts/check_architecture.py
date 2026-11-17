@@ -44,7 +44,9 @@ def main():
                 assert page.locator('.overview-edge.is-traced').count()==6
                 assert page.locator('.overview-node.is-traced').count()==4
                 assert 'Calling-policy evaluator' in page.locator('.connected-detail').inner_text()
-                assert page.locator('.overview-edge:not(.main-path) > text:visible').count()==0
+                supporting=page.locator('.overview-edge:not(.main-path) > text')
+                assert supporting.count()>0
+                assert supporting.count()==page.locator('.overview-edge:not(.main-path) > text:visible').count()
                 page.screenshot(path=str(output/f'engine-{theme}-{width}.png'))
                 page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.activeElement.className')=='connected-jump'
@@ -73,6 +75,12 @@ def main():
                 assert [n['number'] for n in proposed['nodes'] if n['role']=='owner']==list(range(11))
                 assert page.locator('.connected-viewport [data-endpoint="engine"]').count()==0
                 assert page.locator('.connected-viewport [data-endpoint="compiler"]').count()==0
+                assert page.locator('.connected-viewport [data-edge]').count()==len(proposed['edges'])
+                index=page.get_by_role('navigation',name='Proposed stages')
+                index.get_by_role('button',name='01 Source compilation').click()
+                page.locator('[data-stage="source-settlement"][aria-current="step"]').wait_for()
+                assert page.locator('.stage-result').text_content()=='Accepted program + values'
+                assert page.evaluate('document.documentElement.scrollWidth')<=width+1
                 page.locator('.connected-jump').select_option('native-planning')
                 assert 'Open contract:' in page.locator('.connected-detail').inner_text()
                 assert page.locator('.connected-detail').get_by_role('link',name='Read proposal',exact=True).count()==1
