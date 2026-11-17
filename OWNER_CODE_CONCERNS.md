@@ -134,13 +134,6 @@ framework or a list of unimplemented features.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
 
-### A shared byte view of an array gives its elements different addresses in the Psi interpreter
-- Category: Re-deriving
-- Where: [shared view is a snapshot](omega-rust/psi/interpreter/src/boundary_inputs.rs#L1403), [shared reborrow snapshot](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L1017), [fresh namespace](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3003), [view element address](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3077), [array element address](omega-rust/psi/interpreter/src/storage_primitives.rs#L6016)
-- Saw: [address exposure](wiki/spec/language/counts_and_addresses.md#L35) says compatible views of the same location "expose the same address", and [interpreted address identities](wiki/spec/language/counts_and_addresses.md#L107) says changing a view's type "cannot change the referent's address". A shared view `&bytes[..]` of a `[u8; N]` array, and a shared reborrow of a mutable view, copy the bytes into `ByteSequenceView::new`, which draws a new exposure namespace; `address_of(&view[i])` encodes that namespace while `address_of(&bytes[i])` encodes the array's identity. `var bytes: [u8; 4]; let view = &bytes[..]; exit_process(if address_of(&bytes[0]) == address_of(&view[0]) { 0 } else { 1 });` exits 0 natively and 1 under Psi. Traced in the interpreter; the lowering of `address_of` on a view place was not confirmed.
-- Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
