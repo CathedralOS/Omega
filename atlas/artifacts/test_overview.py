@@ -3,7 +3,7 @@ import copy
 from pathlib import Path
 import unittest
 
-from .overview import overview_model, validate
+from .overview import overview_model, layout_model, validate
 from .whole_map import architecture
 
 
@@ -12,6 +12,7 @@ class OverviewContracts(unittest.TestCase):
     def setUpClass(cls):
         cls.architecture = architecture(Path(__file__).resolve().parents[1])
         cls.model = overview_model(cls.architecture)
+        cls.layout = layout_model(cls.model)
 
     def changed(self):
         return copy.deepcopy(self.model)
@@ -43,8 +44,8 @@ class OverviewContracts(unittest.TestCase):
 
     def test_engine_cannot_be_drawn_as_source_compiler_caller(self):
         model = self.changed()
-        edge = next(e for e in model['edges'] if e['start']=='source-engine')
-        edge['end'] = 'source-caller'
+        edge = next(e for e in model['edges'] if e['start']=='engine')
+        edge['end'] = 'compiler'
         with self.assertRaisesRegex(ValueError, 'does not invoke the source compiler'):
             validate(model)
 
@@ -55,12 +56,7 @@ class OverviewContracts(unittest.TestCase):
                 self.assertNotEqual(nodes[edge['end']]['id'], 'source')
 
     def test_paths_do_not_pass_through_unrelated_boxes(self):
-        nodes = {n['id']: n for n in self.model['nodes']}
-
-        def port(node, name):
-            x,y,w,h = (node[k] for k in ('x','y','width','height'))
-            return {'left':(x,y+h/2),'right':(x+w,y+h/2),
-                    'top':(x+w/2,y),'bottom':(x+w/2,y+h)}[name]
+        nodes = {n['id']: n for n in self.layout['nodes']}
 
         def enters(a,b,node):
             # Clip the segment against the box interior. Border contacts are
@@ -80,14 +76,38 @@ class OverviewContracts(unittest.TestCase):
                         return False
             return True
 
-        for edge in self.model['edges']:
-            points=[port(nodes[edge['start']],edge['start_port']),*edge['via'],
-                    port(nodes[edge['end']],edge['end_port'])]
+        for edge in self.layout['edges']:
+            points=[(p['x'],p['y']) for section in edge['sections'] for p in section['points']]
             for node in nodes.values():
                 if node['role']=='transform' or node['id'] in (edge['start'],edge['end']):
                     continue
                 for a,b in zip(points,points[1:]):
                     self.assertFalse(enters(a,b,node), f'{edge["start"]} → {edge["end"]} crosses {node["id"]}')
+
+    def test_duplicate_component_copy_is_refused(self):
+        model = self.changed()
+        node = copy.deepcopy(next(n for n in model['nodes'] if n['id']=='engine'))
+        node['id']='another-interpreter'
+        model['nodes'].append(node)
+        with self.assertRaisesRegex(ValueError,'one visible node'):
+            validate(model)
+
+    def test_all_three_interpreter_callers_share_one_node(self):
+        self.assertEqual(sum(n['owner']=='engine' for n in self.model['nodes']),1)
+        self.assertEqual(sum(n['role']=='owner' and n['owner']=='source' for n in self.model['nodes']),1)
+        callers={e['start'] for e in self.model['edges'] if e['end']=='engine' and e['kind']=='request'}
+        self.assertEqual(callers,{'source-eval','policy-eval','runtime-host'})
+
+    def test_the_visible_graph_is_one_connected_component(self):
+        neighbors={n['id']:set() for n in self.model['nodes']}
+        for edge in self.model['edges']:
+            neighbors[edge['start']].add(edge['end']);neighbors[edge['end']].add(edge['start'])
+        reached=set();pending=['compiler']
+        while pending:
+            node=pending.pop()
+            if node not in reached:
+                reached.add(node);pending.extend(neighbors[node]-reached)
+        self.assertEqual(reached,set(neighbors))
 
 
 if __name__ == '__main__':
