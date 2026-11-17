@@ -34,6 +34,20 @@ colors for ownership views, authorized on 2026-11-17. They identify ownership
 without assigning proof status. The connected compiler canvas uses the original
 Psi/native representation colors described above.
 
+## Navigation and reading order
+
+The home page leads to the compiler map, repair plan and subsystem reference.
+The shared header keeps those destinations visible, with a searchable All pages
+directory and the theme control. Long documents use local On this page links;
+the grouped footer exposes the complete site. The original drawing remains a
+clearly labeled historical page with the same navigation wrapper.
+
+The layout reference is [Performative Labs](https://performativelabs.com/),
+observed on 2026-11-17: a simple header, clear page introduction, local section
+navigation and grouped footer. Atlas retains its serif typography, Limestone/Ink
+tokens, square blocks and evidence meanings. The reference's branding, rounded
+controls, gradients and product content are not part of this design.
+
 ## Page contract
 
 - One `.html` file per page in `atlas/pages/`, named for its subject

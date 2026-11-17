@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the single SVG compiler canvas and preserved homepage over localhost."""
+"""Exercise the Atlas home page and single SVG compiler canvas over localhost."""
 import argparse
 import json
 from pathlib import Path
@@ -25,8 +25,8 @@ def main():
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.on('requestfailed',lambda r:errors.append(r.url))
                 page.goto(base)
-                assert page.locator('svg').count()==4
-                page.get_by_role('link',name='Interactive full architecture',exact=True).click()
+                assert page.locator('h1').inner_text()=='See how Omega fits together.'
+                page.get_by_role('link',name='Open compiler map',exact=True).click()
                 page.wait_for_function("document.querySelector('#compiler-overview').dataset.scale")
                 assert page.locator('.overview-node[data-endpoint="engine"]').count()==1
                 assert page.locator('.overview-node[data-endpoint="compiler"]').count()==1

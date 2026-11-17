@@ -100,7 +100,7 @@ def main():
         content = path.read_text()
         page = pages[path]
         assert hashlib.sha256(content.encode()).hexdigest() == item['sha256'], f'changed generated page: {path}'
-        assert page.h1 == 1 and page.current == (item['page'] != 'index.html'), f'heading/navigation count: {path}'
+        assert page.h1 == 1 and page.current == 1, f'heading/navigation count: {path}'
         assert page.diagrams == item['diagrams'], f'missing diagram: {path}'
         assert not re.search(r'%%[A-Z_]+%%|ATLASDIAGRAM\d+END|class="language-mermaid"',content), f'unrendered source: {path}'
         assert not re.search(r'#[0-9a-fA-F]{6}\b', re.search(r'<style>(.*?)</style>', content, re.S).group(1)), f'page duplicates color tokens: {path}'
