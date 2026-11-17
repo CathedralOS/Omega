@@ -9,9 +9,9 @@ it. Whether a phase ran changes that record, never the form Omega 05 receives.
 The default compile trusts the run it just produced and does not replay it
 (omega-rust/pipeline.md#verification-placement). The completed run stays
 available as `SelectedOptimizationReplay` only when the driver asks for it with
-`retain_replay_for_validation`; its `validate` is the independent validator
-that rebuilds every step and checks the run is the one an allocated program's
-record names.
+`retain_replay_for_validation`; its `validate` re-executes the producer to check
+determinism and checks the run is the one an allocated program's record names.
+It cannot establish rewrite correctness independently of that producer.
 */
 
 pub(crate) mod optimization_output {
@@ -89,9 +89,10 @@ pub(crate) mod optimization_output {
             }
         }
 
-        /// Independently rebuild every step of the run from its own input,
+        /// Re-execute every step with the producer from the run's own input,
         /// and require `record` (what an allocated program says produced it)
-        /// to name exactly this run's completion and transformations.
+        /// to name exactly this run's completion and transformations. This
+        /// establishes determinism and custody, not independent correctness.
         pub fn validate(
             &self,
             record: &SelectedOptimizationRecord,
@@ -136,7 +137,7 @@ pub(crate) mod optimization_output {
         }
     }
 
-    /// Why a retained Omega 04 run failed its independent validation.
+    /// Why a retained Omega 04 run failed its determinism and custody check.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum SelectedOptimizationReplayError {
         /// The run is not the one the checked program's record names.

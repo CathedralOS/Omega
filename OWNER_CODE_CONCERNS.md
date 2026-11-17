@@ -102,13 +102,6 @@ framework or a list of unimplemented features.
 - Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
 - Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
 
-### The Omega 04 replay validator reruns the optimizer instead of checking it
-- Category: A verdict with nothing behind it
-- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
-- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
-- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
 ### An optional Omega 04 rewrite shrinks the registers allocation may use
 - Category: Knowledge crossing a boundary
 - Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
