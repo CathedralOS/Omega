@@ -101,7 +101,7 @@
   function traceDetour(id){
     stopFlight();clear();
     const trace=model.traces.find(t=>t.id===id);
-    if(!trace){fit();return;}
+    if(!trace)return;
     traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
     const points=[];
     for(const edgeId of trace.edges){
@@ -188,7 +188,7 @@
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
     const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else if(view==='current')fit();else start();
+    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
@@ -235,12 +235,10 @@
       const t=stagePosition(null);move(t.x,t.y,t.k);
       return;
     }
-    const k=Math.min(1,(viewport.clientWidth-30)/240);move(8,8,k);
+    const first=nodes.get(model.spine[0]);
+    move(Math.min(0,(viewport.clientWidth-first.width)/2-first.x),0,1);
   }
-  fit();
-  if(location.hash==='#detours'){
-    root.querySelector('[data-camera="expand"]').click();
-    fit();
-  }
+  start();
+  if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
   if(location.hash==='#proposed')switchView('proposed');
 })();

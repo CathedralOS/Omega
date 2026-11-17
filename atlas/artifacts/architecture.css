@@ -192,14 +192,18 @@
   fill:var(--ink-muted); font:500 14px var(--font-serif); letter-spacing:.06em; text-transform:uppercase;
 }
 .connected-start { fill:var(--ink-muted); font:500 12px var(--font-serif); letter-spacing:.06em; }
-.connected-scene .overview-node .current-title { fill:var(--ink); font:500 17px var(--font-serif); }
+.connected-scene .overview-node .current-title { fill:var(--ink); font:500 20px var(--font-serif); }
 .connected-scene .overview-node .node-body { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.8; }
 .connected-scene .overview-node.owner .node-body { fill:var(--ground); stroke:var(--rule); stroke-width:1.5; }
 .connected-scene .overview-node.native .node-body { fill:var(--ink); stroke:var(--ink); }
 .connected-scene .overview-node.native .current-title { fill:var(--ground); }
 .connected-scene .overview-node.accepted .node-body { stroke:var(--ink); stroke-width:2.5; }
-.connected-scene .overview-node[data-role="transform"] .node-body { fill:var(--surface); stroke:none; }
-.connected-scene .overview-node[data-role="transform"] .current-title { font-weight:400; }
+.connected-scene .operation-port { fill:transparent; }
+.connected-scene .overview-node.operation { pointer-events:bounding-box; }
+.connected-scene .overview-node.operation .current-title { font:400 18px var(--font-serif); }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .current-title { text-decoration:underline; }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .operation-port { fill:var(--ink); }
+.connected-scene:not(.proposed-scene) .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.8; }
 .connected-scene .overview-node.check .current-title { fill:var(--checked); }
 .connected-scene .overview-node.attention .current-title,
 .connected-scene .overview-node[data-endpoint="installations"] .current-title { fill:var(--trap); }
@@ -207,7 +211,7 @@
 .connected-scene .overview-node:is(:hover,:focus-visible,.is-selected) .node-body { stroke:var(--ink); stroke-width:2.5; }
 .connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--ink-muted); stroke-width:1.6; stroke-dasharray:2 4; }
 .connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:2.2; stroke-dasharray:6 4; }
-.connected-scene .overview-edge .wire-caption { font:400 14px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
+.connected-scene .overview-edge .wire-caption { font:400 16px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
 .connected-scene .overview-edge.detour .wire-caption { fill:var(--trap); }
 .has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
 #compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
