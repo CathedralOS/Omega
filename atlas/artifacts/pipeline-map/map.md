@@ -34,7 +34,7 @@ flowchart TD
 ```
 
 The loop belongs to
-[`execution_settlement.rs`](../../../omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L202).
+[`execution_settlement.rs`](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L202).
 Product Psi execution also uses the selected target's provider and entry
 admission: `admit_runtime` returns provisions without emitting an image.
 The Terminal Psi arrow carries the artifact; decoding its bytes does not
@@ -71,8 +71,8 @@ flowchart TD
 ```
 
 See the
-[`native-compiler` driver](../../../omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L1)
-and [handler-object compilation](../../../omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L78).
+[`native-compiler` driver](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L1)
+and [handler-object compilation](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L78).
 The [Omega page](../../subsystems/omega.md) distinguishes frame planning,
 encoding, layout, fragment emission, objects, images, and product packaging.
 
@@ -96,16 +96,16 @@ flowchart LR
 ```
 
 The source describes this directly in
-[`pipeline.rs:265`](../../../omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L265).
+[`pipeline.rs:265`](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L265).
 **Proposed — judgment.** Define which facts later forms must carry, then
 remove the separate argument. A smaller retained program or faster compile
 is *unverified* until measured.
 
 By contrast, `declaration_selection` is **not** evidence of missing value
 flow through typed trees. Stage 02's selection values reach
-[`TypedTreeTables.authored_declaration_selections`](../../../omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1466)
-through [stage 03](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1622),
-and [stage 05](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls.rs#L515)
+[`TypedTreeTables.authored_declaration_selections`](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1466)
+through [stage 03](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1622),
+and [stage 05](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls.rs#L515)
 reads them there. The location of a type's definition and the route of its
 values are separate ownership questions.
 
@@ -129,7 +129,7 @@ flowchart LR
 ```
 
 The
-[audit implementation](../../../omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L1)
+[audit implementation](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L1)
 states that distinction. A migration must decide who owns these checks and
 their retained inputs; moving their files alone does not remove the stage
 calls or Cargo dependencies.

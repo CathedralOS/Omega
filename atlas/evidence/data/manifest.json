@@ -33,14 +33,14 @@
   "atlas/evidence/scripts/backend_users.py": "f999357fc134c4a60bfb5cb0cba49e3d9b3d1b94b9cdeaede5d518fd9b9cd506",
   "atlas/evidence/scripts/modscan.py": "d31a2e738037f048c141194ec960de7833132c8b4de3f9cc58516523a6929967",
   "atlas/evidence/scripts/modscan_be.py": "a2e77cd256b8dad53f4be7240ee8db4ee963376b32d0168753212f5b0540a726",
-  "atlas/evidence/scripts/regenerate.py": "3a25144e9a565a97e5241d61d69c9494f823a920016ba6c406f258d84279416b",
+  "atlas/evidence/scripts/regenerate.py": "6726032d1bc1eccce1f45214336acbdb59d8c26961e4d27405dfedc50bcc24e2",
   "atlas/evidence/scripts/report.py": "dad731a1744be6320bb630a212c24e5e93762d1c711c864c06c1b96f3b3eb33f",
-  "atlas/evidence/scripts/scanlib.py": "4c840d8c1abb9ed01f5fb80adf42f509c3623ce99a61f445911566cc74f8f852",
+  "atlas/evidence/scripts/scanlib.py": "db209b02fd43b589c5d89e015e720b87c18ea90c15cda1bb85017405ed2db168",
   "atlas/evidence/scripts/stage_dependencies.py": "fc8102edcb2d7f6ec7e8497c8fc508fb9f227610940cf1ceff4eadff88fcc313",
   "atlas/evidence/scripts/sub.py": "049cef99714cbed51bdedceededd5c8e8460a0f151ae0816820506b01e8a673b",
   "atlas/evidence/scripts/users.py": "6d78bcee831eacfa2cb6b7290ac1fb5dcbb4213eed8c824168688d0ea4cc27ef"
  },
  "schema_version": 2,
- "source_policy": "Tracked checkout content outside atlas must match source_revision. Untracked/generated files do not enter the inventory.",
+ "source_policy": "Full Git archive of source_revision; every tracked blob is checked against its Git object identity before Cargo metadata or scanning. The pinned Git tree supplies the file inventory; current checkout changes, untracked and generated files are excluded. Symlinks are refused; Gitlink contents are outside the inventory.",
  "source_revision": "3f9ce43f0c9d179048911d18faa91ba93f60176d"
 }

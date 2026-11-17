@@ -58,7 +58,7 @@ def position(path):
 
 
 class Workspace:
-    def __init__(self, metadata):
+    def __init__(self, metadata, tracked_files=None):
         self.root = Path(metadata["workspace_root"]).resolve()
         members = set(metadata["workspace_members"])
         self.packages = {p["name"]: p for p in metadata["packages"] if p["id"] in members}
@@ -67,11 +67,13 @@ class Workspace:
         self.by_dir = {directory: name for name, directory in self.dirs.items()}
         self.outputs = [Path(metadata[key]).resolve() for key in ("target_directory", "build_directory")
                         if metadata.get(key)]
-        tracked = subprocess.check_output(
+        # Archive callers supply the source revision's inventory. Never fall
+        # back to the surrounding checkout when an explicit list is present.
+        tracked = tracked_files if tracked_files is not None else subprocess.check_output(
             ["git", "-C", str(self.root), "ls-files", "-z", "--", "*.rs"]
         ).decode().split("\0")
         self.files = collections.defaultdict(list)
-        for relative in sorted(filter(None, tracked)):
+        for relative in sorted(p for p in tracked if p and p.endswith(".rs")):
             path = self.root / relative
             if any(path.is_relative_to(output) for output in self.outputs):
                 continue

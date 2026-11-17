@@ -10,6 +10,7 @@ import unittest
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 from scanlib import Workspace, mask_non_code, references, scan, strip_cfg_test
+from regenerate import archived_source
 
 
 class ScannerTests(unittest.TestCase):
@@ -89,6 +90,18 @@ use foundation::Production;
         self.assertEqual(counts["inner"]["all_rs_lines"], 1)
         self.assertEqual(len(workspace.production_files("outer")), 1)
 
+    def test_explicit_archive_inventory_does_not_read_surrounding_git(self):
+        dep = self.package("facts", "omega-rust/psi/foundation/facts", "")
+        directory = "omega-rust/omega/compilation/backend/target"
+        self.package("target", directory, "use facts::Retained;", [dep])
+        (self.root / directory / "src/current_only.rs").write_text("use facts::Wrong;")
+        metadata = {"workspace_root": str(self.root), "workspace_members": [p["id"] for p in self.packages],
+                    "packages": self.packages, "target_directory": str(self.root / "target")}
+        import shutil
+        shutil.rmtree(self.root / ".git")
+        workspace = Workspace(metadata, tracked_files=[directory + "/src/lib.rs"])
+        self.assertEqual(scan(workspace, "foundation")["usage"], {"facts": {"Retained": ["target"]}})
+
     def test_backend_cli_selects_backend_without_environment_override(self):
         backend = self.package("machine", "omega-rust/omega/compilation/backend/machine", "")
         foundation = self.package("facts", "omega-rust/psi/foundation/facts", "")
@@ -108,12 +121,14 @@ use foundation::Production;
 class RepositoryRegression(unittest.TestCase):
     def test_real_target_crate_names_all_six_reported_missing_dependencies(self):
         root = SCRIPTS.parents[2]
-        metadata = json.loads(subprocess.check_output(
-            ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], cwd=root))
-        workspace = Workspace(metadata)
-        target_files = workspace.production_files("target")
-        self.assertTrue(any(p.name == "float_realization.rs" for p in target_files))
-        code = "\n".join(strip_cfg_test(mask_non_code(p.read_text())) for p in target_files)
+        revision = json.loads((root / "atlas/evidence/data/manifest.json").read_text())["source_revision"]
+        with archived_source(root, revision) as (source, tracked):
+            metadata = json.loads(subprocess.check_output(
+                ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], cwd=source))
+            workspace = Workspace(metadata, tracked_files=tracked)
+            target_files = workspace.production_files("target")
+            self.assertTrue(any(p.name == "float_realization.rs" for p in target_files))
+            code = "\n".join(strip_cfg_test(mask_non_code(p.read_text())) for p in target_files)
         for dependency in ("compiler_storage", "diagnostics", "language_core", "layout_plans",
                            "optimization_core", "semantic_vocabulary"):
             with self.subTest(dependency=dependency):

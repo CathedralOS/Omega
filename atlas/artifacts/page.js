@@ -18,6 +18,12 @@
   const fitNavigation = () => { pageList.open = wide.matches; };
   wide.addEventListener('change', fitNavigation);
   fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
   document.getElementById('page-filter').addEventListener('input', event => {
     const query = event.target.value.toLowerCase().trim();
     let count = 0;

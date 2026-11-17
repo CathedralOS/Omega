@@ -13,15 +13,30 @@ python3 -m unittest discover -s atlas/evidence/tests -v
 python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
 ```
 
-The generator runs `cargo metadata --format-version 1 --no-deps --locked`.
-It does not build the compiler. It refuses a checkout that differs from the
-chosen revision outside `atlas/`; changes within Atlas are allowed so the
-scanners can be repaired without relabeling compiler source. Omitting
-`--source-revision` records `HEAD`. `--output-dir /tmp/atlas-evidence` writes a
-comparison copy. The output contains no checkout paths or generation times.
-A second run at the same source with the same scanners must produce identical
-files. Source files must already be tracked by Git; generated and untracked
-files are outside this inventory.
+The generator extracts a full Git archive of the chosen revision, verifies
+each tracked blob against its Git object identity, and runs
+`cargo metadata --format-version 1 --no-deps --locked` in that temporary tree.
+It does not build the compiler or switch the checkout. Cargo configuration,
+the lockfile and toolchain file come from the archive. The pinned tree supplies
+the tracked-file inventory, so newer checkout files and generated or untracked
+files cannot enter an older snapshot.
+
+The chosen commit must exist locally and its Cargo toolchain must be available.
+A shallow or fresh clone may need `git fetch origin <source-revision>` first;
+the failure message names the missing revision.
+Missing commits, omitted or substituted archive blobs, and source symlinks
+stop the run. Gitlink contents are outside the inventory; the snapshot's
+`samples/apps/squalr` gitlink is not a Cargo workspace package or dependency.
+Omitting `--source-revision` records `HEAD`. `--output-dir /tmp/atlas-evidence`
+writes a comparison copy. The output contains no checkout paths or generation
+times. A second run at the same source with the same scanners must produce
+identical files.
+
+The archive adapter preserves the seven evidence payloads from the earlier
+scan at `3f9ce43f0c9`; its manifest records the updated scanner hashes and source
+policy. Scanner repairs change that provenance even when payloads stay the
+same. Reproduce the current eight files together; do not carry forward old
+scanner hashes after changing a scanner.
 
 | File | Meaning |
 | --- | --- |
@@ -68,7 +83,7 @@ unless `SCAN_DIR` was set; the backend wrapper now always selects backend.
 
 ## Focused queries
 
-For a fresh metadata file and individual reports:
+For a fresh metadata file and individual reports **from the current checkout**:
 
 ```bash
 cargo metadata --format-version 1 --no-deps --locked > /tmp/omega-meta.json
