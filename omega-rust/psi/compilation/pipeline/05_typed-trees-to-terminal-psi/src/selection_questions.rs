@@ -1220,6 +1220,10 @@ pub fn declaration_custody(
 }
 
 #[cfg(test)]
+#[path = "selection_layout_query_tests.rs"]
+mod layout_query_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use language_semantics::declaration_selection::{
