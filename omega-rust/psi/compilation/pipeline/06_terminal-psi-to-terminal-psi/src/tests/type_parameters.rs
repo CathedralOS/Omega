@@ -929,3 +929,61 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
         }
     }
 }
+
+#[test]
+fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
+    for count in [0, 3] {
+        let text = format!(
+            r#"
+            machine keep<T, const Count: u64>(value: &T) -> u64
+            requires Count > 0u64
+            ensures result == Count
+            {{ Count }}
+            machine entry<T>(value: &T) -> u64 {{ keep<T, {count}u64>(value) }}
+        "#
+        );
+        let form = parameter_form(&text);
+        let verdict = judge(Ok(form));
+        if count == 3 {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        } else {
+            assert!(
+                !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "the const requirement remains owed: {verdict:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn generic_callback_applications_keep_the_selected_contract() {
+    for reference in ["&T", "&mut T"] {
+        let text = format!(
+            r#"
+            machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}
+            machine invoke<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64 {{ Step(value) }}
+            machine entry<T>(value: &T) -> u64 {{ invoke<T, measure<T>>(value) }}
+        "#
+        );
+        let source = super::boundary_calls::typed(&text);
+        let form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        );
+        let verdict = judge(form);
+        if reference == "&T" {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        } else {
+            assert!(
+                !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "a selected callable requiring exclusive access cannot satisfy a shared-input contract: {verdict:?}"
+            );
+        }
+    }
+}

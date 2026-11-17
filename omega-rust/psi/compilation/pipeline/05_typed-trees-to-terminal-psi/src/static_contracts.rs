@@ -12,7 +12,8 @@ use crate::{Signature, Unserved, refuse};
 
 pub use terminal_check_tables::contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
-    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+    StaticProviderCandidate, StaticRequirementInstance, StaticRequirementSchema,
+    StaticSchemaQuestion, StaticServiceCeiling,
 };
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,7 @@ pub(crate) struct StaticSourceEnvelope {
     pub termination: TerminalCallableTermination,
 }
 impl StaticSourceEnvelope {
-    fn publish(
+    pub(crate) fn publish(
         &self,
         context: MachineId,
         services: &ServiceMap,
@@ -78,6 +79,7 @@ impl StaticSourceEnvelope {
 }
 #[derive(Debug, Clone)]
 pub(crate) struct SourceSchemaRequirement {
+    pub instance: Option<MachineId>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
     /// `None` for a template requirement (`StaticRequirementSchema::signature`).
@@ -253,7 +255,52 @@ impl StaticContracts {
                         .requirements
                         .iter()
                         .map(|requirement| {
+                            let instance = requirement
+                                .instance
+                                .map(|machine| {
+                                    // Earlier declaration contracts can shift this contract
+                                    // away from the machine ID. Read its allocated ID
+                                    // from the machine rows, which are stored in ID order.
+                                    let contract = usize::try_from(machine.get() - 1)
+                                        .ok()
+                                        .and_then(|position| module.machines.get(position))
+                                        .filter(|published| published.id == machine)
+                                        .ok_or_else(|| {
+                                            refuse(
+                                                machine,
+                                                terminal_check_tables::Construct::Machine,
+                                                Unserved::Declaration(
+                                                    "requirement lost its published machine contract",
+                                                ),
+                                            )
+                                        })?
+                                        .contract
+                                        .id;
+                                    let signature = requirement.signature.as_ref().ok_or_else(|| {
+                                        refuse(
+                                            machine,
+                                            terminal_check_tables::Construct::Machine,
+                                            Unserved::Declaration(
+                                                "requirement instance lost its source signature",
+                                            ),
+                                        )
+                                    })?;
+                                    crate::lower::static_signature_header(
+                                        machine,
+                                        contract,
+                                        signature,
+                                        signatures,
+                                        outcomes,
+                                        records,
+                                        callables,
+                                        boundaries,
+                                        qualifications,
+                                    )
+                                    .map(|header| StaticRequirementInstance { machine, header })
+                                })
+                                .transpose()?;
                             Ok(StaticRequirementSchema {
+                                instance,
                                 declaration: requirement.declaration,
                                 abstract_types: requirement.abstract_types,
                                 signature: requirement
@@ -269,8 +316,12 @@ impl StaticContracts {
             .collect::<Checked<Vec<_>>>()?;
         let mut conformances = Vec::with_capacity(self.conformances.len());
         for source in &self.conformances {
+            // A conformance signature has no published machine contract.
+            // Keep its proof tied to this local context.
             let required = crate::lower::static_signature_header(
                 context,
+                semantic_vocabulary::ContractId::new(context.get())
+                    .expect("a machine context is nonzero"),
                 &source.signature,
                 signatures,
                 outcomes,

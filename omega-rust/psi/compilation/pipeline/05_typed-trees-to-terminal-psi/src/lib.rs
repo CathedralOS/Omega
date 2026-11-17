@@ -1111,6 +1111,9 @@ fn finish_reading_into<'source>(
     program.finish_operational_envelopes(&bodies, &components)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
+    for requirement in program.requirements.clone() {
+        program.retain_requirement_schema(requirement)?;
+    }
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
@@ -1152,6 +1155,36 @@ fn finish_reading_into<'source>(
         Some(&program),
     )?;
     elaboration.machines = program.symbols.clone();
+    for schema in &elaboration.static_schemas {
+        for declaration in &schema.requirements {
+            let Some(instance) = &declaration.instance else {
+                continue;
+            };
+            let requirement = instance.machine;
+            let ceiling = elaboration
+                .requirement_ceilings
+                .get_mut(requirement)
+                .ok_or_else(|| {
+                    refuse(
+                        requirement,
+                        Construct::Machine,
+                        Unserved::Contract("abstract requirement has no exact ceiling row"),
+                    )
+                })?;
+            if ceiling
+                .envelope
+                .replace(declaration.envelope.clone())
+                .is_some()
+            {
+                return Err(refuse(
+                    requirement,
+                    Construct::Machine,
+                    Unserved::Contract("abstract requirement envelope was already retained"),
+                ));
+            }
+        }
+    }
+
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(entry, &services, &mut elaboration)?;
@@ -1174,6 +1207,18 @@ fn finish_reading_into<'source>(
         &mut elaboration,
     )
     .map_err(declaration_error)?;
+    let mut requirements = elaboration.requirements.clone();
+    requirements.sort_unstable();
+    for slot in &mut elaboration.module.callables.machine_envelopes {
+        // An abstract header retains its static bounds, never an executable
+        // declaration or a synthetic checked body.
+        if slot
+            .as_ref()
+            .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
+        {
+            *slot = None;
+        }
+    }
     if let Some(typed) = declared {
         elaboration.provider_candidate_intents = declare::provider_candidates(
             typed,
@@ -1193,18 +1238,7 @@ fn finish_reading_into<'source>(
         elaboration
             .undeclared
             .sort_unstable_by_key(|(machine, _)| *machine);
-        let mut requirements = elaboration.requirements.clone();
-        requirements.sort_unstable();
         for slot in &mut elaboration.module.callables.machine_envelopes {
-            // A bodyless requirement retains its exact abstract ceiling in
-            // requirement_ceilings, not a named executable declaration.
-            if slot
-                .as_ref()
-                .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
-            {
-                *slot = None;
-                continue;
-            }
             if slot.as_ref().is_some_and(|row| {
                 elaboration
                     .undeclared
@@ -1435,6 +1469,7 @@ fn lower_program<'source>(
         signatures.machines.map(|_, signature| RequirementCeilings {
             reaches: signature.reaches.clone(),
             invokes: signature.invokes.clone(),
+            envelope: None,
             suspension: signature.operational.suspension,
             blocking: signature.operational.blocking,
             // The signature reader refuses unsupported progress premises before

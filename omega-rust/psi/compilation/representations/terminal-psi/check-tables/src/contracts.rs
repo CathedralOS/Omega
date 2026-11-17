@@ -32,6 +32,9 @@ pub enum Ceiling {
 pub struct RequirementCeilings {
     pub reaches: Ceiling,
     pub invokes: Ceiling,
+    /// The actual abstract header's known operational limits. This remains
+    /// separate from executable machine envelopes, including when reach is open.
+    pub envelope: Option<StaticCallableEnvelope>,
     /// Source-only bounds; None still requires inference, not a false promise.
     pub suspension: Option<bool>,
     pub blocking: Option<bool>,
@@ -89,7 +92,7 @@ pub enum StaticServiceCeiling {
     Closed(Vec<ServiceId>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticCallableEnvelope {
     pub service_reach: StaticServiceCeiling,
     pub invocations: Vec<TerminalCallableInvocation>,
@@ -201,7 +204,16 @@ pub fn formal_value_ids(
 }
 
 #[derive(Debug, Clone)]
+pub struct StaticRequirementInstance {
+    pub machine: MachineId,
+    pub header: CallableHeader,
+}
+
+#[derive(Debug, Clone)]
 pub struct StaticRequirementSchema {
+    /// An actual prepared application of this logical declaration, when its
+    /// header is also represented by a bodyless machine in the checking form.
+    pub instance: Option<StaticRequirementInstance>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
     /// The open signature, or `None` for a template requirement: one whose

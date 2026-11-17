@@ -535,15 +535,11 @@ fn specialize_application(
             && !close_machine_argument(program, application, argument, generated)?
         {
             open_callback = true;
-            break;
         }
     }
     program
         .expression_table
         .set_static_machine_application_arguments(application, arguments);
-    if open_callback {
-        return Ok(None);
-    }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
         operands.push(Operand::read(program, parameter, argument)?);
@@ -562,7 +558,7 @@ fn specialize_application(
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
     // from that one, where the parameter is replaced.
-    if operands.iter().any(|operand| operand.is_open(program)) {
+    if open_callback || operands.iter().any(|operand| operand.is_open(program)) {
         return Ok(None);
     }
     let key = operands
@@ -629,12 +625,6 @@ fn close_machine_argument(
             "a static callback needs one argument for each declared binder",
         ));
     }
-    if arguments
-        .iter()
-        .any(|argument| !typed_trees::domain::static_argument_is_closed(program, argument))
-    {
-        return Ok(false);
-    }
     if parameters.is_empty() {
         if program
             .executable_application_template(callee)
@@ -672,6 +662,14 @@ fn close_machine_argument(
         generated,
     )?
     else {
+        argument.authored_machine_application = application;
+        // Nested arguments may themselves have prepared open applications.
+        // Keep the exact tuple that produced the retained bindings.
+        argument
+            .application
+            .as_mut()
+            .ok_or(Stop::Defect("open callback lost its source application"))?
+            .arguments = arguments.into_boxed_slice();
         return Ok(false);
     };
     // Its receipt now retains the complete application. The operand selects
@@ -679,6 +677,7 @@ fn close_machine_argument(
     argument.symbol = if names_state { state } else { machine };
     argument.type_reference = TypeReferenceHandle::invalid();
     argument.application = None;
+    argument.authored_machine_application = StaticMachineApplicationHandle::invalid();
     Ok(true)
 }
 
@@ -1351,14 +1350,15 @@ impl Operand {
     /// Whether the argument names a parameter of the enclosing generic
     /// machine, of any kind.
     fn is_open(&self, program: &TypedTrees) -> bool {
-        self.declaration().is_some_and(|declaration| {
-            matches!(
-                program.symbols.get(declaration).kind,
-                SymbolKind::TypeParameter
-                    | SymbolKind::ConformanceParameter
-                    | SymbolKind::MachineParameter
-            )
-        })
+        self.argument.application.is_some()
+            || self.declaration().is_some_and(|declaration| {
+                matches!(
+                    program.symbols.get(declaration).kind,
+                    SymbolKind::TypeParameter
+                        | SymbolKind::ConformanceParameter
+                        | SymbolKind::MachineParameter
+                )
+            })
     }
 
     /// How this operand is spelled in a generated machine's name.
@@ -1458,17 +1458,20 @@ fn only_a_name(program: &TypedTrees, argument: &StaticMachineArgument) -> bool {
 /// parameter remains open until the caller supplies its own selected machine.
 fn named_callable(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<SymbolHandle> {
     let symbol = argument.symbol;
-    if !only_a_name(program, argument)
+    if argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
         || !symbol.is_valid()
         || !program.symbols.symbols().nodes().is_valid(symbol)
+        || (argument.type_reference.is_valid()
+            && !matches!(program.type_reference_table.type_reference(argument.type_reference),
+                TypeReferenceNode::Named { symbol: retained, .. } if *retained == symbol))
         || !matches!(
             program.symbols.get(symbol).kind,
             SymbolKind::Machine | SymbolKind::State | SymbolKind::MachineParameter
         )
     {
         return Err(unserved(
-            "a static callable argument must name a machine without its own application",
+            "a static callable argument must retain its exact named machine",
         ));
     }
     Ok(symbol)
@@ -2909,6 +2912,7 @@ fn substitute_arguments(
 ) -> Served<()> {
     let replace = |arguments: &mut [StaticMachineArgument]| {
         for argument in arguments {
+            argument.authored_machine_application = StaticMachineApplicationHandle::invalid();
             if let Some(operand) = operands
                 .iter()
                 .find(|operand| operand.parameter == argument.symbol)

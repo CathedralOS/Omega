@@ -783,19 +783,13 @@ impl<'t> Program<'t> {
         }
         if self.checking_generic_entry(id) {
             let invocation = self.static_invocation(StaticArgumentCall::Statement(call));
-            if let Some(read) =
-                self.generic_value_call(id, slots, &invocation, SourceOrigin::of(call.source_span))?
-            {
+            if let Some(read) = self.generic_application_call(
+                id,
+                slots,
+                &invocation,
+                SourceOrigin::of(call.source_span),
+            )? {
                 return Ok(read);
-            }
-            if let Some(arguments) = self.type_arguments(id, &invocation)? {
-                return self.generic_call(
-                    id,
-                    slots,
-                    invocation,
-                    arguments,
-                    SourceOrigin::of(call.source_span),
-                );
             }
         }
         self.applies_nothing(
@@ -941,11 +935,8 @@ impl<'t> Program<'t> {
             // parameters, `same<T>(left, right)`: held to that machine's
             // contract at them.
             let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
-            if let Some(read) = self.generic_value_call(id, slots, &invocation, source)? {
+            if let Some(read) = self.generic_application_call(id, slots, &invocation, source)? {
                 return Ok(read);
-            }
-            if let Some(arguments) = self.type_arguments(id, &invocation)? {
-                return self.generic_call(id, slots, invocation, arguments, source);
             }
         }
         self.applies_nothing(
@@ -1943,82 +1934,15 @@ impl<'t> Program<'t> {
         self.bound_scalar_values_in_scope(id, &binders, application_handle, rigid)
     }
 
-    /// The types a call in a generic check form's entry applies its callee's
-    /// type parameters at, in the callee's declaration order, when the call
-    /// is a type application: every binding of its static application gives
-    /// one type parameter of the callee a type. `None` for any other call.
-    /// Arguments may be opaque binders or concrete members of a checked
-    /// finite family. Both call the callee's contract here; its own generic
-    /// forms still check every admitted body independently of this caller.
-    fn type_arguments(
-        &mut self,
-        id: MachineId,
-        call: &StaticInvocation<'_>,
-    ) -> Checked<Option<Vec<crate::body::ValueType>>> {
-        use typed_trees::static_applications::StaticMachineBindingValue;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if !call.application.is_valid() {
-            return Ok(None);
-        }
-        let Some(owner) = self.entered_machine(call.target) else {
-            return Ok(None);
-        };
-        let typed = self.typed;
-        let table = &typed.expression_table;
-        let bindings = table.static_machine_application_bindings(call.application);
-        if bindings.is_empty()
-            || bindings
-                .iter()
-                .any(|binding| !matches!(binding.value, StaticMachineBindingValue::Type(_)))
-        {
-            return Ok(None);
-        }
-        let application = table.static_machine_application(call.application);
-        if !application.selected_machine_arguments.is_empty()
-            || !application.input_selections.is_empty()
-            || !application.lifetime_bindings.is_empty()
-            || application.conformance_selection.is_some()
-            || application.callable_contract_source.is_valid()
-        {
-            return unserved("type application with another static feature");
-        }
-        let Some(callee) = typed.machine_by_symbol(owner) else {
-            return unserved("type application of something that is not a machine");
-        };
-        let parameters = typed.machine_type_parameters(callee);
-        if parameters.len() != bindings.len() {
-            return unserved("type application that does not bind every parameter");
-        }
-        let mut arguments = Vec::with_capacity(parameters.len());
-        for parameter in parameters {
-            let mut bound = bindings
-                .iter()
-                .filter(|binding| binding.parameter == parameter.symbol);
-            let (Some(binding), None) = (bound.next(), bound.next()) else {
-                return unserved("type parameter without exactly one binding");
-            };
-            let StaticMachineBindingValue::Type(type_reference) = &binding.value else {
-                return unserved("type parameter bound to something other than a type");
-            };
-            let argument = self.value_type(id, *type_reference)?;
-            arguments.push(argument);
-        }
-        Ok(Some(arguments))
-    }
-
-    /// A const application in a generic body forwards actual rigid inputs as
-    /// ordinary check-form operands. The callee keeps its own formal IDs;
-    /// the checker independently authenticates dependent array correspondence.
-    fn generic_value_call(
+    /// Generic calls retain one complete application. Each binder contributes
+    /// its own type or value input without choosing a separate tuple-shaped path.
+    fn generic_application_call(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         call: &StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        // This probe serves ordinary const-parameter machines. A requirement
-        // entry belongs to its trait, so leave it to the normal call reader
-        // rather than asking that trait for an executable machine body.
         let Some(target) = self.entered_machine(call.target) else {
             return Ok(None);
         };
@@ -2030,7 +1954,9 @@ impl<'t> Program<'t> {
             || parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
-                    typed_trees::data::TypeParameterKind::Const { .. }
+                    typed_trees::data::TypeParameterKind::Type
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Machine { .. }
                 )
             })
         {
@@ -2040,14 +1966,15 @@ impl<'t> Program<'t> {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Call("const application with another call feature"),
+                Unserved::Call("generic application with another call feature"),
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let callee = self.const_application(target)?;
-        let values =
-            self.const_call_values(id, target, call.application, call.authored_arguments)?;
-        let operands = self.const_operands(id, slots, &values, source)?;
+        let arguments =
+            self.application_arguments(id, target, call.application, call.authored_arguments)?;
+        let callee = self.application(id, target, arguments.types)?;
+        self.callable_application_arguments(id, callee, &arguments.callables)?;
+        let operands = self.const_operands(id, slots, &arguments.values, source)?;
         self.call_of_values(
             id,
             slots,
@@ -2058,6 +1985,120 @@ impl<'t> Program<'t> {
             &operands,
         )
         .map(Some)
+    }
+
+    fn callable_application_arguments(
+        &mut self,
+        caller: MachineId,
+        callee: MachineId,
+        arguments: &[(SymbolHandle, &StaticMachineArgument)],
+    ) -> Checked<()> {
+        for &(parameter, argument) in arguments {
+            self.static_argument_selections(caller, argument)?;
+            let contract = self
+                .typed
+                .retained_static_machine_contract(parameter)
+                .ok_or_else(|| {
+                    refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("callable argument lost its originating contract"),
+                    )
+                })?;
+            let required = contract.signature();
+            let scope = self.scopes.get(callee).cloned().ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its receiving type scope"),
+                )
+            })?;
+            let outer = std::mem::replace(&mut self.scope, scope);
+            let read = self.requirement(required, &[]);
+            self.scope = outer;
+            let requirement = read?;
+            let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its required header"),
+                )
+            })?;
+            let target = self.entered_machine(argument.symbol).ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("supplied callable has no declared machine body"),
+                )
+            })?;
+            let body = if let Some(applied) = &argument.application {
+                if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call(
+                            "supplied callable has an unsupported member or lifetime application",
+                        ),
+                    ));
+                }
+                let actual = self.application_arguments(
+                    caller,
+                    target,
+                    argument.authored_machine_application,
+                    &applied.arguments,
+                )?;
+                let body = self.application(caller, target, actual.types)?;
+                self.callable_application_arguments(caller, body, &actual.callables)?;
+                // A selected callable with scalar consts needs a fully applied
+                // required header; it cannot discard those values as metadata.
+                if !actual.values.is_empty() {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("supplied callable retains scalar const inputs"),
+                    ));
+                }
+                body
+            } else {
+                self.machine(target)?
+            };
+            self.fixed_inputs.push(body);
+            let application = self
+                .typed
+                .static_operand_identity(typed_trees::StaticOperandIdentityRequest {
+                    operand: typed_trees::IndexIdentityArgument::StaticArgument(argument),
+                    lexical_owner: *self.symbols.get(caller).ok_or_else(|| {
+                        refuse(
+                            caller,
+                            Construct::Machine,
+                            Unserved::Call("callable argument lost its source owner"),
+                        )
+                    })?,
+                    substitutions: &[],
+                })
+                .and_then(|identity| self.typed.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("callable argument lost its exact application identity"),
+                    )
+                })?;
+            let envelope = self.static_envelope(caller, required, false)?;
+            self.static_contracts
+                .conformances
+                .push(crate::static_contracts::SourceConformance {
+                    declaration: parameter,
+                    requirement: required.symbol,
+                    application,
+                    implementation: crate::static_contracts::SourceImplementation::Machine(body),
+                    signature,
+                    envelope,
+                    provider: None,
+                });
+        }
+        Ok(())
     }
 
     fn const_operands(
@@ -2118,46 +2159,6 @@ impl<'t> Program<'t> {
             });
         }
         Ok(operands)
-    }
-
-    /// A generic check form calls the callee's contract at the entry's exact
-    /// opaque or concrete type bindings (`application`).
-    fn generic_call(
-        &mut self,
-        id: MachineId,
-        slots: &[Slot],
-        call: StaticInvocation<'_>,
-        type_arguments: Vec<crate::body::ValueType>,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if call.unsupported || call.runtime_receiver {
-            return unserved("type application with another call feature");
-        }
-        self.direct_selection(id, call.target, call.selection, call.binding)?;
-        // A call names its callee's entry state; the machine is that
-        // state's parent, and must have exactly that one state.
-        let machine = match self.typed.symbols.get(call.target).kind {
-            SymbolKind::Machine => call.target,
-            SymbolKind::State => {
-                let parent = self.typed.symbols.get(call.target).parent;
-                let (_, state) = self.declaration(id, parent)?;
-                if state.symbol != call.target {
-                    return unserved("state other than the entry");
-                }
-                parent
-            }
-            other => return unserved(symbol_kind(other)),
-        };
-        let callee = self.application(id, machine, type_arguments)?;
-        self.call_of(
-            id,
-            slots,
-            (callee.into(), None),
-            call.arguments,
-            source,
-            None,
-        )
     }
 
     /// The entry of a generic check form calling through a rigid
@@ -2478,30 +2479,9 @@ impl<'t> Program<'t> {
         }
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let inherited_const = self.checking_generic_entry(id)
-            && self.typed.machine_by_symbol(target).is_some_and(|machine| {
-                let parameters = self.typed.machine_type_parameters(machine);
-                !parameters.is_empty()
-                    && parameters.iter().all(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Const { .. }
-                        ) && self.typed.symbols.get(parameter.symbol).parent != target
-                            && self.generic_binders.contains(&parameter.symbol)
-                    })
-            });
-        let callee = if inherited_const {
-            self.const_application(target)?
-        } else {
-            match self.inherited_type_arguments(id, target) {
-                Some(arguments) => self.application(id, target, arguments)?,
-                None => self.machine(target)?,
-            }
-        };
-        if inherited_const {
-            let values =
-                self.const_call_values(id, target, StaticMachineApplicationHandle::invalid(), &[])?;
-            let operands = self.const_operands(id, slots, &values, source)?;
+        if let Some(applied) = self.inherited_application_arguments(id, target)? {
+            let callee = self.application(id, target, applied.types)?;
+            let operands = self.const_operands(id, slots, &applied.values, source)?;
             self.call_of_values(
                 id,
                 slots,
@@ -2512,6 +2492,7 @@ impl<'t> Program<'t> {
                 &operands,
             )
         } else {
+            let callee = self.machine(target)?;
             self.call_of(
                 id,
                 slots,
@@ -2523,39 +2504,36 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A direct entry into a lexical child carries the caller's own
-    /// telescope even when the call has no explicit static application.
-    /// Read the child's signature at those same rigid types. The existing
-    /// application owner also requests the child's independent body check.
-    fn inherited_type_arguments(
-        &self,
+    /// A lexical child uses its enclosing declaration's exact static binders.
+    /// The same tuple reader handles both explicit and inherited applications.
+    fn inherited_application_arguments(
+        &mut self,
         id: MachineId,
         target: SymbolHandle,
-    ) -> Option<Vec<crate::body::ValueType>> {
+    ) -> Checked<Option<super::applications::ApplicationArguments<'t>>> {
         if !self.checking_generic_entry(id) {
-            return None;
+            return Ok(None);
         }
-        let caller = *self.symbols.get(id)?;
+        let Some(caller) = self.symbols.get(id).copied() else {
+            return Ok(None);
+        };
         let mut enclosing = self.typed.symbols.get(target).parent;
         while enclosing.is_valid() && enclosing != caller {
             enclosing = self.typed.symbols.get(enclosing).parent;
         }
         if enclosing != caller {
-            return None;
+            return Ok(None);
         }
-        let machine = self.typed.machine_by_symbol(target)?;
-        let parameters = self.typed.machine_type_parameters(machine);
-        if parameters.is_empty() || !machine.conformance_bounds.is_empty() {
-            return None;
+        let Some(machine) = self.typed.machine_by_symbol(target) else {
+            return Ok(None);
+        };
+        if self.typed.machine_type_parameters(machine).is_empty()
+            || !machine.conformance_bounds.is_empty()
+        {
+            return Ok(None);
         }
-        parameters
-            .iter()
-            .map(|parameter| {
-                self.scope
-                    .iter()
-                    .find_map(|(binder, value)| (*binder == parameter.symbol).then_some(*value))
-            })
-            .collect()
+        self.application_arguments(id, target, StaticMachineApplicationHandle::invalid(), &[])
+            .map(Some)
     }
 
     /// Resolve the same exact entry identity for direct and selected calls.

@@ -75,7 +75,7 @@ impl<'program> Program<'program> {
         false
     }
 
-    fn static_envelope(
+    pub(super) fn static_envelope(
         &self,
         context: MachineId,
         signature: &StateSignature,
@@ -287,6 +287,7 @@ impl<'program> Program<'program> {
                     self.generic_templates.push(signature.symbol);
                 }
                 requirements.push(SourceSchemaRequirement {
+                    instance: None,
                     declaration: signature.symbol,
                     abstract_types: 0,
                     signature: None,
@@ -341,6 +342,7 @@ impl<'program> Program<'program> {
                 }
             }
             requirements.push(SourceSchemaRequirement {
+                instance: None,
                 declaration: signature.symbol,
                 abstract_types,
                 signature: Some(lowered),

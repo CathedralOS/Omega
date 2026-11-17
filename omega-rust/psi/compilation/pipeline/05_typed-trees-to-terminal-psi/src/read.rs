@@ -22,6 +22,7 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod applications;
 mod arrays;
 mod atomics;
 mod authority;
