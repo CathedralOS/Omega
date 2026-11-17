@@ -596,8 +596,19 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 #[test]
 fn native_and_psi_execute_the_type_parameter_contract() {
+    native_and_psi_execute_contract("tests/fixtures/run/generics/type_parameter_contract");
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn native_and_psi_execute_the_finite_family_contract() {
+    native_and_psi_execute_contract("tests/fixtures/run/generics/finite_family_contract");
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn native_and_psi_execute_contract(fixture: &str) {
     let _guard = lock_fixture_compilation();
-    let root = repository("tests/fixtures/run/generics/type_parameter_contract/main.omg");
+    let root = repository(fixture).join("main.omg");
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("generic fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
