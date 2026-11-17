@@ -111,22 +111,23 @@ impl<T> RetainedRows<T> {
             return;
         };
         let mut order = Vec::with_capacity(self.len() - 1);
+        let mut removed = vec![self.order[first_removed]];
         order.extend_from_slice(&self.order[..first_removed]);
-        assert!(self.records.free(self.order[first_removed]));
+        // Keep the owner unchanged if a predicate unwinds. Only after every
+        // decision do we publish the roster and retire its removed records.
         for handle in &self.order[first_removed + 1..] {
-            if keep(
-                self.records
-                    .get(*handle)
-                    .as_ref()
-                    .expect("retained row roster names an empty record"),
-            ) {
+            if keep(self.row(*handle)) {
                 order.push(*handle);
             } else {
-                assert!(self.records.free(*handle));
+                removed.push(*handle);
             }
         }
         self.order = Arc::new(order);
+        for handle in removed {
+            assert!(self.records.free(handle));
+        }
     }
+
     pub fn truncate(&mut self, length: usize) {
         while self.len() > length {
             let handle = Arc::make_mut(&mut self.order)
@@ -301,6 +302,25 @@ mod tests {
         assert_eq!(copies.load(Ordering::Relaxed), 1);
         assert!(std::ptr::eq(&predecessor[1], &rows[1]));
         assert_eq!(rows.last().unwrap().value, "tail");
+    }
+
+    #[test]
+    fn a_panicking_retention_predicate_keeps_the_original_roster() {
+        let mut rows = RetainedRows::from(vec![
+            "first".to_owned(),
+            "second".to_owned(),
+            "third".to_owned(),
+        ]);
+        let retained = rows.clone();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            rows.retain(|row| {
+                assert_ne!(row, "third", "predicate stopped");
+                row != "first"
+            });
+        }));
+        assert!(result.is_err());
+        assert_eq!(rows, retained);
+        assert!(std::ptr::eq(&rows[0], &retained[0]));
     }
 
     #[test]

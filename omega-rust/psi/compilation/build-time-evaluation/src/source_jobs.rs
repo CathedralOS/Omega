@@ -1766,7 +1766,7 @@ pub(crate) mod tests {
             panic!("the authored plan member");
         };
         assert_eq!(plan.policy_plan_machine_symbol, member.realization_machine);
-        let [layout] = plan.target_layouts(&source) else {
+        let Some([layout]) = plan.target_layouts(&source).as_array() else {
             panic!("one plan for the selected target");
         };
         assert_eq!(layout.machine, member.realization_machine);

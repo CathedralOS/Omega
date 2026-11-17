@@ -171,11 +171,7 @@ pub(crate) mod callable_identity {
         >,
         boundary_operator_slots: SharedValue<
             HashMap<
-                (
-                    CallablePathId,
-                    SharedValue<Vec<TypeIdentityId>>,
-                    TypeIdentityId,
-                ),
+                SharedValue<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId)>,
                 CallableIdentityId,
             >,
         >,
@@ -279,7 +275,7 @@ pub(crate) mod callable_identity {
             parts: BoundaryOperatorIdentityParts,
         ) -> CallableIdentityId {
             let path = self.intern_path(&parts.path);
-            let key = (path, parts.parameter_types.into(), parts.result_type);
+            let key = (path, parts.parameter_types, parts.result_type);
             if let Some(identity) = self.boundary_operator_slots.get(&key) {
                 return *identity;
             }
@@ -293,7 +289,7 @@ pub(crate) mod callable_identity {
                 result_dispatch,
                 text,
             });
-            self.boundary_operator_slots.insert(key, identity);
+            self.boundary_operator_slots.insert(key.into(), identity);
             identity
         }
 
