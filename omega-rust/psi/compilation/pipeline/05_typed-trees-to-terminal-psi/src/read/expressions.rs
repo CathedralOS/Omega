@@ -486,12 +486,13 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
-                // `subject in S::C`. Stage 01 writes the test as
-                // `CaseMembership` in a guard and as `Equal` in value
-                // position; in both the right operand names a case, which is
-                // what makes it a case test. `k == Kind::A` on a
-                // payload-free sum is the same test (data_and_literals.md:
-                // "Primitive and payload-free-sum equality is intrinsic").
+                // `subject in S::C` is a case test wherever it stands.
+                // `k == Kind::A` is the same test only on a payload-free sum
+                // (data_and_literals.md: "Primitive and payload-free-sum
+                // equality is intrinsic"). On a record or a payload-bearing
+                // sum, Psi 03 replaces a `==` it can type with the selected
+                // `Equatable` call, so a `==` that reaches here against a case
+                // has no selected comparison and `case_test` refuses it.
                 if matches!(
                     binary.operator,
                     BinaryOperator::CaseMembership
@@ -499,7 +500,14 @@ impl<'t> Program<'t> {
                         | BinaryOperator::NotEqual
                 ) && let Some(case) = self.named_case(binary.right)
                 {
-                    let test = self.case_test(id, slots, binary.left, case, source)?;
+                    let test = self.case_test(
+                        id,
+                        slots,
+                        binary.left,
+                        case,
+                        binary.operator != BinaryOperator::CaseMembership,
+                        source,
+                    )?;
                     return Ok(if binary.operator == BinaryOperator::NotEqual {
                         Expression {
                             call_context: None,
@@ -542,11 +550,22 @@ impl<'t> Program<'t> {
                 } else {
                     let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     let partner = left.result.and_then(ValueType::scalar);
+                    // A wholly anonymous count (`x << 8`) has no carrier of
+                    // its own, so it lands in the shifted value's carrier
+                    // (numeric_values.md, "Policy operators": "At least one
+                    // operand must already be integer-typed and the other
+                    // lands to that carrier"). The count obligation is still
+                    // judged on the landed value; a typed count keeps its type.
+                    let count = if self.wholly_anonymous(binary.right) {
+                        partner
+                    } else {
+                        None
+                    };
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        operand(quoted.1, (!shift).then_some(hint.or(partner)).flatten()),
+                        operand(quoted.1, if shift { count } else { hint.or(partner) }),
                     )?;
                     (left, right)
                 };
@@ -677,7 +696,15 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, expected, Access::Read);
+                return self.indexed(
+                    id,
+                    slots,
+                    indexed,
+                    handle,
+                    expected,
+                    Access::Read,
+                    super::arrays::ElementRead::Whole,
+                );
             }
             ExpressionNode::Member(member) => {
                 let value = self.member(id, slots, member, source, Access::Read)?;
@@ -791,9 +818,15 @@ impl<'t> Program<'t> {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
                 self.member(id, slots, member, source, projection)?
             }
-            ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, projection)?
-            }
+            ExpressionNode::Indexed(indexed) => self.indexed(
+                id,
+                slots,
+                indexed,
+                target,
+                expected,
+                projection,
+                super::arrays::ElementRead::Whole,
+            )?,
             _ => return self.expression(id, slots, target, expected),
         };
         self.complete_formed_operator(id, target, &value)?;
@@ -1656,7 +1689,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
-                | ExpressionKind::Boolean(_)
+                | ExpressionKind::Zero
+        | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

@@ -177,6 +177,30 @@ pub(crate) mod domain_constraints {
                 domain_constraint.symbol,
                 &domain_constraint.arguments,
             );
+            /*
+                Distinct visible domains competing for one authored spelling
+                reject: neither the referencing module, its package nor import
+                order selects a winner (`wiki/spec/language/modules.md#resolution`).
+            */
+            if let (Some(reference), [first, second, ..]) = (reference, matches.as_slice()) {
+                let mut imports = source
+                    .symbols
+                    .source_module_import_paths(reference.source_id)
+                    .collect::<Vec<_>>();
+                imports.sort_unstable();
+                imports.dedup();
+                return Err(Diagnostic::error(format!(
+                    "ambiguous domain `{authored_name}`: competing visible declarations `{}` and `{}`; source imports: {}",
+                    source.symbols.display_path(first.symbol, "::"),
+                    source.symbols.display_path(second.symbol, "::"),
+                    if imports.is_empty() {
+                        "(none)".to_owned()
+                    } else {
+                        imports.join(", ")
+                    },
+                ))
+                .with_source_span(reference));
+            }
             let [domain] = matches.as_slice() else {
                 // Whether any domain of this name is visible here at all,
                 // for any carrier: if none is, the name is unknown and the
@@ -418,7 +442,7 @@ pub(crate) mod domain_constraints {
                 .symbols
                 .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
         };
-        let matches = if let Some(symbol) = selected {
+        if let Some(symbol) = selected {
             domain_by_symbol(program, symbol)
                 .filter(|domain| visible(domain) && accepts(domain))
                 .cloned()
@@ -452,43 +476,7 @@ pub(crate) mod domain_constraints {
                     })
                     .collect()
             })
-        };
-        prefer_local_domain(source, matches, reference)
-    }
-
-    fn prefer_local_domain(
-        source: &SymbolResolvedTrees,
-        candidates: Vec<typed_trees::domain::DomainDefinition>,
-        reference: Option<source::SourceSpan>,
-    ) -> Vec<typed_trees::domain::DomainDefinition> {
-        if candidates.len() <= 1 {
-            return candidates;
         }
-        let Some(reference) = reference else {
-            return candidates;
-        };
-        let reference_module = source.symbols.source_module(reference.source_id);
-        if reference_module.is_valid() {
-            let local = candidates
-                .iter()
-                .filter(|domain| source.symbols.symbol_module(domain.symbol) == reference_module)
-                .cloned()
-                .collect::<Vec<_>>();
-            if !local.is_empty() {
-                return local;
-            }
-        }
-        let local = candidates
-            .iter()
-            .filter(|domain| {
-                source
-                    .symbols
-                    .symbol_provenance_source_span(domain.symbol)
-                    .is_some_and(|span| source.symbols.same_source_package(reference, span))
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        if local.is_empty() { candidates } else { local }
     }
 }
 #[cfg(test)]

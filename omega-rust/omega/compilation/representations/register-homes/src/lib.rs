@@ -19,7 +19,7 @@ In our representation:
   (`CalleeSavedModificationWitness`) without choosing stack frames or save/restore
   instructions.
 - `recovery` owns pressure-recovery classifications, spill choices, and
-  authenticated `FixedViewCopyPlan` rewrite artifacts (`OMGFCV\0\0` version 110).
+  authenticated `FixedViewCopyPlan` rewrite artifacts (`OMGFCV\0\0` version 114).
 - `post_allocation_manifest` owns the structured report
   (`PostAllocationOptimizationManifest`, `OMGPAO\0\0` version 16) at the first
   independently validated physical-home boundary.
@@ -235,6 +235,8 @@ pub(crate) mod cursor {
 
 pub mod constraints;
 pub mod post_allocation_manifest;
+pub mod publication;
+pub use publication::AllocationPublicationFacts;
 pub mod recovery;
 
 pub use constraints::{
@@ -264,12 +266,12 @@ pub use recovery::{
     FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
     FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
     FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
-    PressureRecoveryClassification, PressureResident, RecoveryClassification,
-    RecoveryClassificationDecodeError, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
-    SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
-    spill_choice, spill_choice_identity,
+    PressureRecoveryClassification, PressureRematerializationPolicy, PressureResident,
+    RecoveryClassification, RecoveryClassificationDecodeError, RecoveryClassificationIdentity,
+    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
+    RecoveryVictimRole, SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan,
+    SpillChoicePolicy, classification, fixed_view_copy, fixed_view_copy_identity,
+    recovery_classification_identity, spill_choice, spill_choice_identity,
 };
 
 use std::sync::Arc;
@@ -318,10 +320,9 @@ pub struct AllocatedProgramRef<'program> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AllocatedProgramFacts<'program> {
+    pub publication: &'program Arc<AllocationPublicationFacts>,
     pub preservation: &'program AllocatedCalleeSavedRequirements,
     pub environment: &'program register_environment::ValidatedTargetRegisterEnvironment,
-    pub selections: &'program optimization_core::OptimizationSelections,
-    pub budget: optimization_core::OptimizationWorkBudget,
     pub selected: CurrentSelectedProgram<'program>, // Current selected program
     pub effects: &'program Arc<PreAllocationMachineEffectPlan>, // Pre-allocation machine effects
     pub ranges: &'program LiveRangePlan,            // Live-range plan
@@ -330,7 +331,6 @@ pub struct AllocatedProgramFacts<'program> {
     pub legality_identity: AllocationLegalityIdentity, // Allocation-legality identity
     pub homes: &'program RegisterHomePlan,          // Register-home plan
     pub homes_identity: RegisterHomeIdentity,       // Register-home plan identity
-    pub manifest: &'program PostAllocationOptimizationManifest, // Post-allocation manifest
 }
 
 identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }

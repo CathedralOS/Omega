@@ -172,24 +172,32 @@ fn cover<Key: Ord + Copy, Value>(
     }
 }
 
-fn has_origin(
-    rows: &[(
-        (MachineId, SelectionDeclarationId),
-        semantic_vocabulary::BlockId,
-    )],
+type MachineOrigin = (
+    (MachineId, SelectionDeclarationId),
+    semantic_vocabulary::BlockId,
+);
+
+/// Every head at which `machine` begins the source declaration `source`.
+/// Rows are sorted by key, so a declaration's heads are adjacent.
+fn origin_heads(
+    rows: &[MachineOrigin],
     machine: MachineId,
     source: SelectionDeclarationId,
-    head: Option<semantic_vocabulary::BlockId>,
-) -> bool {
+) -> &[MachineOrigin] {
     let key = (machine, source);
-    let start = rows.partition_point(|(candidate, _)| *candidate < key);
-    let end = rows.partition_point(|(candidate, _)| *candidate <= key);
-    match head {
-        Some(head) => rows[start..end]
-            .binary_search_by_key(&head, |(_, head)| *head)
-            .is_ok(),
-        None => start != end,
-    }
+    let start = rows.partition_point(|(row, _)| *row < key);
+    let end = rows.partition_point(|(row, _)| *row <= key);
+    &rows[start..end]
+}
+
+fn origin(
+    rows: &[MachineOrigin],
+    machine: MachineId,
+    source: SelectionDeclarationId,
+) -> Option<semantic_vocabulary::BlockId> {
+    origin_heads(rows, machine, source)
+        .first()
+        .map(|(_, head)| *head)
 }
 
 /// The caller must supply the private source-issued companion, not decoded data
@@ -370,12 +378,26 @@ pub fn validate_selection_questions(
             _ => (),
         }
     }
-    // A recursive declaration has both its invocation entry and its folded
-    // loop head. Keep both coordinates; only repeating the same complete
-    // origin is a duplicate. Folded calls below require their exact head.
     origins.sort_unstable();
-    if origins.windows(2).any(|rows| rows[0] == rows[1]) {
-        return Err("source selection repeats a machine origin".into());
+    // A declaration starts at one head of an emitted machine, with one
+    // exception. When calls that cycle among nested machines are folded into
+    // each machine of the cycle, a machine's own declaration starts both at its
+    // entry, where outside callers arrive, and at its folded head, where edges
+    // inside the cycle arrive. Any other repeated origin is refused.
+    for rows in origins.chunk_by(|left, right| left.0 == right.0) {
+        let ((machine, _), _) = rows[0];
+        let entry = module
+            .machine(machine)
+            .map(|body| body.entry)
+            .ok_or("source selection origin has no emitted machine")?;
+        let repeated = match rows {
+            [_] => false,
+            [(_, first), (_, second)] => first == second || (*first != entry && *second != entry),
+            _ => true,
+        };
+        if repeated {
+            return Err("source selection repeats a machine origin".into());
+        }
     }
     boundary_origins.sort_unstable_by_key(|(key, _)| *key);
     if boundary_origins
@@ -423,7 +445,7 @@ pub fn validate_selection_questions(
             } => {
                 let row = published_question(packet, *id)?;
                 if row.occurrence.lexical_owner != *original_caller
-                    || !has_origin(&origins, *machine, *original_caller, None)
+                    || origin(&origins, *machine, *original_caller).is_none()
                 {
                     return Err("invocation selection lost its original lexical caller".into());
                 }
@@ -435,7 +457,7 @@ pub fn validate_selection_questions(
                 if let SelectionReference::Declaration(selected) = &row.selected {
                     let same = match target {
                         SelectionCallTarget::Declared(TargetMachineCallable::Machine(target)) => {
-                            has_origin(&origins, *target, *selected, None)
+                            origin(&origins, *target, *selected).is_some()
                         }
                         SelectionCallTarget::Declared(TargetMachineCallable::Boundary(target)) => {
                             lookup(&boundary_origins, *target) == Some(selected)
@@ -499,7 +521,7 @@ pub fn validate_selection_questions(
                 declaration(packet, *selected)?;
                 if row.selected != SelectionReference::Declaration(*selected)
                     || lookup(&constructed, (*machine, *operation)) != Some(descriptor)
-                    || !has_origin(&origins, *machine, row.occurrence.lexical_owner, None)
+                    || origin(&origins, *machine, row.occurrence.lexical_owner).is_none()
                 {
                     return Err("descriptor selection differs from its actual construction".into());
                 }
@@ -507,7 +529,7 @@ pub fn validate_selection_questions(
                     .callables
                     .descriptor(*descriptor)
                     .ok_or("descriptor selection names no descriptor")?;
-                if !has_origin(&origins, value.machine, *selected, None) {
+                if origin(&origins, value.machine, *selected).is_none() {
                     return Err(
                         "descriptor selection lost its original selected declaration".into(),
                     );
@@ -533,8 +555,10 @@ pub fn validate_selection_questions(
                 };
                 if row.occurrence.lexical_owner != *original_caller
                     || !selected
-                    || !has_origin(&origins, *machine, *original_caller, None)
-                    || !has_origin(&origins, *machine, *original_target, Some(*head))
+                    || origin(&origins, *machine, *original_caller).is_none()
+                    || !origin_heads(&origins, *machine, *original_target)
+                        .iter()
+                        .any(|(_, target_head)| target_head == head)
                 {
                     return Err(
                         "folded selection lost its original caller, target or actual head".into(),

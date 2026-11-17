@@ -1638,6 +1638,7 @@ pub(crate) mod expression {
                 Ok(
                     expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                         TableStructLiteral {
+                            zero_omitted_fields: struct_literal.zero_omitted_fields,
                             application_type,
                             type_name: lower_name(syntax_trees, &struct_literal.constructor_name),
                             type_symbol: SymbolHandle::invalid(),

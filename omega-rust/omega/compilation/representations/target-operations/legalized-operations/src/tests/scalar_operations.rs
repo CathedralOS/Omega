@@ -59,9 +59,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
     };
-    plan.scalar_functions[0].blocks[0]
-        .structural_parameters
-        .push(parameter);
+    plan.scalar_functions[0].blocks[0].structural_parameters = vec![parameter].into();
     plan.scalar_functions[0].blocks[0].terminator = LegalizedScalarTerminator::Jump {
         successor: LegalizedScalarSuccessor {
             cleanup_calls: Vec::new(),
@@ -95,8 +93,11 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             panic!("jump");
         };
         match mutation {
-            0 => block.structural_parameters[0].position = 1,
-            1 => block.structural_parameters[0].structural_type = id(505),
+            0 => std::sync::Arc::make_mut(&mut block.structural_parameters)[0].position = 1,
+            1 => {
+                std::sync::Arc::make_mut(&mut block.structural_parameters)[0].structural_type =
+                    id(505)
+            }
             2 => successor.structural_bindings[0].semantic.parameter = id(506),
             3 => successor.structural_bindings[0].semantic.argument.place = id(507),
             _ => {
@@ -171,7 +172,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     };
     function.blocks.push(LegalizedScalarBlock {
         id: id(123),
-        structural_parameters: Vec::new(),
+        structural_parameters: std::sync::Arc::from([]),
         parameters: vec![LegalizedValueDefinition {
             value: id(130),
             scalar_type,
@@ -202,7 +203,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     });
     function.blocks.push(LegalizedScalarBlock {
         id: id(126),
-        structural_parameters: Vec::new(),
+        structural_parameters: std::sync::Arc::from([]),
         parameters: vec![],
         instructions: vec![],
         terminator: end,

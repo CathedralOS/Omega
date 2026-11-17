@@ -214,11 +214,15 @@ impl Program<'_> {
     /// value only after its default-domain obligations hold", and "Gating
     /// propagates through containment; a zero-valid first sum case can
     /// represent emptiness without constructing a gated payload." A domain
-    /// with neither predicates nor an issuer restriction owes nothing
-    /// (domains.md: "adds no predicate or issuer obligation"), so zero is a
-    /// member; any other domain makes the type gated, and a gated value is
-    /// constructed with every field supplied.
-    pub(super) fn zero_established(&self, id: MachineId, value_type: ValueType) -> Checked<()> {
+    /// declared on a constructed field owes its predicates through the owning
+    /// data type. Issuance is separate: zero construction must be authorized by
+    /// the same exact route as an explicit domain addition.
+    pub(super) fn zero_established(
+        &mut self,
+        id: MachineId,
+        value_type: ValueType,
+        source: crate::SourceOrigin,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         // Each type with whether it is a field of a record in the value.
         let mut pending = vec![(value_type, false)];
@@ -229,15 +233,10 @@ impl Program<'_> {
                 // zero satisfies them and keeps the window when it does not.
                 // A zeroed local that is itself the qualified scalar has no
                 // such owner.
-                let free = {
-                    let definition = self.domain_theory(id, domain)?;
-                    (contained || !has_predicates(definition))
-                        && definition.issuance()
-                            == typed_trees::domain::DomainIssuance::Unrestricted
-                };
-                if !free {
+                if !contained && has_predicates(self.domain_theory(id, domain)?) {
                     return unserved("zero-established value in a domain that must be established");
                 }
+                self.issue(id, domain, source)?;
             }
             let ValueType::Record(record, _, _) = value_type else {
                 continue;
@@ -256,7 +255,7 @@ impl Program<'_> {
                     cases
                         .first()
                         .into_iter()
-                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
+                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, true))),
                 ),
                 StorageShape::FixedArray {
                     element,

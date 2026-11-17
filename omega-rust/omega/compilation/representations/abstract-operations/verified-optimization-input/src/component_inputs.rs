@@ -99,6 +99,20 @@ impl<'input> ComponentNativeInputs<'input> {
     pub fn exports(&self) -> &[ComponentExportInput<'input>] {
         &self.exports
     }
+    /// The scalar values native compilation of these exports reads, or `None`
+    /// when they read none and the component states no scalar condition.
+    pub fn scalar_demand(
+        &self,
+    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<diagnostics::Diagnostic>>
+    {
+        let entries = self
+            .exports
+            .iter()
+            .map(|export| terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate))
+            .collect::<Vec<_>>();
+        self.proposal
+            .callable_scalar_demand(self.authorization(), &entries)
+    }
     pub const fn plan_digest(&self) -> &effects::provider_plan::ProviderPlanDigest {
         &self.plan_digest
     }

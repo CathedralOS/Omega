@@ -355,9 +355,8 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
             let source = rows.frame_application.source().source();
             let model = source.register_environment().physical().model();
             let actual_abi_vector_clobber = source
-                .machine()
-                .machine()
-                .plan()
+                .physical_program()
+                .machine
                 .functions
                 .iter()
                 .flat_map(|function| function.instructions())

@@ -877,6 +877,13 @@ impl<'a> Prover<'a> {
         result
     }
 
+    fn prove_direct_subgoal(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
+        let case_split = std::mem::replace(&mut self.case_split, false);
+        let result = self.prove(goal);
+        self.case_split = case_split;
+        result
+    }
+
     fn prove_goal(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         let direct = self.prove_direct(goal);
         if direct.is_ok()
@@ -1499,7 +1506,7 @@ impl<'a> Prover<'a> {
         // Compound carrier terms take the arithmetic route. A bare value
         // relation can use the existing branch and contract premises.
         let unchanged = self.reflexive(Proposition::Equal(left.clone(), left.clone()))?;
-        let proof = self.prove(&relation).ok()?;
+        let proof = self.prove_direct_subgoal(&relation).ok()?;
         Some(node(
             goal.clone(),
             ProofRule::IntegerOrderSubstitution {
@@ -1558,7 +1565,7 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathEqual(term.clone(), term.clone()),
             PrimitiveJudgment::ReflexiveEquality,
         );
-        let relation = self.prove(&lifted).ok()?;
+        let relation = self.prove_direct_subgoal(&lifted).ok()?;
         let proof = node(
             unfolded,
             ProofRule::IntegerOrderSubstitution {
@@ -4081,14 +4088,14 @@ impl<'a> Prover<'a> {
         let (first_step, second_step) = match direction {
             Direction::Upper => (
                 affine,
-                self.prove(&Proposition::IntegerMathLessOrEqual(
+                self.prove_direct_subgoal(&Proposition::IntegerMathLessOrEqual(
                     image_right.clone(),
                     limit.clone(),
                 ))
                 .map_err(|_| "the operands' bounds exceed the carrier")?,
             ),
             Direction::Lower => (
-                self.prove(&Proposition::IntegerMathLessOrEqual(
+                self.prove_direct_subgoal(&Proposition::IntegerMathLessOrEqual(
                     limit.clone(),
                     image_left.clone(),
                 ))

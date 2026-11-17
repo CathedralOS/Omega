@@ -39,8 +39,9 @@ Product and target vocabulary:
   subdirectory even if the set has length 1).
 - `BuildError::outcome` classifies compilation refusals through
   `CompilerRequestOutcome::of_refusal`: only a refusal consisting entirely of
-  exceeded private provisions returns `Incomplete`; preparation, directory, and
-  publication errors always return `Reject`.
+  exceeded private provisions returns `Incomplete`; a failed independent stage
+  validator is the compiler's own defect and returns `InternalFailure`;
+  preparation, directory, and publication errors always return `Reject`.
 
 */
 
@@ -187,8 +188,9 @@ pub enum BuildError {
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
     /// A requested independent stage validator rejected the compiler's own
-    /// stage output: a compiler invariant failure, not invalid source.
-    StageValidation(StageValidationRow),
+    /// stage output: a compiler invariant failure, not invalid source. Holds
+    /// every requested row for the target, passed and failed, in roster order.
+    StageValidation(Vec<StageValidationRow>),
 }
 
 impl From<Vec<Diagnostic>> for BuildError {
@@ -212,10 +214,15 @@ impl std::fmt::Display for BuildError {
                 write!(formatter, "cannot create the check workspace: {error}")
             }
             Self::BuildDirectory(conflict) => write!(formatter, "{conflict}"),
-            Self::StageValidation(row) => write!(
-                formatter,
-                "{row}\nthe compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
-            ),
+            Self::StageValidation(rows) => {
+                for row in rows {
+                    writeln!(formatter, "{row}")?;
+                }
+                write!(
+                    formatter,
+                    "the compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
+                )
+            }
         }
     }
 }
@@ -235,6 +242,7 @@ impl BuildError {
             Self::Diagnostics(diagnostics) => {
                 compiler::CompilerRequestOutcome::of_refusal(diagnostics)
             }
+            Self::StageValidation(_) => compiler::CompilerRequestOutcome::InternalFailure,
             _ => compiler::CompilerRequestOutcome::Reject,
         }
     }

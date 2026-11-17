@@ -1275,7 +1275,7 @@ impl<'a> Storage<'a> {
             unreachable!()
         };
         let mut producer = producer;
-        let mut history = self.budget();
+        let mut history = self.snapshot_budget();
         loop {
             history.remaining = history.remaining.checked_sub(1).ok_or_else(|| {
                 self.unsupported(

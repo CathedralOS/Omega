@@ -134,6 +134,7 @@ fn prepare_project(
             timings: false,
             product: CompilationProduct::Native(products::NativeProductRequest {
                 retain_native_inputs: true,
+                retain_native_stage_inputs: false,
                 installation_assumptions: Vec::new(),
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
@@ -263,9 +264,12 @@ fn finish_saved_project(
     let proposal = retained
         .native_realization_proposal()
         .ok_or("saved program has no native proposal")?;
-    let mut prepared = native_compiler::prepare(
+    let mut accounting = Default::default();
+    let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)?;
+    let product = native_compiler::compile(
         &retained,
         native_compiler::NativeCompileRequest {
+            retain_native_stage_inputs: false,
             installation_assumptions: &assumptions,
             private_entry_ram: &[],
             optimization_selections: proposal.post_terminal_optimizations().selections(),
@@ -278,21 +282,10 @@ fn finish_saved_project(
             ),
             imports: &[],
             components: &[],
+            scalars: scalars.as_ref(),
         },
     )
     .map_err(|(_, rows)| diagnostics(rows))?;
-    let mut accounting = Default::default();
-    for completion in prepared.scalar_completions() {
-        let completed = build_settings::scalar_completion::complete(
-            completion.artifact(),
-            completion.target(),
-            completion.demand(),
-            completion.provider_proposals(),
-            &mut accounting,
-        )?;
-        completion.complete(completed)?;
-    }
-    let product = native_compiler::compile(prepared).map_err(|(_, rows)| diagnostics(rows))?;
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
         return Err("this review tool publishes direct executable images only".into());
     };

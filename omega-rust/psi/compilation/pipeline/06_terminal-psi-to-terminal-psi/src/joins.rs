@@ -668,6 +668,19 @@ fn describe(
                 if available_value(lowered, tables, dominating_bindings, join.id, *id)
         ))
     };
+    // A value the join can already name stays itself when its definition
+    // names something the join cannot. A read after a call is the usual case:
+    // `let mid = main.pout` is defined as the field's contents after that
+    // call, which no join predicate can restate. Expanding `mid` into that
+    // contents would drop every guard over it at the scope filter, so
+    // `mid >= 0 && mid < 26` would cross the `&&` join as `Truth`. The read
+    // result itself dominates the join and is in scope, so the fact is
+    // stated over it instead.
+    let visible_as_itself = |subject: &ScalarTerm, proposition: &Proposition| {
+        matches!(subject, ScalarTerm::Value { id, .. }
+            if available_value(lowered, tables, dominating_bindings, join.id, *id))
+            && !in_scope(proposition)
+    };
     let mut equations: Vec<&Proposition> = available
         .iter()
         .filter(|(justification, proposition, _)| {
@@ -675,8 +688,9 @@ fn describe(
                 && matches!(
                     proposition,
                     Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                        if matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
-                            || entry_content(definition)
+                        if (matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
+                            || entry_content(definition))
+                            && !visible_as_itself(subject, proposition)
                 )
         })
         .map(|(_, proposition, _)| *proposition)

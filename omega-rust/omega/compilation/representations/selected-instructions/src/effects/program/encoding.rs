@@ -452,6 +452,8 @@ mod v6 {
                 239 => SelectedInstructionKind::PortWrite {
                     port: cursor.u16()?,
                     value: cursor.byte()?,
+                    service: semantic_vocabulary::ServiceId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                 },
                 247 => SelectedInstructionKind::RegisterAccess {
                     operation: crate::RegisterOperation::from_catalog_tag(cursor.u16()?)
@@ -1518,11 +1520,17 @@ mod v6 {
             fn port_write_decoder_retains_extreme_operands_and_rejects_truncation() {
                 for (port, value) in [(0_u16, 0_u8), (0x3f8, 0x41), (u16::MAX, u8::MAX)] {
                     let [low, high] = port.to_le_bytes();
-                    let bytes = [239, low, high, value];
+                    let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+                    let mut bytes = vec![239, low, high, value];
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
                     let mut cursor = Cursor::new(&bytes);
                     assert_eq!(
                         decode_kind(&mut cursor, true, true, true).unwrap(),
-                        SelectedInstructionKind::PortWrite { port, value }
+                        SelectedInstructionKind::PortWrite {
+                            service,
+                            port,
+                            value
+                        }
                     );
                     assert_eq!(cursor.remaining(), 0);
                     for length in 0..bytes.len() {
@@ -1531,6 +1539,11 @@ mod v6 {
                                 .is_err()
                         );
                     }
+                    bytes[4..].fill(0);
+                    assert!(matches!(
+                        decode_kind(&mut Cursor::new(&bytes), true, true, true),
+                        Err(PreAllocationMachineEffectDecodeError::InvalidField)
+                    ));
                 }
             }
         }
@@ -1970,7 +1983,7 @@ mod v6 {
     pub use values::{decode_target, decode_units};
 
     const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-    const VERSION: u32 = 50;
+    const VERSION: u32 = 51;
 }
 
 pub use cursor::Cursor;

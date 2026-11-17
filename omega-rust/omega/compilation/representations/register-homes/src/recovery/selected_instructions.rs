@@ -359,6 +359,7 @@ pub(super) fn decode_kind(
         239 => SelectedInstructionKind::PortWrite {
             port: cursor.u16()?,
             value: cursor.byte()?,
+            service: decode_id(cursor, semantic_vocabulary::ServiceId::new)?,
         },
         tag @ 247 => SelectedInstructionKind::RegisterAccess {
             operation: ::selected_instructions::RegisterOperation::from_catalog_tag(cursor.u16()?)
@@ -996,5 +997,29 @@ mod tests {
         assert!(decode_kind(&mut Cursor::new(&bytes)).is_err());
         bytes.truncate(2);
         assert!(decode_kind(&mut Cursor::new(&bytes)).is_err());
+    }
+
+    #[test]
+    fn port_kind_recovery_keeps_service_and_rejects_missing_or_zero_identity() {
+        for raw in [1, u64::MAX] {
+            let kind = SelectedInstructionKind::PortWrite {
+                service: semantic_vocabulary::ServiceId::new(raw).unwrap(),
+                port: 0x3f8,
+                value: 0x41,
+            };
+            let mut bytes = Vec::new();
+            encode_kind(&mut bytes, kind);
+            assert_eq!(bytes.len(), 12);
+            assert_eq!(&bytes[4..], raw.to_le_bytes());
+            assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
+            for prefix in 0..bytes.len() {
+                assert!(decode_kind(&mut Cursor::new(&bytes[..prefix])).is_err());
+            }
+            bytes[4..].fill(0);
+            assert_eq!(
+                decode_kind(&mut Cursor::new(&bytes)).unwrap_err(),
+                FixedViewCopyDecodeError::InvalidSemanticId(0)
+            );
+        }
     }
 }

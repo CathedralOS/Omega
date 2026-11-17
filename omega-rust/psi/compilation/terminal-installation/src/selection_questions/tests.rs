@@ -610,3 +610,58 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
     *callee = ValueId::new(99).unwrap();
     assert!(walk(&module).is_err());
 }
+
+#[test]
+fn a_folded_cycle_machine_starts_its_own_declaration_at_entry_and_folded_head() {
+    // Nested machines that call one another in a cycle are folded into each
+    // machine of the cycle, so a machine's own declaration starts both at its
+    // entry and at its folded head. No other repeated origin is admitted.
+    let mut module = TerminalModule::declarations();
+    let mut identities = TerminalIdentityTableBuilder::default();
+    let mut packet = SelectionQuestions::default();
+    let id = MachineId::new(1).unwrap();
+    let mut body = machine(id, identities.intern("cycle"));
+    for (block, edge) in [(2, 2), (3, 3)] {
+        body.blocks.push(Block::plain(
+            BlockId::new(block).unwrap(),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(edge).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        ));
+    }
+    module.machines.push(body);
+    module.identities = identities.build();
+    let source = packet.declarations.push(declaration_row(
+        "cycle",
+        package(1),
+        SelectionPurpose::Build,
+    ));
+    let join = |head| SelectionJoin::Machine {
+        declaration: source,
+        machine: id,
+        head: BlockId::new(head).unwrap(),
+    };
+    packet.joins.push(join(1));
+    packet.joins.push(join(2));
+    assert!(validate_selection_questions(&module, &packet).is_ok());
+
+    packet.joins.push(join(2));
+    assert!(
+        validate_selection_questions(&module, &packet)
+            .unwrap_err()
+            .contains("repeats a machine origin")
+    );
+    packet.joins.pop();
+    packet.joins.push(join(3));
+    assert!(
+        validate_selection_questions(&module, &packet)
+            .unwrap_err()
+            .contains("repeats a machine origin")
+    );
+    packet.joins.clear();
+    packet.joins.push(join(2));
+    packet.joins.push(join(3));
+    assert!(validate_selection_questions(&module, &packet).is_err());
+}

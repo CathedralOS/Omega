@@ -788,7 +788,7 @@ pub mod closed_conformances {
             HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
         };
         use language_semantics::type_identity::encoding::{
-            CoordinateTag, atom, bare, byte_atom, compound,
+            CoordinateTag, atom, bare, byte_atom, callable_declaration_path, compound,
         };
         use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
         static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
@@ -883,14 +883,23 @@ pub mod closed_conformances {
                     ],
                 )
             };
+            // A machine's semantic declaration names its path together with
+            // its callable signature, so overloads stay distinct. The checked
+            // primitive and requirement must carry exactly that form.
             HostedProcessExitIdentities {
                 primitive: exact_nominal(primitive, primitive.1),
                 primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
-                primitive_semantic: format!("toolchain::{}", primitive.1),
+                primitive_semantic: format!(
+                    "toolchain::{}",
+                    callable_declaration_path(primitive.1, &callable(primitive.1))
+                ),
                 primitive_callable: callable(primitive.1),
                 requirement_owner: exact_nominal(requirement, requirement.1),
                 requirement_member: exact_nominal(requirement, requirement_member),
-                requirement_semantic: format!("toolchain::{requirement_member}"),
+                requirement_semantic: format!(
+                    "toolchain::{}",
+                    callable_declaration_path(requirement_member, &callable(requirement_member))
+                ),
                 requirement_callable: callable(requirement_member),
                 parameter,
                 result: result_type,
@@ -2363,6 +2372,14 @@ pub mod closed_reach {
                                 "selected callback operational contract exceeds its requirement bound",
                             );
                         }
+                        // effects.md: `crashes none` on a callback binder
+                        // admits only crash-free selections, inferred routes
+                        // included.
+                        if binding.selected_may_crash && binding.upper_bound_crashes_none {
+                            return Err(
+                                "selected callback may crash, and its requirement declares `crashes none`",
+                            );
+                        }
                         row(&binding.selected_reach)?;
                         if let Some(upper_bound) = &binding.upper_bound {
                             row(upper_bound)?;
@@ -2392,6 +2409,7 @@ pub mod closed_reach {
                                         || declaration.published_may_block
                                             != binding.selected_may_block
                                 })
+                                || callee.crash_routes.is_empty() == binding.selected_may_crash
                             {
                                 return Err(
                                     "closed reach selection differs from its retained callee contract",

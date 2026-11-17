@@ -13,6 +13,7 @@ effects = { path = "../backend/plans/effects" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
 abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
 target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
+selected-instruction-analyses = { path = "../representations/selected-instructions/analyses" }
 selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
 selected-instructions-to-register-homes = { path = "../pipeline/05_selected-instructions-to-register-homes" }
 register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
@@ -35,6 +36,7 @@ target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 
 [dev-dependencies]

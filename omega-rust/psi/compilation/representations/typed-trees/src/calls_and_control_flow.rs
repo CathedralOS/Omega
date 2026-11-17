@@ -222,6 +222,9 @@ pub mod calls {
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct StaticMachineApplication {
             pub callable_contract_source: StaticMachineApplicationHandle,
+            /// Original const-record receiver retained before specialization replaces it.
+            /// This is source custody, never a selected implementation or proof.
+            pub source_record_receiver: Option<SymbolHandle>,
             pub registration_operation: SymbolHandle,
             pub lexical_owner: SymbolHandle,
             pub target: Identifier,
@@ -407,6 +410,20 @@ pub mod calls {
                 return self.call_has_no_runtime_receiver(call, owner, target);
             }
             if crate::operator::selected_named_expression_call_has_no_runtime_receiver(self, call) {
+                return true;
+            }
+            if let Some(receiver) = self.expression_table.name_path_node(call.receiver)
+                && receiver.symbol.is_valid()
+                && self.symbols.symbols().nodes().is_valid(receiver.symbol)
+                && matches!(
+                    self.static_record_bound_requirement(
+                        self.symbols.get(receiver.symbol).parent,
+                        receiver.symbol,
+                        call.target_symbol,
+                    ),
+                    Ok(Some(_))
+                )
+            {
                 return true;
             }
             if let Some(receiver) = self.expression_table.name_path_node(call.receiver)

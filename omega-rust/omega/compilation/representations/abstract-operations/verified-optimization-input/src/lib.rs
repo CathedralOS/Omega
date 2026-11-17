@@ -38,7 +38,7 @@ pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, PhysicalProgramEntry,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
-pub use native_execution::PreparedNativeExecution;
+pub use native_execution::{PreparedNativeExecution, requires_scalar_values};
 pub use native_proposal::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
 };

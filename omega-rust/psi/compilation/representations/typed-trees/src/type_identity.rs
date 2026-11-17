@@ -2401,21 +2401,28 @@ pub(crate) mod identity_context {
                 .symbol_source_origin(symbol)
                 .is_some_and(source::SourceOrigin::is_toolchain)
             {
-                program
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .and_then(|span| {
-                        self.exact_toolchain_sources
-                            .iter()
-                            .find(|(source_id, _)| *source_id == span.source_id)
-                    })
-                    .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
-                    .unwrap_or_else(|| {
-                        if let Some(missing) = self.missing_exact_nominal_owner {
-                            missing.set(true);
-                        }
-                        PackageQualifiedNominalOwner::Toolchain
-                    })
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
             } else {
                 if let Some(missing) = self.missing_exact_nominal_owner {
                     missing.set(true);
@@ -3400,6 +3407,11 @@ pub(crate) mod identity_context {
                     Label::Type,
                     &context.name(program, literal.type_symbol, literal.type_name.as_str()),
                 ))
+                .chain(
+                    literal
+                        .zero_omitted_fields
+                        .then(|| atom(Label::Kind, "zero-omitted-fields")),
+                )
                 .chain(
                     literal
                         .case_name
@@ -5352,6 +5364,7 @@ pub(crate) mod package_policy_reading_tests {
                         value,
                     }]);
             let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: Identifier::generated("Record"),
                 type_symbol: fixture.symbol("Record"),
@@ -5574,6 +5587,40 @@ pub(crate) mod package_policy_reading_tests {
             failures.len(),
             witnesses.len(),
             failures.join("\n"),
+        );
+    }
+
+    #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
         );
     }
 
@@ -6438,32 +6485,36 @@ pub(crate) mod portable_machine_applications {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        operation_record_value_in_context(
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_in_context(
             program,
             symbol,
             &TypeIdentityContext {
                 qualification: TypeIdentityQualification::PackageQualified,
                 exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_owner),
                 ..Default::default()
             },
-        )
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
     }
 
-    pub(crate) fn operation_record_value_in_context(
+    /// A nested record keeps the enclosing identity's application and lifetime
+    /// scopes and its policy for exact source owners. A portable record request
+    /// above explicitly requires those owners; local comparisons do not add
+    /// that requirement merely by reading a conformance's value.
+    pub(crate) fn portable_operation_record_value_in_context(
         program: &TypedTrees,
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
-        // Local operand comparisons retain their actual application and region
-        // scope. Portable records additionally require every exact source owner.
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
-            missing_exact_nominal_owner: context.missing_exact_nominal_owner.or_else(|| {
-                (context.qualification == TypeIdentityQualification::PackageQualified)
-                    .then_some(&invalid)
-            }),
             invalid_application: context.invalid_application.or(Some(&invalid)),
             encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
             invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
@@ -6601,6 +6652,12 @@ pub(crate) mod portable_machine_applications {
                 .machine_instantiation(machine.symbol)
                 .map_err(|reason| reason.to_string())?;
             let declaration = receipt.map_or(machine.symbol, |receipt| receipt.template());
+            let receipt_binding_declaration = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                _ => declaration,
+            };
             let identity = self.identity(program, selected.symbol, context)?;
             let retained = if supplied.is_valid() {
                 if !program
@@ -6628,7 +6685,12 @@ pub(crate) mod portable_machine_applications {
                 let original = program
                     .machine_by_symbol(declaration)
                     .ok_or("selected callable lost its original declaration")?;
-                if registered != selected.symbol
+                let retained_enclosing_application = matches!(receipt,
+                    Some(MachineInstantiation::Specialization(receipt))
+                        if supplied == receipt.binding_application
+                            && source.binding_declaration == receipt_binding_declaration);
+                if !retained_enclosing_application
+                    && registered != selected.symbol
                     && registered != machine.symbol
                     && registered != declaration
                     && !program
@@ -6714,15 +6776,24 @@ pub(crate) mod portable_machine_applications {
             } else {
                 receipt_application
             };
+            let binding_declaration =
+                if source_application == receipt_application && receipt_application.is_some() {
+                    receipt_binding_declaration
+                } else {
+                    declaration
+                };
             if let Some(source) = retained
-                && source.binding_declaration != declaration
+                && source.binding_declaration != binding_declaration
                 && !empty_selected_frame
             {
                 return Err("selected callable source bindings name another declaration".into());
             }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("selected callable lost its exact binding declaration")?;
             if let Some(source) = explicit {
                 if source.arguments.len() != parameters.len()
-                    || source.lifetime_arguments.len() != template.lifetime_parameters.len()
+                    || source.lifetime_arguments.len() != binding_owner.lifetime_parameters.len()
                 {
                     return Err("selected callable explicit tuple is incomplete".into());
                 }
@@ -6760,9 +6831,12 @@ pub(crate) mod portable_machine_applications {
                     }
                 }
                 let lifetimes = program
-                    .static_application_lifetimes_for_declaration(source_application, declaration)
+                    .static_application_lifetimes_for_declaration(
+                        source_application,
+                        binding_declaration,
+                    )
                     .map_err(str::to_owned)?;
-                for (parameter, actual) in template
+                for (parameter, actual) in binding_owner
                     .lifetime_parameters
                     .iter()
                     .zip(source.lifetime_arguments.iter())
@@ -6785,7 +6859,7 @@ pub(crate) mod portable_machine_applications {
                 return Ok((declaration, identity));
             };
             let source = program.static_machine_application(source_application);
-            if parameters.is_empty() && template.lifetime_parameters.is_empty() {
+            if parameters.is_empty() && binding_owner.lifetime_parameters.is_empty() {
                 if !program
                     .static_machine_application_bindings(source_application)
                     .is_empty()
@@ -6806,6 +6880,7 @@ pub(crate) mod portable_machine_applications {
                 declaration,
                 &parameters,
                 source_application,
+                binding_declaration,
                 checked_conformances,
                 checked_declarations,
                 context,
@@ -6952,6 +7027,9 @@ pub(crate) mod portable_machine_applications {
                 receipt.template,
                 &parameters,
                 receipt.binding_application,
+                program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
                 &receipt.conformance_applications,
                 &receipt.conformance_arguments,
                 context,
@@ -6966,6 +7044,7 @@ pub(crate) mod portable_machine_applications {
             template_symbol: SymbolHandle,
             parameters: &[&crate::data::TypeParameter],
             binding_application: crate::static_applications::StaticMachineApplicationHandle,
+            binding_declaration: SymbolHandle,
             conformance_applications: &[crate::ClosedConformanceApplication],
             conformance_arguments: &[SymbolHandle],
             context: &TypeIdentityContext<'_>,
@@ -6977,9 +7056,12 @@ pub(crate) mod portable_machine_applications {
                 );
             }
             let application = program.static_machine_application(binding_application);
-            if application.binding_declaration != template_symbol {
+            if application.binding_declaration != binding_declaration {
                 return Err("specialized callable bindings belong to another declaration".into());
             }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("specialized callable lost its actual binding declaration")?;
             let template = program
                 .machine_by_symbol(template_symbol)
                 .ok_or("specialized callable lost its original machine declaration")?;
@@ -7049,13 +7131,16 @@ pub(crate) mod portable_machine_applications {
                 );
             }
             let bindings = program
-                .static_application_lifetimes_for_declaration(binding_application, template_symbol)
+                .static_application_lifetimes_for_declaration(
+                    binding_application,
+                    binding_declaration,
+                )
                 .map_err(str::to_owned)?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("specialized callable has an incomplete lifetime argument list".into());
             }
             let mut lifetimes = Vec::with_capacity(bindings.len());
-            for parameter in &template.lifetime_parameters {
+            for parameter in &binding_owner.lifetime_parameters {
                 let binding = bindings
                     .iter()
                     .find(|binding| &binding.parameter == parameter)
@@ -7311,11 +7396,20 @@ pub(crate) mod static_operand_identity {
             let template = self
                 .machine_by_symbol(receipt.template)
                 .ok_or("source application lost its original declaration")?;
-            let source = self.static_machine_application(receipt.binding_application);
-            if source.binding_declaration != receipt.template {
-                return Err("source application bindings belong to another declaration");
+            let binding_declaration = self.specialization_binding_declaration(receipt)?;
+            let binding_owner = self
+                .machine_by_symbol(binding_declaration)
+                .ok_or("source application lost its binding declaration")?;
+            let parameters = self.machine_callable_parameters(binding_owner);
+            // The enclosing tuple does not supply a child's additional own arguments.
+            if self.machine_callable_parameters(template).len() != parameters.len()
+                || (binding_declaration != receipt.template
+                    && !template.lifetime_parameters.is_empty())
+            {
+                return Err(
+                    "source callable still needs its remaining own static or lifetime arguments",
+                );
             }
-            let parameters = self.machine_callable_parameters(template);
             let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let authored = self.static_machine_application_arguments(receipt.binding_application);
             if parameters.len() != bindings.len() || parameters.len() != authored.len() {
@@ -7369,12 +7463,12 @@ pub(crate) mod static_operand_identity {
             }
             let bindings = self.static_application_lifetimes_for_declaration(
                 receipt.binding_application,
-                receipt.template,
+                binding_declaration,
             )?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("source application has an incomplete lifetime tuple");
             }
-            let lifetimes = template
+            let lifetimes = binding_owner
                 .lifetime_parameters
                 .iter()
                 .map(|parameter| {
@@ -7913,7 +8007,7 @@ pub(crate) mod substitution {
         {
             return match context.portable_machine_applications {
                 Some(projection) => projection.record_value(program, symbol, context),
-                None => super::portable_machine_applications::operation_record_value_in_context(
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
                     program, symbol, context,
                 ),
             }

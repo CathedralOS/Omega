@@ -194,6 +194,8 @@ public data CallingConvention {
     case Aapcs64;
     case LinuxSyscallX86_64;
     case LinuxSyscallAarch64;
+    // Apple arm64: AAPCS64 registers, stack arguments packed at natural alignment.
+    case DarwinAapcs64;
 }
 
 public data RegisterSet requires register_count <= 64 {

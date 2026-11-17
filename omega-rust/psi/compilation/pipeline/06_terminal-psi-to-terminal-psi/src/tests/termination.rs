@@ -308,13 +308,20 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         refused(&looping(scalars, "remaining -> Nat::Descending in 0..=16")),
         "contract ranking view arguments and bounded ranges while reading the body of `spend`",
     );
-    // A pair is ranked, not refused: termination.md, "Ranking", reads
+    // A pair without a view is refused: a tuple is not a carrier, so it
+    // declares no canonical default (termination.md, "Ranking"), and
+    // bounded distance and a lexicographic product would both fit it.
+    assert_eq!(
+        refused(&looping(scalars, "(remaining, limit)")),
+        "contract ranking view has no admitted resolved selection while reading the body of `spend`",
+    );
+    // The same pair naming `Nat::BoundedDistance` is ranked: the view reads
     // `(cursor, limit)` as the distance from cursor to limit. Counting
     // `remaining` down widens that distance, so the comparison at the
     // recursive call is the one thing left unproved. The distance is a
     // saturating subtraction, a form the rules do not decide
     // (`prove::reach::within_rules`), so the verdict is `Incomplete`.
-    let pair = looping(scalars, "(remaining, limit)");
+    let pair = looping(scalars, "(remaining, limit) -> Nat::BoundedDistance");
     match judged(&pair) {
         RouteVerdict::Incomplete(unproved) => assert!(
             matches!(

@@ -43,7 +43,7 @@ pub use program::{PhysicalFunction, PostAllocationMachineProgram};
 pub(crate) use codec::PostAllocationMachineDecodeError;
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
 pub use costs::{TargetCostModelIdentity, target_cost_model};
-pub use evidence::PostAllocationMachineOptimizationCustody;
+pub use evidence::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePhaseReceipt};
 pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
 pub use instructions::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation, PostAllocationMachineInstruction,

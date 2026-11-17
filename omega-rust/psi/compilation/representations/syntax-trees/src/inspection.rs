@@ -247,6 +247,8 @@ pub mod snapshot {
                 end_inclusive: bool,
             },
             StructLiteral {
+                #[serde(skip_serializing_if = "std::ops::Not::not")]
+                zero_omitted_fields: bool,
                 #[serde(skip_serializing_if = "Option::is_none")]
                 application_type: Option<Box<TypeReferenceSnapshot>>,
                 constructor_name: IdentifierSnapshot,
@@ -579,6 +581,7 @@ pub mod snapshot {
                     end_inclusive: range.end_inclusive,
                 },
                 ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
+                    zero_omitted_fields: value.zero_omitted_fields,
                     application_type: value.application_type.is_valid().then(|| {
                         Box::new(snapshot_type_reference_handle(
                             syntax_trees,

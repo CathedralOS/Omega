@@ -580,6 +580,7 @@ mod references {
         let owner_name = &name[..name.len() - case.len() - 2];
         *expression_table.expression_mut(expression) =
             ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: DiagnosticName::new(owner_name, source_span),
                 type_symbol: owner,

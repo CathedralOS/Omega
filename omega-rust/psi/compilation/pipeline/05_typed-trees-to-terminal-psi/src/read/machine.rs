@@ -699,13 +699,37 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
-        if let Some(id) = self.applications.iter().copied().find(|id| {
-            self.symbols.get(*id) == Some(&symbol)
-                && self
-                    .value_parameters
-                    .get(*id)
-                    .is_some_and(|count| *count != 0)
-        }) {
+        if let Some(id) = self
+            .applications
+            .iter()
+            .copied()
+            .find(|id| self.symbols.get(*id) == Some(&symbol))
+        {
+            return Ok(id);
+        }
+        // Inherited binder occurrences belong to this same generic body graph.
+        // Independently declared generic callees retain their dependency/SCC edge.
+        let root = self
+            .symbols
+            .get(MachineId::new(1).expect("one is nonzero"))
+            .and_then(|symbol| self.typed.machine_by_symbol(*symbol));
+        let local =
+            self.typed
+                .machine_by_symbol(symbol)
+                .zip(root)
+                .is_some_and(|(machine, root)| {
+                    let parameters = self.typed.machine_type_parameters(machine);
+                    !parameters.is_empty()
+                        && parameters.iter().all(|parameter| {
+                            self.typed.symbols.get(parameter.symbol).parent != machine.symbol
+                                && self
+                                    .typed
+                                    .machine_type_parameters(root)
+                                    .iter()
+                                    .any(|original| original == parameter)
+                        })
+                });
+        if local && let Some((id, _)) = self.symbols.iter().find(|(_, known)| **known == symbol) {
             return Ok(id);
         }
         let id = self.next_identity()?;
@@ -714,7 +738,9 @@ impl<'t> Program<'t> {
         // read the actual generic body and infer its complete effects. A
         // bodyless placeholder cannot infer an omitted service ceiling.
         // Retain the application for its independent template check too.
-        self.applications.push(id);
+        if !local {
+            self.applications.push(id);
+        }
         Ok(id)
     }
 
@@ -813,7 +839,7 @@ impl<'t> Program<'t> {
 
     pub(crate) fn witnessed_signature(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
@@ -885,7 +911,7 @@ impl<'t> Program<'t> {
     /// contract differs with them.
     pub(super) fn requirement(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
         self.requirement_form(declared, RequirementValues::Bound(arguments))
@@ -893,7 +919,7 @@ impl<'t> Program<'t> {
 
     fn requirement_form(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         values: RequirementValues<'_>,
     ) -> Checked<MachineId> {
         let symbol = declared.symbol;
@@ -916,6 +942,7 @@ impl<'t> Program<'t> {
         }
         let id = self.next_identity()?;
         let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
+        self.retain_requirement_policy(id, declared, declared.symbol)?;
         if matches!(values, RequirementValues::Rigid) {
             self.generic_binders.extend(
                 self.typed
@@ -1393,10 +1420,18 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
+        for parameter in typed.machine_type_parameters(machine) {
+            self.prepare_record_parameter(id, machine.symbol, parameter)?;
+        }
         let binders = typed
             .machine_type_parameters(machine)
             .iter()
             .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { .. }
+                    if self.record_parameter(parameter.symbol).is_some() =>
+                {
+                    None
+                }
                 TypeParameterKind::Const { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
@@ -1506,6 +1541,10 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Spelling("value parameter without a symbol"),
                 ));
+            }
+            if self.record_parameter(parameter.symbol).is_some() {
+                // The complete source-only schema account owns this value and its members.
+                continue;
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
             if !matches!(
@@ -4108,6 +4147,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Array { elements } => {
@@ -4322,6 +4362,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {
             for element in elements {

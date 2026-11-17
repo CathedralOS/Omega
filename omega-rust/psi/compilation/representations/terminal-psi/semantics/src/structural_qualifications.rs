@@ -467,6 +467,13 @@ impl<'a> DefaultRequirements<'a> {
                     }
                 }
             }
+            // A symbolic zero has no individual element coordinates. The
+            // zero vocabulary check permits only ungated primitive elements,
+            // so there is no nested default clause to inventory here.
+            StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                ..
+            } if zero => {}
             StructuralTypeShape::Record { fields, .. } => {
                 self.fields(root, path, fields, zero, active, result)?;
             }
@@ -572,11 +579,39 @@ impl<'a> DefaultRequirements<'a> {
                 field: None,
                 ..
             } => (*destination, path.clone(), true),
+            kind if !kind.structural_arguments().is_empty() => {
+                // A callee may change an exclusively lent subplace. The
+                // formal's own domains are restored at handback; each strict
+                // containing owner owes its defaults at this call instead.
+                for argument in kind.structural_arguments() {
+                    if !matches!(
+                        argument.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    ) {
+                        continue;
+                    }
+                    let mut path = argument.path.clone();
+                    if path.pop().is_some() {
+                        result.extend(self.owners(argument.place, &path)?);
+                    }
+                }
+                return Ok(result);
+            }
             _ => return Ok(result),
         };
         if strict && path.pop().is_none() {
             return Ok(result);
         }
+        self.owners(root, &path)
+    }
+
+    fn owners(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<Vec<DefaultRequirement>> {
+        let mut result = Vec::new();
         for length in (0..=path.len()).rev() {
             let path = &path[..length];
             if matches!(path.last(), Some(StructuralPathSegment::Case(_))) {
@@ -691,6 +726,22 @@ fn zero_defaults_supported(
             length: terminal_psi::ArrayExtent::Literal(length),
         } => {
             let supported = *length == 0 || zero_defaults_supported(types, *element, active);
+            active.pop();
+            return supported;
+        }
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Parameter { .. },
+        } => {
+            let supported = types
+                .binary_search_by_key(element, |row| row.id)
+                .ok()
+                .map(|position| &types[position])
+                .is_some_and(|element| {
+                    element.requires.is_empty()
+                        && element.scalar_restriction.is_none()
+                        && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
+                });
             active.pop();
             return supported;
         }
@@ -3276,6 +3327,52 @@ mod default_requirement_tests {
             )
         );
         assert_eq!(defaults.declared().unwrap(), rows);
+    }
+
+    #[test]
+    fn exclusive_calls_owe_the_same_owner_defaults_as_a_store() {
+        let mut types = types(2);
+        types[1].requires.push(Proposition::Truth);
+        let mut machine = machine();
+        machine.structural_parameters[0]
+            .qualifications
+            .push(StructuralDomainId::new(1).unwrap());
+        let domains = vec![domain(types[1].id)];
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        let path = vec![StructuralPathSegment::FixedIndex(0)];
+        let expected = defaults.operation(&store(path.clone())).unwrap();
+        assert_eq!(expected.len(), 2);
+        for (access, path, owes) in [
+            (StructuralAccess::MutableBorrow, path.clone(), true),
+            (StructuralAccess::WriteOnlyBorrow, path.clone(), true),
+            (StructuralAccess::SharedBorrow, path, false),
+            (StructuralAccess::MutableBorrow, Vec::new(), false),
+        ] {
+            let call = Operation::unsuspended(
+                OperationId::new(2).unwrap(),
+                OperationResult::Unit,
+                OperationKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path,
+                        access,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            );
+            let actual = defaults.operation(&call).unwrap();
+            if owes {
+                assert_eq!(actual, expected);
+            } else {
+                assert!(actual.is_empty());
+            }
+        }
     }
 
     #[test]

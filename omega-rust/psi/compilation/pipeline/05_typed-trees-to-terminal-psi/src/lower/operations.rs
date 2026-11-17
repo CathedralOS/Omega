@@ -203,6 +203,11 @@ impl Lowering<'_> {
                     .map(Reached::Value)
                 }
             },
+            ExpressionKind::Zero => {
+                let scalar = self.result_type(expression)?;
+                self.zero(scalar, source)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
+            }
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(

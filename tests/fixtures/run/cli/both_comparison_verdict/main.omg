@@ -1,0 +1,13 @@
+// A program small enough to finish on the Psi interpreter's default work
+// budget but not on a budget of one unit. `omega run --both` must exit 0 only
+// when it saw both runs finish and agree.
+// Expected exit: 0
+machine main() crashes Trap {
+    let total: u64 = 3u64 + 4u64;
+    transition total == 7u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

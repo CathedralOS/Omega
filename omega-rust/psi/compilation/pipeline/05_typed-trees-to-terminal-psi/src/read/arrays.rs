@@ -192,10 +192,16 @@ impl Program<'_> {
 
         let unavailable =
             |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(borrow) = self.typed.expression_table.borrow_expression(argument) else {
-            return Ok(None);
-        };
-        let Some(indexed) = self.typed.expression_table.indexed_node(borrow.target) else {
+        // expressions.md, "Borrowed range access": "a bare range
+        // `items[start..end]` forms a shared view when received as a
+        // reference". So a bare range lends exactly what `&items[start..end]`
+        // lends. A bare range of a byte view keeps its byte subslice reading.
+        let (target, written_access, bare) =
+            match self.typed.expression_table.borrow_expression(argument) {
+                Some(borrow) => (borrow.target, borrow.access, false),
+                None => (argument, ReferenceAccess::Shared, true),
+            };
+        let Some(indexed) = self.typed.expression_table.indexed_node(target) else {
             return Ok(None);
         };
         let Some(range) = self.typed.expression_table.range_node(indexed.index) else {
@@ -204,6 +210,14 @@ impl Program<'_> {
         let ValueType::Record(mut view, expected_qualification, _) = expected else {
             return Ok(None);
         };
+        if bare
+            && !matches!(
+                self.data_type(machine, view)?.shape,
+                StorageShape::ElementView { .. }
+            )
+        {
+            return Ok(None);
+        }
         // Formation owns a stored descriptor with the written loan. Only the
         // callee's direct formal carries its access separately from its shape.
         if formal_access == Some(ReferenceAccess::Mutable)
@@ -245,7 +259,7 @@ impl Program<'_> {
             } => (access, Some((element, qualification))),
             _ => return Ok(None),
         };
-        let requested = match borrow.access {
+        let requested = match written_access {
             ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
             ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
             ReferenceAccess::WriteOnly => {
@@ -380,8 +394,8 @@ impl Program<'_> {
             && self.data_type(machine, backing)?.copyable
         {
             self.authorized(machine, backing_type, Access::Read)?;
-            let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
-            self.complete_formed_operator(machine, borrow.target, &value)?;
+            let value = self.byte_subslice(machine, slots, base, range, target, source)?;
+            self.complete_formed_operator(machine, target, &value)?;
             return present(self, value).map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
@@ -405,13 +419,13 @@ impl Program<'_> {
                     unavailable("typed array view without a closed array of its exact element")
                 })?,
         };
-        self.collection_range_selection(machine, borrow.target, backing)?;
-        let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
+        self.collection_range_selection(machine, target, backing)?;
+        let crossed = self.reference_place_access(machine, slots, &base, written_access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
         if !byte_view
             && !crossed
-            && borrow.access == ReferenceAccess::Mutable
+            && written_access == ReferenceAccess::Mutable
             && (slots[slot].borrowed == Some(ReferenceAccess::Shared)
                 || slots[slot].borrowed.is_none() && !slots[slot].assignable)
         {
@@ -422,13 +436,13 @@ impl Program<'_> {
         self.authorized(
             machine,
             backing_type,
-            if borrow.access == ReferenceAccess::Mutable {
+            if written_access == ReferenceAccess::Mutable {
                 Access::Write
             } else {
                 Access::Read
             },
         )?;
-        if borrow.access == ReferenceAccess::Mutable {
+        if written_access == ReferenceAccess::Mutable {
             self.written_through(machine, &base)?;
         }
         let mut regions = self.storage_loan_regions(machine, slots, &base)?;
@@ -448,14 +462,14 @@ impl Program<'_> {
             call_context: None,
             kind: ExpressionKind::CollectionView {
                 base: Box::new(base),
-                access: borrow.access,
+                access: written_access,
                 element,
             },
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
         // The original range operator belongs to its actual backing.
-        self.complete_formed_operator(machine, borrow.target, &whole)?;
+        self.complete_formed_operator(machine, target, &whole)?;
         let formed = if partial {
             self.collection_window(machine, slots, whole, range, source)?
         } else {
@@ -618,6 +632,7 @@ impl Program<'_> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
         access: Access,
+        element_read: ElementRead,
     ) -> Checked<Expression> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         // A range preserves the backing region of its operand. Context can
@@ -647,9 +662,41 @@ impl Program<'_> {
             }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
+        // A range of a shared typed view (`&[T]`) is the same window as a
+        // byte range: it keeps the view's backing region, and lowering checks
+        // `start <= end <= len` against the view's own length. A mutable view
+        // would need its exclusive loan kept live through the window, which
+        // this read path does not establish, so it stays refused.
+        if let typed_trees::expression::ExpressionNode::Range(range) =
+            self.node(machine, indexed.index)?
+        {
+            if matches!(
+                self.data_type(machine, array.record())?.shape,
+                StorageShape::ElementView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    ..
+                }
+            ) {
+                self.collection_range_selection(machine, handle, array.record())?;
+                return self.collection_window(machine, slots, base, range, source);
+            }
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("range of a collection that is not a shared view"),
+            ));
+        }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);
-        if stored_length && access == Access::Read && !self.data_type(machine, element)?.copyable {
+        // Reading a whole slice element copies it out of the view, so the
+        // element type must be copyable. A field projection reads only the
+        // selected field; the lowering copies that field from the element's
+        // place and still refuses an owned extraction from borrowed storage.
+        if stored_length
+            && access == Access::Read
+            && element_read == ElementRead::Whole
+            && !self.data_type(machine, element)?.copyable
+        {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -1138,4 +1185,12 @@ mod sequence_source_tests {
             "an unrelated retained source cannot relabel the row"
         );
     }
+}
+
+/// How a read uses the element an index selects: as a whole value, or only
+/// as the place a field projection reads from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ElementRead {
+    Whole,
+    Projected,
 }

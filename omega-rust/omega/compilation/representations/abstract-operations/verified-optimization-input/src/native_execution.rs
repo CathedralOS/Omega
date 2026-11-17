@@ -39,6 +39,47 @@ impl TerminalNativeRealizationProposal {
         self.prepare_native_provider_demand(authorization, scope)
     }
 
+    /// The scalar values native compilation of the program entry reads, or
+    /// `None` when it reads none and the program states no scalar condition.
+    /// Component calls only remove local implementations from the scope, so
+    /// this demand covers the entry with or without them.
+    pub fn entry_scalar_demand(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
+        let demand = self
+            .prepare_native_execution(authorization, &[])?
+            .scalar_application_demand(self.target_profile())?;
+        Ok(Self::required(authorization, demand))
+    }
+
+    /// The scalar values native compilation of separately emitted callables
+    /// reads, or `None` when they read none and the program states no scalar
+    /// condition.
+    pub fn callable_scalar_demand(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        entries: &[terminal_psi::TargetMachineCallable],
+    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
+        let mut demand = Vec::new();
+        for &entry in entries {
+            demand.extend(
+                self.prepare_native_callable_execution(authorization, entry)?
+                    .scalar_application_demand(self.target_profile())?,
+            );
+        }
+        demand.sort_unstable();
+        demand.dedup();
+        Ok(Self::required(authorization, demand))
+    }
+
+    fn required(
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+    ) -> Option<Vec<semantic_vocabulary::ScalarApplicationId>> {
+        requires_scalar_values(authorization.artifact(), &demand).then_some(demand)
+    }
+
     pub fn execution_scope(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -490,4 +531,18 @@ impl PreparedNativeExecution {
     ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
         &self.boundary_application_coverage
     }
+}
+
+/// Native compilation needs completed scalar values when its code reads one or
+/// the program states any scalar condition, which lowering must find discharged.
+pub fn requires_scalar_values(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    demand: &[semantic_vocabulary::ScalarApplicationId],
+) -> bool {
+    !demand.is_empty()
+        || !artifact
+            .semantic_module()
+            .scalar_applications
+            .conditions
+            .is_empty()
 }

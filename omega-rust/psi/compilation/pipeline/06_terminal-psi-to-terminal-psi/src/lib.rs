@@ -1619,6 +1619,60 @@ pub(crate) use terminal_semantics::substitution::clauses::{
     substitute_sufficient_clause as sufficient_goal,
 };
 
+/// States a clause the checker must prove: a goal, never a premise.
+///
+/// A disjunct this point cannot state over its values counts as false, and
+/// the rest of the disjunction must hold. Proving the remaining disjuncts
+/// proves the whole clause, because each disjunct only adds ways for it to
+/// hold. An inferred input condition (`entry_inputs`) needs this: it joins
+/// what each caller establishes, so one caller's disjunct can name a field
+/// that another caller never reads and so has no value for.
+///
+/// Only `Unbound::Unproved` parts are dropped. A clause form this route does
+/// not serve, or a refused name, still refuses. Premises keep `substitute`:
+/// dropping a part there would assume more than the clause says.
+pub(crate) fn substitute_goal(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Proposition, Unbound> {
+    let (parts, conjunction) = match clause {
+        Proposition::Conjunction(parts) => (parts, true),
+        Proposition::Disjunction(parts) => (parts, false),
+        _ => return sufficient_goal(clause, bindings),
+    };
+    let (deciding, unit) = if conjunction {
+        (Proposition::Falsehood, Proposition::Truth)
+    } else {
+        (Proposition::Truth, Proposition::Falsehood)
+    };
+    let mut kept = Vec::with_capacity(parts.len());
+    let mut unstated = None;
+    for part in parts {
+        match substitute_goal(part, bindings) {
+            Ok(part) if part == deciding => return Ok(deciding),
+            Ok(part) if part == unit => {}
+            Ok(part) => kept.push(part),
+            // A conjunct is owed whatever the others say.
+            Err(unbound) if conjunction => unstated = unstated.or(Some(unbound)),
+            Err(Unbound::Unproved(detail)) => {
+                unstated = unstated.or(Some(Unbound::Unproved(detail)))
+            }
+            Err(unbound) => return Err(unbound),
+        }
+    }
+    if let Some(unbound) = unstated
+        && (conjunction || kept.is_empty())
+    {
+        return Err(unbound);
+    }
+    Ok(match kept.len() {
+        0 => unit,
+        1 => kept.remove(0),
+        _ if conjunction => Proposition::Conjunction(kept),
+        _ => Proposition::Disjunction(kept),
+    })
+}
+
 impl From<&'static str> for Unbound {
     fn from(detail: &'static str) -> Self {
         Self::Unsupported(detail)
@@ -1953,7 +2007,7 @@ fn stated_goal<'a>(
             // record formal is what that field of the record actual holds
             // when the call is made.
             let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
-                sufficient_goal(
+                substitute_goal(
                     clause,
                     &mut ErasedTerms {
                         terms: &erased,
@@ -2001,7 +2055,7 @@ fn stated_goal<'a>(
                         "machine has no such ensures clause",
                     )
                 })?;
-            sufficient_goal(
+            substitute_goal(
                 &clause.proposition,
                 &mut storage.at_return(references, tables, exit, concerns)?,
             )

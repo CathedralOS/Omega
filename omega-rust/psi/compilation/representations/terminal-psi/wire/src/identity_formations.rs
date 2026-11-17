@@ -1,9 +1,12 @@
 //! Receive typed `Id` formations without trusting them.
 //!
 //! The catalog abstracts checked source subjects into ordinary mathematical
-//! lambdas. The receiver rechecks their signature and requires real `Id`
-//! bodies; neither an opaque structural-equality row nor a Boolean comparison
-//! can stand in for this kernel type constructor.
+//! lambdas. Decoding checks only the catalog's canonical shape: like every
+//! other carried mathematical certificate, it does not re-decide the encoded
+//! judgment (`wiki/spec/terminal-psi/encoding.md`, mathematical certificates).
+//! Source-bound receiving rechecks the signature in the kernel and requires
+//! real `Id` bodies; neither an opaque structural-equality row nor a Boolean
+//! comparison can stand in for this kernel type constructor.
 
 use crate::{CodecError, decode_mathematical_certificate};
 use proof_admission::{
@@ -11,16 +14,18 @@ use proof_admission::{
 };
 use terminal_psi::TerminalModule;
 
-pub(crate) fn validate_identity_formations(
-    module: &TerminalModule,
-    budget: &mut Budget,
-) -> Result<(), CodecError> {
-    receive_catalog(module, budget).map(|_| ())
+/// Decode-time check: canonical certificate bytes and catalog structure only.
+/// Inspection of untrusted bytes runs no kernel, so a large but valid
+/// certificate is not refused by a fixed decode budget.
+pub(crate) fn validate_identity_formations(module: &TerminalModule) -> Result<(), CodecError> {
+    receive_catalog(module, None).map(|_| ())
 }
 
+/// With `kernel`, also replay the shared signature and reduce every row to the
+/// kernel `Id` constructor; only source-bound receiving asks for this.
 fn receive_catalog(
     module: &TerminalModule,
-    budget: &mut Budget,
+    mut kernel: Option<&mut Budget>,
 ) -> Result<Option<crate::DecodedMathematicalCertificate>, CodecError> {
     let catalog = &module.identity_formations;
     let fail = |reason: &str| CodecError::InvalidIdentityFormation(reason.to_owned());
@@ -41,9 +46,16 @@ fn receive_catalog(
             "Id formation catalog is not a closed signature judgment",
         ));
     }
-    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, budget)
-        .map_err(|error| fail(&format!("Id formation fails kernel checking: {error:?}")))?;
-    let signature = Signature::from_declarations(decoded.certificate.signature.clone());
+    let signature = match kernel.as_deref_mut() {
+        Some(budget) => {
+            verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, budget)
+                .map_err(|error| fail(&format!("Id formation fails kernel checking: {error:?}")))?;
+            Some(Signature::from_declarations(
+                decoded.certificate.signature.clone(),
+            ))
+        }
+        None => None,
+    };
     let mut previous = None;
     for row in &catalog.rows {
         if previous.is_some_and(|previous| previous >= row.declaration) {
@@ -80,7 +92,10 @@ fn receive_catalog(
             };
             body = next;
         }
-        let body = weak_head_normalize(&mut decoded.arena, &signature, body, budget)
+        let (Some(budget), Some(signature)) = (kernel.as_deref_mut(), signature.as_ref()) else {
+            continue;
+        };
+        let body = weak_head_normalize(&mut decoded.arena, signature, body, budget)
             .map_err(|error| fail(&format!("Id formation reduction failed: {error:?}")))?;
         if !matches!(decoded.arena.get(body), Term::Id { .. }) {
             return Err(fail(
@@ -121,7 +136,7 @@ pub fn verify_identity_formations(
     if module.identity_formations.rows.len() != expected.rows.len() {
         return Err(fail("Id formation source roster differs from the receiver"));
     }
-    let Some(decoded) = receive_catalog(module, budget)? else {
+    let Some(decoded) = receive_catalog(module, Some(budget))? else {
         return Ok(());
     };
     let rows = &module.identity_formations.rows;
@@ -203,4 +218,116 @@ pub fn verify_identity_formations(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{decode_module, encode_mathematical_certificate, encode_module};
+    use proof_admission::{Declaration, Level, MathematicalCertificate, Sort, TermArena};
+    use terminal_psi::{
+        TerminalIdentityFormation, TerminalIdentityFormations, TerminalIdentityTableBuilder,
+    };
+
+    /// One closed Id-formation row whose declaration body is `body : ty`,
+    /// together with the roots a source-bound receiver would supply.
+    fn catalog(id_body: bool) -> (TerminalModule, ExpectedIdentityFormations) {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        // The negative twin keeps every structural property and changes only
+        // the body, to one the kernel refuses: `TwoZero` is not a type.
+        let body = if id_body {
+            arena.insert(Term::Id {
+                ty: two,
+                left: zero,
+                right: zero,
+            })
+        } else {
+            zero
+        };
+        let certificate = encode_mathematical_certificate(
+            &arena,
+            &MathematicalCertificate {
+                signature: vec![Declaration::definition(0, universe, body)],
+                level_arity: 0,
+                context: Vec::new(),
+                term: zero,
+                expected: two,
+            },
+        )
+        .unwrap();
+        let signature = encode_mathematical_certificate(
+            &arena,
+            &MathematicalCertificate {
+                signature: Vec::new(),
+                level_arity: 0,
+                context: Vec::new(),
+                term: zero,
+                expected: two,
+            },
+        )
+        .unwrap();
+        let judgment = encode_mathematical_certificate(
+            &arena,
+            &MathematicalCertificate {
+                signature: Vec::new(),
+                level_arity: 0,
+                context: Vec::new(),
+                term: body,
+                expected: universe,
+            },
+        )
+        .unwrap();
+        let mut names = TerminalIdentityTableBuilder::default();
+        let source_owner = names.intern("sample::Owner");
+        let source_carrier = names.intern("sample::Carrier");
+        let mut module = TerminalModule::declarations();
+        module.identities = names.build();
+        module.identity_formations = TerminalIdentityFormations {
+            rows: vec![TerminalIdentityFormation {
+                source_owner,
+                source_carrier,
+                subject_carriers: Vec::new(),
+                subject_origins: Vec::new(),
+                declaration: 0,
+            }],
+            certificate,
+        };
+        let expected = ExpectedIdentityFormations {
+            signature,
+            rows: vec![ExpectedIdentityFormation {
+                source_owner: "sample::Owner".to_owned(),
+                source_carrier: "sample::Carrier".to_owned(),
+                subject_carriers: Vec::new(),
+                subject_origins: Vec::new(),
+                judgment,
+            }],
+        };
+        (module, expected)
+    }
+
+    #[test]
+    fn source_bound_receiving_accepts_a_kernel_checked_id_formation() {
+        let (module, expected) = catalog(true);
+        let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
+        assert_eq!(decoded, module);
+        verify_identity_formations(&decoded, &expected, &mut Budget::default()).unwrap();
+    }
+
+    #[test]
+    fn decoding_does_not_replay_the_kernel_but_source_bound_receiving_does() {
+        let (module, expected) = catalog(false);
+        let decoded = decode_module(&encode_module(&module).unwrap())
+            .expect("inspection checks canonical shape, not the carried judgment");
+        assert_eq!(decoded, module);
+        let refusal = verify_identity_formations(&decoded, &expected, &mut Budget::default())
+            .expect_err("source-bound receiving replays the kernel");
+        assert!(
+            matches!(&refusal, CodecError::InvalidIdentityFormation(reason)
+                if reason.starts_with("Id formation fails kernel checking")),
+            "{refusal:?}"
+        );
+    }
 }

@@ -485,6 +485,10 @@ pub(crate) mod errors {
             edge: semantic_vocabulary::EdgeId,
         },
         ScalarEntryQualificationUnsupported,
+        /// The program offset, cast, reinterpreted or did arithmetic on a
+        /// host-returned address, or compared it with an address the
+        /// interpreter created.
+        HostAddressMixed,
         UnsupportedCapability(crate::engine::capabilities::TerminalUnsupportedCapability),
         UnsupportedSemanticVariant(&'static str),
         ScalarDescriptorNotRetained {
@@ -719,6 +723,13 @@ pub(crate) mod errors {
         TerminalInterpretError::VerifiedOperationMalformed {
             check: std::panic::Location::caller(),
         }
+    }
+
+    /// A host-returned `addr` is opaque: only storing, copying, comparing
+    /// with another host address or null, and passing it back to a native
+    /// import are defined (terminal-psi/boundary_calls.md#host-result-validation).
+    pub(crate) fn host_address_mixed() -> TerminalInterpretError {
+        TerminalInterpretError::HostAddressMixed
     }
 
     impl TerminalInterpretError {
@@ -2503,7 +2514,9 @@ pub(crate) mod values {
         value: &TerminalScalarValue,
     ) -> Option<terminal_semantics::ScalarViewValue> {
         Some(match value {
-            TerminalScalarValue::Callable { .. } => return None,
+            TerminalScalarValue::Callable { .. } | TerminalScalarValue::HostAddress { .. } => {
+                return None;
+            }
             TerminalScalarValue::Boolean(value) => {
                 terminal_semantics::ScalarViewValue::Boolean(*value)
             }

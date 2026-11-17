@@ -265,10 +265,11 @@ impl Known {
                 &mut conjuncts,
             );
         }
+        let mut deferred_storage_aliases = Vec::new();
         let equations: Vec<_> = facts
             .iter()
             .enumerate()
-            .filter(|(_, fact)| match &fact.proposition {
+            .filter(|(index, fact)| match &fact.proposition {
                 Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
@@ -278,7 +279,21 @@ impl Known {
                         // not an IEEE comparison or a numeric conversion. The
                         // checked equation already names the immutable read;
                         // join scope is checked against the owning root.
-                        ScalarTerm::Value { .. } => true,
+                        ScalarTerm::Value { id: right, .. } => {
+                            let ScalarTerm::Value { id: left, .. } = subject else {
+                                unreachable!("equation subject matched ScalarTerm::Value");
+                            };
+                            if fact.axiom.is_none()
+                                && left != right
+                                && values.is_storage_content(*left)
+                                && !values.is_storage_content(*right)
+                            {
+                                deferred_storage_aliases.push(*index);
+                                false
+                            } else {
+                                true
+                            }
+                        }
                         // Exact operation definitions retain their selected
                         // integer meaning. A compound scalar equality learned
                         // from an arrival remains a proof premise for bounds.
@@ -330,6 +345,37 @@ impl Known {
         }
         for index in 0..result.facts.len() {
             let _ = result.add_literal(index, &mut defined);
+        }
+        // Keep exact stored contents as the root when a join or contract
+        // equates a storage snapshot to an undefined scalar value, while still
+        // unfolding the snapshot when the scalar value has its own definition.
+        for index in deferred_storage_aliases {
+            let Proposition::Equal(
+                left @ ScalarTerm::Value { id: left_id, .. },
+                right @ ScalarTerm::Value { id: right_id, .. },
+            ) = result.facts[index].proposition.clone()
+            else {
+                continue;
+            };
+            if defined.get(right_id) == Some(&None) {
+                let symmetric = result.facts.len();
+                result.facts.push(Fact {
+                    proposition: Proposition::Equal(right, left),
+                    origin: Origin::EqualitySymmetry { premise: index },
+                    axiom: None,
+                });
+                let equation = result.equations.len();
+                result.equations.push(symmetric);
+                if let Some(slot) = defined.get_mut(right_id) {
+                    *slot = Some(equation);
+                }
+            } else if defined.get(left_id) == Some(&None) {
+                let equation = result.equations.len();
+                result.equations.push(index);
+                if let Some(slot) = defined.get_mut(left_id) {
+                    *slot = Some(equation);
+                }
+            }
         }
         result.integer_equalities(0, &defined);
         result.normalize(context, &mut defined, &mut conjuncts, values);
