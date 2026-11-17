@@ -777,24 +777,32 @@ pub(crate) mod structural_type_lookup {
     use calling_conventions::terminal_layout::StructuralLayouts;
     use semantic_vocabulary::{
         ClosedIntegerType, ClosedScalarType, IntegerType, NonDenseIdentities, ScalarType,
-        StructuralTypeId,
+        StructuralTypeId, TargetCarrierLayout,
     };
-    use terminal_psi::StructuralPathSegment;
+    use target::NativeTarget;
+    use terminal_psi::{
+        LayoutApplicationId, StructuralFieldType, StructuralPathSegment, TargetLayoutRealization,
+    };
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
         catalog: &'a StructuralTypeCatalog,
+        carriers: TargetCarrierLayout,
         verified: Option<&'a verified_optimization_input::AdmittedLoweringFacts>,
     }
 
     impl<'a> StructuralTypeLookup<'a> {
-        pub(crate) fn new(source: &'a StructuralTypeCatalog) -> Result<Self, NonDenseIdentities> {
+        pub(crate) fn new(
+            source: &'a StructuralTypeCatalog,
+            target: NativeTarget,
+        ) -> Result<Self, NonDenseIdentities> {
             Ok(Self {
                 layouts: StructuralLayouts::with_owned_sequence_bounds(
                     source.iter(),
                     source.owned_sequence_bounds(),
                 )?,
                 catalog: source,
+                carriers: runtime_abi::target_carrier_layout(target),
                 verified: None,
             })
         }
@@ -803,8 +811,9 @@ pub(crate) mod structural_type_lookup {
         pub(crate) fn for_verified(
             source: &'a StructuralTypeCatalog,
             input: &'a verified_optimization_input::AdmittedLoweringFacts,
+            target: NativeTarget,
         ) -> Result<Self, NonDenseIdentities> {
-            let mut lookup = Self::new(source)?;
+            let mut lookup = Self::new(source, target)?;
             lookup.verified = Some(input);
             Ok(lookup)
         }
@@ -829,6 +838,30 @@ pub(crate) mod structural_type_lookup {
 
         pub(crate) fn catalog(&self) -> &StructuralTypeCatalog {
             self.catalog
+        }
+
+        pub(crate) fn storage_region_source_compatible(
+            &self,
+            source: StructuralTypeId,
+            path: &[StructuralPathSegment],
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            // Current native carriers can differ from portable descriptors.
+            // Reuse the shared region and validity checks with physical leaf
+            // geometry, rather than reading an earlier module or trusting a
+            // source-sized parent when calculating this field's byte offset.
+            terminal_semantics::ReferenceStorageGeometry::new(
+                self.values().copied(),
+                |application| {
+                    Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                        application,
+                    ))
+                },
+            )
+            .with_target_carriers(Some(self.carriers))
+            .with_record_storage(self)
+            .region_source_compatible(source, path, reference, stored)
         }
 
         pub(crate) fn subtree(
@@ -856,11 +889,471 @@ pub(crate) mod structural_type_lookup {
         }
     }
 
+    impl terminal_semantics::RecordStorageResolver for &StructuralTypeLookup<'_> {
+        fn carrier_layout(
+            &self,
+            owner: StructuralTypeId,
+            carrier: &StructuralFieldType,
+        ) -> Result<Option<(u64, u64)>, terminal_semantics::StorageGeometryError> {
+            let shape = self.layouts.field_shape(carrier, owner).map_err(|error| {
+                use calling_conventions::terminal_layout::TerminalLayoutError as Native;
+                use terminal_semantics::StorageGeometryError as Geometry;
+                match error {
+                    Native::UnknownStructuralType(id) => Geometry::MissingType(id),
+                    Native::RecursiveStructuralType(id) => Geometry::RecursiveType(id),
+                    Native::StructuralTypeTooLarge(_) => Geometry::Overflow,
+                    Native::UnclosedScalarType(scalar) => Geometry::UnsupportedScalar(scalar),
+                    Native::UnclosedArrayExtent(id)
+                    | Native::UnclosedOwnedSequence(id)
+                    | Native::UnclosedTargetLayout(id)
+                    | Native::ReentrantLayoutQuery(id) => Geometry::UnresolvedLayout(id),
+                    Native::InvalidStorageGeometry(id) => Geometry::InvalidRecordStorage(id),
+                    Native::UnclosedOpaqueRepresentation(id)
+                    | Native::UnsupportedStructuralSum(id)
+                    | Native::EmptyStructuralType(id) => Geometry::UnsupportedType(id),
+                }
+            })?;
+            Ok(Some((
+                u64::from(shape.byte_size),
+                u64::from(shape.alignment),
+            )))
+        }
+
+        fn realization(
+            &self,
+            record: StructuralTypeId,
+            _application: LayoutApplicationId,
+        ) -> Result<&TargetLayoutRealization, terminal_semantics::StorageGeometryError> {
+            // This stage's catalog already contains closed physical records.
+            // An unresolved application is not permission to fetch its old
+            // realization from the retained publication owner.
+            Err(terminal_semantics::StorageGeometryError::UnresolvedLayout(
+                record,
+            ))
+        }
+    }
+
     impl<'a> Deref for StructuralTypeLookup<'a> {
         type Target = StructuralLayouts<'a>;
 
         fn deref(&self) -> &Self::Target {
             &self.layouts
         }
+    }
+}
+
+#[cfg(test)]
+mod native_region_geometry_tests {
+    use super::structural_type_lookup::StructuralTypeLookup;
+    use abstract_operations::StructuralTypeCatalog;
+    use semantic_vocabulary::{
+        AuthoredFieldStorage, AuthoredRecordStorage, IntegerSign, IntegerType, ScalarType,
+        StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        ArrayExtent, BindingRelevance, StructuralAccess, StructuralCaseDeclaration,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalIdentityIndex,
+    };
+
+    fn id(raw: u64) -> StructuralTypeId {
+        StructuralTypeId::new(raw).unwrap()
+    }
+
+    fn integer(bits: u16) -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
+    }
+
+    fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
+            id: id(raw),
+            identity: TerminalIdentityIndex(raw as u32),
+            shape,
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+        }
+    }
+
+    fn field(raw: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
+        StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
+            inline_carrier: None,
+            id: StructuralFieldId::new(u64::from(raw)).unwrap(),
+            identity: TerminalIdentityIndex(raw),
+            relevance: BindingRelevance::Relevant,
+            field_type,
+            storage: None,
+        }
+    }
+
+    // The unchanged external 32/31 control has an unrelated sum before its
+    // byte field and a selected 16-byte record plus 16-byte tail in the view.
+    fn explicit_window_catalog() -> StructuralTypeCatalog {
+        let rows = vec![
+            declaration(1, StructuralTypeShape::PrimitiveScalar(integer(8))),
+            declaration(
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: id(1),
+                    length: ArrayExtent::Literal(32),
+                },
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::FixedArray {
+                    element: id(1),
+                    length: ArrayExtent::Literal(16),
+                },
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::Sum {
+                    cases: (1..=2)
+                        .map(|raw| StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
+                            id: StructuralCaseId::new(raw).unwrap(),
+                            identity: TerminalIdentityIndex(raw as u32),
+                            fields: Vec::new(),
+                        })
+                        .collect(),
+                },
+            ),
+            declaration(
+                5,
+                StructuralTypeShape::Record {
+                    fields: [0, 8]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(position, byte_offset)| StructuralFieldDeclaration {
+                            storage: Some(AuthoredFieldStorage::Direct { byte_offset }),
+                            ..field(
+                                position as u32 + 1,
+                                StructuralFieldType::Scalar(integer(64)),
+                            )
+                        })
+                        .collect(),
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                        byte_size: 16,
+                        byte_alignment: 8,
+                    }),
+                },
+            ),
+            declaration(
+                6,
+                StructuralTypeShape::Record {
+                    fields: vec![
+                        field(1, StructuralFieldType::Structural(id(5))),
+                        field(2, StructuralFieldType::Structural(id(3))),
+                    ],
+                    storage: StructuralRecordStorage::Packed,
+                },
+            ),
+            declaration(
+                7,
+                StructuralTypeShape::Record {
+                    fields: vec![
+                        field(1, StructuralFieldType::Structural(id(4))),
+                        field(2, StructuralFieldType::Scalar(integer(64))),
+                        field(3, StructuralFieldType::Structural(id(2))),
+                    ],
+                    storage: StructuralRecordStorage::Packed,
+                },
+            ),
+            declaration(
+                8,
+                StructuralTypeShape::Reference {
+                    referent: id(6),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+        ];
+        StructuralTypeCatalog::new(rows, Vec::new())
+    }
+
+    fn window(end: u64) -> [StructuralPathSegment; 2] {
+        [
+            StructuralPathSegment::Field(TerminalIdentityIndex(3)),
+            StructuralPathSegment::FixedRange { start: 0, end },
+        ]
+    }
+
+    #[test]
+    fn explicit_record_window_uses_native_sum_geometry() {
+        let catalog = explicit_window_catalog();
+        let types = StructuralTypeLookup::new(
+            &catalog,
+            target::TargetProfile::LinuxX64
+                .native_realization()
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+    }
+
+    #[test]
+    fn a_short_window_cannot_supply_the_complete_explicit_record() {
+        let catalog = explicit_window_catalog();
+        let types = StructuralTypeLookup::new(
+            &catalog,
+            target::TargetProfile::LinuxX64
+                .native_realization()
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(!types.storage_region_source_compatible(id(7), &window(31), id(8), None));
+    }
+
+    fn carrier_catalog(
+        first: StructuralFieldType,
+        middle: StructuralFieldType,
+    ) -> StructuralTypeCatalog {
+        let mut catalog = explicit_window_catalog();
+        let rows = catalog.make_mut();
+        rows.extend([
+            declaration(9, StructuralTypeShape::PrimitiveScalar(integer(32))),
+            declaration(
+                10,
+                StructuralTypeShape::Reference {
+                    referent: id(9),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+            declaration(
+                11,
+                StructuralTypeShape::Reference {
+                    referent: id(5),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+            declaration(
+                12,
+                StructuralTypeShape::ElementView {
+                    element: id(9),
+                    access: None,
+                },
+            ),
+            declaration(
+                13,
+                StructuralTypeShape::ElementView {
+                    element: id(9),
+                    access: Some(StructuralAccess::SharedBorrow),
+                },
+            ),
+            declaration(
+                14,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 13 },
+                ),
+            ),
+            declaration(
+                15,
+                StructuralTypeShape::FixedArray {
+                    element: id(1),
+                    length: ArrayExtent::Literal(11),
+                },
+            ),
+        ]);
+        rows[5].shape = StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                storage: Some(AuthoredFieldStorage::Direct { byte_offset: 0 }),
+                ..field(1, StructuralFieldType::Structural(id(2)))
+            }],
+            storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                byte_size: 32,
+                byte_alignment: 16,
+            }),
+        };
+        rows[6].shape = StructuralTypeShape::Record {
+            fields: vec![
+                field(1, first),
+                field(2, middle),
+                field(3, StructuralFieldType::Structural(id(2))),
+                // A direct integer field has the selected field alignment 16;
+                // a primitive structural child has standalone alignment 8.
+                field(4, StructuralFieldType::Scalar(integer(128))),
+            ],
+            storage: StructuralRecordStorage::Packed,
+        };
+        catalog
+    }
+
+    fn lookup(catalog: &StructuralTypeCatalog) -> StructuralTypeLookup<'_> {
+        StructuralTypeLookup::new(
+            catalog,
+            target::TargetProfile::LinuxX64
+                .native_realization()
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn byte_offset(types: &StructuralTypeLookup<'_>) -> u32 {
+        crate::structural_layout::runtime_storage_projection(
+            id(7),
+            &[StructuralPathSegment::Field(TerminalIdentityIndex(3))],
+            types,
+        )
+        .unwrap()
+        .2
+    }
+
+    #[test]
+    fn physical_reference_width_determines_region_alignment() {
+        for profile in [
+            target::TargetProfile::LinuxX64,
+            target::TargetProfile::LinuxArm64,
+            target::TargetProfile::MacosArm64,
+            target::TargetProfile::WindowsX64,
+        ] {
+            for (carrier, width, offset, compatible) in [(10, 16, 24, false), (11, 8, 16, true)] {
+                let catalog = carrier_catalog(
+                    StructuralFieldType::Structural(id(carrier)),
+                    StructuralFieldType::Scalar(integer(64)),
+                );
+                let types =
+                    StructuralTypeLookup::new(&catalog, profile.native_realization().unwrap())
+                        .unwrap();
+                assert_eq!(types.shape(id(carrier)).unwrap().byte_size, width);
+                assert_eq!(types.shape(id(7)).unwrap().alignment, 16);
+                assert_eq!(byte_offset(&types), offset);
+                assert_eq!(
+                    types.storage_region_source_compatible(id(7), &window(32), id(8), None),
+                    compatible,
+                    "{profile:?}, reference {carrier}"
+                );
+                assert!(!types.storage_region_source_compatible(id(7), &window(31), id(8), None));
+            }
+        }
+    }
+
+    #[test]
+    fn owned_sequences_keep_inline_geometry_in_reference_regions() {
+        for (carrier, width, offset, compatible) in [(12, 24, 32, true), (13, 16, 24, false)] {
+            let catalog = carrier_catalog(
+                StructuralFieldType::Structural(id(carrier)),
+                StructuralFieldType::Scalar(integer(64)),
+            )
+            .with_owned_sequence_bounds(vec![(id(12), 3)]);
+            let types = lookup(&catalog);
+            assert_eq!(types.shape(id(carrier)).unwrap().byte_size, width);
+            assert_eq!(byte_offset(&types), offset);
+            assert_eq!(
+                types.storage_region_source_compatible(id(7), &window(32), id(8), None),
+                compatible
+            );
+        }
+    }
+
+    #[test]
+    fn inline_owned_bytes_do_not_gain_trailing_padding() {
+        for carrier in [
+            StructuralFieldType::Structural(id(14)),
+            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 13,
+            }),
+        ] {
+            let catalog = carrier_catalog(carrier.clone(), StructuralFieldType::Structural(id(15)));
+            let types = lookup(&catalog);
+            assert_eq!(types.field_shape(&carrier, id(7)).unwrap().byte_size, 21);
+            assert_eq!(byte_offset(&types), 32);
+            assert!(types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+            assert!(!types.storage_region_source_compatible(id(7), &window(31), id(8), None));
+        }
+    }
+
+    #[test]
+    fn unavailable_physical_layout_cannot_fall_back_to_a_descriptor() {
+        for bounds in [
+            vec![],
+            vec![(id(13), 3)],
+            vec![(id(12), 1), (id(12), 3)],
+            vec![(id(12), u64::MAX)],
+        ] {
+            let mut catalog = carrier_catalog(
+                StructuralFieldType::Structural(id(12)),
+                StructuralFieldType::Scalar(integer(64)),
+            );
+            // A source descriptor of 16 bytes would appear to fit this align-8
+            // window. Missing physical inline storage must still refuse.
+            let StructuralTypeShape::Record { storage, .. } = &mut catalog.make_mut()[5].shape
+            else {
+                unreachable!()
+            };
+            *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                byte_size: 32,
+                byte_alignment: 8,
+            });
+            let catalog = catalog.with_owned_sequence_bounds(bounds);
+            let types = lookup(&catalog);
+            assert!(types.shape(id(12)).is_err());
+            assert!(!types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+        }
+        let mut catalog = explicit_window_catalog();
+        let StructuralTypeShape::Record { storage, .. } = &mut catalog.make_mut()[5].shape else {
+            unreachable!()
+        };
+        *storage = StructuralRecordStorage::TargetLayout(terminal_psi::LayoutApplicationId(77));
+        let types = lookup(&catalog);
+        assert!(types.shape(id(6)).is_err());
+        assert!(!types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+    }
+
+    #[test]
+    fn physical_size_does_not_establish_target_validity_or_source_alignment() {
+        for invalid in [
+            StructuralFieldType::Structural(id(10)),
+            StructuralFieldType::Atomic(integer(64)),
+        ] {
+            let mut catalog = carrier_catalog(
+                StructuralFieldType::Structural(id(11)),
+                StructuralFieldType::Scalar(integer(64)),
+            );
+            let StructuralTypeShape::Record { fields, .. } = &mut catalog.make_mut()[5].shape
+            else {
+                unreachable!()
+            };
+            *fields = vec![StructuralFieldDeclaration {
+                storage: Some(AuthoredFieldStorage::Direct { byte_offset: 0 }),
+                ..field(1, invalid)
+            }];
+            let types = lookup(&catalog);
+            assert_eq!(types.shape(id(6)).unwrap().byte_size, 32);
+            assert!(!types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+        }
+        let mut catalog = explicit_window_catalog();
+        let StructuralTypeShape::Record { fields, storage } = &mut catalog.make_mut()[5].shape
+        else {
+            unreachable!()
+        };
+        for (field, byte_offset) in fields.iter_mut().zip([0, 16]) {
+            field.storage = Some(AuthoredFieldStorage::Direct { byte_offset });
+        }
+        *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+            byte_size: 32,
+            byte_alignment: 16,
+        });
+        let types = lookup(&catalog);
+        assert_eq!(types.shape(id(7)).unwrap().alignment, 8);
+        assert!(!types.storage_region_source_compatible(id(7), &window(32), id(8), None));
+        assert!(!types.storage_region_source_compatible(
+            id(7),
+            &[
+                StructuralPathSegment::Field(TerminalIdentityIndex(3)),
+                StructuralPathSegment::FixedRange {
+                    start: 0,
+                    end: u64::MAX
+                },
+            ],
+            id(8),
+            None
+        ));
     }
 }
