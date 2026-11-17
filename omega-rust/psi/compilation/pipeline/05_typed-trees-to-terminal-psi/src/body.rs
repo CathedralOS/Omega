@@ -319,8 +319,8 @@ impl ValueType {
     }
 }
 
-/// One plain record type: its fields in declaration order and its authored
-/// copy permission. Plain owned records remain affine even with scalar fields.
+/// One structural type with its fields and declared multiplicity. Plain owned
+/// records remain affine even with scalar fields; contained claims stay separate.
 /// A field is named by its position here and by its `StructuralFieldId`,
 /// both fixed once by the reader from the field's symbol.
 ///
@@ -336,9 +336,8 @@ impl ValueType {
 /// shape; its identity remains the type the reader actually resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
-    /// Actual source linear custody, including owned nested claims.
-    pub owns_linear_claim: bool,
-    pub copyable: bool,
+    /// The source declaration's multiplicity, independent of contained claims.
+    pub multiplicity: terminal_psi::StructuralMultiplicity,
     pub cleanup: Option<RecordCleanup>,
     pub identity: String,
     pub shape: StorageShape,
@@ -427,7 +426,23 @@ impl StorageShape {
     }
 }
 
+pub(crate) fn source_multiplicity(
+    value: language_semantics::Multiplicity,
+) -> terminal_psi::StructuralMultiplicity {
+    match value {
+        language_semantics::Multiplicity::Unrestricted => {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        }
+        language_semantics::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+        language_semantics::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
+    }
+}
+
 impl RecordType {
+    pub fn is_copyable(&self) -> bool {
+        self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+    }
+
     pub fn fields(&self) -> &[RecordField] {
         match &self.shape {
             StorageShape::Record(fields) => fields,

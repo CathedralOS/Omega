@@ -34,6 +34,7 @@ mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
 mod byte_view_elements;
+mod call_claims;
 mod callable_contracts;
 mod calling_policies;
 mod case_payloads;
@@ -1389,8 +1390,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1401,8 +1401,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Line"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1480,7 +1479,7 @@ fn affine_records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = records();
     let ids: Vec<_> = records.iter().map(|(id, _)| id).collect();
     for id in ids {
-        records.get_mut(id).unwrap().copyable = false;
+        records.get_mut(id).unwrap().multiplicity = terminal_psi::StructuralMultiplicity::Affine;
     }
     records
 }
@@ -1655,8 +1654,7 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "EmptyCase".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -1720,9 +1718,11 @@ fn affine_cleanup_replay_rejects_order_type_and_custody_drift() {
     ));
 
     let mut drift = elaborate_over(vec![caller()], &affine_records());
-    drift.module.structural_types[0].copyable = true;
+    drift.module.structural_types[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
     // A parent must not become copyable by hiding an affine child either.
-    drift.module.structural_types[1].copyable = true;
+    drift.module.structural_types[1].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
     assert!(matches!(
         judge(Ok(drift)),
         Err(Refusal {
@@ -1732,7 +1732,8 @@ fn affine_cleanup_replay_rejects_order_type_and_custody_drift() {
     ));
 
     let mut parent = elaborate_over(vec![caller()], &affine_records());
-    parent.module.structural_types[1].copyable = true;
+    parent.module.structural_types[1].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
     assert!(matches!(
         judge(Ok(parent)),
         Err(Refusal {
@@ -3172,8 +3173,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     let mut types = records();
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Gated"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -3330,8 +3330,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -3342,8 +3341,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Shape"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -3360,8 +3358,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Holder"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(7, "shape", shape())]),
@@ -3995,8 +3992,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     };
     let record = |spelled: &str, fields, requires| RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: spelled.to_owned(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(fields),
@@ -4026,8 +4022,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     ));
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("ByteRead"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -5560,8 +5555,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = constrained();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Both"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5572,8 +5566,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Half"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5584,8 +5577,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Limits"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

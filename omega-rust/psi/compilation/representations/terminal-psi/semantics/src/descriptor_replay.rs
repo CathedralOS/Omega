@@ -1243,6 +1243,7 @@ pub(crate) mod analysis {
                 DescriptorGraphError::IncompleteMachine {
                     machine: identity,
                     position: Some(position),
+                    successor: None,
                     detail: None,
                 },
             )?;
@@ -1252,6 +1253,7 @@ pub(crate) mod analysis {
                 .ok_or(DescriptorGraphError::IncompleteMachine {
                     machine: identity,
                     position: Some(position),
+                    successor: None,
                     detail: None,
                 })?;
             let mut step = DescriptorFlowStep::default();
@@ -1296,6 +1298,7 @@ pub(crate) mod analysis {
             let incomplete = |position| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: None,
             };
             self.replay.prepare_states_checked(identity)?;
@@ -1340,6 +1343,7 @@ pub(crate) mod analysis {
                             Err(DescriptorGraphError::IncompleteMachine {
                                 machine: identity,
                                 position: Some(*position),
+                                successor: None,
                                 detail: Some(INEXACT_REFERENCE_BACKING),
                             })
                         }
@@ -1499,6 +1503,7 @@ pub(crate) mod analysis {
             let incomplete_step = || DescriptorGraphError::IncompleteMachine {
                 machine: machine.id,
                 position: Some(position),
+                successor: None,
                 detail: None,
             };
             let canonical = |location: &DescriptorLocation| match self
@@ -1511,6 +1516,7 @@ pub(crate) mod analysis {
                     Err(DescriptorGraphError::IncompleteMachine {
                         machine: machine.id,
                         position: Some(position),
+                        successor: None,
                         detail: Some(INEXACT_REFERENCE_BACKING),
                     })
                 }
@@ -1888,6 +1894,7 @@ pub(crate) mod case_flow {
 
     use super::engine::{DescriptorReadDepth, Replay, State};
     use super::*;
+    use crate::descriptor_lifetimes::DescriptorFlowSource;
     use semantic_vocabulary::StructuralCaseId;
     use std::sync::Arc;
 
@@ -2150,7 +2157,7 @@ pub(crate) mod case_flow {
                 self.case_types.contains(&source_type)
                     && location_type(replay, machine, destination) == Some(source_type)
                     && find_structural_type(replay.types, source_type)
-                        .is_some_and(|row| row.copyable)
+                        .is_some_and(|row| row.is_copyable())
             }
         }
 
@@ -2375,6 +2382,122 @@ pub(crate) mod case_flow {
             }
 
             #[test]
+            fn indexed_case_subjects_validate_types_without_granting_cell_facts() {
+                use crate::descriptor_lifetimes::{
+                    DescriptorContentsQuery, DescriptorContentsStep,
+                };
+                use semantic_vocabulary::{
+                    IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId,
+                };
+
+                let selected = StructuralTypeId::new(1).unwrap();
+                let array = StructuralTypeId::new(2).unwrap();
+                let declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: vec![],
+                    id: selected,
+                    identity: TerminalIdentityIndex(1),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    shape: StructuralTypeShape::Sum {
+                        cases: (1..=2)
+                            .map(|id| StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: StructuralCaseId::new(id).unwrap(),
+                                identity: TerminalIdentityIndex(id as u32),
+                                fields: vec![],
+                            })
+                            .collect(),
+                    },
+                };
+                let mut collection = declaration.clone();
+                collection.id = array;
+                collection.identity = TerminalIdentityIndex(2);
+                collection.shape = StructuralTypeShape::FixedArray {
+                    element: selected,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                };
+                let types = vec![declaration, collection];
+                let mut body = machine(1, 1, &[vec![1], vec![]]);
+                body.place_types.insert(place(1).root, array);
+                let predicate = DescriptorCasePredicate {
+                    subject: DescriptorFlowSource::Contents(DescriptorContentsQuery {
+                        root: place(1).root,
+                        steps: vec![DescriptorContentsStep::Element {
+                            element: selected,
+                            selector: Some(Box::new(ScalarTerm::value(
+                                ValueId::new(1).unwrap(),
+                                ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                                ),
+                            ))),
+                        }],
+                    }),
+                    case: StructuralCaseId::new(1).unwrap(),
+                };
+                body.case_successors
+                    .insert(position(0), vec![(predicate.clone(), true)]);
+                let graph = vec![body];
+                let replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+                assert!(validate_graph(&replay, &graph[0]).is_some());
+                let mut state = State::default();
+                let before = state.cases.clone();
+                for truth in [false, true] {
+                    assert_eq!(
+                        select(&replay, &graph[0], &mut state, &predicate, truth),
+                        Some(true)
+                    );
+                    assert!(
+                        state.cases == before,
+                        "one selected cell cannot narrow every possible cell"
+                    );
+                }
+                assert_eq!(
+                    membership(&replay, &graph[0], &state, &predicate),
+                    FlowFeasibility::Unknown
+                );
+                assert!(!established(&replay, &graph[0], &state, &predicate));
+                assert!(establish(&replay, &graph[0], &mut state, &predicate).is_none());
+
+                let mut forged = predicate.clone();
+                let DescriptorFlowSource::Contents(query) = &mut forged.subject else {
+                    unreachable!()
+                };
+                let DescriptorContentsStep::Element { element, .. } = &mut query.steps[0] else {
+                    unreachable!()
+                };
+                *element = array;
+                assert!(valid_subject(&replay, &graph[0], &forged).is_none());
+                assert_eq!(select(&replay, &graph[0], &mut state, &forged, true), None);
+                let mut malformed = vec![machine(1, 1, &[vec![1], vec![]])];
+                malformed[0].place_types.insert(place(1).root, array);
+                malformed[0]
+                    .case_successors
+                    .insert(position(0), vec![(forged.clone(), true)]);
+                let receiver =
+                    Replay::with_slot_kind(&types, &malformed, DescriptorSlotKind::References);
+                assert!(validate_graph(&receiver, &malformed[0]).is_none());
+                let mut forged = predicate.clone();
+                forged.case = StructuralCaseId::new(99).unwrap();
+                assert!(valid_subject(&replay, &graph[0], &forged).is_none());
+                malformed[0]
+                    .case_successors
+                    .insert(position(0), vec![(forged.clone(), true)]);
+                let receiver =
+                    Replay::with_slot_kind(&types, &malformed, DescriptorSlotKind::References);
+                assert!(validate_graph(&receiver, &malformed[0]).is_none());
+                forged.case = predicate.case;
+                forged.subject = DescriptorFlowSource::Unavailable(place(1).root);
+                assert!(valid_subject(&replay, &graph[0], &forged).is_none());
+                assert!(state.cases == before);
+            }
+
+            #[test]
             fn completed_return_tags_union_all_exits_and_unknown_or_public_returns_grant_nothing() {
                 let types = vec![StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
@@ -2384,7 +2507,7 @@ pub(crate) mod case_flow {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -2428,14 +2551,14 @@ pub(crate) mod case_flow {
                     callee.case_constructors.insert(
                         position(point),
                         vec![DescriptorCasePredicate {
-                            subject: place(2),
+                            subject: place(2).into(),
                             case: StructuralCaseId::new(case).unwrap(),
                         }],
                     );
                 }
                 let mut graph = vec![caller, callee];
                 let predicate = |case| DescriptorCasePredicate {
-                    subject: place(1),
+                    subject: place(1).into(),
                     case: StructuralCaseId::new(case).unwrap(),
                 };
                 {
@@ -2465,7 +2588,7 @@ pub(crate) mod case_flow {
                 graph[1].case_constructors.insert(
                     position(3),
                     vec![DescriptorCasePredicate {
-                        subject: place(2),
+                        subject: place(2).into(),
                         case: StructuralCaseId::new(1).unwrap(),
                     }],
                 );
@@ -2553,7 +2676,7 @@ pub(crate) mod case_flow {
                             replay,
                             machine,
                             &DescriptorCasePredicate {
-                                subject: subject.clone(),
+                                subject: subject.clone().into(),
                                 case: *case,
                             },
                         )?;
@@ -2594,6 +2717,7 @@ pub(crate) mod case_flow {
             machine.flow.get(position)?;
             for predicate in predicates {
                 valid_subject(replay, machine, predicate)?;
+                predicate.subject.exact_location()?;
             }
         }
         for (position, predicates) in &machine.case_successors {
@@ -2611,14 +2735,41 @@ pub(crate) mod case_flow {
         replay: &Replay<'_>,
         machine: &DescriptorMachine,
         predicate: &DescriptorCasePredicate,
-    ) -> Option<()> {
-        let ty = machine.location_type(replay.types, &predicate.subject, None)?;
+    ) -> Option<StructuralTypeId> {
+        let ty = match &predicate.subject {
+            DescriptorFlowSource::Location(location) => {
+                machine.location_type(replay.types, location, None)?
+            }
+            DescriptorFlowSource::Contents(query) => {
+                let root = *machine.place_types.get(&query.root)?;
+                query.selected_type_using(replay.types, root, |carrier, path, original| {
+                    if original {
+                        Some(machine.location_type(
+                            replay.types,
+                            &DescriptorLocation {
+                                root: query.root,
+                                path: path.to_vec(),
+                            },
+                            None,
+                        ))
+                    } else {
+                        descriptor_path(replay.types, carrier, path)?;
+                        Some(crate::descriptor_lifetimes::descriptor_location_type(
+                            replay.types,
+                            carrier,
+                            path,
+                        ))
+                    }
+                })??
+            }
+            DescriptorFlowSource::Unavailable(_) => return None,
+        };
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
             &find_structural_type(replay.types, ty)?.shape
         else {
             return None;
         };
-        terminal_psi::find_structural_case(cases, predicate.case).map(|_| ())
+        terminal_psi::find_structural_case(cases, predicate.case).map(|_| ty)
     }
 
     pub(crate) fn establish(
@@ -2628,7 +2779,8 @@ pub(crate) mod case_flow {
         predicate: &DescriptorCasePredicate,
     ) -> Option<()> {
         valid_subject(replay, machine, predicate)?;
-        let storage = replay.canonical_storage(machine, state, &predicate.subject, None)?;
+        let storage =
+            replay.canonical_storage(machine, state, predicate.subject.exact_location()?, None)?;
         let subjects = state
             .cases
             .copies
@@ -2649,16 +2801,19 @@ pub(crate) mod case_flow {
         predicate: &DescriptorCasePredicate,
         truth: bool,
     ) -> Option<bool> {
-        valid_subject(replay, machine, predicate)?;
-        let Some(storage) = replay.canonical_storage(machine, state, &predicate.subject, None)
-        else {
+        let ty = valid_subject(replay, machine, predicate)?;
+        // A nonsingular query validates the selected carrier but cannot name
+        // one cell whose case can be narrowed. Keep every branch feasible.
+        let Some(subject) = predicate.subject.exact_location() else {
+            return Some(true);
+        };
+        let Some(storage) = replay.canonical_storage(machine, state, subject, None) else {
             return Some(true);
         };
         let subjects = state
             .cases
             .copies
             .equivalents(&storage, machine.flow.len().saturating_mul(4096).max(4096))?;
-        let ty = machine.location_type(replay.types, &predicate.subject, None)?;
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
             &find_structural_type(replay.types, ty)?.shape
         else {
@@ -2693,8 +2848,10 @@ pub(crate) mod case_flow {
         if valid_subject(replay, machine, predicate).is_none() {
             return FlowFeasibility::Unknown;
         }
-        let Some(storage) = replay.canonical_storage(machine, state, &predicate.subject, None)
-        else {
+        let Some(subject) = predicate.subject.exact_location() else {
+            return FlowFeasibility::Unknown;
+        };
+        let Some(storage) = replay.canonical_storage(machine, state, subject, None) else {
             return FlowFeasibility::Unknown;
         };
         match state.cases.facts.get(&storage) {
@@ -2713,8 +2870,10 @@ pub(crate) mod case_flow {
         if valid_subject(replay, machine, predicate).is_none() {
             return false;
         }
-        let Some(storage) = replay.canonical_storage(machine, state, &predicate.subject, None)
-        else {
+        let Some(subject) = predicate.subject.exact_location() else {
+            return false;
+        };
+        let Some(storage) = replay.canonical_storage(machine, state, subject, None) else {
             return false;
         };
         state
@@ -6393,6 +6552,7 @@ pub(crate) mod engine {
             let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: Some(detail),
             };
             let mut failure =
@@ -6414,6 +6574,7 @@ pub(crate) mod engine {
             let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: Some(detail),
             };
             if depth >= 128 {
@@ -6754,6 +6915,7 @@ pub(crate) mod engine {
                     Err(DescriptorGraphError::IncompleteMachine {
                         machine: identity,
                         position: None,
+                        successor: None,
                         detail: Some("descriptor state preparation is recursively in progress"),
                     })
                 }
@@ -7066,7 +7228,7 @@ pub(crate) mod engine {
         fn owns_roster_type(&self, ty: Option<StructuralTypeId>) -> bool {
             ty.and_then(|ty| find_structural_type(self.types, ty))
                 .is_some_and(|declaration| {
-                    !declaration.copyable
+                    !declaration.is_copyable()
                         && matches!(
                             declaration.shape,
                             StructuralTypeShape::ElementView { access: None, .. }
@@ -7933,7 +8095,7 @@ pub(crate) mod engine {
                 identity: TerminalIdentityIndex(1),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -8295,6 +8457,7 @@ pub(crate) mod engine {
             let inner_error = DescriptorGraphError::IncompleteMachine {
                 machine: id,
                 position: Some(positions[0]),
+                successor: None,
                 detail: Some("descriptor storage transfer cannot be reconstructed"),
             };
             let mut nested = DescriptorAnalysis::with_reference_slots(&types, &graph);
@@ -8507,7 +8670,7 @@ pub(crate) mod engine {
                 identity: TerminalIdentityIndex(id as u32),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -8971,7 +9134,7 @@ pub(crate) mod engine {
                         element: scalar.id,
                         access: None,
                     },
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     ..scalar_type(2)
                 },
                 StructuralTypeDeclaration {

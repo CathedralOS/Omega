@@ -806,6 +806,9 @@ pub(crate) mod call_foundations {
                 terminal_semantics::ResultClaimCatalogError::ReturnPathMismatch => {
                     "structural callee return disagrees with the caller's result claims"
                 }
+                terminal_semantics::ResultClaimCatalogError::TypedFrontierMismatch => {
+                    "structural call result omits or replaces its typed claim frontier"
+                }
             })
         })?;
         let caller_result_claims = actual_result
@@ -813,17 +816,22 @@ pub(crate) mod call_foundations {
             .iter()
             .map(|binding| binding.claim)
             .collect::<BTreeSet<_>>();
+        let declaration = module
+            .structural_type(actual_result.structural_type)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "structural call result type is absent",
+            ))?;
         let whole_root_claim =
             matches!(actual_result.claims.as_slice(), [binding] if binding.path.is_empty());
         if caller_result_claims.len() != actual_result.claims.len()
-            || match actual_result.multiplicity {
-                StructuralMultiplicity::Linear => !whole_root_claim,
-                StructuralMultiplicity::Affine => actual_result
+            || (declaration.owns_linear_claim && !whole_root_claim)
+            || (!declaration.owns_linear_claim
+                && actual_result
                     .claims
                     .iter()
-                    .any(|binding| binding.path.is_empty()),
-                StructuralMultiplicity::Unrestricted => !actual_result.claims.is_empty(),
-            }
+                    .any(|binding| binding.path.is_empty()))
+            || (actual_result.multiplicity == StructuralMultiplicity::Unrestricted
+                && !actual_result.claims.is_empty())
         {
             return malformed("structural call result claims disagree with its multiplicity");
         }
@@ -1441,7 +1449,7 @@ pub(crate) mod call_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -2011,7 +2019,7 @@ pub(crate) mod declaration_foundations {
                         identity,
                         quotient_carrier: None,
                         owns_linear_claim: false,
-                        copyable: true,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
                         nominal_cleanup: None,
@@ -3134,7 +3142,7 @@ mod empty_elimination_foundations {
                     observed.path.push(match segment {
                         StructuralPathSegment::Case(case) => {
                             if !analysis.case_is_established(machine.id, position, &DescriptorCasePredicate {
-                                subject: observed.clone(),
+                                subject: observed.clone().into(),
                                 case: *case,
                             }) {
                                 return malformed("empty elimination has no current selected case at its source path");
@@ -3178,7 +3186,7 @@ mod empty_elimination_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -3875,7 +3883,7 @@ pub(crate) mod machine_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -9073,7 +9081,7 @@ pub(crate) mod storage_foundations {
                     shape,
                     quotient_carrier: None,
                     owns_linear_claim: false,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
@@ -9242,7 +9250,9 @@ pub(crate) mod structural_type_foundations {
     use crate::codec_error::{CodecError, malformed};
     use semantic_vocabulary::AuthoredFieldStorage;
     use semantic_vocabulary::StructuralTypeId;
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
+    use terminal_psi::{
+        StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, TerminalModule,
+    };
     use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
 
     macro_rules! extent {
@@ -9305,8 +9315,10 @@ pub(crate) mod structural_type_foundations {
     ) -> Result<(), CodecError> {
         terminal_semantics::validate_inline_carriers(module.structural_types, declaration)
             .map_err(|error| CodecError::MalformedStructuralFoundation(error.reason))?;
-        if declaration.copyable && declaration.owns_linear_claim {
-            return malformed("a copyable type cannot own a conserved linear claim");
+        if declaration.owns_linear_claim
+            && declaration.multiplicity != StructuralMultiplicity::Linear
+        {
+            return malformed("an intrinsic claim requires declared linear multiplicity");
         }
         if let Some(restriction) = &declaration.scalar_restriction {
             let StructuralTypeShape::PrimitiveScalar(carrier) = declaration.shape else {
@@ -9729,7 +9741,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9782,7 +9794,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9798,7 +9810,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9919,7 +9931,7 @@ pub(crate) mod target_layouts {
             };
             if matches!(storage, StructuralRecordStorage::TargetLayout(_))
                 || record.owns_linear_claim != schema.owns_linear_claim
-                || record.copyable != schema.copyable
+                || record.multiplicity != schema.multiplicity
             {
                 return malformed("layout schema differs from the semantic custody shape");
             }
@@ -11937,6 +11949,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     storage_graph
         .validate_acyclic()
         .map_err(storage_graph_error)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(&module.structural_types)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
             validate_dynamic_reference_regions(module.structural_types.iter(), slot)
@@ -13314,7 +13328,9 @@ fn validate_structural_type_graph(
 ) -> Result<(), CodecError> {
     terminal_semantics::storage::type_graph::StorageTypeGraph::new(declarations)
         .and_then(|graph| graph.validate_acyclic())
-        .map_err(storage_graph_error)
+        .map_err(storage_graph_error)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(declarations)
+        .map_err(CodecError::MalformedStructuralFoundation)
 }
 
 #[test]
@@ -13328,7 +13344,7 @@ fn shared_storage_graph_preserves_codec_cycle_rejection() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         descriptor_cleanup: false,
         nominal_cleanup: None,
         scalar_restriction: None,

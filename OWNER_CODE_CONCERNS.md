@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Unpatched mbx bypasses the cache for checksum-enabled compilations
+- Category: Verifying costs more than writing
+- Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
+- Saw: Worker 1's ordinary focused build recorded `unknown-flag` for `-Zchecksum-hash-algorithm=blake3` in `/tmp/omega-worker1-cache-bypasses.jsonl`. Cargo emits that flag for the repository's content-based fingerprints. The adapter in upstream mbx 1.30.0 also rejects it. The shared cache therefore supplies no objects for these compilations.
+- Cost: Independent worktrees rebuild unchanged dependencies. This Mac now uses a locally repaired 1.29.2 adapter that retains the checksum option in its input identity and preserves checksum dependency output. An isolated probe reused unchanged inputs and rejected a same-size, same-mtime source change; subsequent ordinary Omega builds stored cache objects without the checksum-flag bypass. The patch, original binary and receipts are retained in `worker-1/build/mbx-workflow-tooling-20261116` under the local worktree pool. Upstream releases and fresh hosts still need the repair; do not disable content fingerprint checks.
+- Reported: 2026-11-16, Codex, during the draft PR takeovers
+
 ### macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot
 - Category: A verdict with nothing behind it
 - Where: [Darwin stack packing](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L767), [ValueShape](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L144), [clang cross-check](omega-rust/omega/compilation/backend/calling-conventions/src/tests/clang_crosscheck.rs)

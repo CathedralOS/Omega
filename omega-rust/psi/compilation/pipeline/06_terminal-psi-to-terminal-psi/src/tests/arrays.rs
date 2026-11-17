@@ -9,8 +9,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
     let mut types = IdTable::default();
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: "u32-storage".into(),
         shape: StorageShape::PrimitiveScalar {
@@ -22,8 +21,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
     for (element, length, identity) in [(1, 4, "four"), (1, 2, "two"), (2, 2, "two-by-four")] {
         types.push(RecordType {
             authored_layout: false,
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: identity.into(),
             shape: StorageShape::FixedArray {
@@ -233,8 +231,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     let mut types = array_types();
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: "Item".into(),
         shape: StorageShape::Sum(vec![
@@ -258,8 +255,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     });
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: "Items".into(),
         shape: StorageShape::FixedArray {
@@ -347,8 +343,7 @@ fn an_array_move_vacates_only_its_exact_element() {
     let mut types = IdTable::default();
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "OwnedElement".into(),
         shape: StorageShape::Record(vec![RecordField {
@@ -361,8 +356,7 @@ fn an_array_move_vacates_only_its_exact_element() {
     });
     types.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "OwnedElements".into(),
         shape: StorageShape::FixedArray {

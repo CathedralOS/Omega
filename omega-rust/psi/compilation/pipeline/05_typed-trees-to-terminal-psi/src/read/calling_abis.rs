@@ -938,30 +938,40 @@ mod descriptor_storage_tests {
         let entry = MachineId::new(1).unwrap();
         let original = typed.type_reference_table.type_reference(qualified).clone();
         let mut executable = Program::new(&typed, false);
-        // An address is a plain scalar in a body, carried and compared
-        // (`atom_type`). The record that holds its custody is still not
-        // admitted there.
+        // An address remains a scalar. A linear carrier's descriptor is
+        // descriptive metadata, independent of its later claim/grant proof.
         assert_eq!(
             executable.value_type(entry, address).unwrap().scalar(),
             Some(ScalarType::Integer(
                 IntegerType::supported_address_representation()
             ))
         );
+        let crate::ValueType::Record(value_record, _, _) =
+            executable.value_type(entry, record).unwrap()
+        else {
+            panic!("a linear value retains its declared structural carrier");
+        };
         assert_eq!(
-            executable.value_type(entry, record).unwrap_err().detail,
-            "type data with custody"
+            executable.records.get(value_record).unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Linear
         );
         let mut program = Program::new(&typed, false);
         program.begin_declaration_storage(entry, 0).unwrap();
         let storage = program.calling_abi_storage(entry, qualified).unwrap();
-        assert!(program.records.get(storage).unwrap().owns_linear_claim);
-        assert!(!program.records.get(storage).unwrap().copyable);
+        assert_eq!(
+            program.records.get(storage).unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Linear
+        );
+        assert!(!program.records.get(storage).unwrap().is_copyable());
         assert_eq!(
             typed.type_reference_table.type_reference(qualified),
             &original
         );
         let nested = program.calling_abi_storage(entry, envelope).unwrap();
-        assert!(program.records.get(nested).unwrap().owns_linear_claim);
+        assert_eq!(
+            program.records.get(nested).unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Affine
+        );
         // ABI metadata must name the represented backing even when the
         // parameter itself owns a claim or is an ordinary scalar.
         let parameters = [address, qualified, envelope]
@@ -1001,9 +1011,25 @@ mod descriptor_storage_tests {
             .find(|row| row.id == storage)
             .unwrap();
         assert!(canonical.owns_linear_claim);
-        assert!(!canonical.copyable);
+        assert!(!canonical.is_copyable());
         assert!(!canonical.no_code_affine_cleanup);
         assert!(!canonical.descriptor_cleanup);
+        assert_eq!(
+            canonical.multiplicity,
+            terminal_psi::StructuralMultiplicity::Linear
+        );
+        let envelope = declared
+            .structural_types
+            .iter()
+            .find(|row| row.id == nested)
+            .unwrap();
+        assert_eq!(
+            envelope.multiplicity,
+            terminal_psi::StructuralMultiplicity::Affine
+        );
+        assert!(!envelope.owns_linear_claim);
+        assert!(!envelope.no_code_affine_cleanup);
+        assert!(!envelope.descriptor_cleanup);
         assert!(program.source_record_correspondence(entry).is_ok());
         assert!(
             program

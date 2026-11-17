@@ -472,7 +472,7 @@ pub(crate) mod scalar_expressions {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -490,10 +490,124 @@ pub(crate) mod scalar_expressions {
 
             fn expected_polarities(truth: bool) -> Vec<(DescriptorCasePredicate, bool)> {
                 let predicate = DescriptorCasePredicate {
-                    subject: DescriptorLocation::whole(PlaceId::new(1).unwrap()),
+                    subject: DescriptorLocation::whole(PlaceId::new(1).unwrap()).into(),
                     case: StructuralCaseId::new(1).unwrap(),
                 };
                 vec![(predicate.clone(), truth), (predicate, !truth)]
+            }
+
+            #[test]
+            fn runtime_index_case_dispatch_retains_the_captured_selector() {
+                use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, ScalarTerm};
+                use terminal_psi::{ArrayExtent, StructuralPathSegment};
+                use terminal_semantics::descriptor_lifetimes::{
+                    DescriptorContentsStep, DescriptorFlowSource,
+                };
+
+                let sum = StructuralTypeId::new(1).unwrap();
+                let array = StructuralTypeId::new(2).unwrap();
+                let index = ValueId::new(1).unwrap();
+                let index_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+                let cases = [1, 2]
+                    .map(|number| StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: StructuralCaseId::new(number).unwrap(),
+                        identity: TerminalIdentityIndex(number as u32),
+                        fields: Vec::new(),
+                    })
+                    .to_vec();
+                let mut declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    id: sum,
+                    identity: TerminalIdentityIndex(1),
+                    shape: StructuralTypeShape::Sum { cases },
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                };
+                let mut types = vec![declaration.clone()];
+                declaration.id = array;
+                declaration.identity = TerminalIdentityIndex(2);
+                declaration.shape = StructuralTypeShape::FixedArray {
+                    element: sum,
+                    length: ArrayExtent::Literal(2),
+                };
+                types.push(declaration);
+                let mut input = parameter(1, 0, StructuralAccess::Owned);
+                input.structural_type = array;
+                let blocks = (1..=3)
+                    .map(|number| AbstractBlock {
+                        block: BlockId::new(number).unwrap(),
+                        parameters: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        operations: if number == 1 {
+                            vec![Operation::StructuralCase {
+                                psi_block: BlockId::new(1).unwrap(),
+                                source: input.place,
+                                path: vec![StructuralPathSegment::RuntimeIndex {
+                                    index,
+                                    obligation: ObligationId::new(1).unwrap(),
+                                }],
+                                cases: [1, 2]
+                                    .map(|case| {
+                                        abstract_operations::AbstractStructuralCaseSuccessor {
+                                            psi_edge: EdgeId::new(case).unwrap(),
+                                            target: BlockId::new(case + 1).unwrap(),
+                                            case: StructuralCaseId::new(case).unwrap(),
+                                            payloads: Vec::new(),
+                                            structural_bindings: Vec::new(),
+                                            cleanup_actions: Vec::new(),
+                                        }
+                                    })
+                                    .to_vec(),
+                            }]
+                        } else {
+                            vec![Operation::ReturnUnit {
+                                psi_edge: EdgeId::new(number + 1).unwrap(),
+                                cleanup_actions: Vec::new(),
+                            }]
+                        },
+                    })
+                    .collect();
+                let mut source = function(1, vec![input], blocks);
+                source.parameters.push(AbstractParameter {
+                    value: index,
+                    scalar_type: index_type,
+                });
+                let functions = vec![
+                    optimization_unit::reconstruct_psi_optimization_function_seed(&source).unwrap(),
+                ];
+                let graph = crate::descriptor_results::optimized_reference_catalog_graph(
+                    &functions,
+                    [],
+                    &types,
+                    &Default::default(),
+                    |_, node| Some(Cow::Borrowed(&node.operation)),
+                )
+                .unwrap();
+                let predicates = graph[0].case_successors.get(&(source.entry, 0)).unwrap();
+                assert_eq!(predicates.len(), 2);
+                for ((predicate, truth), case) in predicates.iter().zip([1, 2]) {
+                    assert!(*truth);
+                    assert_eq!(predicate.case, StructuralCaseId::new(case).unwrap());
+                    let DescriptorFlowSource::Contents(query) = &predicate.subject else {
+                        panic!("runtime index became a fixed cell");
+                    };
+                    assert_eq!(query.root, PlaceId::new(1).unwrap());
+                    assert_eq!(
+                        query.steps,
+                        vec![DescriptorContentsStep::Element {
+                            element: sum,
+                            selector: Some(Box::new(ScalarTerm::value(index, index_type))),
+                        }]
+                    );
+                }
             }
 
             #[test]
@@ -656,7 +770,7 @@ pub(crate) mod scalar_expressions {
                                 Some(CapturedTest {
                                     observation: (block, index),
                                     predicate: DescriptorCasePredicate {
-                                        subject,
+                                        subject: subject.into(),
                                         case: *case,
                                     },
                                     truth: true,
@@ -2503,7 +2617,7 @@ fn adapt(
                 graph.case_constructors.insert(
                     position,
                     vec![kernel::DescriptorCasePredicate {
-                        subject: DescriptorLocation::whole(result.place),
+                        subject: DescriptorLocation::whole(result.place).into(),
                         case: *result_case,
                     }],
                 );
@@ -2515,7 +2629,17 @@ fn adapt(
                 ..
             } = operation
             {
-                let subject = location(*source, path, None)?;
+                let subject = match location(*source, path, None) {
+                    Some(location) => DescriptorFlowSource::Location(location),
+                    None => DescriptorFlowSource::Contents(kernel::descriptor_contents_query_with(
+                        types,
+                        *source,
+                        *graph.place_types.get(source)?,
+                        path,
+                        None,
+                        |value| scalar_expressions.expression(value),
+                    )?),
+                };
                 let predicates = node
                     .successors
                     .iter()
@@ -3199,7 +3323,11 @@ mod owned_cleanup_graph_tests {
             identity: TerminalIdentityIndex(value as u32),
             declaration_identity: TerminalIdentityIndex(value as u32),
             owns_linear_claim: false,
-            copyable: value == 1,
+            multiplicity: if value == 1 {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             no_code_affine_cleanup: value == 1,
             descriptor_cleanup: value == 2,
             nominal_cleanup: None,

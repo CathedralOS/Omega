@@ -526,6 +526,10 @@ impl<'t> Program<'t> {
                             lexical_owner: *owner,
                             binders: &[],
                             lifetime_binders: &[],
+                            exact_toolchain_sources: self
+                                .shared
+                                .exact_toolchain_sources(self.typed)
+                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
                         },
                     )
                     .ok_or_else(|| {
@@ -733,8 +737,7 @@ mod tests {
     /// through, not replaced), so the type must be a row of the program.
     fn plain_record() -> RecordType {
         RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),

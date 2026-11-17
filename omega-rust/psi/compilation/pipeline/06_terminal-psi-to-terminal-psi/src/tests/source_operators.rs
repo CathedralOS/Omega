@@ -409,6 +409,27 @@ fn an_inlined_predicate_body_keeps_its_own_source_operator_owner() {
 }
 
 #[test]
+fn arithmetic_contract_terms_keep_their_checked_operand_types() {
+    let source = r#"
+data Pair [copy] { first: i64; second: i64; }
+machine - subtract(left: Pair, right: Pair) -> Pair { left }
+machine bounded(value: i64) -> i64
+requires value >= (0i64 - 2147483648i64) && value <= 2147483647i64
+{ value }
+machine entry() -> bool { bounded(42i64) == 42i64 }
+"#;
+    assert_operator_value(enum_operator(source), true);
+    let rejected = enum_operator(&source.replace("bounded(42i64)", "bounded(2147483648i64)"))
+        .expect("the unchanged complete contract must still be read");
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row|
+                matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
 fn fixed_array_contract_indices_keep_their_selected_collection_operation() {
     let source = |index, byte| {
         format!(

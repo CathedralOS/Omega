@@ -15,20 +15,22 @@ pub struct CallableBoundaryImplementation {
 pub fn terminal_callable_values_with_boundary_implementations<'a>(
     module: &'a TerminalModule,
     implementations: &[CallableBoundaryImplementation],
-) -> CallableValueResult<CallableValueProgram<'a>> {
+) -> Result<CallableValueProgram<'a>, String> {
     let mut bindings = implementations.to_vec();
     bindings.sort_unstable_by_key(|binding| binding.boundary);
     if bindings
         .windows(2)
         .any(|pair| pair[0].boundary == pair[1].boundary)
     {
-        return Err("callable boundary application has competing selected bodies");
+        return Err("callable boundary application has competing selected bodies".into());
     }
     for binding in &bindings {
         if module.boundary_machine(binding.boundary).is_none()
             || module.machine(binding.machine).is_none()
         {
-            return Err("callable boundary implementation has an absent requirement or body");
+            return Err(
+                "callable boundary implementation has an absent requirement or body".into(),
+            );
         }
     }
     let mut program = terminal_callable_values(module)?;
@@ -46,7 +48,9 @@ pub fn terminal_callable_values_with_boundary_implementations<'a>(
                 continue;
             };
             if invocation.target != CallableInvocationTarget::Opaque {
-                return Err("callable boundary implementation replaces a non-boundary target");
+                return Err(
+                    "callable boundary implementation replaces a non-boundary target".into(),
+                );
             }
             invocation.target = CallableInvocationTarget::Machine(bindings[index].machine);
         }
@@ -69,7 +73,7 @@ pub fn reached_boundary_calls(
     module: &TerminalModule,
     entry: MachineId,
     implementations: &[CallableBoundaryImplementation],
-) -> CallableValueResult<Vec<BoundaryMachineId>> {
+) -> Result<Vec<BoundaryMachineId>, String> {
     Ok(boundary_call_reach(module, entry, implementations)?.boundaries)
 }
 
@@ -78,7 +82,7 @@ pub fn boundary_call_reach(
     module: &TerminalModule,
     entry: MachineId,
     implementations: &[CallableBoundaryImplementation],
-) -> CallableValueResult<ReachedBoundaryCalls> {
+) -> Result<ReachedBoundaryCalls, String> {
     let program = terminal_callable_values_with_boundary_implementations(module, implementations)?;
     let reached = reachable_callable_invocations(&program, [entry])?;
     let mut boundaries = Vec::new();
@@ -97,14 +101,14 @@ pub fn boundary_call_reach(
                         .contract(*ceiling)
                         .ok_or("reached callable has no exact unresolved contract")?;
                     if !contract.envelope.invocations.is_empty() {
-                        return Err(
-                            "unresolved callable arrivals need their complete boundary demand representation",
-                        );
+                        return Err("unresolved callable arrivals need their complete boundary demand representation".into());
                     }
                 }
             }
             ReachedCallableTarget::Opaque if row.invocation.boundary.is_none() => {
-                return Err("reached opaque invocation has no boundary or callable contract");
+                return Err(
+                    "reached opaque invocation has no boundary or callable contract".into(),
+                );
             }
             _ => {}
         }
@@ -120,12 +124,17 @@ pub fn boundary_call_reach(
 /// Project current executable Terminal operations into the shared value query.
 pub fn terminal_callable_values(
     module: &TerminalModule,
-) -> CallableValueResult<CallableValueProgram<'_>> {
+) -> Result<CallableValueProgram<'_>, String> {
     let graph = crate::descriptor_results::terminal_reference_graph_from(
         module,
         module.machines.iter().map(|machine| machine.id),
     )
-    .map_err(|_| "callable provenance cannot reconstruct current Terminal storage flow")?;
+    .map_err(|error| {
+        format!(
+            "callable provenance cannot reconstruct current Terminal storage flow: {}",
+            error.in_module(module),
+        )
+    })?;
     let mut bodies: Vec<(semantic_vocabulary::MachineId, CallableValueBody)> =
         Vec::with_capacity(module.machines.len());
     let mut cleanups = Vec::new();
@@ -270,7 +279,7 @@ pub fn terminal_callable_values(
                     .retain_cleanup_actions(edge, actions.to_vec())
                     .is_some()
                 {
-                    return Err("callable cleanup has an ambiguous owning edge");
+                    return Err("callable cleanup has an ambiguous owning edge".into());
                 }
                 let successor = block
                     .terminator
@@ -301,7 +310,7 @@ pub fn terminal_callable_values(
             }
         }
         let Err(position) = bodies.binary_search_by_key(&machine.id, |(id, _)| *id) else {
-            return Err("callable provenance has duplicate Terminal machine identities");
+            return Err("callable provenance has duplicate Terminal machine identities".into());
         };
         bodies.insert(position, (machine.id, body));
     }

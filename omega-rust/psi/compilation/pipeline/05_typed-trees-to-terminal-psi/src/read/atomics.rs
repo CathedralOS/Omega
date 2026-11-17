@@ -65,8 +65,7 @@ impl Program<'_> {
                 )
             })?;
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity,
             shape: StorageShape::AtomicCell(cell),

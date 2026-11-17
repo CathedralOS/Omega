@@ -265,7 +265,7 @@ pub fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeD
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
-    bytes.push(u8::from(declaration.copyable));
+    encode_multiplicity(bytes, declaration.multiplicity);
     bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
     if let Some(selection) = &declaration.nominal_cleanup {
         bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
@@ -640,7 +640,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -655,24 +655,31 @@ mod tests {
     }
 
     #[test]
-    fn logical_copy_permission_changes_encoded_identity() {
-        assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            requires: Vec::new(),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: flag,
-            descriptor_cleanup: true,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
-            identity: terminal_psi::TerminalIdentityIndex(1),
-            shape: StructuralTypeShape::Record {
-                fields: Vec::new(),
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-            },
-        }));
+    fn declared_multiplicity_changes_encoded_identity() {
+        assert_distinct_encodings(
+            [
+                StructuralMultiplicity::Unrestricted,
+                StructuralMultiplicity::Affine,
+                StructuralMultiplicity::Linear,
+            ]
+            .map(|multiplicity| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                multiplicity,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            }),
+        );
     }
 
     #[test]
@@ -683,7 +690,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: flag,
             no_code_affine_cleanup: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -870,7 +877,7 @@ fn nominal_cleanup_selection_changes_structural_type_identity() {
                     cleanup_machine: semantic_vocabulary::MachineId::new(machine).unwrap(),
                 }
             }),
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),

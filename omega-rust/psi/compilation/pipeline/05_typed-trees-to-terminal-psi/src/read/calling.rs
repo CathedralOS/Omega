@@ -1101,20 +1101,21 @@ mod header_reading_tests {
         assert!(program.admitted_signature_views.is_empty());
         let (_, source) = typed.trait_machine_signature(requirement).unwrap();
         let reference = typed.state_parameters.span(source.parameters).unwrap()[0].type_reference;
-        assert_eq!(
-            program.value_type(context, reference).unwrap_err().detail,
-            "type data with custody"
-        );
+        let crate::body::ValueType::Record(record, _, _) =
+            program.value_type(context, reference).unwrap()
+        else {
+            panic!("the qualified input must retain its linear record type");
+        };
         assert!(program.symbols.is_empty());
         program.begin_declaration_storage(context, 0).unwrap();
-        let descriptions = program.prepare_calling_storage(context, &policies).unwrap();
+        program.prepare_calling_storage(context, &policies).unwrap();
         assert_eq!(program.admitted_signature_views.len(), 1);
-        let [property] = descriptions.properties.as_slice() else {
-            panic!("the metadata property range must include its header's linear carrier");
-        };
-        assert!(property.owns_linear_claim);
-        assert!(property.descriptor_cleanup && property.no_code_affine_cleanup);
-        assert!(!program.records.get(property.record).unwrap().copyable);
+        // Storage description preserves the same declared multiplicity;
+        // reading a calling header neither creates a value nor retires a claim.
+        assert_eq!(
+            program.records.get(record).unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Linear,
+        );
         let signature = program
             .read_calling_requirement_header(context, &scope, requirement)
             .unwrap();

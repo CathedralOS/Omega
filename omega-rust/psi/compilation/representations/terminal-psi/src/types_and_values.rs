@@ -837,8 +837,10 @@ pub mod types {
             pub quotient_carrier: Option<StructuralTypeId>,
             pub id: StructuralTypeId,
             pub identity: TerminalIdentityIndex,
+            /// This declaration's intrinsic root debt, independent of its
+            /// declared multiplicity and claims retained in owned components.
             pub owns_linear_claim: bool,
-            pub copyable: bool,
+            pub multiplicity: crate::StructuralMultiplicity,
             pub no_code_affine_cleanup: bool,
             pub descriptor_cleanup: bool,
             pub nominal_cleanup: Option<crate::NominalCleanupSelection>,
@@ -857,6 +859,13 @@ pub mod types {
         }
 
         impl StructuralTypeDeclaration {
+            pub const fn is_copyable(&self) -> bool {
+                matches!(
+                    self.multiplicity,
+                    crate::StructuralMultiplicity::Unrestricted
+                )
+            }
+
             pub fn is_float_class_shape(&self) -> bool {
                 let StructuralTypeShape::Sum { cases } = &self.shape else {
                     return false;
@@ -1707,7 +1716,7 @@ pub mod types {
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
-                        copyable: false,
+                        multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
                         nominal_cleanup: None,
                         scalar_restriction: None,
@@ -1724,7 +1733,7 @@ pub mod types {
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
-                        copyable: false,
+                        multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
                         nominal_cleanup: None,
                         scalar_restriction: None,
@@ -1738,7 +1747,7 @@ pub mod types {
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
-                        copyable: false,
+                        multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
                         nominal_cleanup: None,
                         scalar_restriction: None,
@@ -1763,7 +1772,7 @@ pub mod types {
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
-                        copyable: false,
+                        multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
                         nominal_cleanup: None,
                         scalar_restriction: None,
