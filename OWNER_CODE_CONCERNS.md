@@ -246,13 +246,6 @@ framework or a list of unimplemented features.
 - Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
 - Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
 
-### Callback and interrupt records lose the machine that owns their operation
-- Category: Re-deriving
-- Where: [terminal-psi/src/lib.rs:352](omega-rust/psi/compilation/representations/terminal-psi/src/lib.rs#L352), [executable preparation](omega-rust/omega/compilation/compiler/src/executable.rs), and [codec/src/foundation_validation.rs:2261](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L2261)
-- Saw: each lowered machine allocates operation IDs from its own fresh `MachineSources`, but callback and interrupt records retain only `OperationId`. Executable preparation searches every reached machine for that number, while codec interrupt validation collects all machines into a map keyed by the same bare ID. Stage05 currently emits neither roster; the existing constructors are fixtures and decoding, and no failing customer execution was observed.
-- Cost: equal operation numbers in different machines can select an unrelated reached use or overwrite an installation site. Preserve the owning machine with the operation through the record, encoding and consumers so each registration names its actual call.
-- Reported: 2026-11-14, Codex, while reviewing stored-machine executable preparation
-
 ### Selected-body activation copies retained side records
 - Category: re-deriving
 - Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L670), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1337), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)

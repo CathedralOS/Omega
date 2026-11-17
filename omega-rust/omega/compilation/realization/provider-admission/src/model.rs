@@ -12,7 +12,7 @@
 
 use calling_conventions::NativePlace;
 use installation_evidence::ProviderExecutionEvidence;
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
