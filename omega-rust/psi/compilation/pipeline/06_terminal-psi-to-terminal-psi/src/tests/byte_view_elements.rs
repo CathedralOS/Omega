@@ -1709,7 +1709,10 @@ fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
             let path: &[u8] in Path = "foo/bar" as +Path;
         }
     "#;
-    assert_eq!(verdict(program), "accepted");
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => accepted.publish_invocation().unwrap(),
+        rejected => panic!("the literal must establish its own predicate: {rejected:?}"),
+    };
     let invalid = program.replace("foo/bar", r"foo\x00bar");
     let rejected = judge_build(&invalid).unwrap();
     assert!(
