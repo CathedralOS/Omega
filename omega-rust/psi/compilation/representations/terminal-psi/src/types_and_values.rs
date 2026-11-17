@@ -922,6 +922,9 @@ pub mod types {
                 cases: Vec<StructuralCaseDeclaration>,
             },
             AtomicCell(semantic_vocabulary::AtomicCellType),
+            /// A checking form retains this exact source type parameter. Its
+            /// contents and geometry remain unknown until specialization.
+            TypeParameter,
         }
 
         impl StructuralTypeShape {
@@ -1547,6 +1550,9 @@ pub mod types {
                     })
                 };
                 match &declaration.shape {
+                    // A parameter's bounds do not exclude borrowed contents.
+                    // Neither query may treat an unknown payload as empty.
+                    StructuralTypeShape::TypeParameter => return true,
                     StructuralTypeShape::Record { fields, .. } => {
                         if push_fields(fields) {
                             return true;
@@ -1861,6 +1867,9 @@ pub mod values {
             /// Cross a live permission descriptor into its separately owned backing.
             /// It is never an inline field, a claim transfer or a disjointness fact.
             Referent,
+            /// The opaque contents packet of a type parameter. This logical
+            /// location can move with its value but is never a captured address.
+            UnknownContents,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

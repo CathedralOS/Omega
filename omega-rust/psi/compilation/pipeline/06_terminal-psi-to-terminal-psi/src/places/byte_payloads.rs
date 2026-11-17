@@ -3,26 +3,50 @@
 //! Authenticate the source write log before adding these derived effects.
 
 use super::{Lineage, Logged, Shape, Storage, Stored};
-use terminal_check_tables::{Checked, Construct};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_check_tables::{Checked, Construct, MachineTables};
 use terminal_psi::{ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralTypeShape};
-use terminal_semantics::descriptor_lifetimes::{descriptor_location_type, descriptor_path};
-use terminal_semantics::descriptor_results::{
-    DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
+use terminal_semantics::descriptor_lifetimes::{
+    DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location_type,
+    descriptor_path,
 };
+use terminal_semantics::descriptor_results::{
+    DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin, UnknownDescriptorContents,
+};
+
+#[derive(Default)]
+struct PayloadInventory {
+    descriptors: Vec<Lineage>,
+    unknown_contents: Vec<PendingPayloadWrite>,
+}
+
+/// Keep the exact unenumerated slot separate from its containing storage.
+/// It names pending contents, not an address or permission to that contents.
+struct PendingPayloadWrite {
+    carrier: Lineage,
+    contents: UnknownDescriptorContents,
+}
+
+struct PayloadWrite {
+    at: DescriptorPosition,
+    operation: semantic_vocabulary::OperationId,
+    inventory: PayloadInventory,
+}
 
 impl<'a> Storage<'a> {
     pub(super) fn byte_payload_writes(
         &mut self,
         references: &mut super::DescriptorAnalysis<'a>,
+        tables: &MachineTables,
     ) -> Checked<()> {
-        let mut writes = Vec::new();
+        let mut pending = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
                 let concerns = Construct::Operation(operation.id);
-                let mut descriptors = Vec::new();
+                let mut inventory = PayloadInventory::default();
                 if let OperationKind::ByteSequenceWrite { destination, .. } = operation.kind {
                     let destination = self.stored_at(destination, &[], concerns)?;
-                    descriptors = self.byte_payload_descriptors(&destination, concerns)?;
+                    inventory = self.byte_payload_descriptors(&destination, concerns)?;
                 } else if crate::call_contracts::operation_inputs(operation).is_some() {
                     // Most calls have no mutable byte descriptor. Inventory
                     // actual operands once before requesting their frame.
@@ -33,9 +57,11 @@ impl<'a> Storage<'a> {
                         .filter(|argument| argument.access != StructuralAccess::SharedBorrow)
                     {
                         let actual = self.argument(argument, concerns)?;
-                        descriptors.extend(self.byte_payload_descriptors(&actual, concerns)?);
+                        let actual = self.byte_payload_descriptors(&actual, concerns)?;
+                        inventory.descriptors.extend(actual.descriptors);
+                        inventory.unknown_contents.extend(actual.unknown_contents);
                     }
-                    if descriptors.is_empty() {
+                    if inventory.descriptors.is_empty() && inventory.unknown_contents.is_empty() {
                         continue;
                     }
                     if let Some(regions) = terminal_semantics::borrowed_storage::call_write_regions(
@@ -57,7 +83,12 @@ impl<'a> Storage<'a> {
                                 self.stored_at(root, &region.projection.path, concerns)
                             })
                             .collect::<Checked<Vec<_>>>()?;
-                        descriptors.retain(|descriptor| {
+                        inventory.unknown_contents.retain(|pending| {
+                            affected
+                                .iter()
+                                .any(|region| super::overlap(region, &pending.carrier))
+                        });
+                        inventory.descriptors.retain(|descriptor| {
                             affected
                                 .iter()
                                 .any(|region| super::overlap(region, descriptor))
@@ -66,24 +97,75 @@ impl<'a> Storage<'a> {
                 } else {
                     continue;
                 }
+                if inventory.descriptors.is_empty() && inventory.unknown_contents.is_empty() {
+                    continue;
+                }
                 let cut = u32::try_from(position)
                     .map_err(|_| self.foreign(concerns, "payload write cut exceeds u32"))?;
-                for descriptor in descriptors {
-                    for backing in self.byte_payload_backings(
-                        references,
-                        &descriptor,
-                        (block.id, cut),
+                pending.push(PayloadWrite {
+                    at: (block.id, cut),
+                    operation: operation.id,
+                    inventory,
+                });
+            }
+        }
+        let targets = pending
+            .iter()
+            .filter(|write| !write.inventory.unknown_contents.is_empty())
+            .map(|write| write.at)
+            .collect::<BTreeSet<_>>();
+        let possible = if targets.is_empty() {
+            BTreeMap::new()
+        } else {
+            self.escaping_payload_backings(references, tables, &targets)?
+        };
+        let mut writes = Vec::new();
+        for write in pending {
+            let concerns = Construct::Operation(write.operation);
+            let (block, position) = write.at;
+            let before = position as usize;
+            let aliases: &[Lineage] = if write.inventory.unknown_contents.is_empty() {
+                &[]
+            } else {
+                possible.get(&write.at).ok_or_else(|| {
+                    self.unsupported(
                         concerns,
-                    )? {
-                        writes.push(Logged {
-                            captured: descriptor.clone(),
-                            lineage: backing,
-                            block: block.id,
-                            position: position + 1,
-                            operation: operation.id,
-                            stored: Stored::Established,
-                        });
-                    }
+                        "pending payload effect has no prepared backing account",
+                    )
+                })?
+            };
+            for pending in write.inventory.unknown_contents {
+                let receiving =
+                    self.backing(references, &pending.carrier, block, before, concerns)?;
+                for lineage in aliases {
+                    writes.push(Logged {
+                        captured: pending.carrier.clone(),
+                        lineage: lineage.clone(),
+                        block,
+                        position: before + 1,
+                        operation: write.operation,
+                        stored: Stored::UnknownPayloadWrite {
+                            receiving: receiving.clone(),
+                            contents: pending.contents.clone(),
+                        },
+                    });
+                }
+            }
+            for descriptor in write.inventory.descriptors {
+                for backing in self.byte_payload_backings(
+                    references,
+                    &descriptor,
+                    (block, position),
+                    concerns,
+                )? {
+                    writes.push(Logged {
+                        captured: descriptor.clone(),
+                        lineage: backing,
+                        block,
+                        position: before + 1,
+                        operation: write.operation,
+                        stored: Stored::Established,
+                    });
                 }
             }
         }
@@ -96,32 +178,287 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    fn escaping_payload_backings(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        targets: &BTreeSet<DescriptorPosition>,
+    ) -> Checked<BTreeMap<DescriptorPosition, Vec<Lineage>>> {
+        let concerns = Construct::Machine;
+        let flow = references
+            .flow(self.machine)
+            .map_err(|error| self.unsupported(concerns, &error.in_module(self.module)))?;
+        let mut predecessors = BTreeMap::<_, Vec<_>>::new();
+        for (position, step) in &flow {
+            for edge in &step.successors {
+                predecessors.entry(edge.target).or_default().push(*position);
+            }
+        }
+        let mut relevant = BTreeSet::new();
+        let mut pending = targets.iter().copied().collect::<Vec<_>>();
+        while let Some(position) = pending.pop() {
+            if relevant.insert(position) {
+                pending.extend(predecessors.get(&position).into_iter().flatten().copied());
+            }
+        }
+        let mut incoming = Vec::new();
+        let entry = (self.graph.entry(), 0);
+        for parameter in &self.lowered.structural_parameters {
+            if parameter.access != StructuralAccess::Owned
+                && !terminal_semantics::borrowed_view_payload_parameter(
+                    parameter,
+                    self.types.iter(),
+                )
+            {
+                incoming.push(self.stored_at(parameter.place, &[], concerns)?);
+            }
+            let inventory = DescriptorSlotKind::References
+                .owned_inventory(self.types, parameter.place, parameter.structural_type)
+                .ok_or_else(|| {
+                    self.unsupported(
+                        concerns,
+                        "pending payload effect has no incoming reference inventory",
+                    )
+                })?;
+            for mut slot in inventory.slots {
+                let Some(ty) =
+                    descriptor_location_type(self.types, parameter.structural_type, &slot.path)
+                else {
+                    continue;
+                };
+                if !matches!(
+                    self.declaration(ty, concerns)?.shape,
+                    StructuralTypeShape::Reference { .. }
+                ) {
+                    continue;
+                }
+                slot.path.push(DescriptorPathSegment::Referent);
+                let path = descriptor_path(self.types, parameter.structural_type, &slot.path)
+                    .ok_or_else(|| {
+                        self.unsupported(
+                            concerns,
+                            "incoming reference lost its pending-effect backing",
+                        )
+                    })?;
+                let raw = self.stored_at(slot.root, &path, concerns)?;
+                incoming.push(self.backing(references, &raw, entry.0, 0, concerns)?);
+            }
+        }
+        incoming.sort();
+        incoming.dedup();
+        let mut invocations = tables
+            .invocations
+            .iter()
+            .filter_map(|(id, row)| match row.site {
+                semantic_vocabulary::InvocationSite::Operation(operation) => {
+                    Some((operation, id, row))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        invocations.sort_by_key(|(operation, _, _)| *operation);
+        let mut exposed = BTreeMap::<Lineage, Vec<DescriptorPosition>>::new();
+        for (at, step) in &flow {
+            if !step.may_escape || !relevant.contains(at) {
+                continue;
+            }
+            let mut backings = Vec::new();
+            if let Some(operation) = self.block(at.0)?.operations.get(at.1 as usize)
+                && let Ok(position) =
+                    invocations.binary_search_by_key(&operation.id, |(id, _, _)| *id)
+            {
+                let (_, id, row) = invocations[position];
+                let call =
+                    crate::call_contracts::invocation(self.module, self.lowered, tables, id, row)?;
+                // Borrowing inline storage exposes its address. Passing an
+                // owned descriptor exposes its captured backing instead; it
+                // does not hand out the address of the descriptor's home.
+                for (actual, formal) in call
+                    .inputs
+                    .structural_arguments
+                    .iter()
+                    .zip(call.contract.structural_parameters)
+                {
+                    if formal.access != StructuralAccess::Owned
+                        && matches!(
+                            self.borrowed_resource(formal),
+                            super::loans::BorrowedResource::Storage
+                        )
+                    {
+                        let raw = self.argument(actual, concerns)?;
+                        backings.push(self.backing(
+                            references,
+                            &raw,
+                            at.0,
+                            at.1 as usize,
+                            concerns,
+                        )?);
+                    }
+                }
+            }
+            for input in step.observed_inputs() {
+                // A packet has no address. Its existing hidden loans remain
+                // pending; it cannot expose arbitrary local storage by itself.
+                if input.path.contains(&DescriptorPathSegment::UnknownContents) {
+                    continue;
+                }
+                let root = self.root_type(input.root, concerns)?;
+                let path = descriptor_path(self.types, root, &input.path).ok_or_else(|| {
+                    self.unsupported(concerns, "escaping input has no exact storage path")
+                })?;
+                let raw = self.stored_at(input.root, &path, concerns)?;
+                let is_pointer = match self.shape(&raw, concerns)? {
+                    Shape::View => true,
+                    Shape::Typed(ty) => DescriptorSlotKind::BorrowedStorage.is_slot(self.types, ty),
+                    _ => false,
+                };
+                let mut carriers = vec![(input.clone(), is_pointer)];
+                if let Some(ty) = descriptor_location_type(self.types, root, &input.path) {
+                    let inventory = DescriptorSlotKind::BorrowedStorage
+                        .owned_inventory(self.types, input.root, ty)
+                        .ok_or_else(|| {
+                            self.unsupported(
+                                concerns,
+                                "escaping input has no retained borrowed-slot inventory",
+                            )
+                        })?;
+                    for mut slot in inventory.slots {
+                        let mut path = input.path.clone();
+                        path.append(&mut slot.path);
+                        slot.path = path;
+                        carriers.push((slot, true));
+                    }
+                }
+                carriers.sort();
+                carriers.dedup();
+                // A pointer field exposes its captured backing just as a
+                // pointer passed alone does. The record's inline home is
+                // not a substitute for the loans its fields retain.
+                for (carrier, is_pointer) in carriers {
+                    let origins = references.symbolic_source_origins(self.machine, *at, &carrier);
+                    if is_pointer && origins.as_ref().is_none_or(Vec::is_empty) {
+                        return Err(self.unsupported(
+                            concerns,
+                            "escaping pointer has no complete captured backing origins",
+                        ));
+                    }
+                    for origin in origins.into_iter().flatten() {
+                        if let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                            source,
+                            projection,
+                        }) = origin
+                        {
+                            let path = projection
+                                .captured_storage_path()
+                                .or_else(|| {
+                                    projection.enclosing_storage().map(|region| region.path)
+                                })
+                                .ok_or_else(|| {
+                                    self.unsupported(
+                                        concerns,
+                                        "escaping pointer has no containing backing",
+                                    )
+                                })?;
+                            let raw = self.stored_at(source, &path, concerns)?;
+                            backings.push(self.backing(
+                                references,
+                                &raw,
+                                at.0,
+                                at.1 as usize,
+                                concerns,
+                            )?);
+                        }
+                    }
+                }
+            }
+            backings.sort();
+            backings.dedup();
+            for backing in backings {
+                exposed.entry(backing).or_default().push(*at);
+            }
+        }
+        // Repeated calls often expose the same backing. Propagate each exact
+        // region once, instead of rescanning predecessors for every call.
+        // An empty list separates known storage; the unknown packet's own
+        // pending effects and loans remain in descriptor replay.
+        let mut possible = targets
+            .iter()
+            .map(|at| (*at, incoming.clone()))
+            .collect::<BTreeMap<_, _>>();
+        for (backing, mut pending) in exposed {
+            let mut visited = BTreeSet::new();
+            while let Some(position) = pending.pop() {
+                if !relevant.contains(&position) || !visited.insert(position) {
+                    continue;
+                }
+                if let Some(backings) = possible.get_mut(&position) {
+                    backings.push(backing.clone());
+                }
+                let step = flow.get(&position).ok_or_else(|| {
+                    self.unsupported(
+                        concerns,
+                        "pending payload effect has an incomplete flow position",
+                    )
+                })?;
+                pending.extend(step.successors.iter().map(|edge| edge.target));
+            }
+        }
+        for backings in possible.values_mut() {
+            backings.sort();
+            backings.dedup();
+        }
+        Ok(possible)
+    }
+
     fn byte_payload_descriptors(
         &self,
         region: &Lineage,
         concerns: Construct,
-    ) -> Checked<Vec<Lineage>> {
-        let slots = match self.shape(region, concerns)? {
+    ) -> Checked<PayloadInventory> {
+        let inventory = match self.shape(region, concerns)? {
             Shape::Typed(row) => DescriptorSlotKind::Views
-                .slots(self.types, region.root, row)
+                .inventory(self.types, region.root, row)
                 .ok_or_else(|| {
                     self.unsupported(
                         concerns,
                         "payload write has no complete descriptor inventory",
                     )
                 })?,
-            Shape::View => return Ok(vec![region.clone()]),
-            Shape::Scalar(_) | Shape::Atomic(_) | Shape::Payload(_) => return Ok(Vec::new()),
+            Shape::View => {
+                return Ok(PayloadInventory {
+                    descriptors: vec![region.clone()],
+                    unknown_contents: Vec::new(),
+                });
+            }
+            Shape::Scalar(_) | Shape::Atomic(_) | Shape::Payload(_) => {
+                return Ok(PayloadInventory::default());
+            }
         };
-        if slots.is_empty() {
-            return Ok(Vec::new());
-        }
         let prefix = region.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "payload write has no captured descriptor path")
         })?;
         let root = self.root_type(region.root, concerns)?;
-        let mut descriptors = Vec::new();
-        for mut slot in slots {
+        let mut found = PayloadInventory::default();
+        for mut contents in inventory.unknown_contents {
+            let mut path = prefix.path.clone();
+            path.append(&mut contents.location.path);
+            contents.location = DescriptorLocation {
+                root: region.root,
+                path,
+            };
+            let mut carrier = contents.location.clone();
+            if carrier.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+                carrier.path.pop();
+            }
+            let path = descriptor_path(self.types, root, &carrier.path).ok_or_else(|| {
+                self.unsupported(concerns, "unknown payload lost its exact containing path")
+            })?;
+            found.unknown_contents.push(PendingPayloadWrite {
+                carrier: self.stored_at(region.root, &path, concerns)?,
+                contents,
+            });
+        }
+        for mut slot in inventory.slots {
             let mut path = prefix.path.clone();
             path.append(&mut slot.path);
             let path = descriptor_path(self.types, root, &path)
@@ -138,10 +475,10 @@ impl<'a> Storage<'a> {
                     }
                 )
             ) {
-                descriptors.push(descriptor);
+                found.descriptors.push(descriptor);
             }
         }
-        Ok(descriptors)
+        Ok(found)
     }
 
     fn byte_payload_backings(

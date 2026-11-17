@@ -12501,6 +12501,11 @@ mod source {
                         slots.push(query.clone());
                     }
                     match &declaration.shape {
+                        StructuralTypeShape::TypeParameter => {
+                            return Err(
+                                "generic backing needs a closed application before descriptor tracing",
+                            );
+                        }
                         StructuralTypeShape::Opaque => {
                             return Err(
                                 "opaque backing needs its selected representation before descriptor tracing",

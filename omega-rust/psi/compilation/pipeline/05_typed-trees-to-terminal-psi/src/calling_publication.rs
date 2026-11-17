@@ -51,6 +51,7 @@ fn parameter_conflict_detail(
         }
         let shape = match &ty.shape {
             StructuralTypeShape::Opaque => "opaque".into(),
+            StructuralTypeShape::TypeParameter => "unresolved type parameter".into(),
             StructuralTypeShape::Reference { referent, access } => {
                 format!("reference to type {}, {access:?}", referent.get())
             }

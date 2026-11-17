@@ -586,6 +586,9 @@ fn resolve_structural_shape(
             .copied()
             .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            StructuralTypeShape::TypeParameter => {
+                Err(TerminalLayoutError::UnclosedTargetLayout(structural_type))
+            }
             StructuralTypeShape::Opaque => Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
                 structural_type,
             )),
