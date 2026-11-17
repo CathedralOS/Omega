@@ -184,16 +184,26 @@ pub(crate) mod borrowed_storage {
             .boundary_machines
             .iter()
             .flat_map(|boundary| {
+                let result = match &boundary.result {
+                    terminal_psi::BoundaryMachineResult::Structural(result) => {
+                        Some(result.structural_type)
+                    }
+                    _ => None,
+                };
+                // A returned reference's carrier recipe does not describe its
+                // provider backing. Retain the exact declared referent through
+                // the same prepared layout owner, independently of input roots.
+                let referent =
+                    result.and_then(|root| match &declarations.get(root).copied()?.shape {
+                        StructuralTypeShape::Reference { referent, .. } => Some(*referent),
+                        _ => None,
+                    });
                 boundary
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.structural_type)
-                    .chain(match &boundary.result {
-                        terminal_psi::BoundaryMachineResult::Structural(result) => {
-                            Some(result.structural_type)
-                        }
-                        _ => None,
-                    })
+                    .chain(result)
+                    .chain(referent)
             })
             .collect();
         let needs_original_roots = plan
@@ -1355,5 +1365,140 @@ mod native_region_geometry_tests {
             id(8),
             None
         ));
+    }
+
+    fn reference_result_plan(
+        result: StructuralTypeId,
+    ) -> abstract_operations::AbstractOperationPlan {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let reference = |referent| StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::SharedBorrow,
+        };
+        let catalog = StructuralTypeCatalog::from(vec![
+            declaration(1, StructuralTypeShape::PrimitiveScalar(scalar)),
+            declaration(2, reference(id(1))),
+            declaration(
+                3,
+                StructuralTypeShape::Record {
+                    fields: vec![
+                        field(1, StructuralFieldType::Scalar(scalar)),
+                        field(2, StructuralFieldType::Scalar(scalar)),
+                    ],
+                    storage: StructuralRecordStorage::Packed,
+                },
+            ),
+            declaration(4, reference(id(3))),
+            declaration(5, StructuralTypeShape::Opaque),
+            declaration(6, reference(id(5))),
+            declaration(7, reference(id(99))),
+            declaration(8, StructuralTypeShape::PrimitiveScalar(integer(64))),
+        ]);
+        let boundary = terminal_psi::BoundaryMachineDeclaration {
+            id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            declaration: None,
+            numeric_intrinsic: None,
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: TerminalIdentityIndex(1),
+            owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Structural(
+                terminal_psi::BoundaryStructuralResultDeclaration {
+                    structural_type: result,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+            ),
+            result_reference_regions: Vec::new(),
+            result_lifetimes: Some(vec![terminal_psi::DeclaredResultLifetime {
+                inputs: Vec::new(),
+                results: vec![Vec::new()],
+            }]),
+            requires: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
+            owning_service: None,
+            published_service_ceiling: Vec::new(),
+            published_synchronous_entries: Vec::new(),
+        };
+        // This geometry-only helper reads the boundary/type inventory, not
+        // PSI identity. The raw test plan never enters admission or lowering.
+        abstract_operations::AbstractOperationPlan {
+            psi: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0; 32]),
+            },
+            entry: semantic_vocabulary::MachineId::new(1).unwrap(),
+            structural_types: catalog,
+            boundary_machines: vec![boundary],
+            provider_candidates: Vec::new(),
+            callables: Default::default(),
+            dynamic_dispatch: Default::default(),
+            identities: Default::default(),
+            functions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn provider_reference_capture_retains_each_declared_referent_recipe() {
+        for (root, referent, bytes, alignment, fields) in [(2, 1, 4, 4, 1), (4, 3, 8, 4, 2)] {
+            let plan = reference_result_plan(id(root));
+            let declarations = calling_conventions::terminal_layout::StructuralLayouts::new(
+                plan.structural_types.iter(),
+            )
+            .unwrap();
+            let layouts = super::borrowed_storage::capture(&plan, &declarations);
+            assert_eq!(
+                layouts
+                    .iter()
+                    .map(|layout| layout.structural_type)
+                    .collect::<Vec<_>>(),
+                vec![id(referent), id(root)]
+            );
+            let backing = layouts
+                .iter()
+                .find(|layout| layout.structural_type == id(referent))
+                .unwrap();
+            assert_eq!(
+                (backing.byte_size, backing.alignment, backing.fields().len()),
+                (bytes, alignment, fields)
+            );
+            assert!(backing.opaque_regions().is_empty());
+            assert!(layouts.iter().all(|layout| layout.structural_type != id(8)));
+        }
+    }
+
+    #[test]
+    fn provider_reference_capture_does_not_invent_unavailable_referent_layouts() {
+        for (root, expected) in [(6, vec![id(6)]), (7, Vec::new())] {
+            let plan = reference_result_plan(id(root));
+            let declarations = calling_conventions::terminal_layout::StructuralLayouts::new(
+                plan.structural_types.iter(),
+            )
+            .unwrap();
+            let layouts = super::borrowed_storage::capture(&plan, &declarations);
+            assert_eq!(
+                layouts
+                    .iter()
+                    .map(|layout| layout.structural_type)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
     }
 }

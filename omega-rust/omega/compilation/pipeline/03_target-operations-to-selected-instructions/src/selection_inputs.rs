@@ -5042,6 +5042,72 @@ pub(crate) mod storage_origin_input {
                     .find(|row| row.operation == producer)
                     .ok_or(SelectedInstructionError::custody())?;
                 match &row.kind {
+                    I::NormalizedForeignCall(call)
+                        if matches!(
+                            call.result,
+                            target_vocabulary::TargetBoundaryResult::ScalarReference { .. }
+                        ) =>
+                    {
+                        let target_vocabulary::TargetBoundaryResult::ScalarReference {
+                            home,
+                            codec,
+                        } = &call.result
+                        else {
+                            unreachable!();
+                        };
+                        let (operation, result) = home
+                            .operation_result()
+                            .ok_or_else(SelectedInstructionError::custody)?;
+                        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        let placement = call
+                            .binding
+                            .boundary_entry_plan
+                            .call
+                            .result
+                            .as_ref()
+                            .ok_or_else(SelectedInstructionError::custody)?;
+                        let canonical =
+                            target_vocabulary::TargetBoundaryResult::declared_reference_codec(
+                                structural_type,
+                                |id| function.geometry().declaration(id).ok(),
+                            );
+                        if row.result.is_some()
+                            || operation != producer
+                            || result.place != place
+                            || result.structural_type != structural_type
+                            || canonical != Some(*codec)
+                            || home.layout
+                                != target_vocabulary::TargetStructuralHomeLayout::Aggregate(
+                                    calling_conventions::ValueShape::integer(
+                                        descriptor.byte_size,
+                                        descriptor.alignment,
+                                    ),
+                                )
+                            || placement.shape
+                                != calling_conventions::ValueShape::integer(
+                                    descriptor.address_byte_size,
+                                    descriptor.alignment,
+                                )
+                            || !placement.is_complete_scalar_result()
+                            || !(coordinate.path.is_empty()
+                                || coordinate.path
+                                    == [terminal_psi::StructuralPathSegment::Referent])
+                        {
+                            return Err(SelectedInstructionError::custody());
+                        }
+                        let codec = runtime_abi::ScalarStorageCodec::decode(*codec)
+                            .ok_or_else(SelectedInstructionError::custody)?;
+                        // The retained result describes its real backing width.
+                        // It supplies neither an input origin nor new permission.
+                        visited.returned_origin(true);
+                        let owner = *visited
+                            .active
+                            .last()
+                            .ok_or_else(SelectedInstructionError::custody)?;
+                        visited
+                            .scalar_widths
+                            .push((owner, u32::from(codec.byte_size())));
+                    }
                     I::Call(call) => {
                         let (result, _) =
                             crate::selection::aggregate_result_input::call_result(function, call)
@@ -5571,6 +5637,325 @@ pub(crate) mod storage_origin_input {
             collect_calls(geometry, &rebased(&parent, suffix), visited, calls)?;
         }
         Ok(found)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
+        use legalized_operations::{
+            LegalizedScalarBlock, LegalizedScalarFunction, LegalizedScalarInstruction,
+            LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+            LegalizedStructuralContract,
+        };
+        use semantic_vocabulary::{
+            BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, ScalarType,
+            StructuralTypeId,
+        };
+        use target_vocabulary::{
+            LegalizedNormalizedForeignCall, NormalizedForeignCallBinding,
+            NormalizedForeignCallMechanism, TargetBoundaryResult, TargetStructuralHomeLayout,
+            TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+        };
+        use terminal_psi::{
+            StructuralAccess, StructuralArgument, StructuralMultiplicity,
+            StructuralOperationResult, StructuralPathSegment, StructuralPlaceDeclaration,
+            StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+        };
+
+        fn result() -> StructuralOperationResult {
+            StructuralOperationResult {
+                place: PlaceId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }
+        }
+
+        // These rows exercise only the current-form storage-origin query. The
+        // unused binding commitments are fixture data, not an admitted product.
+        fn fixture(bits: u16) -> LegalizedScalarFunction {
+            let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).unwrap());
+            let declarations = [
+                StructuralTypeShape::PrimitiveScalar(scalar),
+                StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(1).unwrap(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(index, shape)| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                id: StructuralTypeId::new(index as u64 + 1).unwrap(),
+                identity: TerminalIdentityIndex(index as u32 + 1),
+                shape,
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            })
+            .collect::<Vec<_>>();
+            let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::SystemVAMD64,
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap()
+            .plan()
+            .clone();
+            let locator = target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::ElfVersioned {
+                    object: b"liborigin.so".to_vec(),
+                    symbol: b"cell".to_vec(),
+                    version: b"ORIGIN_1".to_vec(),
+                },
+                target::TargetProfile::LinuxX64,
+            )
+            .unwrap();
+            let execution = target_vocabulary::NativeBindingExecution::from_commitments(
+                [1; 32], [2; 32], [3; 32],
+            )
+            .unwrap();
+            let operation = OperationId::new(1).unwrap();
+            let call = LegalizedNormalizedForeignCall {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                provider_execution: target_vocabulary::ExternalExecutionBinding::NativeBinding(
+                    execution,
+                ),
+                binding: NormalizedForeignCallBinding {
+                    boundary_entry_plan: plan,
+                    mechanism: NormalizedForeignCallMechanism::HostedImport {
+                        locator,
+                        receipt: execution.receipt(),
+                        requirement_identity: "Origin::cell".into(),
+                    },
+                },
+                scalar_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                structural_indices: Vec::new(),
+                result: TargetBoundaryResult::ScalarReference {
+                    home: TargetStructuralHomeRequirement {
+                        origin: TargetStructuralHomeOrigin::OperationResult {
+                            operation,
+                            result: result(),
+                        },
+                        layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(16, 8)),
+                    },
+                    codec: runtime_abi::ScalarStorageCodec::from_scalar(scalar)
+                        .unwrap()
+                        .encode()
+                        .unwrap(),
+                },
+                callbacks: Vec::new(),
+                descriptor_input: None,
+            };
+            LegalizedScalarFunction {
+                machine: MachineId::new(1).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                call_plan: calling_conventions::evaluate_call_plan(
+                    CallingPolicy::SystemVAMD64,
+                    &CallSignature {
+                        parameters: Vec::new(),
+                        result: None,
+                    },
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                structural: Some(LegalizedStructuralContract {
+                    result: None,
+                    structural_types: declarations.into(),
+                    parameters: Vec::new(),
+                    structural_places: vec![StructuralPlaceDeclaration {
+                        id: result().place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: operation,
+                            structural_type: result().structural_type,
+                        },
+                    }],
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                }),
+                entry_block: BlockId::new(1).unwrap(),
+                blocks: vec![LegalizedScalarBlock {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: std::sync::Arc::from([]),
+                    instructions: vec![LegalizedScalarInstruction {
+                        operation,
+                        result: None,
+                        kind: I::NormalizedForeignCall(call),
+                        work: Vec::new(),
+                        effect: native_vocabulary::provenance::EffectLink {
+                            input: 0,
+                            output: 1,
+                        },
+                        ownership: Vec::new(),
+                    }],
+                    terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+                        edge: EdgeId::new(1).unwrap(),
+                        value: LegalizedScalarReturnValue::Unit,
+                        work: Vec::new(),
+                        effect: native_vocabulary::provenance::EffectLink {
+                            input: 1,
+                            output: 2,
+                        },
+                        ownership: Vec::new(),
+                    }),
+                }],
+                ownership_frontier_facts: Vec::new(),
+            }
+        }
+
+        fn call(function: &mut LegalizedScalarFunction) -> &mut LegalizedNormalizedForeignCall {
+            let I::NormalizedForeignCall(call) = &mut function.blocks[0].instructions[0].kind
+            else {
+                panic!("foreign result fixture");
+            };
+            call
+        }
+
+        fn origins(
+            function: &LegalizedScalarFunction,
+            path: Vec<StructuralPathSegment>,
+        ) -> Result<Option<Vec<ScalarStorageOrigin>>, SelectedInstructionError> {
+            let declarations = &function.structural.as_ref().unwrap().structural_types;
+            let geometry = crate::native_geometry::NativeGeometry::new(declarations).unwrap();
+            scalar_storage_origins(
+                &crate::native_geometry::NativeInput::new(function, &geometry),
+                &StructuralArgument {
+                    place: result().place,
+                    access: StructuralAccess::SharedBorrow,
+                    path,
+                },
+            )
+        }
+
+        #[test]
+        fn foreign_reference_origin_uses_only_the_retained_canonical_storage_width() {
+            for (bits, width) in [(8, 1), (32, 4)] {
+                let function = fixture(bits);
+                for path in [Vec::new(), vec![StructuralPathSegment::Referent]] {
+                    let actual = origins(&function, path)
+                        .expect("checked reference endpoint")
+                        .expect("known backing width");
+                    assert!(
+                        matches!(actual.as_slice(), [ScalarStorageOrigin::Width(actual)] if *actual == width)
+                    );
+                    assert!(!matches!(
+                        actual.as_slice(),
+                        [ScalarStorageOrigin::Width(8)]
+                    ));
+                }
+            }
+        }
+
+        #[test]
+        fn foreign_reference_origin_rejects_invalid_or_different_valid_codecs() {
+            let different = runtime_abi::ScalarStorageCodec::Integer {
+                byte_size: 4,
+                sign: IntegerSign::Unsigned,
+            }
+            .encode()
+            .unwrap();
+            let narrow = runtime_abi::ScalarStorageCodec::Integer {
+                byte_size: 1,
+                sign: IntegerSign::Signed,
+            }
+            .encode()
+            .unwrap();
+            for replacement in [0, u64::MAX, 1 << 63, different, narrow] {
+                let mut function = fixture(32);
+                let TargetBoundaryResult::ScalarReference { codec, .. } =
+                    &mut call(&mut function).result
+                else {
+                    unreachable!()
+                };
+                *codec = replacement;
+                assert!(origins(&function, vec![StructuralPathSegment::Referent]).is_err());
+            }
+        }
+
+        #[test]
+        fn foreign_reference_origin_rejects_mismatched_homes_and_abi_results() {
+            for change in 0..8 {
+                let mut function = fixture(32);
+                let call = call(&mut function);
+                let TargetBoundaryResult::ScalarReference { home, .. } = &mut call.result else {
+                    unreachable!()
+                };
+                let TargetStructuralHomeOrigin::OperationResult { operation, result } =
+                    &mut home.origin
+                else {
+                    unreachable!()
+                };
+                match change {
+                    0 => *operation = OperationId::new(2).unwrap(),
+                    1 => result.place = PlaceId::new(2).unwrap(),
+                    2 => result.structural_type = StructuralTypeId::new(1).unwrap(),
+                    3 => {
+                        home.layout =
+                            TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8))
+                    }
+                    4 => call.binding.boundary_entry_plan.call.result = None,
+                    5 => {
+                        call.binding
+                            .boundary_entry_plan
+                            .call
+                            .result
+                            .as_mut()
+                            .unwrap()
+                            .shape = ValueShape::integer(16, 8)
+                    }
+                    6 => call
+                        .binding
+                        .boundary_entry_plan
+                        .call
+                        .result
+                        .as_mut()
+                        .unwrap()
+                        .locations
+                        .clear(),
+                    7 => call.result = TargetBoundaryResult::Structural(home.clone()),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    origins(&function, vec![StructuralPathSegment::Referent]).is_err(),
+                    "change {change}"
+                );
+            }
+            assert!(origins(&fixture(32), vec![StructuralPathSegment::FixedIndex(0)]).is_err());
+        }
+
+        #[test]
+        fn foreign_reference_origin_does_not_supply_unknown_or_cyclic_backing() {
+            let mut function = fixture(32);
+            function.blocks[0].instructions[0].kind = I::EstablishStructuralLocal {
+                result: result(),
+                shape: ValueShape::integer(16, 8),
+            };
+            assert!(origins(&function, vec![StructuralPathSegment::Referent]).is_err());
+            function.blocks[0].instructions[0].kind = I::StructuralLeafCopy {
+                result: result(),
+                source: result().place,
+                path: native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(Vec::new()),
+                byte_offset: 0,
+                shape: ValueShape::integer(16, 8),
+                indices: Vec::new(),
+            };
+            assert!(origins(&function, vec![StructuralPathSegment::Referent]).is_err());
+        }
     }
 }
 
