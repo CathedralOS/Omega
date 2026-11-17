@@ -4,7 +4,7 @@
 # A fresh cloud container has Rust but not the repository's pinned nightly,
 # mbx, cargo-nextest or zstd, so the first build and the first `mbx nextest run`
 # fail or fall back to slower paths. This script installs each of them once,
-# from the documented release channels, and is safe to rerun.
+# from the documented sources, and is safe to rerun.
 #
 #   bash tools/agent_setup.sh             # from anywhere; finds its checkout
 #   bash tools/agent_setup.sh --mbx-only  # hosted focused tests need just mbx
@@ -28,7 +28,7 @@ esac
 # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
 # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-# The one mbx pin, shared with CI, Devin and the Windows instructions.
+# The qualified mbx pin, shared with CI, Devin and the Windows instructions.
 MBX_VERSION=$(tr -d "[:space:]" < "$repo/tools/mbx-version")
 # cargo xtask doctor requires cargo-nextest 0.9.140 or newer.
 NEXTEST_VERSION=0.9.150
@@ -38,11 +38,9 @@ arch=$(uname -m)
 if [ "$arch" = "arm64" ]; then arch="aarch64"; fi
 case "$os" in
   Darwin)
-    mbx_target="aarch64-apple-darwin"
     nextest_target="universal-apple-darwin"
     ;;
   *)
-    mbx_target="$arch-unknown-linux-gnu"
     nextest_target="$arch-unknown-linux-gnu"
     ;;
 esac
@@ -71,18 +69,7 @@ if [ "$mbx_only" = false ]; then
 fi
 
 step "mbx $MBX_VERSION"
-if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
-  archive=mbx-$mbx_target.tar.gz
-  release=https://github.com/jdx/mr-boxington/releases/download/v$MBX_VERSION
-  (cd "$work" &&
-    curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
-    if command -v sha256sum >/dev/null; then
-      grep " $archive\$" SHA256SUMS | sha256sum --check --strict -
-    else
-      grep " $archive\$" SHA256SUMS | shasum -a 256 --check -
-    fi &&
-    tar -xzf "$archive" -C "$bin" mbx)
-fi
+bash "$repo/tools/xtask/bootstrap-mbx.sh" --install-dir "$bin"
 mbx --version
 # Collection settings are machine policy, unsupported in workspace .mbx.toml.
 # Managed hosts share one fixed worker pool; retain it without disabling GC or

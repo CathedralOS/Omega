@@ -510,7 +510,7 @@ installs everything doctor checks for; it is also the setup script for Claude
 Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
 Builds need Git, the pinned Rust toolchain, `mbx` at the version in
-`tools/mbx-version` or newer, and
+`tools/mbx-version`, and
 `cargo-nextest` 0.9.140 or newer (`mbx` is mandatory; direct Cargo fallback is forbidden).
 `mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
 that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation
@@ -578,12 +578,67 @@ that commit as its base. Integrate newer source only for an actual conflict or
 needed prerequisite, then follow [squash-merge landing](landing.md). A slot that
 has been released or moved resets to `origin/main` as before.
 
-`mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
-on Cargo's checksum freshness, Cargo then passes
-`-Zchecksum-hash-algorithm=blake3` to rustc, and mbx 1.29.2 bypasses its cache
-for a flag it does not model: a full build reports `0 hits, 0 misses, 213
-bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
-`mbx` still schedules builds and manages target directories.
+### Checksum-capable mbx setup
+
+Cargo content fingerprints remain enabled in `.cargo/config.toml`. Cargo passes
+`-Zchecksum-hash-algorithm=blake3` to rustc so it can detect changed bytes even
+when a file's size and modification time were restored. Official mbx 1.29.2
+and the inspected 1.30.0 adapter do not model that flag; they schedule builds
+but bypass the shared Rust cache. A newer version number alone does not prove
+support for this workflow.
+
+`tools/mbx-version` pins the currently qualified adapter build. Both
+`tools/agent_setup.sh` and CI use `tools/xtask/bootstrap-mbx.sh`: it verifies the
+official bootstrap release's SHA-256, checks out upstream commit
+`7fa83b28d239bd39d1079127ffd2f8b0f92df00a`, and applies the immutable repository
+patch `tools/xtask/mbx-checksum.patch`. The patch retains the flag in command
+replay, action keys and predictions. Cached dep-info keeps its raw checksum
+comments. Before constructing a checksum action, the driver checks the entire
+build-script watch signature and requires a reliable change token for every
+file input. Filesystems with weak identities, including the modeled Linux NFS
+case, run rustc without shared caching rather than treating an inode as proof
+that its contents are unchanged. Other compiler flags retain existing policy.
+
+The first install builds the tool with the selected Rust toolchain, optimized
+at level 3, without LTO, with 16 codegen units, unwind and stripped symbols.
+The installer caches a checksummed binary under
+`${XDG_CACHE_HOME:-$HOME/.cache}/omega-mbx/artifacts/`. Its key covers upstream
+source, the captured patch, installer, profile, compiler identity and Rust flags.
+Subsequent checkouts reuse that artifact. The generated source/build workspace
+is separate from Omega targets and keeps installers from mutating it
+concurrently; only a live installer uses its lock. On failure the installer removes its own lock and temporary
+files. A stale reservation after an interrupted process must be investigated
+before removing it. Source changes during installation abort publication or
+installation instead of recording mismatched inputs.
+
+CI caches the small completed artifacts, not the whole tool build workspace,
+using the same recipe identity across admission, post-merge and warm builds.
+The unmodified official tool bootstraps the patched tool with content
+fingerprints enabled and collection disabled for that command. The known
+`build_script_execution = false` policy also applies to the tool bootstrap;
+no global settings change. Setup uses the normal host Rust/C linker tools;
+Windows uses Git for Windows' Bash and Rust's bundled LLD. No cloud environment
+configuration or publication step is part of repository setup.
+
+To install only mbx, use `bash tools/agent_setup.sh --mbx-only`. The common
+installer also accepts `--install-dir DIRECTORY` for an isolated candidate.
+`mbx xtask doctor` recognizes the qualified patch identity and warns when an
+otherwise sufficiently recent binary has not been qualified for checksum
+caching; it does not infer support or lack of support from a newer number.
+
+The focused host check is:
+
+```sh
+bash tools/xtask/check-mbx-checksum.sh /absolute/path/to/mbx NEW_OUTPUT_DIRECTORY
+```
+
+It primes an isolated store, removes only its probe's products to require a
+real mbx cache hit, then changes an included constant from 1 to 2 while retaining
+the restored products and dep-info and restoring the exact source size and
+nanosecond mtime. Cargo must invoke rustc using checksum freshness, and the
+resulting program must print 2. Its logs preserve every stage. This is a host
+check, not qualification of untested operating systems or filesystems. Do not
+disable content fingerprints or strip checksum flags to obtain cache hits.
 
 Windows MSVC host builds select Rust's bundled LLD linker through
 `.cargo/config.toml`. Microsoft's `link.exe` refused an existing 266-character
