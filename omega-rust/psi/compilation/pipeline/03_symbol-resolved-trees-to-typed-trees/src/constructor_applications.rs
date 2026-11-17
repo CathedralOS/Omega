@@ -1293,6 +1293,59 @@ mod tests {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
     #[test]
+    fn a_declared_qualified_range_keeps_its_exact_operand_selection() {
+        let mut program = checked(&[(
+            "main.omg",
+            r#"
+            domain [u8]::Marked;
+            machine [..] alternative(path: &[u8] in Marked, start: u64, end: u64) -> &[u8] {
+                "selected"
+            }
+            machine build_entry(path: &[u8] in Marked) {
+                let prefix: &[u8] = path[0..0];
+            }
+        "#,
+        )])
+        .unwrap();
+        let count = builtin(&mut program, BuiltinTypeAtom::U64).unwrap();
+        let owners = typed_trees::references::collect_program_operand_owners(&program);
+        let mut observed = 0;
+        for (expression, node) in program.expression_table.expression_entries() {
+            let ExpressionNode::Indexed(indexed) = node else {
+                continue;
+            };
+            let owner = expression_owner(&program, &owners, expression).unwrap();
+            let collection = program
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            let operands = [Some(collection), Some(count), Some(count)];
+            let spelling = language_core::OperatorSpelling::Range;
+            let candidates = typed_trees::operator::resolve_indexed_spelling_for_operands(
+                &program,
+                spelling,
+                &operands,
+                program.expression_table.source_span(expression),
+            );
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(
+                program
+                    .machine_by_symbol(candidates[0].operator.symbol)
+                    .unwrap()
+                    .name
+                    .as_str(),
+                "alternative"
+            );
+            assert!(
+                !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    &program, owner, expression, spelling, &operands,
+                )
+            );
+            observed += 1;
+        }
+        assert_eq!(observed, 1);
+    }
+
+    #[test]
     fn indexed_operands_keep_qualified_field_and_borrowed_formal_types() {
         let program = checked(&[(
             "main.omg",

@@ -589,9 +589,7 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
     }
 }
 
-#[test]
-fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
-    let program = r#"
+const QUALIFIED_BYTE_RANGE: &str = r#"
         domain [u8]::Path requires byte_observation::no_nul(&self[..]);
         machine prefix_length(path: &[u8] in Path, position: u64) -> u64
         requires position <= path.len {
@@ -602,16 +600,34 @@ fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
             let length: u64 = prefix_length("foo/bar" as +Path, 3);
         }
     "#;
-    match judge_build(program).unwrap() {
+
+#[test]
+fn an_undeclared_qualified_byte_range_is_refused() {
+    let actual = verdict(QUALIFIED_BYTE_RANGE);
+    assert!(
+        actual.contains("range of qualified bytes without its selected operand type"),
+        "{actual}"
+    );
+}
+
+#[test]
+fn an_explicit_domain_cast_permits_the_builtin_byte_range_and_keeps_its_bounds() {
+    let program =
+        QUALIFIED_BYTE_RANGE.replace("&path[0..position]", "&(path as -Path)[0..position]");
+    match judge_build(&program).unwrap() {
         RouteVerdict::Accepted(accepted) => {
             accepted.publish_invocation().unwrap();
         }
-        other => panic!("qualified byte range must be accepted: {other:?}"),
+        other => panic!("the explicitly unqualified byte range must be accepted: {other:?}"),
     }
 
     let outside = program.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
     assert_eq!(verdict(&outside), "rejected");
+}
 
+#[test]
+fn a_declared_qualified_byte_range_is_not_taken_as_builtin() {
+    let program = QUALIFIED_BYTE_RANGE;
     let authored = format!(
         r#"machine [..] alternative(path: &[u8] in Path, start: u64, end: u64) -> &[u8] {{
                "alternative"
