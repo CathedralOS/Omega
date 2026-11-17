@@ -447,7 +447,36 @@ machine entry() -> i64 {{
 }
 
 #[test]
-fn mutable_reference_removal_is_not_admitted_as_value_removal() {
+fn an_exclusive_view_requires_authority_to_restore_an_issued_domain() {
+    let source = |body: &str| {
+        format!(
+            r#"
+domain [u16; 2]::Claimed established by authorized;
+machine authorized(path: &mut [u16; 2] in Claimed) -> [u16; 2] in Claimed {{
+    (path as -Claimed)[0] = 0;
+    [0, 0] as +Claimed
+}}
+machine entry(path: &mut [u16; 2] in Claimed) {{ {body} }}
+"#
+        )
+    };
+    let verdict = judge(invocation(&source(
+        "let result: [u16; 2] in Claimed = authorized(path);",
+    )))
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let refused = invocation(&source("(path as -Claimed)[0] = 0;")).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Violation);
+    assert!(
+        refused
+            .detail
+            .contains("not one of the domain's establishment routes"),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn mutable_scalar_domain_removal_keeps_its_reference_type() {
     let text = format!(
         r#"
 {DOMAIN}
@@ -459,24 +488,42 @@ machine entry() {{
 }}
 "#
     );
-    // Typing retains this reference operation as unserved. By-value domain
-    // removal supplies no proof of the lender's re-establishment obligation.
     let typed = boundary_calls::typed(&text);
-    let helper = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "borrow_remove")
-        .unwrap()
-        .symbol;
-    assert!(typed.deferred_refusals_of(helper).any(|row| {
-        row.request == typed_trees::deferred_refusals::DeferredRequest::DomainCastThroughReference
-    }));
+    let cast = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, node)| match node {
+            typed_trees::expression::ExpressionNode::Cast(cast)
+                if cast.form.entry().is_some_and(|entry| {
+                    entry.kind == language_core::cast_form::CastEntryKind::Remove
+                }) && cast.result_type.is_valid()
+                    && matches!(
+                        typed.type_reference_table.type_reference(cast.result_type),
+                        typed_trees::types::TypeReferenceNode::Reference {
+                            access: language_core::ReferenceAccess::Mutable,
+                            ..
+                        }
+                    ) =>
+            {
+                Some(cast)
+            }
+            _ => None,
+        })
+        .expect("the reference removal is accounted");
+    assert!(matches!(
+        typed.type_reference_table.type_reference(cast.result_type),
+        typed_trees::types::TypeReferenceNode::Reference {
+            access: language_core::ReferenceAccess::Mutable,
+            ..
+        }
+    ));
+    // Qualified scalar loans remain unsupported before this body is read.
+    // This case checks its reference type, not restoration of the predicate.
     let refused = invocation(&text).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refused.detail,
-        "declaration holding a domain cast through a reference, which no pass accounts for yet \
-         while reading the signature of `borrow_remove` while reading the body of `entry`"
+    assert!(
+        refused.detail.contains("reference to a qualified scalar"),
+        "{refused:?}"
     );
 }
 
@@ -566,16 +613,22 @@ ensures result <= span.high
 fn a_mutably_borrowed_data_formal_keeps_its_domain_at_handback() {
     let source = r#"
 domain [u16; 8]::Terminated requires self[7] == 0;
-machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
+machine entry(path: &mut [u16; 8] in Terminated) -> u16 { (path as -Terminated)[7] }
 "#;
     let verdict = judge(invocation(source)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
-    let preserving = source.replace("{ path[7] }", "{ path[7] = 0; path[7] }");
+    let preserving = source.replace(
+        "{ (path as -Terminated)[7] }",
+        "{ (path as -Terminated)[7] = 0; (path as -Terminated)[7] }",
+    );
     let verdict = judge(invocation(&preserving)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
-    let invalid = preserving.replace("path[7] = 0", "path[7] = 1");
+    let invalid = preserving.replace(
+        "(path as -Terminated)[7] = 0",
+        "(path as -Terminated)[7] = 1",
+    );
     let elaboration = invocation(&invalid).unwrap();
     assert!(elaboration.tables.machines.iter().any(|(_, tables)| {
         tables
@@ -594,6 +647,101 @@ machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
             matches!(failure.kind, ObligationKind::DataDomain { .. }))
             || !unestablished.is_empty())),
         "the changed byte must fail restoration of the declared domain: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_mutable_field_view_restores_its_domain_and_preserves_neighbors() {
+    let source = r#"
+domain [u16; 8]::Terminated requires self[7] == 0;
+data Packet {
+    before: u16;
+    bytes: [u16; 8] in Terminated;
+    after: u16;
+}
+machine entry(packet: &mut Packet)
+requires packet.before == 11 && packet.after == 37
+ensures packet.before == 11 && packet.after == 37
+{
+    (&mut packet.bytes as -Terminated)[7] = 0;
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let invalid = source.replace("[7] = 0", "[7] = 1");
+    let verdict = judge(invocation(&invalid)).unwrap();
+    assert!(
+        !matches!(verdict, RouteVerdict::Accepted(_)),
+        "the changed field was accepted without restoring Terminated"
+    );
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected {
+            ref formations, ref violations, ref unproved, ref unestablished,
+            ref conflicts, ref exceeded,
+        } if formations.is_empty() && violations.is_empty() && conflicts.is_empty()
+            && exceeded.is_empty()
+            && (unproved.iter().any(|failure|
+                matches!(failure.kind, ObligationKind::DataDomain { .. }))
+                || !unestablished.is_empty())),
+        "the changed field must fail restoration of Terminated: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_plain_mutable_view_can_read_temporary_contents_before_restoration() {
+    let source = r#"
+domain [u16; 8]::Terminated requires self[7] == 0;
+data Packet { before: u16; bytes: [u16; 8] in Terminated; after: u16; }
+machine entry(packet: &mut Packet) -> u16
+requires packet.before == 11 && packet.after == 37
+ensures result == 1 && packet.before == 11 && packet.after == 37
+{
+    let view: &mut [u16; 8] = &mut packet.bytes as -Terminated;
+    view[7] = 1;
+    let seen: u16 = view[7];
+    view[7] = 0;
+    seen
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Accepted(_)),
+        "a plain view may read its temporary contents and restore Terminated before handback: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_whole_replacement_through_a_plain_view_restores_the_lenders_domain() {
+    let source = |last: u16| {
+        format!(
+            r#"
+domain [u16; 8]::Terminated requires self[7] == 0;
+data Packet {{ before: u16; bytes: [u16; 8] in Terminated; after: u16; }}
+machine entry(packet: &mut Packet)
+requires packet.before == 11 && packet.after == 37
+ensures packet.before == 11 && packet.after == 37
+{{
+    let view: &mut [u16; 8] = &mut packet.bytes as -Terminated;
+    view = [0, 0, 0, 0, 0, 0, 0, {last}];
+}}
+"#
+        )
+    };
+    let verdict = judge(invocation(&source(0))).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let verdict = judge(invocation(&source(1))).unwrap();
+    assert!(
+        !matches!(verdict, RouteVerdict::Accepted(_)),
+        "whole replacement was accepted without restoring Terminated"
+    );
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected {
+        ref formations, ref violations, ref unproved, ref unestablished,
+        ref conflicts, ref exceeded,
+    } if formations.is_empty() && violations.is_empty() && conflicts.is_empty()
+        && exceeded.is_empty() && unestablished.is_empty()
+        && unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::DataDomain { .. }))),
+        "the changed replacement must fail the lender's Terminated clause: {verdict:?}"
     );
 }
 
@@ -678,7 +826,7 @@ fn a_stored_referents_domain_is_established_by_its_proved_cast() {
             r#"
 domain [u16; 4]::Terminated requires self[3] == 0;
 data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
-machine last(named: &Named) -> u16 ensures result == 0 {{ named.buffer[3] }}
+machine last(named: &Named) -> u16 ensures result == 0 {{ (named.buffer as -Terminated)[3] }}
 machine entry() -> u16 {{
     let text: [u16; 4] = [7, 8, 9, {last}];
     let named: Named = Named {{ buffer: &text as +Terminated }};
@@ -730,5 +878,116 @@ machine entry() -> u16 {{
         matches!(unproved, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. }))),
         "{unproved:?}"
+    );
+}
+
+#[test]
+fn a_variable_byte_index_keeps_its_type_and_restoration_obligation() {
+    let source = r#"
+domain [u8; 8]::Terminated requires self[7] == 0;
+data Packet { before: u8; bytes: [u8; 8] in Terminated; index: i32 in Wrapping; after: u8; }
+machine entry(packet: &mut Packet)
+requires packet.before == 11 && packet.after == 37 && (packet.index as -Wrapping) == 7i32
+ensures packet.before == 11 && packet.after == 37
+{
+    (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let invalid = source.replace("] = 0", "] = 1");
+    let verdict = judge(invocation(&invalid)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected {
+        ref formations, ref violations, ref unproved, ref unestablished,
+        ref conflicts, ref exceeded,
+    } if formations.is_empty() && violations.is_empty() && conflicts.is_empty()
+        && exceeded.is_empty()
+        && (unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::DataDomain { .. }))
+            || !unestablished.is_empty())),
+        "the changed byte must fail restoration: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_bare_byte_range_borrows_its_array_reference() {
+    let source = r#"
+domain [u8; 8]::Terminated requires self[7] == 0;
+data Packet { bytes: [u8; 8] in Terminated; }
+machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: &Packet) {
+    observe((&packet.bytes as -Terminated)[..]);
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let wrong_extent = source.replace("bytes.len == 8u64", "bytes.len == 9u64");
+    let verdict = judge(invocation(&wrong_extent)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "the array view must keep its actual extent: {verdict:?}"
+    );
+}
+
+#[test]
+fn fresh_buffer_views_end_before_the_next_loop_iteration() {
+    let source = r#"
+domain [u8; 8]::Terminated requires self[7] == 0;
+data Packet { bytes: [u8; 8] in Terminated; }
+machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: &mut Packet, again: bool) {
+    transition { _ -> block cycle(packet, again) }
+    machine cycle(packet: &mut Packet, again: bool) {
+        (&mut packet.bytes as -Terminated)[7] = 0;
+        observe((&packet.bytes as -Terminated)[..]);
+        transition again {
+            true -> block cycle(packet, false)
+            _ -> block done(packet)
+        }
+    }
+    machine done(packet: &mut Packet) {}
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+const CYCLIC_BYTE_WRITE: &str = r#"
+domain [u8; 8]::Terminated requires self[7] == 0;
+data Packet { bytes: [u8; 8] in Terminated; index: i32 in Wrapping; }
+machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: &mut Packet, again: bool) {
+    transition { _ -> block cycle(packet, again) }
+    machine cycle(packet: &mut Packet, again: bool) {
+        transition (packet.index as -Wrapping) == 7i32 {
+            true -> block write(packet, again)
+            _ -> block done(packet)
+        }
+    }
+    machine write(packet: &mut Packet, again: bool) {
+        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+        observe((&packet.bytes as -Terminated)[..]);
+        transition again {
+            true -> block cycle(packet, false)
+            _ -> block done(packet)
+        }
+    }
+    machine done(packet: &mut Packet) {}
+}
+"#;
+
+#[test]
+fn a_view_used_after_a_cyclic_byte_write_keeps_its_loan() {
+    let source = CYCLIC_BYTE_WRITE;
+    let retained = source.replace(
+        "        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
+        "        let held: &[u8] = (&packet.bytes as -Terminated)[..];\n        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
+    ).replace("observe((&packet.bytes as -Terminated)[..]);", "observe(held);");
+    let verdict = judge(invocation(&retained)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref conflicts, .. }
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
+        "a prior view used after the write must keep its loan: {verdict:?}"
     );
 }

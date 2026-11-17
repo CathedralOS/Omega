@@ -141,7 +141,7 @@ impl Lowering<'_> {
     ) -> Checked<()> {
         use terminal_semantics::structural_qualifications::DefaultRequirements;
 
-        let (inventory, questions) = {
+        let inventory = {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
@@ -174,24 +174,7 @@ impl Lowering<'_> {
                     clause,
                 ));
             }
-            let mut questions = Vec::new();
-            for block in &machine.blocks {
-                let mut before = ProgramPoint::BlockEntry(block.id);
-                for operation in &block.operations {
-                    let count = requirements
-                        .operation(operation)
-                        .map_err(|error| self.internal(error.detail))?
-                        .len();
-                    let source = *self.sources.operations.get(operation.id).ok_or_else(|| {
-                        self.internal("a default question has no operation source")
-                    })?;
-                    for clause in 0..count {
-                        questions.push((operation.id, self.position(clause)?, before, source));
-                    }
-                    before = ProgramPoint::AfterOperation(operation.id);
-                }
-            }
-            (inventory, questions)
+            inventory
         };
         let subject = terminal_check_tables::program::self_place()
             .ok_or_else(|| self.internal("default clause subject identity"))?;
@@ -201,16 +184,6 @@ impl Lowering<'_> {
                 exact = self.project(exact, segment)?;
             }
             self.name_clause_contents(&clause, &[(subject, exact)], None)?;
-        }
-        for (operation, clause, before, source) in questions {
-            self.obligation(
-                terminal_check_tables::obligations::ObligationKind::DataDomain {
-                    operation,
-                    clause,
-                },
-                before,
-                source,
-            );
         }
         Ok(())
     }

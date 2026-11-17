@@ -3,16 +3,9 @@
 Any model can make an atlas page with this kit, whether that is GPT, Codex or
 Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
-inline SVG, and opens in any browser. The architecture overview follows the
-original map: outlined Psi representations, filled native forms, a green checker
-verdict and dashed red extra paths. It shows return paths and late code generation. One connected SVG graph contains each shared component once. Selecting a box
-or arrow highlights its connections and opens source evidence. The bold main
-route runs down through numbered stages; dashed supporting arrows reveal their
-labels on selection. ELK.js orders the main route and Graphviz routes supporting
-connections at build time; D3 Zoom moves the existing SVG in the browser. The
-Current / Proposed buttons replace the active graph in that same canvas and
-remember separate cameras. Proposed boxes have dashed borders, cite the recorded
-plan and expose open contracts; their stages use proposed ordering numbers 00–10. Every box and arrow is on one forward chain; compiler work belongs inside its stage, and requests/facts travel through successive representations.
+inline SVG, and opens in any browser. The architecture overview places source compilation, evaluation and selection, native lowering, and publication on a connected canvas. The canvas uses the original map’s Ink palette and Omega Serif. Outlines mark portable forms, ivory fills mark native forms, and teal marks the checker. Dotted gray paths show supporting work, while dashed coral paths mark audited detours and late code generation. Trace follows a detour to its endpoints and source. Selecting a component shows its immediate neighbors. D3 Zoom moves the diagram in the browser.
+
+Current and Proposed share a canvas and remember their own camera positions. The proposed stages 00–10 cite their recorded plan and expose open contracts. Their forward chain carries requests and facts through successive representations.
 The current-source and proposed-plan labels remain distinct. The
 source disclosures and scrollable SVG remain available without JavaScript. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to

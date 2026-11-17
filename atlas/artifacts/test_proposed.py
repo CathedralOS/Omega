@@ -36,8 +36,16 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
         nodes={n['id']:n for n in self.layout['nodes']}
         self.assertGreater(self.layout['height'],self.layout['width'])
         for a,b in zip(spine,spine[1:]):
-            self.assertEqual(nodes[a]['x'],nodes[b]['x'])
-            self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            if nodes[a]['x']==nodes[b]['x']:
+                self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            else:
+                self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])
+
+    def test_repair_stops_follow_the_planned_order(self):
+        for repair in self.model['repairs'].values():
+            indices=[self.model['spine'].index(key) for key in repair['stops']]
+            self.assertEqual(indices,sorted(set(indices)))
+        self.assertFalse(self.model['repairs']['runtime-layout']['stops'])
 
     def test_side_services_and_extra_dependencies_are_rejected(self):
         for mutation in ('node','edge','return','skip'):

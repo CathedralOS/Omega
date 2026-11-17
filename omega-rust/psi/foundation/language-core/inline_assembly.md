@@ -77,15 +77,13 @@ instructions, with a proof-neutral entry marker for an ensures-only block.
 Checked assertions use exact block-point flow facts and refuse stale
 postconditions whose places were written.
 
-[Authority discharge](../../compilation/validation/src/machine_calls_core.rs)
-checks each instruction's declared authority class against the build's
-`AsmAuthorityAdmission` evidence. The evaluated `Build.freestanding` selection
-admits machine ownership for every defined class (including deriver-only `lidt`). The authored `Build.privileged_services` flags grant each
-mediated class on its own: `port_io` allows port I/O without machine control,
-and `interrupt_table` allows publishing an interrupt table without port I/O.
-Machine-owner authority has no finer grant and comes only from `freestanding`;
-publication authority a consumer defines stays with the receiver, per
-[privileged-service admission](../../../../wiki/spec/build/permissions.md#privileged-services).
+The current source checker constructs `AsmAuthorityAdmission` from
+`Build.freestanding` for the entire build. Its `privileged_services.port_io`
+and `privileged_services.interrupt_table` flags select narrower classes.
+The [hardware authority decision](../../../../wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
+retires the global flag and requires each output's target and provider
+contracts to cover the instruction. The [code repair queue](../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
+tracks this change and the interrupt-mask reach correction.
 A source gate, catalog row, parser test or instruction encoder is not evidence
 for the final artifact or native execution.
 
