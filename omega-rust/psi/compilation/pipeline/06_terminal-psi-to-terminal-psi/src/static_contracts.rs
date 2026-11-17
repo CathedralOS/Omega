@@ -164,12 +164,10 @@ pub(crate) fn requirement_declarations(
                 .machine(id)
                 .ok_or_else(|| fault(id, "abstract declaration names no exact machine"))?;
             let header = &instance.header;
-            check_envelope(
-                module,
-                id,
-                &declaration.envelope,
-                Some(&declaration.signature),
-            )?;
+            let signature = declaration.signature.as_ref().ok_or_else(|| {
+                fault(id, "abstract requirement instance has no source signature")
+            })?;
+            check_envelope(module, id, &declaration.envelope, Some(signature))?;
             let differs = [
                 (
                     "abstract requirement has a different source declaration",

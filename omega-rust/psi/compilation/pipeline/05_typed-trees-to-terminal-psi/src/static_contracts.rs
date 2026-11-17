@@ -257,10 +257,19 @@ impl StaticContracts {
                                         })?
                                         .contract
                                         .id;
+                                    let signature = requirement.signature.as_ref().ok_or_else(|| {
+                                        refuse(
+                                            machine,
+                                            terminal_check_tables::Construct::Machine,
+                                            Unserved::Declaration(
+                                                "requirement instance lost its source signature",
+                                            ),
+                                        )
+                                    })?;
                                     crate::lower::static_signature_header(
                                         machine,
                                         contract,
-                                        &requirement.signature,
+                                        signature,
                                         signatures,
                                         outcomes,
                                         records,

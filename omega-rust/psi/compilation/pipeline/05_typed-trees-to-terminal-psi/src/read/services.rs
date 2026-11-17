@@ -733,7 +733,7 @@ impl Program<'_> {
             instance: Some(id),
             declaration,
             abstract_types,
-            signature: signature.clone(),
+            signature: Some(signature.clone()),
             envelope: StaticSourceEnvelope {
                 service_reach: match &policy.reach {
                     Some(row) => SourceServiceCeiling::Closed(row.clone()),

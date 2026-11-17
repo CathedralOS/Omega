@@ -1155,7 +1155,7 @@ pub(crate) fn capture_with_bodies(
     view_owners: &[SymbolHandle],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     if view_owners.len() != signature_views.len() {
-        return Err(SelectionCaptureError(
+        return Err(SelectionCaptureError::new(
             "source selection capture lost the owner of an admitted signature view".into(),
         ));
     }

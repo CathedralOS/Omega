@@ -2466,6 +2466,20 @@ impl<'a> Storage<'a> {
         let addresses =
             terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
                 .map_err(|error| match error {
+                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                    let concerns = match unavailable.site {
+                        terminal_semantics::plain_affine::Site::Operation(at) => {
+                            Construct::Operation(at)
+                        }
+                        terminal_semantics::plain_affine::Site::Edge(at) => Construct::Edge(at),
+                    };
+                    crate::refusal(
+                        RefusalReason::Unestablished,
+                        self.machine,
+                        concerns,
+                        unavailable.message(),
+                    )
+                }
                 terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                     self.foreign(Construct::Machine, detail)
                 }

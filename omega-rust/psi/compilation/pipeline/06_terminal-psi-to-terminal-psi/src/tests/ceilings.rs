@@ -639,6 +639,25 @@ terminates
         refused.detail,
         "abstract requirement has a different source header coordinate"
     );
+    let mut forged = form.clone();
+    let declaration = forged
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .find(|declaration| {
+            declaration
+                .instance
+                .as_ref()
+                .is_some_and(|header| header.machine == instance)
+        })
+        .unwrap();
+    declaration.signature = None;
+    let refused = crate::static_contracts::requirement_declarations(&forged).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.detail,
+        "abstract requirement instance has no source signature"
+    );
     assert!(
         form.module.callables.machine_envelope(instance).is_none(),
         "the abstract contract does not acquire a runtime envelope"

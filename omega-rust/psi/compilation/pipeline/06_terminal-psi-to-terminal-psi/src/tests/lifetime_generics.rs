@@ -374,7 +374,12 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
                 })
                 .expect("the runtime row has its exact source declaration");
             assert_eq!(
-                source.signature.erased.as_slice(),
+                source
+                    .signature
+                    .as_ref()
+                    .expect("the actual requirement instance has a source signature")
+                    .erased
+                    .as_slice(),
                 if erased_formal { &[0][..] } else { &[][..] }
             );
             assert_eq!(

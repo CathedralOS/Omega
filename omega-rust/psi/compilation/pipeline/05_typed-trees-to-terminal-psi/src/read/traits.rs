@@ -273,6 +273,7 @@ impl Program<'_> {
                     self.generic_templates.push(signature.symbol);
                 }
                 requirements.push(SourceSchemaRequirement {
+                    instance: None,
                     declaration: signature.symbol,
                     abstract_types: 0,
                     signature: None,
