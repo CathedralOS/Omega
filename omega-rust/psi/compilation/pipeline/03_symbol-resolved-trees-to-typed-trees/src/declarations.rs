@@ -1176,7 +1176,7 @@ pub(crate) mod machine {
             lowerer
                 .typed_trees
                 .machine_trait_conformances
-                .span_mut_or_empty(typed_machine.satisfies)[ordinal]
+                .get_mut(typed_machine.satisfies.handle_at(ordinal as u32))
                 .via_expression = via_expression;
         }
 
@@ -1290,12 +1290,18 @@ pub(crate) mod machine {
         for (span, ordinal, requirement_symbol, source_span, exposure, top_level_requirement) in
             updates
         {
-            let conformances = program.machine_trait_conformances.span_mut_or_empty(span);
-            let Some(conformance) = conformances.get_mut(ordinal) else {
+            if !program
+                .machine_trait_conformances
+                .span(span)
+                .is_some_and(|rows| ordinal < rows.len())
+            {
                 return Err(Diagnostic::error(
                     "failed to settle an exact machine `satisfies` declaration",
                 ));
-            };
+            }
+            let conformance = program
+                .machine_trait_conformances
+                .get_mut(span.handle_at(ordinal as u32));
             conformance.requirement_symbol = requirement_symbol;
             if top_level_requirement {
                 conformance.symbol = requirement_symbol;

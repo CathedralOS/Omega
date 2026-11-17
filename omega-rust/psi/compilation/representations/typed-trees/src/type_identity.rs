@@ -3765,7 +3765,7 @@ pub(crate) mod normalized_identities {
     #[derive(Default)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
-        composites: std::sync::RwLock<CompositeIndex>,
+        composites: std::sync::RwLock<std::sync::Arc<CompositeIndex>>,
     }
 
     /*
@@ -3795,14 +3795,15 @@ pub(crate) mod normalized_identities {
 
     impl Clone for TypeIdentityTable {
         fn clone(&self) -> Self {
+            // Hold the cache snapshot while capturing text publication, so a
+            // concurrent new key cannot name a text beyond this fork's prefix.
+            let composites = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner());
             Self {
                 texts: self.texts.clone(),
-                composites: std::sync::RwLock::new(
-                    self.composites
-                        .read()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .clone(),
-                ),
+                composites: std::sync::RwLock::new(std::sync::Arc::clone(&composites)),
             }
         }
     }
@@ -3902,9 +3903,13 @@ pub(crate) mod normalized_identities {
                 return *identity;
             }
             let identity = self.intern(&self.composite_text(key.0, &key.1));
-            self.composites
+            // The derived cache shares its payload until the first new key.
+            // Unlike text storage, that write still copies the cached map.
+            let mut index = self
+                .composites
                 .write()
-                .unwrap_or_else(|error| error.into_inner())
+                .unwrap_or_else(|error| error.into_inner());
+            std::sync::Arc::make_mut(&mut index)
                 .entry(key)
                 .or_insert(identity);
             identity
@@ -3965,7 +3970,7 @@ pub(crate) mod normalized_identities {
 
     #[cfg(test)]
     mod canonical_numbering_tests {
-        use super::{TypeIdentityId, TypeIdentityTable};
+        use super::{IdentityPart, TypeIdentityId, TypeIdentityTable};
         use compiler_storage::RecordLimits;
         use std::collections::BTreeMap;
 
@@ -4049,6 +4054,53 @@ pub(crate) mod normalized_identities {
             checked.identities.renumber_canonically(&mut output);
             let late = checked.identities.intern("d");
             assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn identity_forks_share_text_and_cache_until_new_composites_need_private_keys() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite("tag", vec![IdentityPart::Identity(atom)]);
+            let child = parent.clone();
+            assert!(std::ptr::eq(
+                parent.text(atom).unwrap(),
+                child.text(atom).unwrap()
+            ));
+            let cache_pointer = |table: &TypeIdentityTable| {
+                std::sync::Arc::as_ptr(&table.composites.read().unwrap())
+            };
+            let parent_cache = cache_pointer(&parent);
+            let child_cache = cache_pointer(&child);
+            assert_eq!(parent_cache, child_cache);
+            assert_eq!(
+                child.intern_composite("tag", vec![IdentityPart::Identity(atom)]),
+                compound
+            );
+            assert_eq!(cache_pointer(&child), parent_cache);
+            let parent_only = parent.intern("parent-only");
+            let child_only = child.intern("child-only");
+            assert_eq!(
+                parent_only, child_only,
+                "forks keep independent append numbering"
+            );
+            assert!(!child.by_text("parent-only").is_valid());
+            child.intern_composite("tag", vec![IdentityPart::Identity(child_only)]);
+            assert_eq!(parent.composite_count(), 1);
+            assert_eq!(child.composite_count(), 2);
+            assert_ne!(cache_pointer(&child), parent_cache);
+
+            let independent = TypeIdentityTable::default();
+            independent.intern("child-only");
+            independent.intern_composite("tag", vec![IdentityPart::Text("child-only".into())]);
+            independent.intern("atom");
+            independent.intern_composite("tag", vec![IdentityPart::Text("atom".into())]);
+            let encoded = |table: &TypeIdentityTable| {
+                compiler_storage::encode_with(table, RecordLimits::default(), |output| {
+                    table.renumber_canonically(output)
+                })
+                .unwrap()
+            };
+            assert_eq!(encoded(&child), encoded(&independent));
         }
     }
 
