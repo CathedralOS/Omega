@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Saved native inputs do not reproduce the product they were saved from
+- Category: tests that pin the bug
+- Where: [round-trip check](omega-rust/omega/build-system/orchestration/examples/installation_assumption_review/saved_project.rs#L88), [recovery](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs#L1876), [evidence attachment](omega-rust/omega/compilation/native-compiler/src/application.rs#L44)
+- Saw: `installation_assumption_review prepare tests/fixtures/run/calls/scalar_contract_route_exit/main.omg windows_x86_64 DIR` refuses with "saved native inputs do not reproduce the checked project" on `main`. The recovered `RetainedTerminalArtifact` differs from the original in two places. Recovery attaches no operation evidence, while `TerminalApplication` attaches it with `with_evidence`. And the proposal's provider-identity table numbers its rows in a different order: the first differing line maps `named(..Extent)` where the original has `trait-application(..ProgramStorageEntry)`.
+- Cost: The review workflow the native-compiler README documents cannot prepare a saved project, and nothing on the Windows host tests the round trip; the only test of it (`closed_native_binding_reloads_and_executes_the_descriptor_callback`) runs on macOS arm64 only. Save or re-derive the evidence, encode provider identities in their canonical order, and run the round trip in a host-independent test.
+- Reported: 2026-11-17, pi, while moving the saved native-input codec out of Omega 00.
+
 ### Checked provider rows are sorted differently from their portable encoding
 - Category: Knowledge crossing a boundary
 - Where: [candidate publication](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/static_contracts.rs#L653), [canonical order](omega-rust/psi/compilation/representations/terminal-psi/wire/src/semantic_module.rs#L525)
