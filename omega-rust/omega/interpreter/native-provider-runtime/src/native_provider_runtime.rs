@@ -17,6 +17,7 @@ process cleanup.
 
 use crate::{
     channel,
+    provider_references::{NativeResultStorage, ProviderReferenceResult},
     shared_backing::SharedBacking,
     wire::{self, BorrowGeometry, Cursor, Duplex, Geometry, Packet, invalid},
     worker,
@@ -95,7 +96,8 @@ pub struct NativeProviderProcess {
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
     pub(crate) era: u64,
-    adapters: u64,
+    pub(crate) adapters: Vec<NativeResultStorage>,
+    pub(crate) provider_references: Vec<Option<ProviderReferenceResult>>,
     timeout: Duration,
     pub(crate) faulted: bool,
 }
@@ -170,7 +172,8 @@ impl NativeProviderProcess {
                 homes: BTreeMap::new(),
                 directory,
                 era,
-                adapters: 0,
+                adapters: Vec::new(),
+                provider_references: Vec::new(),
                 timeout,
                 faulted: false,
             }),
@@ -186,6 +189,17 @@ impl NativeProviderProcess {
         adapter: &NativeForeignAdapterImage,
         storage: &[NativeParameterStorage],
     ) -> Result<NativeAdapterId, NativeProviderError> {
+        self.install_with_result(adapter, storage, NativeResultStorage::Value)
+    }
+
+    /// Result storage comes from the host's complete admitted boundary
+    /// contract. An adapter's pointer-shaped ABI alone grants no referent.
+    pub fn install_with_result(
+        &mut self,
+        adapter: &NativeForeignAdapterImage,
+        storage: &[NativeParameterStorage],
+        result_storage: NativeResultStorage,
+    ) -> Result<NativeAdapterId, NativeProviderError> {
         if adapter.bridge().request().target != target::NativeTarget::host() {
             return Err(invalid("native frame product targets another host").into());
         }
@@ -193,8 +207,10 @@ impl NativeProviderProcess {
         if storage.len() != plan.parameters.len() {
             return Err(invalid("native parameter storage has an incomplete telescope").into());
         }
+        let ordinal = u64::try_from(self.adapters.len())
+            .map_err(|_| invalid("native adapter occurrence identities exhausted"))?;
         let mut packet = Packet::new(1);
-        packet.number(self.adapters);
+        packet.number(ordinal);
         packet.text(adapter.export())?;
         packet.bytes(adapter.container().contents())?;
         packet.bytes(&Sha256::digest(adapter.container().contents()))?;
@@ -203,21 +219,40 @@ impl NativeProviderProcess {
             geometry(parameter.shape, *storage)?.write(&mut packet);
         }
         match &plan.result {
-            None => packet.byte(0),
+            None if result_storage == NativeResultStorage::Value => packet.byte(0),
+            None => return Err(invalid("provider reference result has no result carrier").into()),
             Some(result) => {
                 packet.byte(1);
-                geometry(result.shape, NativeParameterStorage::Value)?.write(&mut packet);
+                match result_storage {
+                    NativeResultStorage::Value => {
+                        geometry(result.shape, NativeParameterStorage::Value)?
+                    }
+                    NativeResultStorage::SharedProviderReference {
+                        byte_size,
+                        alignment,
+                    } if result.shape == ValueShape::integer(8, 8) => geometry(
+                        result.shape,
+                        NativeParameterStorage::OriginalReference {
+                            byte_size,
+                            alignment,
+                        },
+                    )?,
+                    _ => {
+                        return Err(invalid(
+                            "provider reference result is not its exact physical pointer transport",
+                        )
+                        .into());
+                    }
+                }
+                .write(&mut packet);
             }
         }
         self.exchange(packet)?;
         let id = NativeAdapterId {
             era: self.era,
-            ordinal: self.adapters,
+            ordinal,
         };
-        self.adapters = self
-            .adapters
-            .checked_add(1)
-            .ok_or_else(|| invalid("native adapter occurrence identities exhausted"))?;
+        self.adapters.push(result_storage);
         Ok(id)
     }
 
@@ -292,11 +327,39 @@ impl NativeProviderProcess {
         adapter: NativeAdapterId,
         arguments: &[NativeArgument<'_>],
     ) -> Result<Vec<u8>, NativeProviderError> {
+        if self.installed_result_storage(adapter)? != NativeResultStorage::Value {
+            return Err(
+                invalid("provider reference completion requires its typed result handle").into(),
+            );
+        }
+        let packet = self.call_packet(adapter, arguments)?;
+        self.exchange(packet)
+    }
+
+    pub(crate) fn installed_result_storage(
+        &self,
+        adapter: NativeAdapterId,
+    ) -> Result<NativeResultStorage, NativeProviderError> {
         if adapter.era != self.era {
             return Err(
                 invalid("native adapter belongs to a different provider incarnation").into(),
             );
         }
+        self.adapters
+            .get(
+                usize::try_from(adapter.ordinal)
+                    .map_err(|_| invalid("native adapter ordinal overflows"))?,
+            )
+            .copied()
+            .ok_or_else(|| invalid("native call names no installed adapter").into())
+    }
+
+    pub(crate) fn call_packet(
+        &self,
+        adapter: NativeAdapterId,
+        arguments: &[NativeArgument<'_>],
+    ) -> Result<Packet, NativeProviderError> {
+        self.installed_result_storage(adapter)?;
         let mut packet = Packet::new(3);
         packet.number(adapter.ordinal);
         packet.number(arguments.len() as u64);
@@ -335,7 +398,7 @@ impl NativeProviderProcess {
                 }
             }
         }
-        self.exchange(packet)
+        Ok(packet)
     }
 
     pub fn close(mut self) -> Result<(), NativeProviderError> {
