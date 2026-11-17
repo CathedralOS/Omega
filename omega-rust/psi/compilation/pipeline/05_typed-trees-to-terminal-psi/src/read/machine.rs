@@ -3942,19 +3942,12 @@ impl<'t> Program<'t> {
                     // unread; a true one is taken unconditionally.
                     let decided = match transition.guard {
                         typed_trees::statement::TransitionGuardNode::When(guard) => {
-                            match self.read_static_truth(
-                                id,
-                                symbol,
-                                guard,
-                                super::types::Reading::Value,
-                            )? {
-                                Some(super::types::TypeTruth::Known(truth)) => Some(truth),
-                                _ => None,
-                            }
+                            self.static_truth(guard)
                         }
                         typed_trees::statement::TransitionGuardNode::Always => None,
                     };
                     if decided == Some(false) {
+                        self.transition_predicate(id, &slots, transition)?;
                         position += 1;
                         continue;
                     }
