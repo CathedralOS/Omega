@@ -82,13 +82,6 @@ framework or a list of unimplemented features.
 - Cost: Starting a task can move another session's assigned checkout and replace its HEAD. Apply the same ownership check to both reuse paths.
 - Reported: 2026-11-17, Codex, while preparing parallel compiler work
 
-### Whole-subject test helper discards generic-body refusals
-- Category: Tests that pin the bug
-- Where: [entryless::judged_typed_result](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/entryless.rs#L42)
-- Saw: The helper returns `verdicts.remove(0)` while permitting later generic forms to refuse. The inferred-result test reported acceptance for `wrap<T> -> Envelope<T>`, but the real CLI refused that generic body's open record application.
-- Cost: Callers can mistake the first verdict for whole-program acceptance and miss broken generic bodies. Acceptance checks must inspect every relevant verdict; this PR's inferred-result control does so, while the shared helper and other callers remain to fix.
-- Reported: 2026-11-17, Codex, while repairing inferred Run/Vec locals
-
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
 - Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
