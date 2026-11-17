@@ -268,7 +268,6 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
   #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
   #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
-  #compiler-overview[data-view="proposed"] [data-legend="proposed"] { display:none; }
 }
 .proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
@@ -361,17 +360,36 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .key-service::before { border-top:2px dashed var(--family-runtime); }
 .key-detour::before { border-color:var(--trap); }
 #overview-service path { fill:var(--family-runtime); }
-.connected-scene:not(.proposed-scene) .connected-group rect { fill:var(--surface); fill-opacity:.7; stroke:var(--rule); }
-.connected-group .connected-phase { fill:var(--ink); font:500 20px var(--font-serif); }
+/* Stage colors mark an owner. The number tab identifies an operation, while
+   its output takes only the space needed for the name on the wire. */
+.connected-scene:not(.proposed-scene) .connected-group rect {
+  fill:var(--surface); stroke:color-mix(in srgb,var(--rule) 62%,var(--surface)); stroke-width:1;
+}
+.connected-group .connected-phase { fill:var(--surface); font:500 19px var(--font-serif); }
+.connected-scene:not(.proposed-scene) .connected-group .phase-band { fill:var(--family-native); stroke:none; }
+.connected-scene:not(.proposed-scene) [data-group="source"] .phase-band { fill:var(--family-psi); }
+.connected-scene:not(.proposed-scene) [data-group="runtime"] .phase-band { fill:var(--family-runtime); }
+.connected-start { font:500 11px var(--font-mono); letter-spacing:.1em; fill:var(--ink-muted); }
 .connected-scene:not(.proposed-scene) .overview-node { --tone:var(--family-native); --paper:var(--family-native-surface); }
 .connected-scene .overview-node:is([data-layer="runtime"],[data-layer="providers"],[data-layer="evaluation"]) { --tone:var(--family-runtime); --paper:var(--family-runtime-surface); }
 .connected-scene .overview-node[data-layer="source"] { --tone:var(--family-psi); --paper:var(--family-psi-surface); }
 .connected-scene .overview-node:is([data-layer="inputs"],[data-layer="run"]) { --tone:var(--family-build); --paper:var(--family-build-surface); }
-.connected-scene:not(.proposed-scene) .overview-node rect { fill:var(--paper); stroke:var(--tone); stroke-width:1.25; }
-.connected-scene:not(.proposed-scene) .overview-node .current-title { fill:var(--tone); font:450 16px var(--font-reading); }
-.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] rect { fill:var(--tone); }
-.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] text { fill:var(--surface); font-weight:600; }
-.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) { --tone:var(--trap); --paper:var(--surface); }
+.connected-scene:not(.proposed-scene) .overview-node .node-body {
+  fill:var(--paper); stroke:color-mix(in srgb,var(--tone) 54%,var(--paper)); stroke-width:1;
+}
+.connected-scene:not(.proposed-scene) .overview-node .current-title { fill:var(--ink); font:450 16px var(--font-reading); }
+.connected-scene:not(.proposed-scene) .overview-node[data-role="artifact"] .node-body { fill:var(--surface); stroke:var(--rule); }
+.connected-scene:not(.proposed-scene) .overview-node[data-role="artifact"] .current-title { fill:var(--ink); font-size:14px; }
+.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] .current-title { font-weight:550; }
+.connected-scene:not(.proposed-scene) .overview-node .step-tab { fill:var(--tone); stroke:none; }
+.connected-scene:not(.proposed-scene) .overview-node .step-number { fill:var(--surface); font:600 13px var(--font-mono); }
+.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) {
+  --tone:var(--trap); --paper:color-mix(in srgb,var(--trap) 12%,var(--surface));
+}
+.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) .current-title { fill:var(--trap); }
+.connected-scene:not(.proposed-scene) .overview-node:is(.check,.accepted) { --tone:var(--checked); --paper:color-mix(in srgb,var(--checked) 13%,var(--surface)); }
+.connected-scene:not(.proposed-scene) .overview-node.accepted .node-body { stroke:var(--checked); }
+.connected-scene:not(.proposed-scene) .overview-node:is(:focus-visible,:hover,.is-selected) .node-body { stroke:var(--tone); stroke-width:2.4; }
 .connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--family-runtime); stroke-width:2; stroke-dasharray:5 3; }
 .connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:3; stroke-dasharray:none; }
 .connected-scene:not(.proposed-scene) .overview-edge .wire-caption { font:500 13px var(--font-reading); stroke:var(--surface); fill:var(--family-runtime); stroke-width:4; }
@@ -389,16 +407,71 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-row:4; }
 }
 
-.architecture.is-expanded #compiler-overview[data-view="current"] [data-legend="current"] {
-  position:absolute; right:12px; bottom:6px; z-index:1; pointer-events:none;
-  display:flex; gap:14px; margin:0; padding:3px 8px; background:var(--surface); font:12px/18px var(--font-reading);
+
+/* Keep navigation at the edge of the sheet and inspection close to the map. */
+.architecture { --fine-rule:color-mix(in srgb,var(--rule) 54%,var(--surface)); }
+.arch-header,.architecture.is-expanded .arch-header { padding:12px 20px; gap:8px 18px; border-bottom:1px solid var(--fine-rule); }
+.arch-header .map-heading { display:flex; align-items:center; gap:12px; }
+.arch-header .map-heading h2,.architecture.is-expanded .arch-header h2 {
+  font:400 clamp(26px,2.6vw,38px)/1.1 var(--font-serif); letter-spacing:-.035em;
+}
+.arch-badge { padding-left:14px; border-left:1px solid var(--fine-rule); font:11px/1.45 var(--font-mono); }
+.arch-header .map-plan { color:var(--ink); font:500 14px var(--font-reading); text-decoration:none; border-bottom:1px solid var(--rule); padding:4px 0; }
+.map-plan span { padding-left:6px; }
+.architecture .arch-reading { padding:12px; }
+.architecture .connected-tools { flex:1; gap:8px 14px; }
+.architecture .connected-views { width:fit-content; align-self:center; padding:3px; gap:2px; border:1px solid var(--fine-rule); border-radius:5px; background:var(--ground); }
+.architecture .connected-views button { min-width:78px; border:0; border-radius:3px; padding:6px 12px; font:500 13px/18px var(--font-reading); color:var(--ink-muted); background:transparent; box-shadow:none; }
+.architecture .connected-views button[aria-pressed="true"] { background:var(--ink); color:var(--surface); }
+.architecture .connected-tools label { font:500 13px/18px var(--font-reading); color:var(--ink-muted); }
+.architecture .connected-tools select { font:400 13px var(--font-reading); height:33px; border:1px solid var(--rule); border-radius:3px; padding:4px 8px; }
+.connected-tools .component-picker { margin-left:auto; }
+.connected-workspace { border-color:var(--fine-rule); border-radius:5px; overflow:hidden; }
+.connected-enhanced .connected-viewport { background-color:color-mix(in srgb,var(--ground) 75%,var(--surface)); background-image:radial-gradient(circle,color-mix(in srgb,var(--rule) 52%,transparent) .75px,transparent .85px); background-size:18px 18px; }
+.map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; padding:7px 12px; border-top:1px solid var(--fine-rule); background:var(--surface); }
+.map-footer .arch-overview-legend { display:flex; align-items:center; margin:0; gap:6px 14px; font:12px/18px var(--font-reading); }
+.map-footer [hidden] { display:none!important; }
+.camera-tools { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-left:auto; }
+.architecture .camera-tools button,.architecture [data-camera="clear"],.architecture .connected-detail-close { border:1px solid transparent; border-radius:3px; padding:4px 7px; min-width:28px; color:var(--ink); background:transparent; box-shadow:none; font:500 12px/18px var(--font-reading); }
+.architecture .camera-tools button:hover,.architecture [data-camera="clear"]:hover,.architecture .connected-detail-close:hover { background:var(--ground); border-color:var(--fine-rule); }
+.camera-tools .connected-scale { display:inline-block; font:12px/18px var(--font-mono); width:42px; }
+.architecture .camera-tools [data-camera="in"],.architecture .camera-tools [data-camera="out"] { font-size:18px; }
+.architecture .camera-tools [data-camera="start"],.architecture .camera-tools [data-camera="fit"] { border-right:1px solid var(--fine-rule); border-radius:0; padding-right:12px; margin-right:3px; }
+.architecture.is-expanded #compiler-overview { gap:8px 14px; padding:10px 12px 12px; }
+.architecture.is-expanded #compiler-overview .connected-views { padding:3px; }
+.architecture.is-expanded #compiler-overview .connected-workspace { display:flex; flex-direction:column; }
+.architecture.is-expanded #compiler-overview .connected-viewport { flex:1; height:0; }
+.connected-detail,.connected-minimap { border-radius:5px; border-color:var(--fine-rule); box-shadow:0 3px 14px color-mix(in srgb,var(--ink) 10%,transparent); }
+.connected-workspace .connected-minimap { bottom:54px; }
+.connected-workspace .connected-minimap[hidden] { display:none; }
+.connected-detail { max-height:calc(100% - 76px); }
+.architecture .trace-explanation { margin:0; padding:8px 12px; font:var(--type-reading-small); }
+@media(min-width:800px){
+  .connected-enhanced[data-view="current"] { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px; }
+  .connected-enhanced[data-view="current"] > * { grid-column:1/-1; }
+  .connected-enhanced[data-view="current"] > .connected-views { grid-area:2/1; }
+  .connected-enhanced[data-view="current"] > .connected-tools { grid-area:2/2; }
+  .connected-enhanced[data-view="current"] > .connected-intro { grid-area:1/1/2/-1; }
 }
 @media(max-width:700px){
-  .architecture.is-expanded #compiler-overview[data-view="current"] [data-legend="current"] { position:static; grid-area:1/1; display:none; }
+  .arch-header,.architecture.is-expanded .arch-header { padding:8px 12px; }
+  .arch-badge { border:0; padding:0; font-size:10px; }
+  .architecture .connected-tools { gap:6px 10px; }
+  .architecture .connected-tools label { width:auto; flex:1 1 140px; min-width:0; }
+  .architecture .connected-tools select { width:0; min-width:0; }
+  .map-footer { padding:4px 6px; gap:1px; justify-content:center; }
+  .map-footer .arch-overview-legend { gap:8px; font-size:10px; line-height:15px; }
+  .camera-tools { margin-inline:auto; }
+  .connected-workspace .connected-minimap { bottom:64px; }
 }
 
-.connected-scene:not(.proposed-scene) .overview-node.check rect { fill:var(--checked); stroke:var(--checked); }
-.connected-scene:not(.proposed-scene) .overview-node.accepted rect { stroke:var(--checked); stroke-width:2; }
+.arch-header .map-heading-text { display:grid; gap:3px; }
+.arch-header .atlas-mark { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid var(--rule); border-radius:12px 12px 3px 3px; color:var(--ink); text-decoration:none; font:400 29px/1 var(--font-serif); }
+.arch-header .atlas-mark:hover { background:var(--ground); }
+.arch-header .arch-badge { padding:0; border:0; }
+.wire-origin { fill:var(--surface); stroke:var(--trap); stroke-width:2; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:600; }
+@media(max-width:700px){ .arch-header .atlas-mark { width:32px; height:35px; font-size:23px; } }
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
@@ -518,7 +591,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Reviewed pipeline routes</h1>
       <p class="lede">Observed compilation routes, corrected value paths and the proposed ownership changes.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas"><code>27b0519d6850</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/08beaed263b5f379e2072acd2024de99c69214e3/atlas"><code>08beaed263b5</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -973,14 +1046,14 @@ it does not renumber the observed code. The
 <a href="rulings.html">owner rulings</a> govern the destination.</p>
 <h2 id="size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</h2>
 <p>The measurement panel is generated from
-<a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
+<a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
 source lines within Cargo package directories, including test files, under
-the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/manifest.json">evidence manifest</a>.
+the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/manifest.json">evidence manifest</a>.
 A directory total does not prove that all its work belongs in one stage.
 The plan must trace each producer, consumer, authority, and refusal condition.</p>
 <p>Text scans identify observed names, not every Rust use. A dependency with no
 observed use still needs resolver-aware verification before deletion. See
-the <a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
+the <a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
 scan and the limits of the generated data.</p></main>
   </div>
 <footer class="site-footer"><div class="site-footer-inner"><nav class="footer-pages" aria-label="Atlas directory"><section><h2>Compiler</h2><ul>
@@ -1003,7 +1076,7 @@ scan and the limits of the generated data.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1184,6 +1257,7 @@ scan and the limits of the generated data.</p></main>
   root.classList.add('connected-enhanced');
   svg.setAttribute('role','group');
   root.querySelector('.connected-tools').hidden=false;
+  root.querySelector('.camera-tools').hidden=false;
   root.querySelector('.connected-views').hidden=false;
   root.querySelector('.connected-minimap').hidden=false;
   svg.removeAttribute('viewBox');
