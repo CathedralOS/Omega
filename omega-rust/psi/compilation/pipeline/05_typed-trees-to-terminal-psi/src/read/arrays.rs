@@ -930,7 +930,7 @@ impl Program<'_> {
                         .typed
                         .constant_expression_contexts
                         .span_or_empty(recipe.contexts);
-                    let [context] = contexts else {
+                    let Some([context]) = contexts.as_array() else {
                         return Err(unserved(
                             "array extent has no unique retained evaluation context",
                         ));

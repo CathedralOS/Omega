@@ -78,7 +78,7 @@ pub struct RuntimeCallableLowering {
 
 impl RuntimeCallableLowering {
     pub fn from_contracts(
-        contracts: &arena::Arena<RuntimeCallableContract>,
+        contracts: &arena::RootedArena<RuntimeCallableContract>,
     ) -> Result<Self, &'static str> {
         let mut lowering = Self::default();
         for (handle, contract) in contracts.iter() {
