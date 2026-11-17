@@ -698,7 +698,58 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+    /// Captured static parameters keep their exact declaration and order.
+    /// Runtime inputs are never supplied by lexical nesting.
+    pub(super) fn inherits_static_parameters(
+        &self,
+        caller: SymbolHandle,
+        target: SymbolHandle,
+    ) -> bool {
+        let Some(machine) = self.typed.machine_by_symbol(target) else {
+            return false;
+        };
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty() {
+            return false;
+        }
+        let caller_parameters = self.typed.declaration_type_parameters(caller);
+        let mut available = caller_parameters.iter();
+        for parameter in parameters {
+            if matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Value { .. }
+            ) || !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(parameter.symbol)
+                || !available.any(|candidate| candidate == parameter)
+            {
+                return false;
+            }
+            let declared_owner = self.typed.symbols.get(parameter.symbol).parent;
+            // An authored binder of the callee needs an explicit application.
+            let mut enclosing = self.typed.symbols.get(target).parent;
+            let mut found = false;
+            for _ in 0..self.typed.machines().len() {
+                if enclosing == declared_owner {
+                    found = true;
+                    break;
+                }
+                if !self.typed.symbols.symbols().nodes().is_valid(enclosing) {
+                    break;
+                }
+                enclosing = self.typed.symbols.get(enclosing).parent;
+            }
+            if !found {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(super) fn static_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         if let Some(id) = self
             .applications
             .iter()
@@ -707,35 +758,17 @@ impl<'t> Program<'t> {
         {
             return Ok(id);
         }
-        // Inherited binder occurrences belong to this same generic body graph.
-        // Independently declared generic callees retain their dependency/SCC edge.
-        let root = self
+        let local = self
             .symbols
             .get(MachineId::new(1).expect("one is nonzero"))
-            .and_then(|symbol| self.typed.machine_by_symbol(*symbol));
-        let local =
-            self.typed
-                .machine_by_symbol(symbol)
-                .zip(root)
-                .is_some_and(|(machine, root)| {
-                    let parameters = self.typed.machine_type_parameters(machine);
-                    !parameters.is_empty()
-                        && parameters.iter().all(|parameter| {
-                            self.typed.symbols.get(parameter.symbol).parent != machine.symbol
-                                && self
-                                    .typed
-                                    .machine_type_parameters(root)
-                                    .iter()
-                                    .any(|original| original == parameter)
-                        })
-                });
+            .is_some_and(|root| self.inherits_static_parameters(*root, symbol));
         if local && let Some((id, _)) = self.symbols.iter().find(|(_, known)| **known == symbol) {
             return Ok(id);
         }
         let id = self.next_identity()?;
         self.read_machine(id, symbol, Reading::GenericEntry)?;
-        // Const inputs are ordinary rigid scalar formals, so this form can
-        // read the actual generic body and infer its complete effects. A
+        // Static selections retain their source context; scalar const inputs
+        // become ordinary rigid formals. Read the actual body and effects. A
         // bodyless placeholder cannot infer an omitted service ceiling.
         // Retain the application for its independent template check too.
         if !local {

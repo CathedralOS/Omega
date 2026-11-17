@@ -1024,3 +1024,41 @@ fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
         );
     }
 }
+
+/// A lexical helper uses the outer type and callback selections themselves.
+/// It still proves its own written guarantee, independently of its callers.
+#[test]
+fn nested_helpers_keep_mixed_inherited_static_parameters() {
+    for result in ["value", "8u32"] {
+        let source = super::boundary_calls::typed(&format!(
+            r#"
+            machine entry<T, machine Next>(value: u32) -> u32
+            requires machine Next() reaches none crashes none;
+            requires value == 7u32
+            ensures result == 7u32
+            {{
+                helper(value)
+                machine helper(value: u32) -> u32
+                requires value == 7u32
+                ensures result == 7u32
+                {{ Next(); {result} }}
+            }}
+        "#
+        ));
+        let form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .expect("a lexical helper retains the actual outer static parameters");
+        let verdict = judge(Ok(form)).unwrap();
+        if result == "value" {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| guarantee(&row.kind))),
+                "{verdict:?}"
+            );
+        }
+    }
+}

@@ -2072,7 +2072,7 @@ impl<'t> Program<'t> {
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let callee = self.const_application(target)?;
+        let callee = self.static_application(target)?;
         let values =
             self.const_call_values(id, target, call.application, call.authored_arguments)?;
         let operands = self.const_operands(id, slots, &values, source)?;
@@ -2503,27 +2503,26 @@ impl<'t> Program<'t> {
         }
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let inherited_const = self.checking_generic_entry(id)
+        let inherited_static = self.checking_generic_entry(id)
+            && self
+                .symbols
+                .get(id)
+                .is_some_and(|caller| self.inherits_static_parameters(*caller, target))
             && self.typed.machine_by_symbol(target).is_some_and(|machine| {
-                let parameters = self.typed.machine_type_parameters(machine);
-                !parameters.is_empty()
-                    && parameters.iter().all(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Const { .. }
-                        ) && self.typed.symbols.get(parameter.symbol).parent != target
-                            && self.generic_binders.contains(&parameter.symbol)
-                    })
+                self.typed
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(|parameter| parameter.kind != typed_trees::data::TypeParameterKind::Type)
             });
-        let callee = if inherited_const {
-            self.const_application(target)?
+        let callee = if inherited_static {
+            self.static_application(target)?
         } else {
             match self.inherited_type_arguments(id, target) {
                 Some(arguments) => self.application(id, target, arguments)?,
                 None => self.machine(target)?,
             }
         };
-        if inherited_const {
+        if inherited_static {
             let values =
                 self.const_call_values(id, target, StaticMachineApplicationHandle::invalid(), &[])?;
             let operands = self.const_operands(id, slots, &values, source)?;

@@ -446,14 +446,7 @@ impl Program<'_> {
             ));
         }
         let inherited = bindings.is_empty()
-            && parameters.iter().all(|parameter| {
-                typed.symbols.symbols().nodes().is_valid(parameter.symbol)
-                    && typed.symbols.get(parameter.symbol).parent != target
-                    && typed
-                        .declaration_type_parameters(caller)
-                        .iter()
-                        .any(|actual| actual == parameter)
-            })
+            && self.inherits_static_parameters(caller, target)
             && match source {
                 // Named transitions have no separate static application. Their
                 // inherited binders are the same original caller inputs.
@@ -512,6 +505,11 @@ impl Program<'_> {
         for parameter in parameters {
             let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
             else {
+                if inherited {
+                    // These are the same captured type, machine or evidence
+                    // selections. They supply no hidden runtime operand.
+                    continue;
+                }
                 return Err(unavailable(
                     "Const application changed its declared binder kind",
                 ));
@@ -1085,7 +1083,7 @@ mod tests {
             let fixture = fixture_with_reach(authored_reach);
             let mut program = Program::new(&fixture.typed, true);
             let caller = program.machine(fixture.caller).unwrap();
-            let helper = program.const_application(fixture.nested).unwrap();
+            let helper = program.static_application(fixture.nested).unwrap();
             let (position, signature) = program
                 .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)
                 .unwrap()
