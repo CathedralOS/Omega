@@ -98,6 +98,7 @@
   }));
   viewport.addEventListener('keydown',event=>{
     if(event.target!==viewport)return;
+    if(event.ctrlKey||event.metaKey||event.altKey)return;
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','-','=','f','F','Escape'].includes(event.key))event.preventDefault();
     if(event.key==='f'||event.key==='F')fit();
     if(event.key==='Escape')clear();
