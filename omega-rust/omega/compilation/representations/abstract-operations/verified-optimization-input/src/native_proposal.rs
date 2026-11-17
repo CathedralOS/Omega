@@ -586,8 +586,9 @@ pub struct RetainedTerminalArtifact {
     artifact: terminal_installation::AuthorizedTerminalArtifact,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
     /// The evidence seals produced beside this exact in-memory artifact by
-    /// the checker on the lowered form. Terminal Psi's bytes carry no
-    /// evidence, so a product rebuilt from bytes has none.
+    /// the checker on the lowered form. Psi bytes carry no seals; an optional
+    /// saved native companion retains them separately and rejoins their exact
+    /// goals only after the caller authorizes the canonical artifact.
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
 }
 
