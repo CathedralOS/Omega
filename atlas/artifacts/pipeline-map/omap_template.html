@@ -1,0 +1,142 @@
+<title>Omega Pipeline Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one wide figure per claim, read top to bottom: the whole pipeline, then the one leak the foundation split removes, then the size change. Tokens from the Omega design system. */
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+:root {
+  --ground: #e6e2d9; --surface: #f2efe8; --ink: #1c1d1f; --ink-muted: #55534e; --rule: #a9a49a;
+  --checked: #275f53; --trap: #a63a24;
+  --serif: "Omega Serif", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+  --checked: #6fb8a4; --trap: #e0795f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+  --checked: #6fb8a4; --trap: #e0795f; color-scheme: dark; }
+
+body { background: var(--ground); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 28px; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 48px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+header { display: grid; gap: 12px; max-width: 72ch; }
+.eyebrow, .lane-key { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .02em; color: var(--ink-muted); }
+h1 { font-weight: 300; font-size: clamp(36px, 6vw, 56px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h2 { font-weight: 500; font-size: 24px; line-height: 32px; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 72ch; }
+code { font-family: var(--mono); font-size: 0.82em; background: var(--surface); padding: 1px 4px; }
+section { display: grid; gap: 16px; border-top: 1px solid var(--rule); padding-top: 24px; }
+figure { margin: 0; display: grid; gap: 12px; }
+.frame { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); padding: 16px; }
+figcaption { font-size: 15px; line-height: 24px; color: var(--ink-muted); max-width: 80ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; font-size: 15px; }
+.controls label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.controls input { accent-color: var(--trap); width: 16px; height: 16px; }
+input:focus-visible { outline: 2px solid var(--checked); outline-offset: 2px; }
+.key { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.key span { display: inline-flex; gap: 6px; align-items: center; }
+.sw { display: inline-block; width: 22px; height: 12px; }
+.sw.psi { border: 2px solid var(--ink-muted); }
+.sw.native { background: var(--ink); }
+.sw.prop { border: 2px dashed var(--ink-muted); }
+.sw.leak { border-top: 2px dashed var(--trap); height: 0; }
+.sw.ok { border-top: 2px solid var(--checked); height: 0; }
+
+/* SVG */
+svg { display: block; width: 100%; height: auto; font-family: var(--serif); }
+svg.map { min-width: 980px; }
+svg.bars { min-width: 640px; }
+.pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; }
+.pairs svg { min-width: 0; }
+.b-psi { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.b-hub { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; }
+.b-native { fill: var(--ink); stroke: var(--ink); stroke-width: 2; }
+.b-prop { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; stroke-dasharray: 6 4; }
+.b-around { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.b-fdn { fill: var(--ground); stroke: var(--ink-muted); stroke-width: 1.5; }
+.tag { fill: var(--ground); stroke: var(--checked); stroke-width: 1.5; }
+.tagt { fill: var(--checked); font-size: 10px; font-family: var(--mono); }
+.t { fill: var(--ink); }
+.t-on { fill: var(--ground); }
+.lbl { font-size: 14px; font-weight: 500; }
+.sub { font-size: 11.5px; font-weight: 400; }
+.t.sub { fill: var(--ink-muted); }
+.t-on.sub { fill: var(--ground); opacity: .82; }
+.lane { fill: var(--ink-muted); font-size: 12px; font-weight: 500; letter-spacing: .06em; }
+.drv { fill: var(--ink-muted); font-size: 12px; font-style: italic; }
+.a { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.ah { fill: var(--ink); }
+.al { fill: var(--ink); font-size: 12px; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.ok { fill: none; stroke: var(--checked); stroke-width: 2; }
+.ah-ok { fill: var(--checked); }
+.al-ok { fill: var(--checked); font-size: 12.5px; font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.leak { fill: none; stroke: var(--trap); stroke-width: 2; stroke-dasharray: 6 4; }
+.ah-leak { fill: var(--trap); }
+.al-leak { fill: var(--trap); font-size: 12px; font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.fw { stroke: var(--ink-muted); stroke-width: 1.5; stroke-dasharray: 2 5; }
+.fwl { fill: var(--ink-muted); font-size: 12px; font-weight: 500; letter-spacing: .06em; }
+.leaks[hidden] { display: none; }
+.b-leakbox { fill: var(--surface); stroke: var(--trap); stroke-width: 2; stroke-dasharray: 6 4; }
+.bar-now { fill: var(--rule); }
+.bar-target { fill: var(--checked); }
+.num { font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Omega compiler · architecture · 2026-11-17</div>
+    <h1>Omega pipeline map</h1>
+    <p>Omega compiles every program through one linear pipeline. Each stage reads one representation and writes the next; nothing reaches back to an earlier stage, and nothing travels beside the pipeline. The Psi half is target-neutral and ends at Terminal Psi, where the lowered-form checker gives the compiler's only verdict. The Omega half takes Terminal Psi and the selected target's description and lowers them, stage by stage, to a native image. Foundation holds only primitives; there is no backend beside the pipeline.</p>
+  </header>
+
+  <section>
+    <h2>One pipeline, source to native image</h2>
+    <div class="controls">
+      <label for="show-leaks"><input type="checkbox" id="show-leaks" checked> Show today's reach-arounds</label>
+      <div class="key" aria-hidden="true">
+        <span><i class="sw psi"></i>Psi representation</span>
+        <span><i class="sw native"></i>native form</span>
+        <span><i class="sw prop"></i>proposed package</span>
+        <span><i class="sw ok"></i>checker verdict</span>
+        <span><i class="sw leak"></i>reach-around today</span>
+      </div>
+    </div>
+    <figure>
+      <div class="frame">%%FIG1%%</div>
+      <figcaption>Each arrow between representations is one numbered stage; each loop is a stage that rewrites its own representation. Inputs enter the pipeline once each: the source files at Psi 00, and at Omega 00 the selected target's description (chosen by Build) and the provider plans (computed by realization, which reads Terminal Psi). The only arrow across the firewall is Omega 00 reading Terminal Psi. Stages 10–14 (function fragments, frame insertion, text section, object, image) are proposed; today that work runs after stage 09 inside the backend, and frame layout runs between 06 and 07, instead of as stages. The dashed red marks show what still reaches around the pipeline today: the backend's 222k lines, which every Omega stage reads directly; emission and image code redoing earlier stages' work; Build evaluation running Psi 02–04 without a driver. <code>tools/xtask/src/boundary.rs</code> lists 10 such stage calls plus one firewall exception (not drawn). Dashed outlines are packages proposed in the foundation and backend plan.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What the foundation split changes</h2>
+    <p>Today a type in a foundation crate can carry a stage's output to any later stage, so the representation in between never has to hold it. <code>declaration_selection</code> is the live example: stage 02 writes it, stage 05 reads it, and typed trees never sees it. In the target, the representation that produces it holds it and every stage carries it forward.</p>
+    <figure>
+      %%FIG2%%
+      <figcaption>Left: the side channel through <code>language-semantics</code>, the same path the <code>Console</code> regression's unread operators took. Right: the same data carried through the pipeline; foundation has no arrows in or out.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Code outside the pipeline</h2>
+    <figure>
+      <div class="frame">%%FIG3%%</div>
+      <figcaption>Counts are <code>.rs</code> lines from the current tree; the foundation target is the plan's estimate. Foundation keeps <code>arena</code>, <code>compiler-storage</code>, <code>diagnostics</code>, source text positions, a merged <code>wire</code>, <code>bignum</code> and <code>execution-admission</code>; <code>omega/foundation/</code> is deleted. The backend dissolves: emission, object and image code become stages, the target description becomes an input Omega 00 receives, program-derived plans move into the stages that compute them, and packaging moves to products.</figcaption>
+    </figure>
+  </section>
+</div>
+
+<script>
+(function () {
+  var box = document.getElementById('show-leaks');
+  var g = document.getElementById('leaks');
+  if (!box || !g) return;
+  function sync() { g.hidden = !box.checked; }
+  box.addEventListener('change', sync);
+  sync();
+})();
+</script>

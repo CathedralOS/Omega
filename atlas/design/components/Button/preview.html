@@ -1,0 +1,16 @@
+<!-- @dsCard group="Actions" height=88 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button preview</title></head>
+<body>
+<div id="root" class="om-row"></div>
+<script>
+  var O = window.Omega, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(O.Button, { variant: 'solid' }, 'Run natively'),
+    h(O.Button, { variant: 'outline' }, 'Check'),
+    h(O.Button, { variant: 'quiet' }, 'View evidence'),
+    h(O.Button, { variant: 'solid', disabled: true }, 'Run natively')));
+</script>
+</body>
+</html>
