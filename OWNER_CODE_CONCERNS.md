@@ -82,13 +82,6 @@ framework or a list of unimplemented features.
 - Cost: The review workflow the native-compiler README documents cannot prepare a saved project, and nothing on the Windows host tests the round trip; the only test of it (`closed_native_binding_reloads_and_executes_the_descriptor_callback`) runs on macOS arm64 only. Save or re-derive the evidence, encode provider identities in their canonical order, and run the round trip in a host-independent test.
 - Reported: 2026-11-17, pi, while moving the saved native-input codec out of Omega 00.
 
-### Checked provider rows are sorted differently from their portable encoding
-- Category: Knowledge crossing a boundary
-- Where: [candidate publication](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/static_contracts.rs#L653), [canonical order](omega-rust/psi/compilation/representations/terminal-psi/wire/src/semantic_module.rs#L525)
-- Saw: At `9afd8469a55b9`, the unchanged `tests/fixtures/run/providers/target_selected_implementation/main.omg` passes checking but publication refuses with `Seals(NonCanonicalOrder("provider candidates by exact conformance identity"))`. The checker calls `candidates.sort()` on records containing interned identity coordinates; the portable encoder requires order by the corresponding identity text as well as boundary and candidate.
-- Cost: An accepted multi-provider program cannot be published. Publish the roster in the encoder's declared order and pin a multi-provider round trip without changing its source or weakening decoding.
-- Reported: 2026-11-16, Codex, while counting source-identity derivations during provider publication.
-
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
 - Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter

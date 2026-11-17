@@ -225,7 +225,11 @@ fn attach_calling(
 /// Preserve the exact failed canonical join for a caller that retains source
 /// labels. Labels are diagnostic only; matching continues to use these IDs.
 #[derive(Debug)]
-pub(super) enum TargetSupplyRealizationError {
+pub enum TargetSupplyRealizationError {
+    MissingSupplies {
+        target: String,
+        boundaries: Vec<BoundaryMachineId>,
+    },
     MissingCheckedRow {
         provider_declaration: terminal_psi::TerminalIdentityIndex,
         provider_identity: terminal_psi::TerminalIdentityIndex,
@@ -249,8 +253,11 @@ impl From<&str> for TargetSupplyRealizationError {
 }
 
 impl TargetSupplyRealizationError {
-    pub(super) fn diagnostic(&self, module: &TerminalModule) -> String {
+    pub fn diagnostic(&self, module: &TerminalModule) -> String {
         match self {
+            Self::MissingSupplies { target, boundaries } => format!(
+                "reached requirements have no normalized chosen provider or exact native leaf: target `{target}`, boundaries {boundaries:?}"
+            ),
             Self::MissingCheckedRow {
                 provider_identity,
                 requirement_identity,
@@ -650,13 +657,6 @@ fn direct_leaves(
 
 pub fn realize_target_supply(
     request: TargetSupplyRealizationRequest<'_>,
-) -> Result<RealizedTargetSupply, String> {
-    let module = request.module;
-    realize_target_supply_detailed(request).map_err(|error| error.diagnostic(module))
-}
-
-pub(super) fn realize_target_supply_detailed(
-    request: TargetSupplyRealizationRequest<'_>,
 ) -> Result<RealizedTargetSupply, TargetSupplyRealizationError> {
     let module = request.module;
     target::TargetProfile::from_canonical_target_name(request.target)
@@ -735,6 +735,7 @@ pub(super) fn realize_target_supply_detailed(
             direct_boundary_leaves.push(leaf);
         }
     }
+    let mut missing = Vec::new();
     for (ordinal, boundary) in request.reached.iter().enumerate() {
         if covered[ordinal] {
             continue;
@@ -760,19 +761,16 @@ pub(super) fn realize_target_supply_detailed(
                 && module.identities.text(declaration.source.callable)
                     == Some(leaf.callable_identity.as_str())
         }) {
-            let row = module
-                .boundary_machine(*boundary)
-                .ok_or("provider demand names an absent boundary")?;
-            return Err(format!(
-                "reached requirement has no normalized chosen provider or exact native leaf: target `{}`, boundary {}, requirement `{}`, owner `{}`, callable `{}`",
-                request.target,
-                boundary.get(),
-                text(module, row.identity)?,
-                text(module, row.owner.identity())?,
-                text(module, declaration.source.callable)?,
-            )
-            .into());
+            missing.push(*boundary);
         }
+    }
+    if !missing.is_empty() {
+        // Keep every failed coordinate until the source-owning caller can join
+        // its retained diagnostic labels. Labels never participate in supply.
+        return Err(TargetSupplyRealizationError::MissingSupplies {
+            target: request.target.to_owned(),
+            boundaries: missing,
+        });
     }
     RealizedTargetSupply::from_checked(
         module,
