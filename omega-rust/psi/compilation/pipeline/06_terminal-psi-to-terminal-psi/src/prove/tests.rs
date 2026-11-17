@@ -3,6 +3,49 @@ use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
 #[test]
+fn failed_opposite_searches_leave_candidate_fact_proofs_unbuilt() {
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let value = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let condition = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::MachineParameter { position: 1 },
+        rigid: None,
+    });
+    let value = ScalarTerm::value(value, scalar);
+    let literal = ScalarTerm::integer(integer, IntegerValue::Signed(3)).unwrap();
+    let candidates = [
+        Proposition::LessOrEqual(value.clone(), literal.clone()),
+        Proposition::Equal(value, literal),
+        Proposition::Equal(
+            ScalarTerm::value(condition, ScalarType::Boolean),
+            ScalarTerm::Boolean(true),
+        ),
+    ];
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let mut constructed = Vec::new();
+    for candidate in candidates {
+        let assumptions = [candidate];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+        let before = prover.activity.refutation_fact_nodes;
+        assert!(prover.prove(&Proposition::Falsehood).is_err());
+        constructed.push(prover.activity.refutation_fact_nodes - before);
+        assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    }
+    // Check every refusal before comparing the candidate trees. Proofs
+    // constructed inside the opposite search are separate work.
+    assert_eq!(constructed, [0, 0, 0]);
+}
+
+#[test]
 fn symbolic_ieee_bounds_exclude_their_exact_crash_complements() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
     let mut activity = ProofSearchActivity::default();
@@ -1305,7 +1348,11 @@ fn refutation_without_a_closed_endpoint_skips_bound_work() {
     let local = node(assumptions[0].clone(), ProofRule::Assumption { index: 0 });
     let mut activity = ProofSearchActivity::default();
     let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    assert!(prover.refute(local, &Proposition::Falsehood).is_none());
+    assert!(
+        prover
+            .refute(&assumptions[0], |_, _| Some(local), &Proposition::Falsehood)
+            .is_none()
+    );
     let copied_for_refutation = prover.activity.bound_certificate_copies;
     assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
     assert!(prover.prove(&Proposition::Falsehood).is_err());
