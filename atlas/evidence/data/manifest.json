@@ -1,0 +1,46 @@
+{
+ "counting_policy": "Git-tracked .rs physical lines including blank lines, comments, tests, benches, examples and build.rs; nested packages own their files; actual Cargo output paths excluded. src_rs_lines counts only each package's src subtree, not production-only code.",
+ "limitations": [
+  "Textual observations, not Rust name resolution or a dependency-removal proof.",
+  "Normal and build dependencies include optional and target-conditional declarations; features and target cfg are not evaluated.",
+  "Tests, benches, examples, conventional test filenames and exact cfg(test) items are excluded from usage, but complex cfg expressions are not evaluated.",
+  "Macros are not expanded; generated and untracked source is excluded; reexports are credited to the named crate, not traced to their origin.",
+  "Import aliases and glob presence are observed, but shadowing, glob contents and fully qualified type paths are not resolved.",
+  "An unobserved dependency remains unverified until a suitable Cargo check and manual review establish whether it can be removed."
+ ],
+ "metadata_command": "cargo metadata --format-version 1 --no-deps --locked",
+ "metadata_summary": {
+  "by_kind": {
+   "build": 1,
+   "dev": 160,
+   "normal": 1318
+  },
+  "path_dependency_declarations": 1479,
+  "production_path_dependency_declarations": 1319,
+  "workspace_members": 139,
+  "workspace_packages": 139
+ },
+ "output_sha256": {
+  "backend_users.txt": "933ffdac108cbe9ed93b7eddcff44c5b1d8249c5dd7d28b2463b7f568fd0f91b",
+  "counts.json": "6797e02f2051cddc7061c9560fc92d892dc2eed2e5ad9b0d27fad18e1ce2a74b",
+  "graph.json": "711dff5ce89623729991d9ca67b4ab3d3d17dc71057b9d6bae08a517d4e975a5",
+  "stage_dependencies.txt": "a778fb6b6f9d820d935364dec5dd1474c030df7808e50ab4d9b9b081ca403c83",
+  "usage.json": "7d9cdeb40da6d88afa28e21ceb90abd5b8da5cc7d590a7c457908d6bdce756f9",
+  "usage_be.json": "0e53922d32cb725af13d9ea83795624858082798084d903fd2a253c3a8ed985f",
+  "users.txt": "048ead79c5eb2f24a53a31e23b49a3e6259658bbdb82055171710a68ee17de62"
+ },
+ "scanner_sha256": {
+  "atlas/evidence/scripts/backend_users.py": "f999357fc134c4a60bfb5cb0cba49e3d9b3d1b94b9cdeaede5d518fd9b9cd506",
+  "atlas/evidence/scripts/modscan.py": "d31a2e738037f048c141194ec960de7833132c8b4de3f9cc58516523a6929967",
+  "atlas/evidence/scripts/modscan_be.py": "a2e77cd256b8dad53f4be7240ee8db4ee963376b32d0168753212f5b0540a726",
+  "atlas/evidence/scripts/regenerate.py": "3a25144e9a565a97e5241d61d69c9494f823a920016ba6c406f258d84279416b",
+  "atlas/evidence/scripts/report.py": "dad731a1744be6320bb630a212c24e5e93762d1c711c864c06c1b96f3b3eb33f",
+  "atlas/evidence/scripts/scanlib.py": "4c840d8c1abb9ed01f5fb80adf42f509c3623ce99a61f445911566cc74f8f852",
+  "atlas/evidence/scripts/stage_dependencies.py": "fc8102edcb2d7f6ec7e8497c8fc508fb9f227610940cf1ceff4eadff88fcc313",
+  "atlas/evidence/scripts/sub.py": "049cef99714cbed51bdedceededd5c8e8460a0f151ae0816820506b01e8a673b",
+  "atlas/evidence/scripts/users.py": "6d78bcee831eacfa2cb6b7290ac1fb5dcbb4213eed8c824168688d0ea4cc27ef"
+ },
+ "schema_version": 2,
+ "source_policy": "Tracked checkout content outside atlas must match source_revision. Untracked/generated files do not enter the inventory.",
+ "source_revision": "3f9ce43f0c9d179048911d18faa91ba93f60176d"
+}
