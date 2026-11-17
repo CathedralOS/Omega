@@ -1,80 +1,98 @@
 # Atlas
 
-Atlas is where the owner and agents map the Omega codebase and plan how to
-reshape it into one linear pipeline. Every claim here points at evidence a
-reader can rerun: a dependency graph from `cargo metadata`, a usage scan, a
-line count, or a `file:line` quote. Prose that cannot cite its evidence is a
-question, and goes in [questions.md](questions.md).
+Atlas maps the codebase and plans the owner's linear pipeline. Observations
+cite pinned source; recommendations are *judgment* and unchecked claims are
+*unverified*. This folder changes neither compiler behavior nor owner rulings.
 
-Nothing in this folder is compiled, shipped or read by the compiler. It is a
-planning workspace beside the code, not part of it.
+## Read the map
 
-## What is here
-
-| Path | What it holds |
+| Page | Scope |
 | --- | --- |
-| [rulings.md](rulings.md) | The owner's rulings, dated, in the order they were made. Plans follow them. |
-| [questions.md](questions.md) | Questions that still need the owner, in plain terms, with the evidence behind each. |
-| [plans/](plans/) | Migration plans. Each names a destination for every crate it covers and orders the moves as PRs that each end in a deletion. |
-| [evidence/scripts/](evidence/scripts/) | The scanners that produce the evidence. |
-| [evidence/data/](evidence/data/) | Their output, with the source revision it was taken at. |
-| [artifacts/](artifacts/) | Sources for the published pages. Each page uses the Omega design system. |
+| [Repository](subsystems/repository.md) | Rust reference, Omega source, products and tests. |
+| [Psi](subsystems/psi.md) | Source stages, checking and publication. |
+| [Omega](subsystems/omega.md) | Realization, native stages, installations and emission. |
+| [Build and packages](subsystems/build-and-packages.md) | Custody, evaluation, requests and providers. |
+| [CLI](subsystems/cli.md) | Dispatch, compilation, execution and inspection. |
+| [Interpreter](subsystems/interpreter.md) | Program loading and runtime admission. |
+| [Bootstrap](subsystems/bootstrap.md) | Construction routes and self-rebuild limits. |
+| [Tools](subsystems/tools.md) | Repository commands and verification. |
+| [Library](subsystems/library.md) | Bundled declarations and target providers. |
 
-## Published pages
+Each page traces inputs, outputs, consumers, checks and failures. The
+[pipeline diagrams](artifacts/pipeline-map/map.md) distinguish current and
+proposed routes. The [migration plan](plans/foundation-and-backend.md) orders
+contracts and deletions. [Questions](questions.md) remain open;
+[owner rulings](rulings.md) govern the destination.
 
-| Page | Source | What it shows |
-| --- | --- | --- |
-| [Omega pipeline map](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P) | [artifacts/pipeline-map/](artifacts/pipeline-map/) | The whole compiler as one linear pipeline, with today's reach-arounds as an overlay. |
-| [Foundation and backend plan](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) | [artifacts/foundation-backend-plan/](artifacts/foundation-backend-plan/) | Where every crate in `foundation/` and `backend/` goes, in what order. |
+## Pages and publication status
 
-## Evidence: how to reproduce it
+The [local atlas](artifacts/out/index.html) includes every subsystem,
+[pipeline diagrams](artifacts/out/pipeline.html), the
+[plan](artifacts/out/plan.html), questions and rulings. Navigation and page
+numbers come from one registry; counts and revision labels come from evidence.
 
-The data in `evidence/data/` was taken at revision
-`6de27da2a36d86f6c3883cb89527d0d44dea646a`. To refresh it from the repository
-root (no build needed):
+The [original pipeline map](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P)
+and [original plan](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) are
+historical publications. These builds do not update those URLs.
 
-```bash
-cargo metadata --format-version 1 --no-deps > /tmp/omega-meta.json
-python3 atlas/evidence/scripts/users.py /tmp/omega-meta.json > atlas/evidence/data/users.txt
-python3 atlas/evidence/scripts/modscan.py /tmp/omega-meta.json atlas/evidence/data/usage.json
-python3 atlas/evidence/scripts/modscan_be.py /tmp/omega-meta.json atlas/evidence/data/usage_be.json
-python3 atlas/evidence/scripts/backend_users.py < /tmp/omega-meta.json
-python3 atlas/evidence/scripts/stage_dependencies.py < /tmp/omega-meta.json
-```
+## Reproduce the evidence
 
-- `users.py`: every foundation crate's production users, grouped by pipeline position.
-- `modscan.py` / `modscan_be.py`: which modules and types of foundation and backend crates each crate names in non-test code.
-- `backend_users.py`: line counts and users of every backend crate.
-- `stage_dependencies.py`: which crates outside the pipeline call a numbered stage.
-
-The module scans read source with regular expressions, not a Rust resolver. A
-glob import or a path inside a macro can be missed, so a "declared but unused"
-dependency needs a type check before it is deleted. The plans mark those
-claims *unverified*.
-
-## Rebuilding the pages
+From the repository root, with Python 3.10+ and the repository's Cargo toolchain:
 
 ```bash
-python3 atlas/artifacts/pipeline-map/build_map.py
-python3 -m pip install markdown==3.7   # once, for the plan page
-python3 atlas/artifacts/foundation-backend-plan/build_fplan.py
+python3 -m unittest discover -s atlas/evidence/tests -v
+python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
 ```
 
-Each writes `out/index.html` beside its script (ignored by git). The pages load
-the Omega Serif fonts from the published design system, so a local preview
-falls back to Georgia.
+The generator runs `cargo metadata --format-version 1 --no-deps --locked`
+without compiling. It checks the source pin and records scanner/output hashes
+and counting rules in [manifest.json](evidence/data/manifest.json). Add
+`--output-dir /tmp/atlas-evidence` for comparison output. The
+[evidence guide](evidence/README.md) documents individual scanners and queries.
+
+Text scans are not a Rust resolver. `unobserved_dependencies` does not mean
+unused. Cargo edges do not prove runtime calls. Counts distinguish all
+tracked `.rs` files from `src/` and include the backend `target/` source crate.
+
+## Rebuild all pages
+
+Dependencies: Python 3.10+, Graphviz (`dot` on `PATH`) and Markdown 3.7:
+
+```bash
+python3 -m venv /tmp/omega-atlas-venv
+/tmp/omega-atlas-venv/bin/python -m pip install -r atlas/artifacts/requirements.txt
+/tmp/omega-atlas-venv/bin/python atlas/artifacts/build.py
+python3 atlas/artifacts/check.py
+python3 -m http.server 8765 --bind 127.0.0.1 --directory atlas
+```
+
+Open <http://127.0.0.1:8765/artifacts/out/index.html>. Generated
+`atlas/artifacts/out/` is ignored. Serve all of `atlas/` for working evidence
+and source links. Builds need only that folder and the tools above; source
+citations link to GitHub. The check additionally uses repository files to
+verify cited paths and line bounds, not their meaning.
+
+The original entrypoints call the shared renderer and report their pages:
+
+```bash
+/tmp/omega-atlas-venv/bin/python atlas/artifacts/pipeline-map/build_map.py
+/tmp/omega-atlas-venv/bin/python atlas/artifacts/foundation-backend-plan/build_fplan.py
+```
+
+One template preserves Limestone/Ink, square stone corners and Omega Serif
+when installed (Georgia fallback), without external font or script requests.
+Graphviz renders inline SVG from editable Mermaid. Supported syntax:
+`flowchart LR/RL/TD/TB/BT`, `node[label]`, `-->`, `-.->`, optional
+`|edge labels|`. Unsupported syntax fails the build.
 
 ## Rules for working here
 
-- **Evidence first.** A number comes from a script in `evidence/scripts/`; a
-  quote comes with its `file:line`. Mark anything not checked *unverified* and
-  every classification choice *judgment*.
-- **One linear pipeline is the target.** Stages read one representation and
-  write the next. Anything beside the pipeline (foundation beyond primitives,
-  the backend, sidecars, stage calls from outside the driver) is something to
-  move, and the plan says where.
-- **Plain language.** Follow [AGENTS.md "Explain the change"](../AGENTS.md#explain-the-change):
-  lead with what changes and why it matters, then the evidence.
-- **Pages use the Omega design system** (Limestone and Ink themes, Omega Serif,
-  stone corners). A page shows a mechanism, not a name: the arrow that moves,
-  the boundary crossed, the before and after.
+- **Evidence first.** Cite generated data or pinned source lines. Mark
+  unchecked claims *unverified* and classification choices *judgment*.
+- **Follow the rulings.** One linear pipeline is the target. Current maps
+  still show drivers, retained inputs and work outside numbered stages.
+- **Trace values.** Name producers, storage, consumers and authorizing checks.
+  Separate ordinary execution, tests and explicit audits.
+- **Plain language.** Follow [AGENTS.md](../AGENTS.md#explain-the-change).
+- **Show mechanisms.** Use the Omega design system; explain what each arrow
+  carries and mark proposals.
