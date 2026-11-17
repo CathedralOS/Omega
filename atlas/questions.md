@@ -114,10 +114,10 @@ production phase.
 
 ## Q-G. How do provider closure, retained bodies and installations fit?
 
-**Recommendation:** logical provider/body discovery closes inside source
-settlement from admitted Psi-neutral Build selection records. Omega then admits
-physical ABI plans over those fixed selections and already accepted code. It
-cannot select a new source body when a target check fails.
+**Recommendation:** source settlement prepares the checked candidate body catalog
+and neutral Build selection records. Omega joins each target's Build row to that
+catalog and admits physical ABI plans. Target-specific provider selection stays
+with Omega; it cannot request unchecked source when a target check fails.
 
 The [observed provider loop][closure-loop] grows demand through selected exact
 bodies; [policy preparation still has source custody][policy-input]. Splitting

@@ -138,7 +138,7 @@ calls or Cargo dependencies.
 
 **Judgment.** The [complete proposed contract](../../plans/foundation-and-backend.md#3-recommended-destination-and-stage-contracts)
 replaces the old extraction sequence. Source settlement must close lazy source
-and logical provider discovery; native planning closes retained-body demand over
+and checked candidate preparation; native planning closes retained-body demand over
 accepted code. Physical planning must represent every generated body before
 resource binding and common encoding. Image construction then consumes carried
 plans rather than generating more code.
