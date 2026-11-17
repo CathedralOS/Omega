@@ -877,8 +877,9 @@ fn publish_parents(
                     && let Some(name) = elaboration.names.get(machine.id)
                 {
                     refusal.detail = format!(
-                        "{} in machine `{name}` at block {} position {}",
+                        "{} in machine `{}` at block {} position {}",
                         refusal.detail,
+                        name.machine,
                         at.0.get(),
                         at.1,
                     );
