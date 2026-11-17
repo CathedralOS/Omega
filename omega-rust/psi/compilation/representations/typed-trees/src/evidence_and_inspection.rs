@@ -845,7 +845,7 @@ pub mod evidence {
         fn normalize_evidence_interface(
             program: &crate::TypedTrees,
             evidence: TypeReferenceHandle,
-            binders: &[PropositionBinder],
+            binders: arena::RootRows<'_, PropositionBinder>,
             binder_labels: &[String],
             binder_identities: &[Option<String>],
         ) -> Option<(String, Option<NormalizedEvidenceInterfaceIdentity>)> {
@@ -1684,7 +1684,7 @@ pub mod evidence {
             program: &crate::TypedTrees,
             expansion: &PropositionApplication,
             substitutions: &[(SymbolHandle, String)],
-            binders: &[PropositionBinder],
+            binders: arena::RootRows<'_, PropositionBinder>,
             binder_identities: &[Option<String>],
         ) -> ProofLabelResult<(Vec<String>, Vec<Option<String>>, Vec<String>)> {
             let expanded_binders = expansion

@@ -371,11 +371,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
         }
         self.parameters(signature.parameters);
         self.ty(signature.return_type);
-        for invocation in self
-            .target
-            .signature_invokes
-            .span_mut_or_empty(signature.invokes)
-        {
+        for handle in signature.invokes.handles() {
+            let invocation = self.target.signature_invokes.get_mut(handle);
             match &mut invocation.target {
                 crate::signature::AuthoredInvocationTarget::Parameter { symbol, .. }
                 | crate::signature::AuthoredInvocationTarget::Service(symbol) => {

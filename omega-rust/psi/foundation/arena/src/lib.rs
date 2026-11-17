@@ -42,8 +42,10 @@ mod arena;
 mod owned_index;
 mod paged;
 mod retained;
+mod retained_rows;
 mod rooted;
 pub use retained::RetainedArena;
+pub use retained_rows::{RetainedRows, RetainedRowsIter};
 pub use rooted::{RootRows, RootRowsIter, RootedArena};
 
 pub use arena::{

@@ -613,6 +613,12 @@ impl<'arena, T> RootRows<'arena, T> {
             .checked_sub(1)
             .and_then(|position| self.get(position))
     }
+    /// Borrow the final row and its preceding logical view without flattening.
+    pub fn split_last(self) -> Option<(&'arena T, Self)> {
+        let last = self.last()?;
+        Some((last, self.slice(0..self.len() - 1)))
+    }
+
     /// Borrow exactly N rows, returning none for any other cardinality.
     pub fn as_array<const N: usize>(self) -> Option<[&'arena T; N]> {
         (self.len() == N).then(|| std::array::from_fn(|position| self.at(position)))

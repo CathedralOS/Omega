@@ -75,6 +75,68 @@ pub(crate) mod callable_identity {
         text: String,
     }
 
+    // These values are immutable interner keys or derived lookup directories.
+    // A fork owns its directory writes, while old text/dispatch keys retain
+    // their payload when the directory gains a genuinely new identity.
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    struct SharedValue<T>(std::sync::Arc<T>);
+
+    impl<T> Clone for SharedValue<T> {
+        fn clone(&self) -> Self {
+            Self(std::sync::Arc::clone(&self.0))
+        }
+    }
+    impl<T> From<T> for SharedValue<T> {
+        fn from(value: T) -> Self {
+            Self(std::sync::Arc::new(value))
+        }
+    }
+    impl<T: Default> Default for SharedValue<T> {
+        fn default() -> Self {
+            T::default().into()
+        }
+    }
+    impl<T> std::ops::Deref for SharedValue<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+    impl<T: Clone> std::ops::DerefMut for SharedValue<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            std::sync::Arc::make_mut(&mut self.0)
+        }
+    }
+    impl<T> std::borrow::Borrow<T> for SharedValue<T> {
+        fn borrow(&self) -> &T {
+            self
+        }
+    }
+    impl std::borrow::Borrow<str> for SharedValue<Box<str>> {
+        fn borrow(&self) -> &str {
+            self
+        }
+    }
+    impl<T: compiler_storage::Record> compiler_storage::Record for SharedValue<T> {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            // Preserve the old key/directory bytes; sharing is local ownership,
+            // not an additional persisted identity or numbering authority.
+            T::write(self, output)
+        }
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            let owner =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<T>())
+                    .ok_or_else(|| input.error("callable identity owner allocation overflow"))?;
+            input.allocate(owner)?;
+            Ok(T::read(input)?.into())
+        }
+    }
+
     #[derive(Clone, compiler_storage::Record)]
     struct CallableIdentityRecord {
         path: CallablePathId,
@@ -85,29 +147,76 @@ pub(crate) mod callable_identity {
 
     #[derive(Clone, Default, compiler_storage::Record)]
     pub struct CallableIdentityTable {
-        paths: Vec<Box<str>>,
-        path_slots: HashMap<Box<str>, CallablePathId>,
-        parameters: Vec<Box<str>>,
-        parameter_slots: HashMap<Box<str>, CallableParametersId>,
-        result_dispatches: Vec<NormalizedResultDispatchSet>,
-        result_dispatch_slots:
-            std::collections::HashMap<NormalizedResultDispatchSet, CallableResultDispatchId>,
-        records: Vec<CallableIdentityRecord>,
-        record_slots: HashMap<
-            (
-                CallablePathId,
-                CallableParametersId,
+        paths: arena::RetainedRows<Box<str>>,
+        path_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallablePathId>>,
+        parameters: arena::RetainedRows<Box<str>>,
+        parameter_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallableParametersId>>,
+        result_dispatches: arena::RetainedRows<NormalizedResultDispatchSet>,
+        result_dispatch_slots: SharedValue<
+            std::collections::HashMap<
+                SharedValue<NormalizedResultDispatchSet>,
                 CallableResultDispatchId,
-            ),
-            CallableIdentityId,
+            >,
         >,
-        boundary_operator_slots:
-            HashMap<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId), CallableIdentityId>,
+        records: arena::RetainedRows<CallableIdentityRecord>,
+        record_slots: SharedValue<
+            HashMap<
+                (
+                    CallablePathId,
+                    CallableParametersId,
+                    CallableResultDispatchId,
+                ),
+                CallableIdentityId,
+            >,
+        >,
+        boundary_operator_slots: SharedValue<
+            HashMap<
+                (
+                    CallablePathId,
+                    SharedValue<Vec<TypeIdentityId>>,
+                    TypeIdentityId,
+                ),
+                CallableIdentityId,
+            >,
+        >,
     }
 
+    fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher + Clone>(
+        text: &str,
+        texts: &mut arena::RetainedRows<Box<str>>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<Box<str>>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I {
+        if let Some(interned) = slots.get(text) {
+            return *interned;
+        }
+        let interned = mint(texts.len());
+        let text: Box<str> = text.into();
+        texts.push(text.clone());
+        slots.insert(text.into(), interned);
+        interned
+    }
+
+    fn intern_owned<K, I: Copy, S: std::hash::BuildHasher + Clone>(
+        value: K,
+        values: &mut arena::RetainedRows<K>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<K>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I
+    where
+        K: Eq + std::hash::Hash + Clone,
+    {
+        if let Some(interned) = slots.get(&value) {
+            return *interned;
+        }
+        let interned = mint(values.len());
+        values.push(value.clone());
+        slots.insert(value.into(), interned);
+        interned
+    }
     impl CallableIdentityTable {
         fn intern_path(&mut self, path: &str) -> CallablePathId {
-            super::intern_boxed_text(
+            intern_boxed_text(
                 path,
                 &mut self.paths,
                 &mut self.path_slots,
@@ -116,7 +225,7 @@ pub(crate) mod callable_identity {
         }
 
         fn intern_parameters(&mut self, parameters: &str) -> CallableParametersId {
-            super::intern_boxed_text(
+            intern_boxed_text(
                 parameters,
                 &mut self.parameters,
                 &mut self.parameter_slots,
@@ -128,7 +237,7 @@ pub(crate) mod callable_identity {
             &mut self,
             result_dispatch: NormalizedResultDispatchSet,
         ) -> CallableResultDispatchId {
-            super::intern_owned(
+            intern_owned(
                 result_dispatch,
                 &mut self.result_dispatches,
                 &mut self.result_dispatch_slots,
@@ -170,7 +279,7 @@ pub(crate) mod callable_identity {
             parts: BoundaryOperatorIdentityParts,
         ) -> CallableIdentityId {
             let path = self.intern_path(&parts.path);
-            let key = (path, parts.parameter_types, parts.result_type);
+            let key = (path, parts.parameter_types.into(), parts.result_type);
             if let Some(identity) = self.boundary_operator_slots.get(&key) {
                 return *identity;
             }
@@ -198,6 +307,23 @@ pub(crate) mod callable_identity {
         use super::*;
 
         #[test]
+        fn shared_callable_key_preserves_bytes_and_charges_its_owner() {
+            let original: Box<str> = "callable".into();
+            let shared: SharedValue<_> = original.clone().into();
+            let limits = compiler_storage::RecordLimits::default();
+            let bytes = compiler_storage::encode(&original, limits).unwrap();
+            assert_eq!(compiler_storage::encode(&shared, limits).unwrap(), bytes);
+            let decoded: SharedValue<Box<str>> = compiler_storage::decode(&bytes, limits).unwrap();
+            assert_eq!(*decoded, original);
+            let tight = compiler_storage::RecordLimits {
+                allocation: original.len(),
+                ..limits
+            };
+            assert!(compiler_storage::decode::<Box<str>>(&bytes, tight).is_ok());
+            assert!(compiler_storage::decode::<SharedValue<Box<str>>>(&bytes, tight).is_err());
+        }
+
+        #[test]
         fn callable_fork_retains_side_payloads_until_a_new_identity_is_inserted() {
             let parts = |name: &str| CallableIdentityParts {
                 path: name.into(),
@@ -207,15 +333,21 @@ pub(crate) mod callable_identity {
             let original = arena::OwnedInterner::<CallableIdentityTable>::default();
             let first = original.with_mut(|table| table.intern(parts("first")));
             let fork = original.clone();
-            let retained = original.with(|table| table.records.as_ptr());
-            assert_eq!(fork.with(|table| table.records.as_ptr()), retained);
+            let retained = original.with(|table| &table.records[0] as *const _);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
             assert_eq!(fork.with_mut(|table| table.intern(parts("first"))), first);
-            assert_eq!(fork.with(|table| table.records.as_ptr()), retained);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
 
             let second = fork.with_mut(|table| table.intern(parts("second")));
             assert_ne!(first, second);
             assert_eq!(original.with(|table| table.records.len()), 1);
             assert_eq!(fork.with(|table| table.records.len()), 2);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+            assert_eq!(
+                original.with(|table| &table.paths[0] as *const _),
+                fork.with(|table| &table.paths[0] as *const _)
+            );
+            assert!(original.with(|table| table.path_slots.get("second").is_none()));
             assert!(original.with(|table| table.record(second).is_none()));
             assert_eq!(
                 original.with(|table| table.record(first).unwrap().text.clone()),
@@ -6174,7 +6306,7 @@ pub(crate) mod portable_machine_applications {
                 if states.len() != program.machine_states(original).len()
                     || states.len() != program.machine_states(instance).len()
                     || states.iter().enumerate().any(|(ordinal, state)| {
-                        states[..ordinal].iter().any(|earlier| {
+                        states.slice(0..ordinal).iter().any(|earlier| {
                             earlier.template == state.template || earlier.instance == state.instance
                         }) || !program.instantiated_machine_state_matches(
                             capture.instance,
@@ -10181,39 +10313,6 @@ fn callable_type_binders(
     binders
 }
 
-fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher>(
-    text: &str,
-    texts: &mut Vec<Box<str>>,
-    slots: &mut std::collections::HashMap<Box<str>, I, S>,
-    mint: impl Fn(usize) -> I,
-) -> I {
-    if let Some(interned) = slots.get(text) {
-        return *interned;
-    }
-    let interned = mint(texts.len());
-    let text: Box<str> = text.into();
-    texts.push(text.clone());
-    slots.insert(text, interned);
-    interned
-}
-
-fn intern_owned<K, I: Copy, S: std::hash::BuildHasher>(
-    value: K,
-    values: &mut Vec<K>,
-    slots: &mut std::collections::HashMap<K, I, S>,
-    mint: impl Fn(usize) -> I,
-) -> I
-where
-    K: Eq + std::hash::Hash + Clone,
-{
-    if let Some(interned) = slots.get(&value) {
-        return *interned;
-    }
-    let interned = mint(values.len());
-    values.push(value.clone());
-    slots.insert(value, interned);
-    interned
-}
 #[cfg(test)]
 mod closed_requirement_declaration_tests {
     use super::package_policy_reading_tests::fixture::Fixture;

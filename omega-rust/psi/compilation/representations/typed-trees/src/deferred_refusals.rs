@@ -296,8 +296,9 @@ impl TypedTrees {
             (row.declaration.arena_index(), row.declaration.generation())
                 < (declaration.arena_index(), declaration.generation())
         });
-        self.deferred_refusals[start..]
+        self.deferred_refusals
             .iter()
+            .skip(start)
             .take_while(move |row| row.declaration == declaration)
     }
 

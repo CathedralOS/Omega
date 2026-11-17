@@ -1611,7 +1611,9 @@ pub mod operator {
             typed: &TypedTrees,
             operator: &super::OperatorDefinition,
         ) -> Option<(BinaryOperator, numerics::literals::FloatFormat)> {
-            let [namespace, requirement] = typed.operator_path_members(operator.name) else {
+            let Some([namespace, requirement]) =
+                typed.operator_path_members(operator.name).as_array()
+            else {
                 return None;
             };
             if namespace.as_str() != "Float" {
@@ -1658,7 +1660,8 @@ pub mod operator {
             typed: &TypedTrees,
             operator: &super::OperatorDefinition,
         ) -> bool {
-            let [namespace, name] = typed.operator_path_members(operator.name) else {
+            let Some([namespace, name]) = typed.operator_path_members(operator.name).as_array()
+            else {
                 return false;
             };
             // Custody comes from the exact authored catalog declaration.
@@ -1936,7 +1939,7 @@ pub mod operator {
             requirement: &str,
         ) -> bool {
             let path = program.operator_path_members(operator.name);
-            matches!(path, [owner, member]
+            matches!(path.as_array(), Some([owner, member])
         if owner.as_str() == namespace && member.as_str() == requirement)
         }
 

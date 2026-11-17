@@ -1151,7 +1151,7 @@ pub(crate) mod machine {
             lowerer
                 .typed_trees
                 .machine_owned_data
-                .span_mut_or_empty(typed_machine.owned_data)[ordinal]
+                .get_mut(typed_machine.owned_data.handle_at(ordinal as u32))
                 .initial_value = initial_value;
         }
         let conformances = lowerer
@@ -1253,13 +1253,13 @@ pub(crate) mod machine {
         if machine.ranking_view.is_empty()
             && let Some(witness) = &typed_machine.termination_plan.implementation_witness
             && witness.ranking_view != language_semantics::RankingViewId::NULL
-            && let Some(custody) = lowerer
+            && let Some(position) = lowerer
                 .typed_trees
                 .ranking_expression_custody
-                .iter_mut()
-                .find(|custody| custody.machine == machine.symbol)
+                .iter()
+                .position(|custody| custody.machine == machine.symbol)
         {
-            custody.view =
+            lowerer.typed_trees.ranking_expression_custody[position].view =
                 language_semantics::RankingViewSelection::CanonicalDefault(witness.ranking_view);
         }
         typed_machine.body_status = typed::machine::MachineBodyStatus::Complete;
