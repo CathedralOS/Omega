@@ -1230,6 +1230,13 @@ fn finish_reading_into<'source>(
             ));
         }
     };
+    // Calling records are publication output, and only the program form
+    // (`declared`) publishes. A check form still prepared and validated each
+    // policy its bodies reach (`require_complete_boundary_parent_contracts`
+    // above) because its verdict depends on those contracts; the program form
+    // that reaches the same boundaries prepares and publishes their records
+    // itself. A check form therefore carries none forward.
+    let calling = calling.filter(|_| declared.is_some());
     let pending_publication = (calling.is_some() || selected_providers.is_some()).then_some(
         publication::PendingSourcePublication {
             source: program.typed,
