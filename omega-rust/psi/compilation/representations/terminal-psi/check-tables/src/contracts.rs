@@ -79,11 +79,11 @@ pub struct GenericCallableDeclaration {
     pub declaration: terminal_psi::CheckedMachineDeclaration,
     pub base_contract: [u8; 32],
     pub reach: terminal_psi::static_reach::StaticReachTerm,
-    pub projections: Vec<GenericReachProjection>,
+    pub projections: Vec<GenericCallbackDependency>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenericReachProjection {
+pub struct GenericCallbackDependency {
     pub parameter: u32,
     pub requirement: MachineId,
     pub member: terminal_psi::TerminalIdentityIndex,

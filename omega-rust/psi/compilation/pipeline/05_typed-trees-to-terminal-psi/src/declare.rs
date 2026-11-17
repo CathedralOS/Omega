@@ -279,11 +279,13 @@ pub(crate) fn declare(
                     let member = *machines
                         .get(*requirement)
                         .ok_or("generic reach member lost its source declaration")?;
-                    projections.push(terminal_check_tables::contracts::GenericReachProjection {
-                        parameter: origin.parameter,
-                        requirement: *requirement,
-                        member: semantic_identity(typed, member, &mut identities)?,
-                    });
+                    projections.push(
+                        terminal_check_tables::contracts::GenericCallbackDependency {
+                            parameter: origin.parameter,
+                            requirement: *requirement,
+                            member: semantic_identity(typed, member, &mut identities)?,
+                        },
+                    );
                 }
                 let checking = checking_envelopes
                     .get(machine.id)
