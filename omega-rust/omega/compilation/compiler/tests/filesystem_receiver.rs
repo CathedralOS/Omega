@@ -124,30 +124,40 @@ fn windows_transfer_count_refuses_original_request_beyond_available() {
     let project = TransferCountProject::stage("fail");
     let discovered =
         fixture_package_inputs::discover_fixture(&project.main(), Default::default()).unwrap();
-    let mut prepared = fixture_package_inputs::review_fixture(
+    let reviewed = fixture_package_inputs::review_fixture(
         discovered,
         &[target::TargetProfile::LinuxX64],
         compiler::CompilationProduct::Check,
-    )
-    .unwrap();
-    let diagnostics = match fixture_package_inputs::check_fixture(
-        &mut prepared,
-        "linux_x86_64",
-        Default::default(),
-    ) {
-        Ok(_) => panic!("clamping must not admit an original request beyond its available bytes"),
+    );
+    // Ordinary package review may already check this application body. The
+    // same exact capacity refusal is valid there or in the final source check;
+    // every setup error and every unrelated diagnostic still fails below.
+    let diagnostics = match reviewed {
         Err(diagnostics) => diagnostics,
+        Ok(mut prepared) => match fixture_package_inputs::check_fixture(
+            &mut prepared,
+            "linux_x86_64",
+            Default::default(),
+        ) {
+            Ok(_) => {
+                panic!("clamping must not admit an original request beyond its available bytes")
+            }
+            Err(diagnostics) => diagnostics,
+        },
     };
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+    let refusal = &diagnostics[0];
+    assert!(refusal.is_error());
     assert!(
-        diagnostics.iter().any(|diagnostic| {
-            let message = &diagnostic.message;
-            message.starts_with(
-                "cannot prove requires contract for call windows_transfer_count from main:",
-            ) && message.contains("4294967296 <= 4294967295")
-                && message.contains("requested <= available")
-        }),
+        refusal.message.starts_with(
+            "cannot prove requires contract for call windows_transfer_count from main:",
+        ) && refusal.message.contains("4294967296 <= 4294967295")
+            && refusal.message.contains("requested <= available"),
         "{diagnostics:#?}"
     );
+    let location = refusal.resolved_location.as_ref().unwrap();
+    assert!(location.path.ends_with("main.omg"));
+    assert_eq!((location.line, location.column), (8, 22));
 }
 
 #[test]
