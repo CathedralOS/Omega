@@ -316,6 +316,9 @@ pub struct ProofSearchActivity {
     in_progress_bound_reuses: usize,
     #[cfg(test)]
     disjunction_materializations: usize,
+    /// Owned certificate copies returned by `bound`, excluding scalar-only queries.
+    #[cfg(test)]
+    bound_certificate_copies: usize,
 }
 
 impl ProofSearchActivity {
@@ -337,6 +340,9 @@ impl ProofSearchActivity {
             self.disjunction_materializations = self
                 .disjunction_materializations
                 .saturating_add(other.disjunction_materializations);
+            self.bound_certificate_copies = self
+                .bound_certificate_copies
+                .saturating_add(other.bound_certificate_copies);
         }
     }
 }
@@ -955,47 +961,53 @@ impl<'a> Prover<'a> {
         {
             return Some(absurd);
         }
-        let mut orders: Vec<ProofNode> = self
-            .facts
-            .iter()
-            .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
-            .map(|fact| fact.proof(&self.facts))
-            .collect();
-        // An equality with a literal is two orders, and either may be the
-        // one the value's bounds contradict: a callee's crash route
-        // `denominator == 0` assumed at a call that passes 3.
-        let equalities: Vec<ProofNode> = self
-            .facts
-            .iter()
-            .filter(|fact| {
-                fact.axiom.is_none()
-                    && matches!(
-                        &fact.proposition,
-                        Proposition::Equal(left, right)
-                            if left.integer_value().is_some() != right.integer_value().is_some()
-                    )
-            })
-            .map(|fact| fact.proof(&self.facts))
-            .collect();
-        for equality in equalities {
-            orders.extend(weaken(equality.clone()));
-            orders.extend(flip(equality).and_then(weaken));
+        // Facts stay fixed during this search. Construct a certificate only
+        // when trying its candidate; a successful refutation leaves later
+        // candidates unexpanded. Keep orders, equalities and guards in their
+        // original order so the selected evidence and citations stay the same.
+        for index in 0..self.facts.len() {
+            let fact = &self.facts[index];
+            if fact.axiom.is_some() || order(&fact.proposition).is_none() {
+                continue;
+            }
+            let known = fact.proof(&self.facts);
+            if let Some(refuted) = self.refute(known, goal) {
+                return Some(refuted);
+            }
         }
-        if let Some(refuted) = orders
-            .into_iter()
-            .find_map(|known| self.refute(known, goal))
-        {
-            return Some(refuted);
+        // An equality with a literal supplies both directions. Either can
+        // contradict another bound, so try each before the next equality.
+        for index in 0..self.facts.len() {
+            let fact = &self.facts[index];
+            if fact.axiom.is_some()
+                || !matches!(&fact.proposition, Proposition::Equal(left, right)
+                    if left.integer_value().is_some() != right.integer_value().is_some())
+            {
+                continue;
+            }
+            let equality = fact.proof(&self.facts);
+            if let Ok(known) = weaken(equality.clone())
+                && let Some(refuted) = self.refute(known, goal)
+            {
+                return Some(refuted);
+            }
+            if let Ok(known) = flip(equality).and_then(weaken)
+                && let Some(refuted) = self.refute(known, goal)
+            {
+                return Some(refuted);
+            }
         }
-        let guards: Vec<ProofNode> = self
-            .facts
-            .iter()
-            .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
-            .map(|fact| fact.proof(&self.facts))
-            .collect();
-        guards
-            .into_iter()
-            .find_map(|taken| self.refute_guard(taken, goal))
+        for index in 0..self.facts.len() {
+            let fact = &self.facts[index];
+            if fact.axiom.is_some() || !is_branch_fact(&fact.proposition) {
+                continue;
+            }
+            let taken = fact.proof(&self.facts);
+            if let Some(refuted) = self.refute_guard(taken, goal) {
+                return Some(refuted);
+            }
+        }
+        None
     }
 
     /// A closed false scalar or mathematical assumption makes a path unreachable.
@@ -2618,9 +2630,24 @@ impl<'a> Prover<'a> {
 
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
+        self.bound_literal(value, direction)?;
+        #[cfg(test)]
+        {
+            self.activity.bound_certificate_copies += 1;
+        }
+        match &self.bounds.get(value)?[direction.index()] {
+            Slot::Done(bound) | Slot::InProgress(bound) => bound.clone(),
+            Slot::Unknown => None,
+        }
+    }
+
+    /// Settle the same search without copying its certificate. A relation
+    /// needs the endpoint first; evidence matters only if that endpoint
+    /// tightens the best bound already retained by its caller.
+    fn bound_literal(&mut self, value: ValueId, direction: Direction) -> Option<IntegerValue> {
         let slot = self.bounds.get(value)?.get(direction.index())?;
         match slot {
-            Slot::Done(bound) => return bound.clone(),
+            Slot::Done(bound) => return bound.as_ref().map(|bound| bound.literal),
             // A recursive candidate may reuse an already completed proof,
             // never the candidate currently being derived. With no such
             // proof this relation cycle contributes nothing.
@@ -2629,14 +2656,15 @@ impl<'a> Prover<'a> {
                 if bound.is_some() {
                     self.activity.in_progress_bound_reuses += 1;
                 }
-                return bound.clone();
+                return bound.as_ref().map(|bound| bound.literal);
             }
             Slot::Unknown => {}
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(None);
         let best = self.search(value, direction);
-        self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best.clone());
-        best
+        let literal = best.as_ref().map(|bound| bound.literal);
+        self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best);
+        literal
     }
 
     fn search(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
@@ -2659,7 +2687,8 @@ impl<'a> Prover<'a> {
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
         for index in 0..self.facts.len() {
-            if let Some(next) = self.bound_from_fact(index, &subject, integer, direction)
+            let current = best.as_ref().map(|bound| bound.literal);
+            if let Some(next) = self.bound_from_fact(index, &subject, integer, direction, current)
                 && best.as_ref().is_none_or(|current| {
                     direction.prefers(integer.compare(next.literal, current.literal))
                 })
@@ -2813,6 +2842,7 @@ impl<'a> Prover<'a> {
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<Bound> {
         let axiom = self.facts[index].axiom;
         let proposition = self.facts[index].proposition.clone();
@@ -2897,7 +2927,7 @@ impl<'a> Prover<'a> {
                 // A strict relation chains as it is; `through` restates a
                 // strict result as `<=` with the literal stepped inward.
                 let other = if near == subject { far } else { near };
-                self.through(self.facts[index].proof(&self.facts), other, direction)
+                self.through_fact(index, subject, other, integer, direction, current)
             }
             (Proposition::Equal(left, right), _)
                 if matches!(left, ScalarTerm::Value { .. })
@@ -2905,15 +2935,8 @@ impl<'a> Prover<'a> {
                     && left != right
                     && (left == subject || right == subject) =>
             {
-                let proof = self.facts[index].proof(&self.facts);
-                let wanted_left_is_subject = direction == Direction::Upper;
-                let proof = if (left == subject) == wanted_left_is_subject {
-                    proof
-                } else {
-                    flip(proof).ok()?
-                };
                 let other = if left == subject { right } else { left };
-                self.through(weaken(proof).ok()?, other, direction)
+                self.through_fact(index, subject, other, integer, direction, current)
             }
             // Result equations: the output's bound from its operands' bounds.
             (Proposition::Equal(output, expression), _) if output == subject && axiom.is_some() => {
@@ -3295,6 +3318,43 @@ impl<'a> Prover<'a> {
                 },
             ),
         })
+    }
+
+    /// A non-tightening relation leaves the earlier certificate selected.
+    /// Settle its other endpoint in the original order, then avoid expanding
+    /// the fact and copying that endpoint's proof when neither can be used.
+    fn through_fact(
+        &mut self,
+        index: usize,
+        subject: &ScalarTerm,
+        other: &ScalarTerm,
+        integer: IntegerType,
+        direction: Direction,
+        current: Option<IntegerValue>,
+    ) -> Option<Bound> {
+        let ScalarTerm::Value { id, .. } = other else {
+            return None;
+        };
+        let mut literal = self.bound_literal(*id, direction)?;
+        if matches!(self.facts[index].proposition, Proposition::LessThan(..)) {
+            literal = step(literal, direction == Direction::Lower)?;
+        }
+        if current.is_some_and(|current| !direction.prefers(integer.compare(literal, current))) {
+            return None;
+        }
+        let proof = self.facts[index].proof(&self.facts);
+        let relation = if let Proposition::Equal(left, _) = &proof.conclusion {
+            let wanted_left_is_subject = direction == Direction::Upper;
+            let proof = if (left == subject) == wanted_left_is_subject {
+                proof
+            } else {
+                flip(proof).ok()?
+            };
+            weaken(proof).ok()?
+        } else {
+            proof
+        };
+        self.through(relation, other, direction)
     }
 
     /// Bound `subject` through `relation` (`subject R other` for an upper
