@@ -1,0 +1,22 @@
+// Core policy operators retain their selected qualified/plain signatures.
+// Expected exit: 0
+
+machine nonnegative(value: i64 in Wrapping) -> bool { value >= 0i64 }
+
+machine saturated(left: u32 in Saturating, right: u32) -> u32 in Saturating {
+    left + right
+}
+
+machine entry() -> bool {
+    let total: u32 in Saturating = saturated(4294967295u32 as +Saturating, 1u32);
+    nonnegative(0i64 as +Wrapping)
+        && nonnegative(3i64 as +Wrapping)
+        && !nonnegative((0i64 - 1i64) as +Wrapping)
+        && (total as -Saturating) == 4294967295u32
+}
+
+machine main() crashes Trap {
+    transition entry() { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
