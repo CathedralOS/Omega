@@ -42,7 +42,7 @@ upstream source. Check the existing parallel-frontend option/key control nearby,
 and run scoped Clippy on that crate. Use the same release profile overrides as
 the builder when retaining its compiled outputs.
 
-The installer controls run without compilation:
+After building xtask, the installer controls run without compiling mbx:
 
 ```sh
 mbx xtask mbx-cache check-installer /absolute/owned/scratch/source.tar.gz /absolute/new/control-directory

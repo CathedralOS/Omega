@@ -173,7 +173,13 @@ fn probe(binary: &Path, root: &Path) -> Result<()> {
         .split_whitespace()
         .next()
         .ok_or("rustup returned no toolchain")?;
-    let mut receipt = json!({"mbx": query(&binary, &["--version"])?, "binary_sha256": execution::digest(&binary)?, "rustc": query(Path::new("rustc"), &["-vV"])?, "steps": []});
+    let source_receipt = binary.with_file_name("mbx.source");
+    let source_receipt = if source_receipt.exists() {
+        Some(fs::read_to_string(source_receipt).map_err(|e| e.to_string())?)
+    } else {
+        None
+    };
+    let mut receipt = json!({"mbx": query(&binary, &["--version"])?, "binary_sha256": execution::digest(&binary)?, "source_receipt": source_receipt, "controller_sha256": execution::digest(&std::env::current_exe().map_err(|e| e.to_string())?)?, "rustc": query(Path::new("rustc"), &["-vV"])?, "steps": []});
     let cold = build(&binary, &root, toolchain, "cold", 7, &mut receipt)?;
     let target = root
         .join("target")

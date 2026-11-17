@@ -64,6 +64,7 @@ verify "$source_sha" "$work/source.tar.gz"
 # A tar overlay can retain files from an earlier attempt. Extract into a new
 # directory we alone created; shared build outputs stay outside this source.
 source=$(mktemp -d "$work/source.XXXXXX")
+printf '%s\n' "$source" > "$work/source-path"
 tar -xzf "$work/source.tar.gz" --strip-components=1 -C "$source"
 patch --batch --forward -F0 -p1 -d "$source" < "$repo/tools/mbx/checksum-cache.patch"
 (

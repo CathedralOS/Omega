@@ -298,7 +298,7 @@ immediately before building (run these from the checkout root):
   bash tools/agent_setup.sh && mbx xtask doctor
   ```
 - **Windows (Git Bash):**
-  ```powershell
+  ```bash
   bash tools/agent_setup.sh --mbx-only; mbx setup --yes; mbx xtask doctor
   ```
 
