@@ -2570,9 +2570,7 @@ pub(crate) mod operator {
     use crate::resolution::lowerer::Lowerer;
     use diagnostics::Diagnostic;
     use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
-    use language_core::sealed_intrinsics::{
-        CollectionPrimitive, CompilerPrimitive, SealedIntrinsic,
-    };
+    use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
     use numerics::float_projection::FloatProjectionOperation;
     use syntax::types::TypeReferenceNode;
     use syntax_trees::{self as syntax, SyntaxTrees};
@@ -2658,9 +2656,9 @@ pub(crate) mod operator {
             .and_then(|sources| sources.get(machine.name.source_span().source_id))
             .and_then(|file| symbols::sealed_intrinsic_at(file, name));
         let family = match custody {
-            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
-                Some(CatalogFamily::Collection(operation))
-            }
+            Some(SealedIntrinsic::CompilerPrimitive(
+                primitive @ (CompilerPrimitive::Collection(_) | CompilerPrimitive::RunCustody(_)),
+            )) => Some(CatalogFamily::Typed(primitive)),
             Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence)) => {
                 Some(CatalogFamily::AtomicFence)
             }
@@ -2702,8 +2700,7 @@ pub(crate) mod operator {
             // The exact bundled declaration proceeds through the complete
             // generic machine owner. Typed schema normalization retains every
             // binder, lifetime relation and contract before a use is served.
-            CatalogFamily::Collection(_) => {}
-            CatalogFamily::FloatProjection => {}
+            CatalogFamily::Typed(_) => {}
             CatalogFamily::AtomicFence => {
                 require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
             }
@@ -2725,11 +2722,10 @@ pub(crate) mod operator {
     */
     #[derive(Clone, Copy)]
     enum CatalogFamily {
-        Collection(CollectionPrimitive),
+        /// These declarations pass their full headers to the typed schema checker.
+        Typed(CompilerPrimitive),
         /* Place-free portable fence (`atomic.omg`). */
         AtomicFence,
-        /* `Float::meaning32` / `Float::meaning64` (`float_operations.omg`). */
-        FloatProjection,
         /*
             `FloatSemantics::<name>` rows (`float_operations.omg`), keyed on the
             complete signature.
@@ -2750,7 +2746,7 @@ pub(crate) mod operator {
                 return Some(Self::AtomicFence);
             }
             if FloatProjectionOperation::from_source_identity(namespace, leaf).is_some() {
-                return Some(Self::FloatProjection);
+                return Some(Self::Typed(CompilerPrimitive::FloatProjection));
             }
             if numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(
                 namespace, leaf,
@@ -2763,9 +2759,8 @@ pub(crate) mod operator {
 
         fn primitive(self) -> CompilerPrimitive {
             match self {
-                Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+                Self::Typed(primitive) => primitive,
                 Self::AtomicFence => CompilerPrimitive::AtomicFence,
-                Self::FloatProjection => CompilerPrimitive::FloatProjection,
                 Self::FloatSemantics => CompilerPrimitive::FloatSemantics,
                 Self::RankingView(_) => CompilerPrimitive::NaturalRanking,
             }
@@ -3128,6 +3123,82 @@ pub(crate) mod operator {
                 assert_eq!(trees.state_parameters(entry.parameters).len(), arity);
                 assert!(entry.return_type.is_some());
                 assert!(trees.operators.is_empty());
+            }
+        }
+
+        #[test]
+        fn run_primitives_keep_generic_headers_and_refuse_copied_sources() {
+            const RUN: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/run.omg"
+            ));
+            let edited = format!("{RUN}\n// local edit\n");
+            for (text, origin, admitted) in [
+                (RUN, SourceOrigin::Toolchain, true),
+                (RUN, SourceOrigin::User, false),
+                (edited.as_str(), SourceOrigin::Toolchain, false),
+            ] {
+                for (name, arity) in [
+                    ("Run::retire_empty", 1),
+                    ("Run::split", 2),
+                    ("Run::merge", 2),
+                ] {
+                    let (syntax, sources) = parsed(text, "run.omg", origin);
+                    let authored = syntax
+                        .root_items()
+                        .find_map(|item| match item {
+                            syntax_trees::item::Item::Machine(machine)
+                                if machine.name.as_str(&syntax) == name =>
+                            {
+                                Some(machine)
+                            }
+                            _ => None,
+                        })
+                        .expect("the bundled Run declaration exists");
+                    let mut lowerer =
+                        crate::resolution::lowerer::Lowerer::new(Some(sources), vec![]);
+                    let result = crate::lowering::machine::lower_machine_into(
+                        &mut lowerer,
+                        &syntax,
+                        authored,
+                    );
+                    if !admitted {
+                        let error = result.expect_err("copied source cannot supply Run primitives");
+                        assert!(
+                            error.message.contains(
+                                "neither a boundary signature nor a compiler-catalog primitive"
+                            ),
+                            "{error:?}"
+                        );
+                        continue;
+                    }
+                    result.expect("the exact bundled Run declaration must lower");
+                    let trees = &lowerer.symbol_resolved_trees;
+                    assert_eq!(
+                        trees.machines.len(),
+                        1,
+                        "one complete Run machine must remain"
+                    );
+                    let machine = &trees.machines[0];
+                    assert_eq!(
+                        machine.supply_mode,
+                        language_semantics::MachineSupplyMode::CompilerProvided
+                    );
+                    assert_eq!(machine.is_public, authored.is_public);
+                    assert!(!machine.body_is_present);
+                    let [policy, element] = trees.machine_type_parameters(machine) else {
+                        panic!("Run needs its exact policy and element binders");
+                    };
+                    use symbol_resolved_trees::data::TypeParameterKind;
+                    assert!(matches!(policy.kind, TypeParameterKind::Const { .. }));
+                    assert!(matches!(element.kind, TypeParameterKind::Type));
+                    let [entry] = trees.machine_state_handles(machine.states) else {
+                        panic!("the Run machine must retain its entry signature");
+                    };
+                    let entry = trees.machine_state(*entry);
+                    assert_eq!(trees.state_parameters(entry.parameters).len(), arity);
+                    assert!(entry.return_type.is_some());
+                }
             }
         }
 
