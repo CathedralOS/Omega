@@ -16,12 +16,29 @@ pub(super) fn judged_typed_result(
     typed: &typed_trees::TypedTrees,
     select_first: bool,
 ) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let mut verdicts = judged_parts(typed, select_first);
+    // The first verdict is the closure's. Any other is a further refusal of
+    // the same reading, never an acceptance.
+    assert!(
+        verdicts
+            .iter()
+            .skip(1)
+            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+    verdicts.remove(0)
+}
+
+fn judged_parts(
+    typed: &typed_trees::TypedTrees,
+    select_first: bool,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let selected = if select_first {
         vec![typed.machines()[0].symbol]
     } else {
         Vec::new()
     };
-    let mut verdicts = crate::judge_compilation(
+    crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
@@ -39,17 +56,50 @@ pub(super) fn judged_typed_result(
             terminal_codec::TerminalPublication::Invocation,
         )
         .program,
-    );
-    // The first verdict is the closure's. Any other is a further refusal of
-    // the same reading, never an acceptance.
+    )
+}
+
+#[test]
+fn whole_subject_acceptance_requires_every_generic_check_form() {
+    let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
+    let parts = judged_parts(&typed, false);
     assert!(
-        verdicts
+        parts.len() > 1,
+        "the generic form must be judged: {parts:?}"
+    );
+    assert!(
+        parts
+            .iter()
+            .all(|part| matches!(part, Ok(RouteVerdict::Accepted(_)))),
+        "{parts:?}"
+    );
+    let result = judged_typed(&typed, false);
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
+
+#[test]
+fn a_later_generic_body_refusal_prevents_whole_subject_acceptance() {
+    let typed = typed(
+        "data Envelope<T> { item: T; }\n\
+         machine wrap<T>(value: T) -> Envelope<T> { Envelope { item: move value } }\n",
+    );
+    let parts = judged_parts(&typed, false);
+    assert!(
+        matches!(parts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
+        "{parts:?}"
+    );
+    assert!(
+        parts
             .iter()
             .skip(1)
-            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
-        "{verdicts:?}"
+            .any(|part| matches!(part, Ok(RouteVerdict::FallBack(_)) | Err(_))),
+        "the open generic body must expose its refusal: {parts:?}"
     );
-    verdicts.remove(0)
+    let result = judged_typed_result(&typed, false);
+    assert!(
+        !matches!(result, Ok(RouteVerdict::Accepted(_))),
+        "the accepted closure must not hide the generic-body refusal: {result:?}"
+    );
 }
 
 #[test]
