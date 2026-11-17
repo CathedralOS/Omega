@@ -175,8 +175,8 @@ def main():
         assert page.get_by_label('Trace a pipeline detour').input_value()=='handlers'
         assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
         cards=page.locator('.proposed-scene .overview-node.is-traced')
-        assert cards.locator('.handoff-status').count()==4
-        assert cards.first.get_attribute('data-endpoint')=='native-planning-select'
+        assert cards.locator('.handoff-status').count()==5
+        assert cards.first.get_attribute('data-endpoint')=='native-planning-target'
         page.evaluate('document.fonts.ready')
         assert cards.evaluate_all("""cards=>cards.every(card=>{
             const box=card.querySelector('rect').getBBox();
@@ -186,6 +186,8 @@ def main():
             });
         })""")
         cards.first.locator('.stage-title').click()
+        assert page.locator('.connected-detail').get_by_role('link',name='Permitted nesting and pairs').is_visible()
+        page.locator('.connected-jump').select_option('native-planning-select')
         assert page.locator('.connected-detail').get_by_role('link',name='Pair guards').is_visible()
         page.close()
         context=browser.new_context(viewport={'width':400,'height':844},java_script_enabled=False)
