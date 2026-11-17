@@ -75,12 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Legacy checkout reuse ignores assigned topics
-- Category: One idea, several implementations
-- Where: [legacy donor selection](tools/xtask/src/worktree.rs#L883), [pool slot selection](tools/xtask/src/worktree.rs#L859)
-- Saw: Pool reuse excludes assigned topics, but legacy donation checks only locks, dirty state, unpublished commits and open PRs. A clean, published legacy checkout with another assigned topic remains eligible to be moved and reset. This path is unchanged on main at `4fdecb7a375`; no reset was attempted.
-- Cost: Starting a task can move another session's assigned checkout and replace its HEAD. Apply the same ownership check to both reuse paths.
-- Reported: 2026-11-17, Codex, while preparing parallel compiler work
 
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
