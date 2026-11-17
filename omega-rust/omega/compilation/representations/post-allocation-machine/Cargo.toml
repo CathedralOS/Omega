@@ -23,6 +23,6 @@ semantic-vocabulary = { path = "../../../../psi/compilation/representations/sema
 sha2 = "0.10.9"
 
 [dev-dependencies]
+target-x86_64 = { path = "../../target-description/target-x86_64" }
 runtime-abi = { path = "../../target-description/runtime-abi" }
-isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }
 target-operations = { path = "../target-operations" }

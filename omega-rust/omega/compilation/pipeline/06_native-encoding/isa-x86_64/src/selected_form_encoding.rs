@@ -8,49 +8,18 @@ leaves, and installed interrupt/table sequences.
 */
 
 pub(crate) mod atomic {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedControlEffect;
+
+    pub(crate) use target_x86_64::form_effects::atomic::{effects, writes_rflags};
+
     use super::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
-    use crate::register_model::units;
+
     use crate::selected_form_encoding::instruction_bytes::{append_boolean, modrm, rex};
     use register_model::RegisterViewId;
     use selected_instructions::{
-        AtomicForm, AtomicOperation, AtomicWidth, MachineEncodedControlEffect,
-        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
+        AtomicForm, AtomicOperation, AtomicWidth,
     };
-
-    pub(crate) const fn writes_rflags(operation: AtomicOperation) -> bool {
-        !matches!(operation, AtomicOperation::Load | AtomicOperation::Store)
-    }
-
-    pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
-        let mut effects = MachineEncodedEffects {
-            memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
-                pointer_operand: 0,
-                form,
-            },
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(
-                (0..form.operation.input_count()).collect(),
-                form.output_operands().collect(),
-            )
-        };
-        if writes_rflags(form.operation) {
-            effects
-                .implicit_unit_clobbers
-                .extend(units("condition_flags"));
-        }
-        if matches!(
-            form.operation,
-            AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
-        ) || form.operation.is_bitwise_fetch()
-        {
-            effects.implicit_unit_clobbers.extend(units("rax"));
-        }
-        if form.operation.is_bitwise_fetch() {
-            effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
-        }
-        effects.implicit_unit_clobbers.sort_unstable();
-        effects
-    }
 
     pub(crate) fn footprint(
         form: AtomicForm,
@@ -461,24 +430,6 @@ pub(crate) mod atomic {
     }
 }
 pub(crate) mod atomic_fence {
-    use register_model::RegisterConstraintKey;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    };
-
-    pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::AtomicFence,
-            constraint,
-            MachineMemoryEffect::AtomicFenceV1,
-            MachineTrapBehavior::NeverV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::AtomicFence,
-            MachineSizeKnowledge::ExactBytes(3),
-            MachineEncodedEffects::atomic_fence_v1(),
-        )
-    }
 
     #[cfg(test)]
     mod tests {
@@ -1765,44 +1716,6 @@ mod copy_bytes {
     }
 }
 pub(crate) mod crash {
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    };
-
-    pub(crate) fn declaration(
-        constraint: &RegisterInstructionConstraint,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::Crash,
-            constraint.key,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::ExplicitCrashV1,
-            MachineBarrier::ControlFlow,
-            MachineAlternativeFamily::Crash,
-            MachineSizeKnowledge::ExactBytes(2),
-            MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
-        )
-    }
-
-    pub(crate) fn privileged_declaration(
-        constraint: &RegisterInstructionConstraint,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::PrivilegedCrash,
-            constraint.key,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ControlFlow,
-            MachineAlternativeFamily::PrivilegedCrash,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::privileged_stop_v1(
-                &constraint.implicit_uses,
-                &constraint.clobbers,
-            ),
-        )
-    }
 
     #[cfg(test)]
     mod tests {
@@ -4728,38 +4641,29 @@ mod float_bits {
     }
 }
 pub(crate) mod float_result_policy {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineSizeKnowledge;
+    #[cfg(test)]
+    pub(crate) use target_x86_64::form_effects::float_result_policy::declaration;
+
+    pub(crate) use target_x86_64::form_effects::float_result_policy::effects;
+
     use super::{
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
         X86_64SelectedFormFootprint,
     };
-    use crate::register_model::units_of;
+
     use register_model::{
-        RegisterConstraintKey, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
+        RegisterViewId, ValidatedPhysicalRegisterModel,
     };
     use selected_instructions::{
-        FloatResultPolicyForm, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedEffects, MachineMemoryEffect, MachineSemanticKind,
-        MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+        FloatResultPolicyForm, MachineAlternativeKey, SelectedInstructionKind,
     };
 
     #[cfg(test)]
     use selected_instructions::{FloatResultPolicyKind, MachineEncodedControlEffect};
-
-    pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
-        units_of(if form.can_trap() {
-            &["xmm3", "condition_flags"]
-        } else {
-            &["xmm3", "xmm4", "condition_flags"]
-        })
-    }
-
-    pub(crate) fn effects(form: FloatResultPolicyForm) -> MachineEncodedEffects {
-        MachineEncodedEffects::float_result_policy_v1(
-            form.operand_count() as u16,
-            clobbers(form),
-            form.can_trap(),
-        )
-    }
 
     pub(crate) fn footprint(
         form: FloatResultPolicyForm,
@@ -4772,34 +4676,6 @@ pub(crate) mod float_result_policy {
             writes_rflags: true,
             encoded: effects(form),
         }
-    }
-
-    pub(crate) fn size(form: FloatResultPolicyForm) -> MachineSizeKnowledge {
-        target_x86_64::float_sizes::float_result_policy_size(form)
-    }
-
-    pub(crate) fn declaration(
-        form: FloatResultPolicyForm,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::FloatResultPolicy(form),
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            if form.can_trap() {
-                MachineTrapBehavior::TrappingIntegerV1
-            } else {
-                MachineTrapBehavior::NeverV1
-            },
-            if form.can_trap() {
-                MachineBarrier::ExternalEffect
-            } else {
-                MachineBarrier::None
-            },
-            MachineAlternativeFamily::FloatResultPolicy(form),
-            size(form),
-            effects(form),
-        )
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5572,77 +5448,17 @@ pub(crate) mod float_result_policy {
     }
 }
 pub(crate) mod floating_control {
+    pub(crate) use target_x86_64::form_effects::floating_control::effects;
+
     use super::{
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
         X86_64SelectedFormFootprint,
     };
-    use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineTrapBehavior, SelectedInstructionKind,
+        LocalStorageSlotId, MachineAlternativeKey,
+        MachineSemanticKind, SelectedInstructionKind,
     };
-
-    pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
-        let physical = crate::x86_64_physical_register_model_ref();
-        let view = |name| {
-            physical
-                .view_named(name)
-                .expect("canonical floating-control register")
-        };
-        let mut uses = view("rsp").units.clone();
-        if !restore {
-            uses.extend(view("mxcsr").units.iter().copied());
-        }
-        uses.sort_unstable();
-        MachineEncodedEffects {
-            external_operand_reads: Vec::new(),
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: uses,
-            implicit_unit_defs: if restore {
-                view("mxcsr").units.clone()
-            } else {
-                Vec::new()
-            },
-            implicit_unit_clobbers: Vec::new(),
-            memory: if restore {
-                MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-                    stack_pointer: view("rsp").id,
-                    byte_count: 4,
-                }
-            } else {
-                MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                    stack_pointer: view("rsp").id,
-                    byte_count: 4,
-                }
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: MachineEncodedControlEffect::FallThroughV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        semantic: MachineSemanticKind,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-        MachineEffectDeclaration::single(
-            semantic,
-            constraint,
-            if restore {
-                MachineMemoryEffect::ReadFrameStorageV1
-            } else {
-                MachineMemoryEffect::WriteFrameStorageV1
-            },
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            semantic.into(),
-            crate::encoder_resolved(4, Some(8)),
-            effects(restore),
-        )
-    }
 
     fn request(
         physical: &ValidatedPhysicalRegisterModel,
@@ -5863,20 +5679,19 @@ pub(crate) mod floating_control {
     }
 }
 pub(crate) mod ieee_float_arithmetic {
+    pub(crate) use target_x86_64::form_effects::ieee_float_arithmetic::{conversion_control, effects};
+
     use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, RegisterViewId,
+        MachineAlternativeFamily, MachineAlternativeKey, RegisterViewId,
         ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
         X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
     };
-    use crate::register_model::units;
+
     use crate::selected_form_encoding::request_validation::resolve_registers;
-    use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
+    use register_model::RegisterConstraintKey;
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
-        IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-        MachineBarrier, MachineEffectDeclaration, MachineEncodedControlEffect,
-        MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-        MachineTrapBehavior, ieee_float_arithmetic_is_trapping,
+        IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, MachineEffectDeclaration, MachineSizeKnowledge,
     };
 
     mod conversions {
@@ -6535,73 +6350,6 @@ pub(crate) mod ieee_float_arithmetic {
     const RIGHT_SCRATCH: u8 = 5;
     const ADDEND_SCRATCH: u8 = 3;
 
-    pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
-        sorted_units(units("mxcsr"))
-    }
-
-    pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-        sorted_units(units("xmm4").into_iter().chain(units("xmm5")))
-    }
-
-    fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
-        matches!(
-            form.operation,
-            IeeeFloatArithmeticOperation::IsNan
-                | IeeeFloatArithmeticOperation::IsInfinite
-                | IeeeFloatArithmeticOperation::IsFinite
-                | IeeeFloatArithmeticOperation::IsNormal
-                | IeeeFloatArithmeticOperation::IsSubnormal
-                | IeeeFloatArithmeticOperation::Classify
-                | IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64)
-                | IeeeFloatArithmeticOperation::TruncateToInteger {
-                    target: IeeeFloatIntegerCarrier::U64,
-                    ..
-                }
-                | IeeeFloatArithmeticOperation::TruncateToInteger {
-                    domain: IeeeFloatToIntegerDomain::Trapping,
-                    ..
-                }
-        )
-    }
-
-    pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
-        let inputs = form.operand_count() as u16;
-        let mut encoded = MachineEncodedEffects {
-            implicit_unit_uses: implicit_uses(),
-            implicit_unit_clobbers: clobbers(),
-            ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
-        };
-        if form.operation.rounding_direction().is_some() {
-            let model = crate::x86_64_physical_register_model();
-            let stack_pointer = model.view_named("rsp").expect("canonical stack pointer").id;
-            encoded.implicit_unit_uses =
-                sorted_units(encoded.implicit_unit_uses.into_iter().chain(units("rsp")));
-            encoded.memory =
-                selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                    stack_pointer,
-                    byte_count: 16,
-                };
-            encoded.stack = selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
-                stack_pointer,
-                byte_count: 16,
-            };
-            encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
-        }
-        if conversion_control(form) {
-            encoded.implicit_unit_clobbers =
-                sorted_units(clobbers().into_iter().chain(units("condition_flags")));
-        }
-        if form.operand_count() == 3 {
-            encoded.implicit_unit_clobbers =
-                sorted_units(clobbers().into_iter().chain(units("xmm3")));
-        }
-        if ieee_float_arithmetic_is_trapping(form) {
-            encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
-            encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
-        }
-        encoded
-    }
-
     pub(crate) fn footprint(
         form: IeeeFloatArithmeticForm,
         operands: &[RegisterViewId],
@@ -6613,40 +6361,6 @@ pub(crate) mod ieee_float_arithmetic {
             writes_rflags: conversion_control(form),
             encoded: effects(form),
         }
-    }
-
-    fn size(form: IeeeFloatArithmeticForm) -> Result<MachineSizeKnowledge, Error> {
-        Ok(target_x86_64::float_sizes::ieee_float_arithmetic_size(form))
-    }
-
-    pub(crate) fn declaration(
-        form: IeeeFloatArithmeticForm,
-        constraint: RegisterConstraintKey,
-    ) -> Result<MachineEffectDeclaration, Error> {
-        Ok(MachineEffectDeclaration::single(
-            MachineSemanticKind::NearestIeeeFloatArithmetic(form),
-            constraint,
-            if form.operation.rounding_direction().is_some() {
-                MachineMemoryEffect::TemporaryStackStorageV1
-            } else {
-                MachineMemoryEffect::NoneV1
-            },
-            if form.operation.rounding_direction().is_some() {
-                MachineTrapBehavior::MayArchitecturalFaultV1
-            } else if ieee_float_arithmetic_is_trapping(form) {
-                MachineTrapBehavior::TrappingIntegerV1
-            } else {
-                MachineTrapBehavior::NeverV1
-            },
-            if ieee_float_arithmetic_is_trapping(form) {
-                MachineBarrier::ExternalEffect
-            } else {
-                MachineBarrier::None
-            },
-            MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            size(form)?,
-            effects(form),
-        ))
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8354,7 +8068,7 @@ pub(crate) mod ieee_float_arithmetic {
                 let super::MachineSizeKnowledge::EncoderResolved {
                     minimum_bytes,
                     maximum_bytes: Some(maximum_bytes),
-                } = super::size(form).unwrap()
+                } = target_x86_64::float_sizes::ieee_float_arithmetic_size(form)
                 else {
                     panic!("scalar SSE2 forms declare bounded encoded sizes");
                 };
@@ -8409,25 +8123,12 @@ pub(crate) mod ieee_float_arithmetic {
     }
 }
 pub(crate) mod memory_fence {
-    use register_model::RegisterConstraintKey;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-        MemoryFenceKind,
-    };
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedEffects;
 
-    pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::MemoryFence,
-            constraint,
-            MachineMemoryEffect::CatalogFenceV1,
-            MachineTrapBehavior::NeverV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::MemoryFence,
-            MachineSizeKnowledge::ExactBytes(3),
-            MachineEncodedEffects::catalog_fence_v1(),
-        )
-    }
+    use selected_instructions::MemoryFenceKind;
 
     pub(crate) fn encode(kind: MemoryFenceKind) -> Option<Vec<u8>> {
         let opcode = match kind {
@@ -8548,35 +8249,17 @@ pub(crate) mod memory_fence {
     }
 }
 pub(crate) mod port_write {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+
+    pub(crate) use target_x86_64::form_effects::port_write::effects;
+
     use super::{ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError};
-    use crate::register_model::units_of;
-    use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedEffects, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+        MachineAlternativeKey, SelectedInstructionKind,
     };
-
-    pub(crate) fn effects() -> MachineEncodedEffects {
-        MachineEncodedEffects {
-            implicit_unit_clobbers: units_of(&["rax", "rdx", "r10", "r11"]),
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new())
-        }
-    }
-
-    pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::PortWrite,
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::PortWrite,
-            MachineSizeKnowledge::ExactBytes(x86_64_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
-            effects(),
-        )
-    }
 
     pub(super) fn validate(
         physical: &ValidatedPhysicalRegisterModel,
@@ -8657,6 +8340,27 @@ pub(crate) mod port_write {
     }
 }
 pub(crate) mod register_access {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineBarrier;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedEffects;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedMemoryEffect;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedStackEffect;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineSizeKnowledge;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineTrapBehavior;
+    #[cfg(test)]
+    pub(crate) use target_x86_64::form_effects::register_access::declaration;
+
+    pub(crate) use target_x86_64::form_effects::register_access::effects;
+
+    pub(crate) fn family(operation: Operation) -> Result<Family, Error> {
+        target_x86_64::form_effects::register_access::family(operation).ok_or(Error::AlternativeMismatch)
+    }
+
     mod descriptor_registers {
         use super::{Error, Operation};
         use crate::selected_form_encoding::instruction_bytes::assemble_labeled_stream;
@@ -9949,280 +9653,14 @@ pub(crate) mod register_access {
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
         X86_64SelectedFormFootprint,
     };
-    use crate::register_model::units_of;
-    use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::GlobalDescriptorTableOperation as DescriptorOperation;
     use selected_instructions::SystemRegister;
-    use selected_instructions::{ControlRegister, SegmentRegister, SegmentReload};
+    use selected_instructions::ControlRegister;
     use selected_instructions::{
-        InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey,
-        MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind as Semantic, MachineSizeKnowledge,
-        MachineTrapBehavior, MemoryFenceKind, RegisterOperation as Operation,
-        RegisterTargetApplicability, SelectedInstructionKind,
+        InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey, RegisterOperation as Operation, SelectedInstructionKind,
     };
-
-    pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
-        Some(match operation {
-            Operation::SystemRead(SystemRegister::Control(_)) => Semantic::ControlRegisterRead,
-            Operation::SystemWrite(SystemRegister::Control(_)) => Semantic::ControlRegisterWrite,
-            Operation::GlobalDescriptorTable(DescriptorOperation::Load) => {
-                Semantic::GlobalDescriptorTableLoad
-            }
-            Operation::GlobalDescriptorTable(DescriptorOperation::Store) => {
-                Semantic::GlobalDescriptorTableStore
-            }
-            Operation::TaskRegisterActivate => Semantic::TaskRegisterActivate,
-            Operation::TaskRegisterRead => Semantic::TaskRegisterRead,
-            Operation::SegmentReload(SegmentReload::Code) => Semantic::CodeSegmentReload,
-            Operation::SegmentReload(SegmentReload::Data) => Semantic::DataSegmentReload,
-            Operation::SegmentRead(_) => Semantic::SegmentSelectorRead,
-            Operation::PortRead => Semantic::PortRegisterRead,
-            Operation::PortWrite => Semantic::PortRegisterWrite,
-            Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
-            Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
-            Operation::MemoryFence(kind)
-                if kind.target() == RegisterTargetApplicability::X86_64 =>
-            {
-                Semantic::MemoryFence
-            }
-            Operation::ProcessorHalt => Semantic::ProcessorHalt,
-            Operation::InterruptControl(_) => Semantic::InterruptControl,
-            Operation::SystemRead(SystemRegister::Rflags) => Semantic::SystemRegisterRead,
-            Operation::SystemWrite(SystemRegister::Rflags) => Semantic::SystemRegisterWrite,
-            _ => return None,
-        })
-    }
-
-    pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
-        Some(match semantic {
-            Semantic::ControlRegisterRead => {
-                Operation::SystemRead(SystemRegister::Control(ControlRegister::Cr0))
-            }
-            Semantic::ControlRegisterWrite => {
-                Operation::SystemWrite(SystemRegister::Control(ControlRegister::Cr0))
-            }
-            Semantic::GlobalDescriptorTableLoad => {
-                Operation::GlobalDescriptorTable(DescriptorOperation::Load)
-            }
-            Semantic::GlobalDescriptorTableStore => {
-                Operation::GlobalDescriptorTable(DescriptorOperation::Store)
-            }
-            Semantic::TaskRegisterActivate => Operation::TaskRegisterActivate,
-            Semantic::TaskRegisterRead => Operation::TaskRegisterRead,
-            Semantic::CodeSegmentReload => Operation::SegmentReload(SegmentReload::Code),
-            Semantic::DataSegmentReload => Operation::SegmentReload(SegmentReload::Data),
-            Semantic::SegmentSelectorRead => Operation::SegmentRead(SegmentRegister::Code),
-            Semantic::PortRegisterRead => Operation::PortRead,
-            Semantic::PortRegisterWrite => Operation::PortWrite,
-            Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
-            Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
-            Semantic::MemoryFence => Operation::MemoryFence(MemoryFenceKind::Full),
-            Semantic::ProcessorHalt => Operation::ProcessorHalt,
-            Semantic::InterruptControl => {
-                Operation::InterruptControl(InterruptControlKind::Disable)
-            }
-            Semantic::SystemRegisterRead => Operation::SystemRead(SystemRegister::Rflags),
-            Semantic::SystemRegisterWrite => Operation::SystemWrite(SystemRegister::Rflags),
-            _ => return None,
-        })
-    }
-
-    pub(crate) fn family(operation: Operation) -> Result<Family, Error> {
-        Ok(Family::from(
-            semantic(operation).ok_or(Error::AlternativeMismatch)?,
-        ))
-    }
-
-    fn scratch(operation: Operation) -> &'static [&'static str] {
-        match operation {
-            Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
-            Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
-            Operation::GlobalDescriptorTable(_) => &["r10"],
-            Operation::TaskRegisterActivate => &["r9", "r10", "r11", "condition_flags"],
-            Operation::SegmentReload(SegmentReload::Code) => &["r9", "r10", "condition_flags"],
-            Operation::SegmentReload(SegmentReload::Data) => {
-                &["rcx", "rdx", "r8", "r9", "r10", "r11", "condition_flags"]
-            }
-            Operation::PortRead => &["rax", "rdx", "r10"],
-            Operation::SystemRead(SystemRegister::Rflags)
-            | Operation::SystemWrite(SystemRegister::Rflags) => &["r10", "r15"],
-            Operation::PortWrite => &["rax", "rdx", "r10", "r11"],
-            Operation::ModelSpecificRead | Operation::ModelSpecificWrite => {
-                &["rax", "rcx", "rdx", "r10", "r11"]
-            }
-            _ => &[],
-        }
-    }
-
-    pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
-        if matches!(operation, Operation::MemoryFence(_)) {
-            return MachineEncodedEffects::catalog_fence_v1();
-        }
-        let physical = crate::x86_64_physical_register_model_ref();
-        let mut encoded = MachineEncodedEffects {
-            implicit_unit_clobbers: units_of(scratch(operation)),
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(
-                (0..operation.input_carriers().len() as u16).collect(),
-                if operation.produces_value() {
-                    vec![operation.input_carriers().len() as u16]
-                } else {
-                    vec![]
-                },
-            )
-        };
-        if operation == Operation::SystemRead(SystemRegister::Rflags)
-            || operation == Operation::SystemWrite(SystemRegister::Rflags)
-        {
-            let stack_pointer = physical
-                .view_named("rsp")
-                .expect("canonical stack pointer")
-                .id;
-            let units = |name| {
-                physical
-                    .view_named(name)
-                    .expect("canonical flags register")
-                    .units
-                    .iter()
-                    .copied()
-            };
-            encoded.implicit_unit_uses = if operation.produces_value() {
-                register_model::sorted_units(["rflags", "rsp"].into_iter().flat_map(units))
-            } else {
-                register_model::sorted_units(["rsp"].into_iter().flat_map(units))
-            };
-            if !operation.produces_value() {
-                encoded.implicit_unit_defs = register_model::sorted_units(units("rflags"));
-            }
-            encoded.memory = MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
-            encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
-        }
-        if operation == Operation::TaskRegisterActivate {
-            let stack_pointer = physical
-                .view_named("rsp")
-                .expect("canonical stack pointer")
-                .id;
-            encoded.implicit_unit_uses = units_of(&["rsp", "control_flags"]);
-            encoded.memory = MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
-                table_pointer_operand: 0,
-                task_pointer_operand: 1,
-                selector_operand: 2,
-                scratch_pointer_operand: 3,
-                table_byte_count_operand: 4,
-                stack_pointer,
-            };
-            encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
-        }
-        if let Operation::SegmentReload(kind) = operation {
-            let stack_pointer = physical
-                .view_named("rsp")
-                .expect("canonical stack pointer")
-                .id;
-            encoded.implicit_unit_uses = units_of(&["rsp", "control_flags"]);
-            encoded.memory = MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
-                table_pointer_operand: 0,
-                selector_operand: 1,
-                scratch_pointer_operand: 2,
-                table_byte_count_operand: 3,
-                stack_pointer,
-            };
-            encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
-                stack_pointer,
-                byte_count: match kind {
-                    SegmentReload::Code => 16,
-                    SegmentReload::Data => 8,
-                },
-            };
-        }
-        match operation {
-            Operation::GlobalDescriptorTable(DescriptorOperation::Load) => {
-                encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: 10,
-                };
-            }
-            Operation::GlobalDescriptorTable(DescriptorOperation::Store) => {
-                encoded.memory = MachineEncodedMemoryEffect::WriteFixedPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: 10,
-                };
-            }
-            _ => {}
-        }
-        if matches!(operation, Operation::InterruptControl(_)) {
-            let flags = physical
-                .view_named("control_flags")
-                .expect("canonical flags register");
-            encoded.implicit_unit_uses = register_model::sorted_units(flags.units.iter().copied());
-            encoded.implicit_unit_defs = encoded.implicit_unit_uses.clone();
-        }
-        encoded
-    }
-
-    pub(crate) fn declaration(
-        operation: Operation,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        if matches!(operation, Operation::MemoryFence(_)) {
-            return super::memory_fence::declaration(constraint);
-        }
-        MachineEffectDeclaration::single(
-            semantic(operation).expect("x86 register operation"),
-            constraint,
-            if matches!(
-                operation,
-                Operation::SystemRead(SystemRegister::Rflags)
-                    | Operation::SystemWrite(SystemRegister::Rflags)
-            ) {
-                MachineMemoryEffect::TemporaryStackStorageV1
-            } else if matches!(operation, Operation::SegmentReload(_)) {
-                MachineMemoryEffect::SegmentDescriptorReloadV1
-            } else if operation == Operation::TaskRegisterActivate {
-                MachineMemoryEffect::TaskRegisterActivationV1
-            } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Load) {
-                MachineMemoryEffect::ReadPointerV1
-            } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Store) {
-                MachineMemoryEffect::WritePointerV1
-            } else {
-                MachineMemoryEffect::NoneV1
-            },
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            family(operation).expect("x86 register family"),
-            if matches!(
-                operation,
-                Operation::ProcessorHalt | Operation::InterruptControl(_)
-            ) {
-                MachineSizeKnowledge::ExactBytes(1)
-            } else {
-                crate::encoder_resolved(
-                    1,
-                    Some(
-                        if matches!(
-                            operation,
-                            Operation::TaskRegisterActivate | Operation::SegmentReload(_)
-                        ) {
-                            512
-                        } else {
-                            40
-                        },
-                    ),
-                )
-            },
-            effects(operation),
-        )
-    }
 
     fn move_register(bytes: &mut Vec<u8>, source: u8, destination: u8, wide: bool) {
         bytes.extend([
@@ -12123,55 +11561,14 @@ pub(crate) mod hosted_exit_process {
     use crate::selected_form_encoding::request_validation::resolve_registers;
     use register_model::RegisterConstraintKey;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration, MachineEncodedEffects, SelectedInstructionKind,
     };
     use target::NativeTarget;
 
     pub(crate) fn effects(
         _target: NativeTarget,
     ) -> Result<MachineEncodedEffects, X86_64SelectedFormEncodingError> {
-        let physical = crate::x86_64_physical_register_model();
-        let view = |name: &str| {
-            physical
-                .view_named(name)
-                .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)
-        };
-        let mut clobbers = Vec::new();
-        for name in ["rax", "rdi", "rcx", "r11", "rflags"] {
-            clobbers.extend(view(name)?.units.iter().copied());
-        }
-        clobbers.sort_unstable();
-        clobbers.dedup();
-        Ok(MachineEncodedEffects {
-            external_operand_reads: vec![0],
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: view("rip")?.units.clone(),
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: clobbers,
-            memory: MachineEncodedMemoryEffect::NoneV1,
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedExitReturnedV1,
-            control: MachineEncodedControlEffect::HostedExitOrTrapV1,
-        })
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> Result<MachineEffectDeclaration, X86_64SelectedFormEncodingError> {
-        Ok(MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedExitProcessI32,
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::HostedExitReturnedV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedExitProcessI32,
-            MachineSizeKnowledge::ExactBytes(12),
-            effects(target)?,
-        ))
+        target_x86_64::form_effects::hosted_exit_process::effects(_target).map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)
     }
 
     fn request(
@@ -12370,60 +11767,18 @@ pub(crate) mod hosted_exit_process {
     }
 }
 pub(crate) mod hosted_read_byte {
+    pub(crate) use target_x86_64::form_effects::hosted_read_byte::effects;
+
     use super::{
         RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
         X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
     };
-    use crate::register_model::{units_of, view_of};
-    use register_model::RegisterConstraintKey;
+
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         SelectedInstructionKind,
     };
     use target::NativeTarget;
-
-    fn leaf_bytes(target: NativeTarget) -> u16 {
-        if target == NativeTarget::macos_x64() {
-            crate::hosted_kernel::DARWIN_READ_BYTE_LEAF_BYTES as u16
-        } else {
-            62
-        }
-    }
-
-    pub(crate) fn effects() -> MachineEncodedEffects {
-        MachineEncodedEffects {
-            external_operand_reads: Vec::new(),
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: units_of(&["rsp", "rip"]),
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: units_of(&["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
-            memory: MachineEncodedMemoryEffect::HostedReadByteV1 {
-                stack_pointer: view_of("rsp").id,
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedReadFailureV1,
-            control: MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedReadByte,
-            constraint,
-            MachineMemoryEffect::HostedReadByteV1,
-            MachineTrapBehavior::HostedReadFailureV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedReadByte,
-            MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
-            effects(),
-        )
-    }
 
     fn request(
         target: NativeTarget,
@@ -12709,63 +12064,20 @@ pub(crate) mod hosted_read_byte {
     }
 }
 pub(crate) mod hosted_write_byte {
+    pub(crate) use target_x86_64::form_effects::hosted_write_byte::effects;
+
     use super::{
         RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
         X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
     };
-    use crate::register_model::{units_of, view_of};
+
     use crate::selected_form_encoding::request_validation::resolve_registers;
-    use register_model::RegisterConstraintKey;
+
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         SelectedInstructionKind,
     };
     use target::NativeTarget;
-
-    fn leaf_bytes(target: NativeTarget) -> u16 {
-        if crate::hosted_kernel::hosted_kernel(target)
-            .is_some_and(|kernel| kernel.carry_reports_failure)
-        {
-            42
-        } else {
-            40
-        }
-    }
-
-    pub(crate) fn effects() -> MachineEncodedEffects {
-        MachineEncodedEffects {
-            external_operand_reads: vec![0],
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: units_of(&["rsp", "rip"]),
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: units_of(&["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
-            memory: MachineEncodedMemoryEffect::HostedWriteByteV1 {
-                stack_pointer: view_of("rsp").id,
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedWriteFailureV1,
-            control: MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedWriteByteI32,
-            constraint,
-            MachineMemoryEffect::HostedWriteByteV1,
-            MachineTrapBehavior::HostedWriteFailureV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedWriteByteI32,
-            MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
-            effects(),
-        )
-    }
 
     fn request(
         target: NativeTarget,
@@ -13025,149 +12337,27 @@ pub(crate) mod hosted_write_byte {
     }
 }
 pub(crate) mod installed_interrupt {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedControlEffect;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineSemanticKind;
+
+    pub(crate) use target_x86_64::form_effects::installed_interrupt::{Form, effects};
+
     use super::{
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
         X86_64SelectedFormFootprint,
     };
-    use crate::register_model::units_of;
-    use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineTrapBehavior, SelectedInstructionKind,
+        MachineAlternativeKey, SelectedInstructionKind,
     };
 
     impl From<crate::X86InstalledTableEncodingError> for Error {
         fn from(error: crate::X86InstalledTableEncodingError) -> Self {
             Self::InstalledTable(Box::new(error))
         }
-    }
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum Form {
-        CpuCheck,
-        TaskCommit,
-        TablePublication,
-    }
-    impl Form {
-        pub(crate) fn from_kind(kind: SelectedInstructionKind) -> Option<Self> {
-            Some(match kind {
-                SelectedInstructionKind::InstalledInterruptCpuCheck { .. } => Self::CpuCheck,
-                SelectedInstructionKind::InstalledInterruptTaskCommit { .. } => Self::TaskCommit,
-                SelectedInstructionKind::InstalledInterruptTablePublication { .. } => {
-                    Self::TablePublication
-                }
-                _ => return None,
-            })
-        }
-        pub(crate) fn from_semantic(semantic: MachineSemanticKind) -> Option<Self> {
-            Some(match semantic {
-                MachineSemanticKind::InstalledInterruptCpuCheck => Self::CpuCheck,
-                MachineSemanticKind::InstalledInterruptTaskCommit => Self::TaskCommit,
-                MachineSemanticKind::InstalledInterruptTablePublication => Self::TablePublication,
-                _ => return None,
-            })
-        }
-        fn semantic(self) -> MachineSemanticKind {
-            match self {
-                Self::CpuCheck => MachineSemanticKind::InstalledInterruptCpuCheck,
-                Self::TaskCommit => MachineSemanticKind::InstalledInterruptTaskCommit,
-                Self::TablePublication => MachineSemanticKind::InstalledInterruptTablePublication,
-            }
-        }
-        fn memory(self) -> MachineMemoryEffect {
-            match self {
-                Self::CpuCheck => MachineMemoryEffect::InstalledInterruptCpuCheckV1,
-                Self::TaskCommit => MachineMemoryEffect::InstalledInterruptTaskCommitV1,
-                Self::TablePublication => MachineMemoryEffect::InstalledInterruptTablePublicationV1,
-            }
-        }
-        fn registers(self) -> &'static [u8] {
-            match self {
-                Self::CpuCheck => &[7, 6, 1, 0],
-                Self::TaskCommit => &[7, 6, 1],
-                Self::TablePublication => &[7, 1],
-            }
-        }
-        fn input_count(self) -> usize {
-            if self == Self::TablePublication { 2 } else { 3 }
-        }
-    }
-
-    pub(crate) fn effects(form: Form) -> MachineEncodedEffects {
-        let mut effects = MachineEncodedEffects::fallthrough_v1(
-            (0..form.input_count() as u16).collect(),
-            if form == Form::CpuCheck {
-                vec![3]
-            } else {
-                Vec::new()
-            },
-        );
-        effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
-        effects.implicit_unit_clobbers = units_of(match form {
-            Form::CpuCheck => &["r9", "r10", "r11", "condition_flags"],
-            Form::TaskCommit => &[
-                "rax",
-                "rdx",
-                "r8",
-                "r9",
-                "r10",
-                "r11",
-                "condition_flags",
-                "control_flags",
-            ],
-            Form::TablePublication => &["rax"],
-        });
-        if form == Form::TablePublication {
-            effects.memory = MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
-                table_pointer_operand: 0,
-                scratch_pointer_operand: 1,
-            };
-        } else {
-            let stack_pointer = crate::x86_64_physical_register_model_ref()
-                .view_named("rsp")
-                .expect("canonical stack pointer")
-                .id;
-            effects.implicit_unit_uses = units_of(&["rsp", "control_flags"]);
-            effects.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
-            effects.memory = if form == Form::CpuCheck {
-                MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
-                    table_pointer_operand: 0,
-                    task_pointer_operand: 1,
-                    scratch_pointer_operand: 2,
-                    stack_pointer,
-                }
-            } else {
-                effects.control = MachineEncodedControlEffect::FallThroughOrStopV1;
-                MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
-                    table_pointer_operand: 0,
-                    task_pointer_operand: 1,
-                    scratch_pointer_operand: 2,
-                    stack_pointer,
-                }
-            };
-        }
-        effects
-    }
-
-    pub(crate) fn declaration(
-        form: Form,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            form.semantic(),
-            constraint,
-            form.memory(),
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            form.semantic().into(),
-            crate::encoder_resolved(1, Some(2048)),
-            effects(form),
-        )
     }
 
     fn request(
@@ -16999,6 +16189,8 @@ mod memory {
     }
 }
 mod normalized_foreign_call {
+    pub(crate) use target_x86_64::form_effects::normalized_foreign_call::{x86_64_machine_register_encoding};
+
     use normalized_foreign_call_plan::{Fixup, Template};
     use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
@@ -17193,6 +16385,30 @@ mod normalized_foreign_call {
         ))
     }
 
+    #[test]
+    fn field_sizes_match_encoded_callbacks_and_refusals() {
+        use layout_plans::LayoutPlacementReport::{At, Bits};
+        use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
+        for root in [R::X86Rdi, R::X86R12, R::X86Rsp, R::X86R11, R::Aarch64X(1)] {
+            for offset in [0, 1, 255, 4095, 4096, 32760, u64::MAX] {
+                let mut groups = vec![vec![], vec![At { offset }], vec![At {offset}, At {offset: 16}]];
+                for container_width in [8, 16, 24, 32, 40, 48, 56, 64] {
+                    for (destination_lsb, source_lsb, width) in [(0, 0, container_width), (1, 3, 4), (2, 2, 63)] {
+                        groups.push(vec![Bits { container: offset, container_width, destination_lsb, source_lsb, width }]);
+                    }
+                }
+                for placements in groups {
+                    let destination = X86_64CallbackMaterializationDestination::RecordField {
+                        root_register: root, placements: PrivateCallbackPlacements::new(&placements),
+                    };
+                    let actual = callback_group_bytes(destination).map(|bytes| u16::try_from(bytes.len()).unwrap());
+                    assert_eq!(target_x86_64::callback_geometry::callback_field_bytes(root, &placements), actual,
+                               "{root:?} {placements:?}");
+                }
+            }
+        }
+    }
+
     pub fn callback_group_bytes(
         destination: X86_64CallbackMaterializationDestination,
     ) -> Option<Vec<u8>> {
@@ -17234,28 +16450,6 @@ mod normalized_foreign_call {
                 (!placements.as_slice().is_empty()).then_some(group)
             }
         }
-    }
-
-    pub(super) fn x86_64_machine_register_encoding(
-        register: calling_conventions::MachineRegister,
-    ) -> Option<u8> {
-        Some(match register {
-            calling_conventions::MachineRegister::X86Rax => 0,
-            calling_conventions::MachineRegister::X86Rcx => 1,
-            calling_conventions::MachineRegister::X86Rdx => 2,
-            calling_conventions::MachineRegister::X86Rbx => 3,
-            calling_conventions::MachineRegister::X86Rsi => 6,
-            calling_conventions::MachineRegister::X86Rdi => 7,
-            calling_conventions::MachineRegister::X86R8 => 8,
-            calling_conventions::MachineRegister::X86R9 => 9,
-            calling_conventions::MachineRegister::X86R10 => 10,
-            calling_conventions::MachineRegister::X86R11 => 11,
-            calling_conventions::MachineRegister::X86R12 => 12,
-            calling_conventions::MachineRegister::X86R13 => 13,
-            calling_conventions::MachineRegister::X86R14 => 14,
-            calling_conventions::MachineRegister::X86R15 => 15,
-            _ => return None,
-        })
     }
 
     fn callback_fixup(
@@ -17730,7 +16924,6 @@ mod normalized_foreign_call {
         }
     }
 }
-pub use normalized_foreign_call::callback_group_bytes;
 mod request_validation {
     use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
     use crate::selected_form_encoding::saturating_forms::SaturatingForm;
@@ -18018,131 +17211,9 @@ mod request_validation {
     }
 }
 pub(crate) mod saturating_forms {
+    pub(crate) use target_x86_64::form_effects::saturating_forms::{SaturatingForm};
+
     use selected_instructions::{SaturatingCarrier, SaturatingOperation, SelectedInstructionKind};
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum SaturatingForm {
-        AddU64,
-        SubtractUnsigned,
-        DivideUnsigned,
-        ClampSignedNarrow,
-        ClampUnsignedNarrow,
-        OverflowSelectI64,
-        DivideSignedNarrow,
-        DivideI64,
-        RemainderUnsigned,
-        RemainderSigned,
-        MultiplySignedNarrow,
-        MultiplyUnsignedNarrow,
-        MultiplyI64,
-        MultiplyU64,
-    }
-
-    impl SaturatingForm {
-        pub(crate) const fn of(operation: SaturatingOperation, carrier: SaturatingCarrier) -> Self {
-            match (operation, carrier.is_signed(), carrier.is_narrow()) {
-                (SaturatingOperation::Add, false, false) => Self::AddU64,
-                (SaturatingOperation::Add, false, true) => Self::ClampUnsignedNarrow,
-                (SaturatingOperation::Add | SaturatingOperation::Subtract, true, true) => {
-                    Self::ClampSignedNarrow
-                }
-                (SaturatingOperation::Add | SaturatingOperation::Subtract, true, false) => {
-                    Self::OverflowSelectI64
-                }
-                (SaturatingOperation::Subtract, false, _) => Self::SubtractUnsigned,
-                (SaturatingOperation::Divide, false, _) => Self::DivideUnsigned,
-                (SaturatingOperation::Divide, true, true) => Self::DivideSignedNarrow,
-                (SaturatingOperation::Divide, true, false) => Self::DivideI64,
-                (SaturatingOperation::Remainder, false, _) => Self::RemainderUnsigned,
-                (SaturatingOperation::Remainder, true, _) => Self::RemainderSigned,
-                (SaturatingOperation::Multiply, true, true) => Self::MultiplySignedNarrow,
-                (SaturatingOperation::Multiply, false, true) => Self::MultiplyUnsignedNarrow,
-                (SaturatingOperation::Multiply, true, false) => Self::MultiplyI64,
-                (SaturatingOperation::Multiply, false, false) => Self::MultiplyU64,
-            }
-        }
-
-        pub(crate) const fn byte_count(self) -> u16 {
-            match self {
-                Self::AddU64 => 19,
-                Self::SubtractUnsigned => 13,
-                Self::DivideUnsigned => 3,
-                Self::ClampSignedNarrow => 40,
-                Self::ClampUnsignedNarrow => 23,
-                Self::OverflowSelectI64 => 25,
-                Self::DivideSignedNarrow => 22,
-                Self::DivideI64 => 26,
-                Self::RemainderUnsigned => 9,
-                Self::RemainderSigned => 17,
-                Self::MultiplySignedNarrow => 41,
-                Self::MultiplyUnsignedNarrow => 24,
-                Self::MultiplyI64 => 29,
-                Self::MultiplyU64 => 9,
-            }
-        }
-
-        pub(crate) const fn operand_count(self) -> usize {
-            match self {
-                Self::AddU64 | Self::SubtractUnsigned => 3,
-                Self::DivideUnsigned
-                | Self::ClampSignedNarrow
-                | Self::ClampUnsignedNarrow
-                | Self::OverflowSelectI64
-                | Self::DivideSignedNarrow
-                | Self::DivideI64
-                | Self::RemainderUnsigned
-                | Self::RemainderSigned
-                | Self::MultiplySignedNarrow
-                | Self::MultiplyUnsignedNarrow
-                | Self::MultiplyI64
-                | Self::MultiplyU64 => 4,
-            }
-        }
-
-        pub(crate) const fn is_division(self) -> bool {
-            matches!(
-                self,
-                Self::DivideUnsigned
-                    | Self::DivideSignedNarrow
-                    | Self::DivideI64
-                    | Self::RemainderUnsigned
-                    | Self::RemainderSigned
-            )
-        }
-
-        pub(crate) const fn is_fixed_rax_rdx(self) -> bool {
-            self.is_division() || matches!(self, Self::MultiplyU64)
-        }
-
-        pub(crate) fn accepts_registers(self, registers: &[u8]) -> bool {
-            if registers.len() != self.operand_count() {
-                return false;
-            }
-            let (inputs, outputs) = registers.split_at(2);
-            if self.is_fixed_rax_rdx() {
-                return inputs[0] == 0 && outputs[0] == 0 && outputs[1] == 2 && inputs[1] != 2;
-            }
-            outputs.iter().all(|output| !inputs.contains(output))
-                && (outputs.len() == 1 || outputs[0] != outputs[1])
-        }
-
-        pub(crate) fn operand_reads_and_writes(self) -> (Vec<u16>, Vec<u16>) {
-            match self {
-                Self::AddU64 | Self::SubtractUnsigned => (vec![0, 1], vec![2]),
-                Self::DivideUnsigned | Self::DivideSignedNarrow | Self::DivideI64 => {
-                    (vec![0, 1, 3], vec![2])
-                }
-                Self::RemainderUnsigned | Self::RemainderSigned => (vec![0, 1], vec![2, 3]),
-                Self::ClampSignedNarrow
-                | Self::ClampUnsignedNarrow
-                | Self::OverflowSelectI64
-                | Self::MultiplySignedNarrow
-                | Self::MultiplyUnsignedNarrow
-                | Self::MultiplyI64
-                | Self::MultiplyU64 => (vec![0, 1], vec![2, 3]),
-            }
-        }
-    }
 
     pub(crate) const fn saturating_operation(
         kind: SelectedInstructionKind,
@@ -19723,6 +18794,8 @@ pub(crate) mod system_call {
     }
 }
 pub(crate) mod table_call {
+    pub(crate) use target_x86_64::form_effects::table_call::{table_address};
+
     use super::{
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
         X86_64SelectedFormFootprint,
@@ -19794,51 +18867,6 @@ pub(crate) mod table_call {
         })
     }
 
-    pub(crate) fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u8, u32)> {
-        let (byte_offset, _) = record.call.binding.table_dispatch()?;
-        if !record.call.callbacks.is_empty() || byte_offset > i32::MAX as u32 {
-            return None;
-        }
-        let plan = &record.call.binding.boundary_entry_plan.call;
-        let is_scratch = |location: &calling_conventions::ValueLocation| {
-            location
-                .direct_register()
-                .and_then(super::normalized_foreign_call::x86_64_machine_register_encoding)
-                == Some(11)
-        };
-        if plan
-            .parameters
-            .iter()
-            .flat_map(|parameter| &parameter.locations)
-            .any(is_scratch)
-            || plan
-                .result
-                .iter()
-                .flat_map(|result| &result.locations)
-                .any(|location| {
-                    matches!(
-                        location,
-                        calling_conventions::ValueLocation::Indirect { .. }
-                    ) && is_scratch(location)
-                })
-        {
-            return None;
-        }
-        let operands = record.call.binding.operand_placements();
-        let parameter = operands.get(0)?;
-        let [
-            calling_conventions::ValueLocation::Register {
-                register,
-                byte_size: 8,
-                value_byte_offset: 0,
-            },
-        ] = parameter.locations.as_slice()
-        else {
-            return None;
-        };
-        let register = super::normalized_foreign_call::x86_64_machine_register_encoding(*register)?;
-        (register & 7 != 4).then_some((register, byte_offset))
-    }
 }
 pub use table_call::{
     encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
@@ -23537,260 +22565,14 @@ mod tests {
     }
 }
 pub(crate) mod trapping_forms {
+    #[cfg(test)]
+    pub(crate) use target_x86_64::form_effects::trapping_forms::TrappingRow;
+
+    pub(crate) use target_x86_64::form_effects::trapping_forms::{DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape};
+
     use selected_instructions::{
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedTrapBehavior,
-        SaturatingCarrier, SelectedInstructionKind, TrappingForm, TrappingOperation,
+        SelectedInstructionKind, TrappingForm,
     };
-    use semantic_vocabulary::IntegerSign;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum TrappingRow {
-        Binary,
-        FixedPair,
-        Shift,
-        Convert,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum TrappingArithmetic {
-        Add,
-        Subtract,
-        Multiply,
-    }
-
-    impl TrappingArithmetic {
-        const fn byte_count(self) -> u16 {
-            match self {
-                Self::Add | Self::Subtract => 3,
-                Self::Multiply => 4,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum RangeCheck {
-        SignExtension { bits: u16 },
-        HighBits { shift: u8 },
-    }
-
-    impl RangeCheck {
-        const fn of_narrow_carrier(carrier: SaturatingCarrier) -> Self {
-            if carrier.is_signed() {
-                Self::SignExtension {
-                    bits: carrier.bits(),
-                }
-            } else {
-                Self::HighBits {
-                    shift: carrier.bits() as u8,
-                }
-            }
-        }
-
-        const fn of_conversion(source: IntegerSign, carrier: SaturatingCarrier) -> Option<Self> {
-            match (source, carrier) {
-                (IntegerSign::Signed, SaturatingCarrier::I64)
-                | (IntegerSign::Unsigned, SaturatingCarrier::U64) => None,
-                (IntegerSign::Signed, SaturatingCarrier::U64) => Some(Self::HighBits { shift: 63 }),
-                (IntegerSign::Signed, _) if carrier.is_signed() => Some(Self::SignExtension {
-                    bits: carrier.bits(),
-                }),
-                _ if carrier.is_signed() => Some(Self::HighBits {
-                    shift: carrier.bits() as u8 - 1,
-                }),
-                _ => Some(Self::HighBits {
-                    shift: carrier.bits() as u8,
-                }),
-            }
-        }
-
-        pub(crate) const fn byte_count(self) -> u16 {
-            match self {
-                Self::SignExtension { bits: 32 } => 10,
-                Self::SignExtension { .. } | Self::HighBits { .. } => 11,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum DividendGuard {
-        Minimum8(i8),
-        Minimum32(i32),
-        DecrementOverflows,
-    }
-
-    impl DividendGuard {
-        const fn of(carrier: SaturatingCarrier) -> Option<Self> {
-            match carrier {
-                SaturatingCarrier::I8 => Some(Self::Minimum8(i8::MIN)),
-                SaturatingCarrier::I16 => Some(Self::Minimum32(i16::MIN as i32)),
-                SaturatingCarrier::I32 => Some(Self::Minimum32(i32::MIN)),
-                SaturatingCarrier::I64 => Some(Self::DecrementOverflows),
-                SaturatingCarrier::U8
-                | SaturatingCarrier::U16
-                | SaturatingCarrier::U32
-                | SaturatingCarrier::U64 => None,
-            }
-        }
-
-        pub(crate) const fn byte_count(self) -> u16 {
-            match self {
-                Self::Minimum8(_) | Self::DecrementOverflows => 8,
-                Self::Minimum32(_) => 10,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum TrappingShape {
-        OverflowFlag(TrappingArithmetic),
-        CarryFlag(TrappingArithmetic),
-        NarrowRange(TrappingArithmetic, RangeCheck),
-        MultiplyHighHalf,
-        Division {
-            guard: Option<DividendGuard>,
-            remainder: bool,
-        },
-        ShiftLeftRoundTrip {
-            signed: bool,
-        },
-        ShiftLeftRange {
-            width: u8,
-            check: RangeCheck,
-        },
-        ShiftRight {
-            width: u8,
-            signed: bool,
-        },
-        Convert(Option<RangeCheck>),
-    }
-
-    impl TrappingShape {
-        pub(crate) const fn of(form: TrappingForm) -> Self {
-            let carrier = form.carrier;
-            let arithmetic = match form.operation {
-                TrappingOperation::Add => TrappingArithmetic::Add,
-                TrappingOperation::Subtract => TrappingArithmetic::Subtract,
-                _ => TrappingArithmetic::Multiply,
-            };
-            match form.operation {
-                TrappingOperation::Multiply if matches!(carrier, SaturatingCarrier::U64) => {
-                    Self::MultiplyHighHalf
-                }
-                TrappingOperation::Add
-                | TrappingOperation::Subtract
-                | TrappingOperation::Multiply => match carrier {
-                    SaturatingCarrier::I64 => Self::OverflowFlag(arithmetic),
-                    SaturatingCarrier::U64 => Self::CarryFlag(arithmetic),
-                    _ => Self::NarrowRange(arithmetic, RangeCheck::of_narrow_carrier(carrier)),
-                },
-                TrappingOperation::Divide | TrappingOperation::Remainder => Self::Division {
-                    guard: DividendGuard::of(carrier),
-                    remainder: matches!(form.operation, TrappingOperation::Remainder),
-                },
-                TrappingOperation::ShiftLeft if carrier.is_narrow() => Self::ShiftLeftRange {
-                    width: carrier.bits() as u8,
-                    check: RangeCheck::of_narrow_carrier(carrier),
-                },
-                TrappingOperation::ShiftLeft => Self::ShiftLeftRoundTrip {
-                    signed: carrier.is_signed(),
-                },
-                TrappingOperation::ShiftRight => Self::ShiftRight {
-                    width: carrier.bits() as u8,
-                    signed: carrier.is_signed(),
-                },
-                TrappingOperation::Convert { source } => {
-                    Self::Convert(RangeCheck::of_conversion(source, carrier))
-                }
-            }
-        }
-
-        pub(crate) const fn row(self) -> TrappingRow {
-            match self {
-                Self::OverflowFlag(_) | Self::CarryFlag(_) | Self::NarrowRange(..) => {
-                    TrappingRow::Binary
-                }
-                Self::MultiplyHighHalf | Self::Division { .. } => TrappingRow::FixedPair,
-                Self::ShiftLeftRoundTrip { .. }
-                | Self::ShiftLeftRange { .. }
-                | Self::ShiftRight { .. } => TrappingRow::Shift,
-                Self::Convert(_) => TrappingRow::Convert,
-            }
-        }
-
-        pub(crate) const fn byte_count(self) -> u16 {
-            const TRAP_UNLESS: u16 = 4;
-            const COUNT_CHECK: u16 = 4 + TRAP_UNLESS;
-            const SHIFT: u16 = 6;
-            match self {
-                Self::OverflowFlag(arithmetic) | Self::CarryFlag(arithmetic) => {
-                    3 + arithmetic.byte_count() + TRAP_UNLESS
-                }
-                Self::NarrowRange(arithmetic, check) => {
-                    3 + arithmetic.byte_count() + check.byte_count()
-                }
-                Self::MultiplyHighHalf => 3 + TRAP_UNLESS,
-                Self::Division { guard, remainder } => {
-                    let zero = 3 + TRAP_UNLESS;
-                    let divide = match guard {
-                        None => 6,
-                        Some(guard) => 4 + 2 + guard.byte_count() + 5,
-                    };
-                    zero + divide + if remainder { 3 } else { 0 }
-                }
-                Self::ShiftLeftRoundTrip { .. } => COUNT_CHECK + SHIFT + 9 + TRAP_UNLESS,
-                Self::ShiftLeftRange { check, .. } => COUNT_CHECK + SHIFT + check.byte_count(),
-                Self::ShiftRight { .. } => COUNT_CHECK + SHIFT,
-                Self::Convert(None) => 3,
-                Self::Convert(Some(check)) => check.byte_count() + 3,
-            }
-        }
-
-        pub(crate) const fn operand_count(self) -> usize {
-            match self.row() {
-                TrappingRow::Binary | TrappingRow::FixedPair | TrappingRow::Shift => 4,
-                TrappingRow::Convert => 3,
-            }
-        }
-
-        pub(crate) fn accepts_registers(self, registers: &[u8]) -> bool {
-            if registers.len() != self.operand_count() {
-                return false;
-            }
-            let (inputs, outputs) = registers.split_at(registers.len() - 2);
-            match self.row() {
-                TrappingRow::FixedPair => {
-                    inputs[0] == 0 && outputs[0] == 0 && outputs[1] == 2 && inputs[1] != 2
-                }
-                TrappingRow::Shift if inputs[1] != 1 => false,
-                TrappingRow::Binary | TrappingRow::Shift | TrappingRow::Convert => {
-                    outputs.iter().all(|output| !inputs.contains(output))
-                        && outputs[0] != outputs[1]
-                }
-            }
-        }
-
-        pub(crate) fn operand_reads_and_writes(self) -> (Vec<u16>, Vec<u16>) {
-            match self.row() {
-                TrappingRow::Binary | TrappingRow::FixedPair | TrappingRow::Shift => {
-                    (vec![0, 1], vec![2, 3])
-                }
-                TrappingRow::Convert => (vec![0], vec![1, 2]),
-            }
-        }
-
-        pub(crate) fn encoded_effects(self) -> MachineEncodedEffects {
-            let (reads, writes) = self.operand_reads_and_writes();
-            let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
-            encoded.implicit_unit_clobbers = crate::x86_64_physical_register_model()
-                .view_named("condition_flags")
-                .expect("canonical x86-64 model declares condition flags")
-                .units
-                .clone();
-            encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
-            encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
-            encoded
-        }
-    }
 
     pub(crate) const fn trapping_form(kind: SelectedInstructionKind) -> Option<TrappingForm> {
         match kind {

@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "x86_64_encoding"
 path = "src/lib.rs"
+
+[dependencies]
+target-x86_64 = { path = "../../../target-description/target-x86_64" }

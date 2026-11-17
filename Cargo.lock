@@ -1889,7 +1889,6 @@ name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "isa-x86_64",
  "optimization-core",
  "register-environment",
  "register-homes",
@@ -1901,6 +1900,7 @@ dependencies = [
  "target",
  "target-operations",
  "target-vocabulary",
+ "target-x86_64",
  "terminal-psi",
  "wire",
 ]
@@ -2111,8 +2111,6 @@ name = "register-environment"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
  "mimalloc",
  "register-model",
  "selected-instructions",
@@ -2277,8 +2275,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
  "legalized-operations",
  "native-vocabulary",
  "optimization-core",
@@ -2288,7 +2284,9 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-aarch64",
  "target-vocabulary",
+ "target-x86_64",
  "terminal-psi",
  "wire",
 ]
@@ -2648,8 +2646,12 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "isa-aarch64",
+ "isa-conformance",
+ "layout-plans",
+ "normalized-foreign-call-plan",
  "register-model",
  "selected-instructions",
+ "semantic-vocabulary",
  "target",
 ]
 
@@ -2697,9 +2699,14 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
+ "isa-conformance",
  "isa-x86_64",
+ "layout-plans",
+ "normalized-foreign-call-plan",
+ "optimization-core",
  "register-model",
  "selected-instructions",
+ "semantic-vocabulary",
  "target",
  "wire",
 ]
@@ -3238,6 +3245,9 @@ dependencies = [
 [[package]]
 name = "x86_64-encoding"
 version = "0.1.0"
+dependencies = [
+ "target-x86_64",
+]
 
 [[package]]
 name = "xtask"

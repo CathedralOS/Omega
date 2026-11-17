@@ -16,13 +16,13 @@ mod provenance_effects;
 mod register_calls;
 mod return_effects;
 
-use isa_aarch64::Aarch64MachineEffectCatalogValidationError as Aarch64EffectError;
-use isa_aarch64::{
+use target_aarch64::Aarch64MachineEffectCatalogValidationError as Aarch64EffectError;
+use target_aarch64::{
     AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, aarch64_machine_effect_catalog,
     aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
 };
-use isa_x86_64::X86_64MachineEffectCatalogValidationError as X86_64EffectError;
-use isa_x86_64::{
+use target_x86_64::X86_64MachineEffectCatalogValidationError as X86_64EffectError;
+use target_x86_64::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
     validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
     x86_64_preservation_convention_for_target,

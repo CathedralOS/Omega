@@ -329,6 +329,29 @@ mod placement {
 mod private_callback_placements {
     use crate::{LayoutPlacementReport, validate_fragment};
 
+    /// One pointer fragment written by a callback or post-handoff helper.
+    pub fn private_address_fragment(
+        placement: LayoutPlacementReport,
+        materialization_len: usize,
+    ) -> Option<crate::ScalarFragment> {
+        let (container_byte_offset, container, destination, source, width) = match placement {
+            LayoutPlacementReport::At { offset } => (offset, 64, 0, 0, 64),
+            LayoutPlacementReport::Bits { container, container_width, destination_lsb, source_lsb, width } =>
+                (container, container_width, destination_lsb, source_lsb, width),
+            LayoutPlacementReport::IntegerAt { .. } => return None,
+        };
+        let fragment = crate::ScalarFragment {
+            container_byte_offset,
+            container_width_bits: u16::try_from(container).ok()?,
+            destination_lsb: u16::try_from(destination).ok()?,
+            source_lsb: u16::try_from(source).ok()?,
+            width: u16::try_from(width).ok()?,
+        };
+        validate_fragment(materialization_len, "private address", container_byte_offset,
+            fragment.container_width_bits, fragment.destination_lsb, fragment.source_lsb, fragment.width).ok()?;
+        Some(fragment)
+    }
+
     pub fn validate_private_callback_placements(
         placements: &[LayoutPlacementReport],
         pointer_size: u64,
@@ -1018,6 +1041,7 @@ pub use materialization_records::field_values::{
     AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
 };
 pub use materialization_records::stored_integer_checks::{
+    ScalarFragment,
     validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape,
     validate_write, validate_write_source_value,
 };
@@ -1402,7 +1426,7 @@ mod target_facts {
 pub use target_facts::LayoutTargetFacts;
 
 pub use private_callback_placements::{
-    compose_private_callback_placements, validate_private_callback_placements,
+    compose_private_callback_placements, private_address_fragment, validate_private_callback_placements,
 };
 
 pub use materialization_records::{field_identities, field_values, stored_integer_checks};

@@ -5,6 +5,10 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+optimization-core = { path = "../../representations/optimization-contracts" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
 calling-conventions = { path = "../calling-conventions" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 register-model = { path = "../register-model" }
@@ -13,6 +17,7 @@ target = { path = "../target" }
 wire = { path = "../../../../psi/foundation/wire" }
 
 [dev-dependencies]
+isa-conformance = { path = "../../../../test-support/isa-conformance" }
 isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }
 register-model = { path = "../register-model", features = ["test-support"] }
 selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

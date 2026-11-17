@@ -6,10 +6,10 @@ primitives.
 */
 
 use super::super::baseline_target_register_environment;
-use isa_aarch64::{
+use target_aarch64::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
 };
-use isa_x86_64::{
+use target_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COPY_I64, X86_64_FRAME_ADDRESS, X86_64_LOAD64,
     X86_64_MICROSOFT_CALL_UNIT, X86_64_STORE64, X86_64_SUBTRACT_I64,
 };
@@ -28,11 +28,11 @@ fn selected_keys_match_machine_effect_catalog_on_every_supported_target() {
         let environment = baseline_target_register_environment(target).unwrap();
         let catalog = match target.architecture {
             Architecture::X86_64 => {
-                isa_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
+                target_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
                     .unwrap()
             }
             Architecture::Aarch64 => {
-                isa_aarch64::aarch64_machine_effect_catalog(target, environment.constraints())
+                target_aarch64::aarch64_machine_effect_catalog(target, environment.constraints())
                     .unwrap()
             }
         };
@@ -113,11 +113,11 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         let unit_keys = &environment.selected_keys().call_unit;
         let expected_exit =
             if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
-                Some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32)
+                Some(target_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32)
             } else if target == NativeTarget::linux_arm64() {
-                Some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32)
+                Some(target_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32)
             } else if target == NativeTarget::macos_arm64() {
-                Some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
+                Some(target_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
             } else {
                 None
             };
@@ -137,13 +137,13 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         }
         let expected_write = match (target.architecture, target.object_format) {
             (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
-                Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32)
+                Some(target_x86_64::X86_64_HOSTED_WRITE_BYTE_I32)
             }
             (Architecture::Aarch64, ObjectFormat::Elf) => {
-                Some(isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32)
+                Some(target_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32)
             }
             (Architecture::Aarch64, ObjectFormat::MachO) => {
-                Some(isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32)
+                Some(target_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32)
             }
             _ => None,
         };
@@ -185,14 +185,14 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         }
         let load = match target.architecture {
             Architecture::X86_64 => X86_64_LOAD64,
-            Architecture::Aarch64 => isa_aarch64::AARCH64_LOAD64,
+            Architecture::Aarch64 => target_aarch64::AARCH64_LOAD64,
         };
         assert_eq!(environment.selected_keys().load64, Some(load));
         assert_eq!(environment.allocation_constraint_keys().load64, Some(load));
         assert_eq!(environment.constraint(load).unwrap().operands.len(), 2);
         let indexed_load = match target.architecture {
-            Architecture::X86_64 => isa_x86_64::X86_64_LOAD8_INDEXED,
-            Architecture::Aarch64 => isa_aarch64::AARCH64_LOAD8_INDEXED,
+            Architecture::X86_64 => target_x86_64::X86_64_LOAD8_INDEXED,
+            Architecture::Aarch64 => target_aarch64::AARCH64_LOAD8_INDEXED,
         };
         eq!(environment.selected_keys().load8_indexed => Some(indexed_load));
         eq!(environment.allocation_constraint_keys().load8_indexed => Some(indexed_load));
@@ -202,8 +202,8 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                 environment.selected_keys().store,
                 environment.allocation_constraint_keys().store,
                 match target.architecture {
-                    Architecture::X86_64 => isa_x86_64::X86_64_STORE,
-                    Architecture::Aarch64 => isa_aarch64::AARCH64_STORE,
+                    Architecture::X86_64 => target_x86_64::X86_64_STORE,
+                    Architecture::Aarch64 => target_aarch64::AARCH64_STORE,
                 },
                 2,
             ),
@@ -211,8 +211,8 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                 environment.selected_keys().address_offset,
                 environment.allocation_constraint_keys().address_offset,
                 match target.architecture {
-                    Architecture::X86_64 => isa_x86_64::X86_64_ADDRESS_OFFSET,
-                    Architecture::Aarch64 => isa_aarch64::AARCH64_ADDRESS_OFFSET,
+                    Architecture::X86_64 => target_x86_64::X86_64_ADDRESS_OFFSET,
+                    Architecture::Aarch64 => target_aarch64::AARCH64_ADDRESS_OFFSET,
                 },
                 2,
             ),
@@ -221,7 +221,7 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                 environment.allocation_constraint_keys().store64,
                 match target.architecture {
                     Architecture::X86_64 => X86_64_STORE64,
-                    Architecture::Aarch64 => isa_aarch64::AARCH64_STORE64,
+                    Architecture::Aarch64 => target_aarch64::AARCH64_STORE64,
                 },
                 2,
             ),
@@ -230,7 +230,7 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                 environment.allocation_constraint_keys().frame_address,
                 match target.architecture {
                     Architecture::X86_64 => X86_64_FRAME_ADDRESS,
-                    Architecture::Aarch64 => isa_aarch64::AARCH64_FRAME_ADDRESS,
+                    Architecture::Aarch64 => target_aarch64::AARCH64_FRAME_ADDRESS,
                 },
                 1,
             ),

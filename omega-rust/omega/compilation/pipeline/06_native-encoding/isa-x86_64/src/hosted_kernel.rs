@@ -75,7 +75,7 @@ pub fn encode_darwin_read_byte_to_stack(
     Ok(bytes)
 }
 
-pub(crate) const DARWIN_READ_BYTE_LEAF_BYTES: usize = 67;
+
 
 pub(crate) fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
     if bytes.len() != DARWIN_READ_BYTE_LEAF_BYTES {

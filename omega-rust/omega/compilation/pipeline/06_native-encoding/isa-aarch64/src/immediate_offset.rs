@@ -131,19 +131,11 @@ pub(crate) fn validate_aligned_frame_address_words(
         }
 }
 
-pub(crate) const fn address_word_count(amount: u64) -> u64 {
-    let pages = (amount >> 12).div_ceil(IMMEDIATE_LIMIT);
-    if amount & IMMEDIATE_LIMIT != 0 || amount == 0 {
-        pages + 1
-    } else {
-        pages
-    }
-}
+pub(crate) use target_aarch64::form_effects::address_word_count;
 
-pub(crate) const MAX_ADDRESS_BYTES: u16 = (address_word_count(u32::MAX as u64) * 4) as u16;
+#[cfg(test)]
+use target_aarch64::form_effects::MAX_ADDRESS_BYTES;
 
-pub(crate) const MAX_STORE64_BYTES: u16 =
-    ((address_word_count(u32::MAX as u64 & !4095) + 1) * 4) as u16;
 
 pub(crate) fn decode_address_words(words: &[u32], destination: u8, base: u8) -> Option<u64> {
     let mut offset = 0_u64;

@@ -39,15 +39,6 @@ x64, Linux, macOS, and UEFI targets:
 
 pub(crate) use ::wire::codec_bytes;
 
-pub(crate) fn encoder_resolved(
-    minimum_bytes: u16,
-    maximum_bytes: Option<u16>,
-) -> selected_instructions::MachineSizeKnowledge {
-    selected_instructions::MachineSizeKnowledge::EncoderResolved {
-        minimum_bytes,
-        maximum_bytes,
-    }
-}
 mod model_specific_state {
     use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence};
     use selected_instructions::RegisterOperation;

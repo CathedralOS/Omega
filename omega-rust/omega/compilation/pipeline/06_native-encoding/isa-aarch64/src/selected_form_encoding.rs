@@ -8,6 +8,13 @@ arithmetic, and hosted I/O leaves.
 */
 
 pub(crate) mod atomic {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineSemanticKind;
+
+    pub(crate) use target_aarch64::form_effects::atomic::effects;
+
     mod compare_exchange {
         use super::Aarch64SelectedFormEncodingError;
         use selected_instructions::AtomicWidth;
@@ -15,14 +22,6 @@ pub(crate) mod atomic {
         pub(super) const REGISTERS: [u8; 4] = [9, 10, 11, 12];
         const BARRIER: u32 = 0xd503_3fbf;
         const CLEAR_EXCLUSIVE: u32 = 0xd503_3f5f;
-
-        pub(super) const fn byte_count(width: AtomicWidth) -> u16 {
-            if matches!(width, AtomicWidth::Bits8 | AtomicWidth::Bits16) {
-                40
-            } else {
-                36
-            }
-        }
 
         pub(super) fn encode(width: AtomicWidth) -> Vec<u8> {
             let size = u32::from(width.ordinal()) << 30;
@@ -118,14 +117,6 @@ pub(crate) mod atomic {
 
         const FULL_SYSTEM_BARRIER: u32 = 0xd503_3fbf;
         const CLEAR_EXCLUSIVE: u32 = 0xd503_3f5f;
-
-        pub(super) const fn byte_count(width: AtomicWidth) -> u16 {
-            if matches!(width, AtomicWidth::Bits8 | AtomicWidth::Bits16) {
-                44
-            } else {
-                40
-            }
-        }
 
         pub(super) fn encode(
             width: AtomicWidth,
@@ -238,7 +229,6 @@ pub(crate) mod atomic {
         use super::Aarch64SelectedFormEncodingError;
         use selected_instructions::{AtomicForm, AtomicOperation, AtomicWidth};
 
-        pub(super) const BYTE_COUNT: u16 = 24;
         pub(super) const REGISTERS: [u8; 3] = [9, 10, 11];
         const BARRIER: u32 = 0xd503_3fbf;
 
@@ -358,72 +348,10 @@ pub(crate) mod atomic {
         }
     }
     use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
-    use register_model::{RegisterConstraintKey, RegisterViewId};
+    use register_model::RegisterViewId;
     use selected_instructions::{
-        AtomicForm, AtomicOperation, MachineAlternativeFamily, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        AtomicForm, AtomicOperation,
     };
-
-    pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
-        let retry = form
-            .operation
-            .retries_until_commit(target::Architecture::Aarch64);
-        let mut effects = MachineEncodedEffects {
-            memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
-                pointer_operand: 0,
-                form,
-            },
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(
-                (0..form.operation.input_count()).collect(),
-                form.output_operands().collect(),
-            )
-        };
-        if retry {
-            effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
-        }
-        let compares = matches!(
-            form.operation,
-            AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
-        );
-        effects.implicit_unit_clobbers = ["x16", "x17"]
-            .into_iter()
-            .filter(|_| retry)
-            .chain(compares.then_some("nzcv"))
-            .flat_map(|name| {
-                crate::register_model::aarch64_physical_register_model_ref()
-                    .view_named(name)
-                    .into_iter()
-                    .flat_map(|view| view.units.iter().copied())
-            })
-            .collect();
-        effects.implicit_unit_clobbers.sort_unstable();
-        effects
-    }
-
-    pub(crate) fn declaration(
-        form: AtomicForm,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        let byte_count = match form.operation {
-            AtomicOperation::Load | AtomicOperation::Store => 4,
-            AtomicOperation::CompareExchangeOnce => compare_exchange_once::byte_count(form.width),
-            AtomicOperation::CompareExchange => compare_exchange::byte_count(form.width),
-            _ => retry_update::BYTE_COUNT,
-        };
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::AtomicAccess(form),
-            constraint,
-            MachineMemoryEffect::AtomicPointerV1,
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::AtomicAccess(form),
-            MachineSizeKnowledge::ExactBytes(byte_count),
-            effects(form),
-        )
-    }
 
     pub(crate) fn footprint(
         form: AtomicForm,
@@ -716,24 +644,6 @@ pub(crate) mod atomic {
     }
 }
 pub(crate) mod atomic_fence {
-    use register_model::RegisterConstraintKey;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    };
-
-    pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::AtomicFence,
-            constraint,
-            MachineMemoryEffect::AtomicFenceV1,
-            MachineTrapBehavior::NeverV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::AtomicFence,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::atomic_fence_v1(),
-        )
-    }
 
     #[cfg(test)]
     mod tests {
@@ -1737,26 +1647,6 @@ mod copy_bytes {
     }
 }
 pub(crate) mod crash {
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    };
-
-    pub(crate) fn declaration(
-        constraint: &RegisterInstructionConstraint,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::Crash,
-            constraint.key,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::ExplicitCrashV1,
-            MachineBarrier::ControlFlow,
-            MachineAlternativeFamily::Crash,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
-        )
-    }
 
     #[cfg(test)]
     mod tests {
@@ -3697,64 +3587,22 @@ mod float_bits {
     }
 }
 pub(crate) mod float_result_policy {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineBarrier;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineSizeKnowledge;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineTrapBehavior;
+    #[cfg(test)]
+    pub(crate) use target_aarch64::form_effects::float_result_policy::declaration;
+
+    pub(crate) use target_aarch64::form_effects::float_result_policy::effects;
+
     use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
-    use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
+    use register_model::RegisterViewId;
     use selected_instructions::{
-        FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternativeFamily,
-        MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat,
     };
-
-    fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
-        let physical = crate::aarch64_physical_register_model_ref();
-        let names: &[&str] = if form.can_trap() {
-            &["q16", "nzcv"]
-        } else {
-            &["q16", "q17", "nzcv"]
-        };
-        let mut units = names
-            .iter()
-            .copied()
-            .flat_map(|name| physical.views.iter().filter(move |view| view.name == name))
-            .flat_map(|view| view.units.iter().copied())
-            .collect::<Vec<_>>();
-        units.sort_unstable();
-        units.dedup();
-        units
-    }
-
-    pub(crate) fn effects(form: FloatResultPolicyForm) -> MachineEncodedEffects {
-        MachineEncodedEffects::float_result_policy_v1(
-            form.operand_count() as u16,
-            clobbers(form),
-            form.can_trap(),
-        )
-    }
-
-    pub(crate) fn declaration(
-        form: FloatResultPolicyForm,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        let trapping = form.policy == FloatResultPolicyKind::Trapping;
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::FloatResultPolicy(form),
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            if trapping {
-                MachineTrapBehavior::TrappingIntegerV1
-            } else {
-                MachineTrapBehavior::NeverV1
-            },
-            if trapping {
-                MachineBarrier::ExternalEffect
-            } else {
-                MachineBarrier::None
-            },
-            MachineAlternativeFamily::FloatResultPolicy(form),
-            target_aarch64::float_sizes::float_result_policy_size(form),
-            effects(form),
-        )
-    }
 
     pub(crate) fn footprint(
         form: FloatResultPolicyForm,
@@ -4261,101 +4109,17 @@ pub(crate) mod float_result_policy {
     }
 }
 pub(crate) mod floating_control {
+    pub(crate) use target_aarch64::form_effects::floating_control::effects;
+
     use super::{
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
         ValidatedAarch64SelectedFormEncoding,
     };
-    use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+        LocalStorageSlotId, MachineAlternativeKey,
+        MachineSemanticKind, SelectedInstructionKind,
     };
-
-    pub(crate) fn clobbers(restore: bool) -> Vec<register_model::RegisterUnitId> {
-        let physical = crate::aarch64_physical_register_model();
-        let mut units = physical
-            .view_named("x9")
-            .expect("canonical floating-control scratch")
-            .units
-            .clone();
-        if !restore {
-            units.extend(
-                physical
-                    .view_named("x16")
-                    .expect("canonical floating-control address scratch")
-                    .units
-                    .iter()
-                    .copied(),
-            );
-        }
-        units.sort_unstable();
-        units
-    }
-
-    pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
-        let physical = crate::aarch64_physical_register_model();
-        let view = |name| {
-            physical
-                .view_named(name)
-                .expect("canonical floating-control register")
-        };
-        let mut uses = view("sp").units.clone();
-        if !restore {
-            uses.extend(view("fpcr").units.iter().copied());
-        }
-        uses.sort_unstable();
-        MachineEncodedEffects {
-            external_operand_reads: Vec::new(),
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: uses,
-            implicit_unit_defs: if restore {
-                view("fpcr").units.clone()
-            } else {
-                Vec::new()
-            },
-            implicit_unit_clobbers: clobbers(restore),
-            memory: if restore {
-                MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-                    stack_pointer: view("sp").id,
-                    byte_count: 8,
-                }
-            } else {
-                MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                    stack_pointer: view("sp").id,
-                    byte_count: 8,
-                }
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: MachineEncodedControlEffect::FallThroughV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        semantic: MachineSemanticKind,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-        MachineEffectDeclaration::single(
-            semantic,
-            constraint,
-            if restore {
-                MachineMemoryEffect::ReadFrameStorageV1
-            } else {
-                MachineMemoryEffect::WriteFrameStorageV1
-            },
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            semantic.into(),
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 8,
-                maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
-            },
-            effects(restore),
-        )
-    }
 
     fn request(
         physical: &ValidatedPhysicalRegisterModel,
@@ -4572,25 +4336,12 @@ pub(crate) mod floating_control {
     }
 }
 pub(crate) mod memory_fence {
-    use register_model::RegisterConstraintKey;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-        MemoryFenceKind,
-    };
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineEncodedEffects;
 
-    pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::MemoryFence,
-            constraint,
-            MachineMemoryEffect::CatalogFenceV1,
-            MachineTrapBehavior::NeverV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::MemoryFence,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::catalog_fence_v1(),
-        )
-    }
+    use selected_instructions::MemoryFenceKind;
 
     pub(crate) fn encode(kind: MemoryFenceKind) -> Option<Vec<u8>> {
         let option = match kind {
@@ -4932,67 +4683,16 @@ mod plan_words {
     }
 }
 pub(crate) mod register_access {
+    #[cfg(test)]
+    pub(crate) use selected_instructions::MachineAlternativeFamily;
+
+    pub(crate) use target_aarch64::form_effects::register_access::effects;
+
     use super::Aarch64SelectedFormEncodingError;
-    use register_model::RegisterConstraintKey;
+
     use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
-        MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-        MachineTrapBehavior, RegisterOperation, SystemRegister,
+        RegisterOperation, SystemRegister,
     };
-
-    pub(crate) fn effects(read: bool) -> MachineEncodedEffects {
-        let physical = crate::aarch64_physical_register_model_ref();
-        let scratch = if read {
-            &["x9", "x15"][..]
-        } else {
-            &["x9", "x10", "x11", "x15"][..]
-        };
-        let mut clobbers = scratch
-            .iter()
-            .flat_map(|name| {
-                physical
-                    .view_named(name)
-                    .expect("canonical AArch64 scratch register")
-                    .units
-                    .iter()
-                    .copied()
-            })
-            .collect::<Vec<_>>();
-        clobbers.sort_unstable();
-        clobbers.dedup();
-        MachineEncodedEffects {
-            implicit_unit_clobbers: clobbers,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(
-                if read { vec![] } else { vec![0] },
-                if read { vec![0] } else { vec![] },
-            )
-        }
-    }
-
-    pub(crate) fn declaration(
-        read: bool,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            if read {
-                MachineSemanticKind::SystemRegisterRead
-            } else {
-                MachineSemanticKind::SystemRegisterWrite
-            },
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::MayArchitecturalFaultV1,
-            MachineBarrier::ExternalEffect,
-            if read {
-                MachineAlternativeFamily::SystemRegisterRead
-            } else {
-                MachineAlternativeFamily::SystemRegisterWrite
-            },
-            MachineSizeKnowledge::ExactBytes(4),
-            effects(read),
-        )
-    }
 
     pub(crate) fn encode(
         operation: RegisterOperation,
@@ -5568,12 +5268,14 @@ mod scan_byte_sequence {
     }
 }
 pub(crate) mod trapping_forms {
+    #[cfg(test)]
+    pub(crate) use target_aarch64::form_effects::trapping_forms::byte_size;
+
+    pub(crate) use target_aarch64::form_effects::trapping_forms::{conversion_high_bit, effects, operand_count};
+
     use super::decoding::DecodedWord;
-    use register_model::RegisterConstraintKey;
+
     use selected_instructions::{
-        MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
         SaturatingCarrier, TrappingForm, TrappingOperation,
     };
     use semantic_vocabulary::IntegerSign;
@@ -5594,55 +5296,6 @@ pub(crate) mod trapping_forms {
             SaturatingCarrier::I64 | SaturatingCarrier::U64 => {
                 panic!("64-bit carriers have no narrow extension check")
             }
-        }
-    }
-
-    pub(crate) fn effects(reads: Vec<u16>, writes: Vec<u16>) -> MachineEncodedEffects {
-        let physical = crate::aarch64_physical_register_model();
-        MachineEncodedEffects {
-            implicit_unit_clobbers: physical
-                .view_named("nzcv")
-                .expect("canonical AArch64 model declares nzcv")
-                .units
-                .clone(),
-            trap: MachineEncodedTrapBehavior::TrappingIntegerV1,
-            control: MachineEncodedControlEffect::FallThroughOrTrapV1,
-            ..MachineEncodedEffects::fallthrough_v1(reads, writes)
-        }
-    }
-
-    pub(crate) fn declaration(
-        form: TrappingForm,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        let sources = form.source_count() as u16;
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::TrappingInteger(form),
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::TrappingIntegerV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::TrappingInteger(form),
-            MachineSizeKnowledge::ExactBytes(byte_size(form)),
-            effects(
-                (0..sources).collect(),
-                (sources..operand_count(form) as u16).collect(),
-            ),
-        )
-    }
-
-    pub(crate) const fn operand_count(form: TrappingForm) -> usize {
-        form.source_count() + 2
-    }
-
-    const fn conversion_high_bit(source: IntegerSign, carrier: SaturatingCarrier) -> Option<u8> {
-        match (source, carrier) {
-            (IntegerSign::Signed, SaturatingCarrier::I64)
-            | (IntegerSign::Unsigned, SaturatingCarrier::U64) => None,
-            (IntegerSign::Signed, carrier) if carrier.is_signed() => None,
-            (IntegerSign::Signed, SaturatingCarrier::U64) => Some(63),
-            (_, carrier) if carrier.is_signed() => Some(carrier.bits() as u8 - 1),
-            (_, carrier) => Some(carrier.bits() as u8),
         }
     }
 
@@ -5859,11 +5512,6 @@ pub(crate) mod trapping_forms {
             TrappingOperation::Convert { .. } => unreachable!("conversions return above"),
         }
         words
-    }
-
-    pub(crate) fn byte_size(form: TrappingForm) -> u16 {
-        let registers: Vec<u8> = (1..=operand_count(form) as u8).collect();
-        4 * realization(form, &registers).len() as u16
     }
 
     pub(crate) fn encode_word(word: DecodedWord) -> u32 {
@@ -6973,6 +6621,13 @@ pub(crate) mod trapping_forms {
             );
         }
     }
+
+    #[test]
+    fn trapping_lengths_match_instruction_words() {
+        for form in TrappingForm::ALL {
+            assert_eq!(usize::from(byte_size(form)), 4 * realization(form, &[1, 2, 3, 4]).len(), "{form:?}");
+        }
+    }
 }
 mod zero_bytes {
     use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
@@ -7135,60 +6790,14 @@ pub(crate) mod hosted_exit_process {
     use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration, MachineEncodedEffects, SelectedInstructionKind,
     };
     use target::NativeTarget;
 
     pub(crate) fn effects(
         target: NativeTarget,
     ) -> Result<MachineEncodedEffects, Aarch64SelectedFormEncodingError> {
-        let physical = crate::aarch64_physical_register_model();
-        let view = |name: &str| {
-            physical
-                .view_named(name)
-                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-        };
-        let mut clobbers = Vec::new();
-        let syscall_register = if target == NativeTarget::macos_arm64() {
-            "x16"
-        } else {
-            "x8"
-        };
-        for name in ["x0", syscall_register, "nzcv"] {
-            clobbers.extend(view(name)?.units.iter().copied());
-        }
-        clobbers.sort_unstable();
-        clobbers.dedup();
-        Ok(MachineEncodedEffects {
-            external_operand_reads: vec![0],
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: view("pc")?.units.clone(),
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: clobbers,
-            memory: MachineEncodedMemoryEffect::NoneV1,
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedExitReturnedV1,
-            control: MachineEncodedControlEffect::HostedExitOrTrapV1,
-        })
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> Result<MachineEffectDeclaration, Aarch64SelectedFormEncodingError> {
-        Ok(MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedExitProcessI32,
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            MachineTrapBehavior::HostedExitReturnedV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedExitProcessI32,
-            MachineSizeKnowledge::ExactBytes(16),
-            effects(target)?,
-        ))
+        target_aarch64::form_effects::hosted_exit_process::effects(target).map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
     }
 
     fn request(
@@ -7403,89 +7012,20 @@ pub(crate) mod hosted_exit_process {
     }
 }
 pub(crate) mod hosted_read_byte {
+    pub(crate) use target_aarch64::form_effects::hosted_read_byte::effects;
+
     use super::{
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
         ValidatedAarch64SelectedFormEncoding,
     };
-    use register_model::RegisterConstraintKey;
+
     use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         SelectedInstructionKind,
     };
     use target::NativeTarget;
-
-    fn size(target: NativeTarget) -> MachineSizeKnowledge {
-        let address = crate::immediate_offset::MAX_ADDRESS_BYTES;
-        if target == NativeTarget::macos_arm64() {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 64,
-                maximum_bytes: Some(56 + 2 * address),
-            }
-        } else {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 56,
-                maximum_bytes: Some(52 + address),
-            }
-        }
-    }
-
-    pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {
-        let physical = crate::aarch64_physical_register_model();
-        let view = |name: &str| {
-            physical
-                .view_named(name)
-                .expect("canonical hosted read register")
-        };
-        let mut uses = view("sp").units.clone();
-        uses.extend(view("pc").units.iter().copied());
-        uses.sort_unstable();
-        uses.dedup();
-        let mut clobbers = Vec::new();
-        let syscall_register = if target == NativeTarget::macos_arm64() {
-            "x16"
-        } else {
-            "x8"
-        };
-        for name in ["x0", "x1", "x2", syscall_register, "x9", "nzcv"] {
-            clobbers.extend(view(name).units.iter().copied());
-        }
-        clobbers.sort_unstable();
-        clobbers.dedup();
-        MachineEncodedEffects {
-            external_operand_reads: Vec::new(),
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: uses,
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: clobbers,
-            memory: MachineEncodedMemoryEffect::HostedReadByteV1 {
-                stack_pointer: view("sp").id,
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedReadFailureV1,
-            control: MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedReadByte,
-            constraint,
-            MachineMemoryEffect::HostedReadByteV1,
-            MachineTrapBehavior::HostedReadFailureV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedReadByte,
-            size(target),
-            effects(target),
-        )
-    }
 
     fn request(
         target: NativeTarget,
@@ -7951,86 +7491,22 @@ pub(crate) mod hosted_read_byte {
     }
 }
 pub(crate) mod hosted_write_byte {
+    pub(crate) use target_aarch64::form_effects::hosted_write_byte::effects;
+
     use super::{
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
         ValidatedAarch64SelectedFormEncoding,
     };
-    use crate::immediate_offset::{MAX_ADDRESS_BYTES, address_words, decode_address_words};
+    use crate::immediate_offset::{address_words, decode_address_words};
     use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use register_model::RegisterConstraintKey;
+
     use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         SelectedInstructionKind,
     };
     use target::NativeTarget;
-
-    pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {
-        let physical = crate::aarch64_physical_register_model();
-        let view = |name: &str| {
-            physical
-                .view_named(name)
-                .expect("canonical hosted write register")
-        };
-        let mut uses = view("sp").units.clone();
-        uses.extend(view("pc").units.iter().copied());
-        uses.sort_unstable();
-        uses.dedup();
-        let mut clobbers = Vec::new();
-        let syscall_register = if target == NativeTarget::macos_arm64() {
-            "x16"
-        } else {
-            "x8"
-        };
-        for name in ["x0", "x1", "x2", syscall_register, "nzcv"] {
-            clobbers.extend(view(name).units.iter().copied());
-        }
-        clobbers.sort_unstable();
-        clobbers.dedup();
-        MachineEncodedEffects {
-            external_operand_reads: vec![0],
-            external_operand_writes: Vec::new(),
-            implicit_unit_uses: uses,
-            implicit_unit_defs: Vec::new(),
-            implicit_unit_clobbers: clobbers,
-            memory: MachineEncodedMemoryEffect::HostedWriteByteV1 {
-                stack_pointer: view("sp").id,
-            },
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::HostedWriteFailureV1,
-            control: MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
-        }
-    }
-
-    pub(crate) fn declaration(
-        target: NativeTarget,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::HostedWriteByteI32,
-            constraint,
-            MachineMemoryEffect::HostedWriteByteV1,
-            MachineTrapBehavior::HostedWriteFailureV1,
-            MachineBarrier::ExternalEffect,
-            MachineAlternativeFamily::HostedWriteByteI32,
-            {
-                let short = if target == NativeTarget::macos_arm64() {
-                    40
-                } else {
-                    36
-                };
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes: short,
-                    maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
-                }
-            },
-            effects(target),
-        )
-    }
 
     fn request(
         target: NativeTarget,
@@ -8366,14 +7842,16 @@ pub(crate) mod hosted_write_byte {
     }
 }
 pub(crate) mod ieee_float_arithmetic {
+    #[cfg(test)]
+    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::clobbers;
+    #[cfg(test)]
+    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::declaration;
+
+    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::effects;
+
     use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
-    use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
-    use selected_instructions::{
-        IeeeFloatArithmeticForm, MachineAlternativeFamily, MachineBarrier,
-        MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-        MachineTrapBehavior, ieee_float_arithmetic_is_trapping,
-    };
+    use register_model::RegisterViewId;
+    use selected_instructions::IeeeFloatArithmeticForm;
     use selected_instructions::{
         IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
         IeeeFloatToIntegerDomain,
@@ -8792,60 +8270,6 @@ pub(crate) mod ieee_float_arithmetic {
     const LEFT_SCRATCH: u8 = 16;
     const RIGHT_SCRATCH: u8 = 17;
     const MASK_SCRATCH: u8 = 18;
-
-    fn view_units(name: &str) -> Vec<RegisterUnitId> {
-        crate::aarch64_physical_register_model()
-            .view_named(name)
-            .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
-            .units
-            .clone()
-    }
-
-    pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
-        sorted_units(view_units("fpcr"))
-    }
-
-    pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-        sorted_units(["q16", "q17", "q18"].into_iter().flat_map(view_units))
-    }
-
-    pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
-        let inputs = form.operand_count() as u16;
-        let mut effects = MachineEncodedEffects {
-            implicit_unit_uses: implicit_uses(),
-            implicit_unit_clobbers: clobbers(),
-            ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
-        };
-        if ieee_float_arithmetic_is_trapping(form) {
-            effects.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
-            effects.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
-        }
-        effects
-    }
-
-    pub(crate) fn declaration(
-        form: IeeeFloatArithmeticForm,
-        constraint: RegisterConstraintKey,
-    ) -> MachineEffectDeclaration {
-        MachineEffectDeclaration::single(
-            MachineSemanticKind::NearestIeeeFloatArithmetic(form),
-            constraint,
-            MachineMemoryEffect::NoneV1,
-            if ieee_float_arithmetic_is_trapping(form) {
-                MachineTrapBehavior::TrappingIntegerV1
-            } else {
-                MachineTrapBehavior::NeverV1
-            },
-            if ieee_float_arithmetic_is_trapping(form) {
-                MachineBarrier::ExternalEffect
-            } else {
-                MachineBarrier::None
-            },
-            MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            target_aarch64::float_sizes::ieee_float_arithmetic_size(form),
-            effects(form),
-        )
-    }
 
     pub(crate) fn footprint(
         form: IeeeFloatArithmeticForm,
@@ -13291,6 +12715,30 @@ mod normalized_foreign_call {
         Some(bytes)
     }
 
+    #[test]
+    fn field_sizes_match_encoded_callbacks_and_refusals() {
+        use layout_plans::LayoutPlacementReport::{At, Bits};
+        use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
+        for root in [R::Aarch64X(0), R::Aarch64X(15), R::Aarch64X(30), R::X86Rdi] {
+            for offset in [0, 1, 255, 4095, 4096, 32760, u64::MAX] {
+                let mut groups = vec![vec![], vec![At { offset }], vec![At {offset}, At {offset: 16}]];
+                for container_width in [8, 16, 24, 32, 40, 48, 56, 64] {
+                    for (destination_lsb, source_lsb, width) in [(0, 0, container_width), (1, 3, 4), (2, 2, 63)] {
+                        groups.push(vec![Bits { container: offset, container_width, destination_lsb, source_lsb, width }]);
+                    }
+                }
+                for placements in groups {
+                    let destination = Aarch64CallbackMaterializationDestination::RecordField {
+                        root_register: root, placements: PrivateCallbackPlacements::new(&placements),
+                    };
+                    let actual = callback_group_bytes(&destination).map(|bytes| u16::try_from(bytes.len()).unwrap());
+                    assert_eq!(target_aarch64::callback_geometry::callback_field_bytes(root, &placements), actual,
+                               "{root:?} {placements:?}");
+                }
+            }
+        }
+    }
+
     pub fn callback_group_bytes(
         destination: &Aarch64CallbackMaterializationDestination,
     ) -> Option<Vec<u8>> {
@@ -13642,7 +13090,6 @@ mod normalized_foreign_call {
         }
     }
 }
-pub use normalized_foreign_call::callback_group_bytes;
 mod scalar_call {
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
@@ -15949,6 +15396,8 @@ pub(crate) mod system_call {
     }
 }
 pub(crate) mod table_call {
+    pub(crate) use target_aarch64::form_effects::table_call::{table_address};
+
     use super::{
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
         ValidatedAarch64SelectedFormEncoding,
@@ -16038,47 +15487,6 @@ pub(crate) mod table_call {
         })
     }
 
-    pub(crate) fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u8, u32)> {
-        use calling_conventions::{MachineRegister, ValueLocation};
-        let (byte_offset, dispatch_only) = record.call.binding.table_dispatch()?;
-        if !record.call.callbacks.is_empty() {
-            return None;
-        }
-        let plan = &record.call.binding.boundary_entry_plan.call;
-        let scratch = |location: &ValueLocation| {
-            location.direct_register() == Some(MachineRegister::Aarch64X(17))
-                || dispatch_only
-                    && location.direct_register() == Some(MachineRegister::Aarch64X(16))
-        };
-        if plan
-            .parameters
-            .iter()
-            .flat_map(|parameter| &parameter.locations)
-            .any(scratch)
-            || plan
-                .result
-                .iter()
-                .flat_map(|result| &result.locations)
-                .any(|location| {
-                    matches!(location, ValueLocation::Indirect { .. }) && scratch(location)
-                })
-        {
-            return None;
-        }
-        let operands = record.call.binding.operand_placements();
-        let parameter = operands.get(0)?;
-        let [
-            ValueLocation::Register {
-                register: MachineRegister::Aarch64X(register),
-                byte_size: 8,
-                value_byte_offset: 0,
-            },
-        ] = parameter.locations.as_slice()
-        else {
-            return None;
-        };
-        (*register <= 30 && *register != 17).then_some((*register, byte_offset))
-    }
 }
 #[cfg(test)]
 mod tests {

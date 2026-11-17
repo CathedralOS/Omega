@@ -5,13 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
 wire = { path = "../../../../../psi/foundation/wire" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../../native-vocabulary" }
 arena = { path = "../../../../../psi/foundation/arena" }
 register-environment = { path = "../../../target-description/register-environment" }
-isa-aarch64 = { path = "../../../pipeline/06_native-encoding/isa-aarch64" }
-isa-x86_64 = { path = "../../../pipeline/06_native-encoding/isa-x86_64" }
 optimization-core = { path = "../../optimization-contracts" }
 register-model = { path = "../../../target-description/register-model" }
 register-homes = { path = "../../register-homes" }

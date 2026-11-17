@@ -29,33 +29,8 @@ mod fragment {
         {
             return None;
         }
-        let (offset, container_width, destination_lsb, source_lsb, width) = match placement {
-            LayoutPlacementReport::At { offset } => (offset, 64, 0, 0, 64),
-            LayoutPlacementReport::Bits {
-                container,
-                container_width,
-                destination_lsb,
-                source_lsb,
-                width,
-            } => (
-                container,
-                container_width,
-                destination_lsb,
-                source_lsb,
-                width,
-            ),
-            LayoutPlacementReport::IntegerAt { .. } => return None,
-        };
-        layout_plans::validate_fragment(
-            i32::MAX as usize,
-            "private address",
-            offset,
-            u16::try_from(container_width).ok()?,
-            u16::try_from(destination_lsb).ok()?,
-            u16::try_from(source_lsb).ok()?,
-            u16::try_from(width).ok()?,
-        )
-        .ok()?;
+        let layout_plans::ScalarFragment {container_byte_offset: offset, container_width_bits: container_width, destination_lsb, source_lsb, width} =
+            layout_plans::private_address_fragment(placement, i32::MAX as usize)?;
         let offset = u32::try_from(offset).ok()?;
         let container_bytes = (container_width / 8) as u8;
         let whole = destination_lsb == 0 && width == container_width;

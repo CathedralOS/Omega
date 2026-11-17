@@ -37,8 +37,8 @@ mod analysis {
 mod catalog {
     use std::sync::Arc;
 
-    use isa_aarch64::aarch64_machine_effect_catalog;
-    use isa_x86_64::x86_64_machine_effect_catalog;
+    use target_aarch64::aarch64_machine_effect_catalog;
+    use target_x86_64::x86_64_machine_effect_catalog;
     use register_model::PreparedRegisterConstraintCatalog;
     use selected_instructions::{PreparedMachineEffectCatalog, canonical_machine_effect_catalog};
     use target::NativeTarget;
@@ -67,8 +67,8 @@ mod catalog {
 }
 mod error {
     use crate::MachineEffectError;
-    use isa_aarch64::Aarch64MachineEffectCatalogValidationError;
-    use isa_x86_64::X86_64MachineEffectCatalogValidationError;
+    use target_aarch64::Aarch64MachineEffectCatalogValidationError;
+    use target_x86_64::X86_64MachineEffectCatalogValidationError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum MachineEffectStageError {
@@ -819,10 +819,10 @@ mod facts {
             .ok_or_else(invalid)?;
             let declaration = match physical.model().architecture {
                 target::Architecture::Aarch64 => {
-                    isa_aarch64::aarch64_normalized_foreign_call_declaration(record, constraint)
+                    target_aarch64::aarch64_normalized_foreign_call_declaration(record, constraint)
                 }
                 target::Architecture::X86_64 => {
-                    isa_x86_64::x86_64_normalized_foreign_call_declaration(record, constraint)
+                    target_x86_64::x86_64_normalized_foreign_call_declaration(record, constraint)
                 }
             }
             .ok_or_else(invalid)?;
@@ -1052,12 +1052,12 @@ mod catalog_handoff_tests {
                 .size = MachineSizeKnowledge::ExactBytes(1);
             match target.architecture {
                 Architecture::X86_64 => assert!(matches!(
-                    isa_x86_64::validate_x86_64_machine_effect_catalog(target, environment.constraints(), changed),
-                    Err(isa_x86_64::X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+                    target_x86_64::validate_x86_64_machine_effect_catalog(target, environment.constraints(), changed),
+                    Err(target_x86_64::X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch)
                 )),
                 Architecture::Aarch64 => assert!(matches!(
-                    isa_aarch64::validate_aarch64_machine_effect_catalog(target, environment.constraints(), changed),
-                    Err(isa_aarch64::Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+                    target_aarch64::validate_aarch64_machine_effect_catalog(target, environment.constraints(), changed),
+                    Err(target_aarch64::Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
                 )),
             }
         }
@@ -1072,7 +1072,7 @@ mod catalog_handoff_tests {
         assert!(matches!(
             prepared_machine_effect_catalog(target, environment.constraints()),
             Err(MachineEffectStageError::Aarch64Catalog(
-                isa_aarch64::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi
+                target_aarch64::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi
             ))
         ));
     }

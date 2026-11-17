@@ -26,7 +26,7 @@ for representative port-write (PIC EOI `0x20`) and zero-extended port-read
 (`0x64`) operations.
 */
 
-pub const IMMEDIATE_PORT_WRITE_WIDTH: usize = 27;
+pub use target_x86_64::form_effects::port_write::IMMEDIATE_PORT_WRITE_WIDTH;
 pub const IMMEDIATE_PORT_READ_U8_WIDTH: usize = 16;
 
 pub fn encode_immediate_port_write(port: u16, value: u8) -> [u8; IMMEDIATE_PORT_WRITE_WIDTH] {

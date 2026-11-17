@@ -10,7 +10,7 @@ slot.
 
 use diagnostics::Diagnostic;
 
-use crate::immediate_offset::{ADD_IMMEDIATE, address_word_count, append_page_steps};
+use crate::immediate_offset::{ADD_IMMEDIATE, append_page_steps};
 
 const SCRATCH_REGISTER: u32 = 9;
 pub(crate) const SAVE_ADDRESS_REGISTER: u8 = 16;
@@ -19,8 +19,6 @@ const MSR_FPCR_X9: u32 = 0xd51b_4400 | SCRATCH_REGISTER;
 const STR_X9: u32 = 0xf900_0000 | SCRATCH_REGISTER;
 const LDR_X9: u32 = 0xf940_0000 | SCRATCH_REGISTER;
 
-pub(crate) const MAX_FPCR_SEQUENCE_BYTES: u16 =
-    ((address_word_count(u32::MAX as u64 & !4095) + 2) * 4) as u16;
 
 pub fn encode_save_fpcr_to_sp_displacement(byte_offset: u32) -> Result<Vec<u8>, Diagnostic> {
     let mut words = vec![MRS_FPCR_X9];
@@ -96,7 +94,7 @@ mod tests {
             encode_restore_fpcr_from_sp_displacement(u32::MAX - 7)
                 .unwrap()
                 .len(),
-            usize::from(super::MAX_FPCR_SEQUENCE_BYTES)
+            usize::from(target_aarch64::form_effects::MAX_FPCR_SEQUENCE_BYTES)
         );
     }
 }
