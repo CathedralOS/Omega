@@ -85,6 +85,7 @@ fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::Compil
     let typed = frontier_with_core(
         "machine product_entry() { }",
         &source,
+        source::DependencyScope::Build,
         BYTE_OBSERVATION_SOURCE,
     );
     let entries = [symbol(&typed, "build_entry")];

@@ -388,11 +388,20 @@ machine build_entry(owner: &mut Item, replacement: Item) {
     let RouteVerdict::Rejected { violations, .. } = &verdict else {
         panic!("the replaced linear value still needs a disposition: {verdict:?}");
     };
-    assert!(
-        violations.iter().any(|violation| {
-            violation.statement.contains("discard") || violation.statement.contains("dispos")
-        }),
-        "the resident's ownership obligation must reject the replacement: {verdict:?}"
+    let [violation] = violations.as_slice() else {
+        panic!("expected the replacement's custody violation: {violations:?}");
+    };
+    assert_eq!(
+        violation.statement,
+        "whole-value replacement requires discardable incoming custody without conserved claims"
+    );
+    let start = source.find("owner = replacement;").unwrap();
+    assert_eq!(
+        violation.site,
+        Some(source::SourceSpan::new(
+            source::SourceId(2),
+            source::Span::new(start, start + "owner".len())
+        ))
     );
 }
 

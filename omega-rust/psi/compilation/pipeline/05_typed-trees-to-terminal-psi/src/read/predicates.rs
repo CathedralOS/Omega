@@ -585,15 +585,6 @@ impl Program<'_> {
         if !has_predicates(definition) {
             return Ok(());
         }
-        // `domain [u8]::Utf8 requires valid_utf8(self)`: a primitive byte
-        // predicate of a byte slice is decided by a view's bytes, where a
-        // field of the domain is stored (`read::bytes`), not stated as a
-        // clause.
-        if typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
-            .is_some()
-        {
-            return Ok(());
-        }
         let carrier = self.value_type(id, definition.target_type)?;
         let domain = crate::body::DomainInstance {
             declaration: definition.symbol,
@@ -601,6 +592,31 @@ impl Program<'_> {
         };
         let at = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         self.declared_domain(id, domain, carrier, definition.target_type, at)?;
+        // Byte storage retains the primitive predicate instead of a generic
+        // domain clause. Still read its authored clause here: forming the
+        // observer's shared range owes the same source operator checks as a
+        // clause instantiated at a field, formal or cast.
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
+            .is_some()
+        {
+            let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Declaration("domain identity"),
+                )
+            })?;
+            return self
+                .record_cast_predicates(
+                    id,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                    carrier,
+                )
+                .map(|_| ());
+        }
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {

@@ -7,6 +7,7 @@ fn program(product: &str) -> typed_trees::TypedTrees {
     super::build_purpose::frontier_with_core(
         product,
         "machine build_entry() {}",
+        source::DependencyScope::Product,
         &[
             (
                 sources[0].0,

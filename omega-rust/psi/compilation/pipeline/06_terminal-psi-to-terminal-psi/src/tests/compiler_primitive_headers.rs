@@ -239,6 +239,7 @@ fn observed_typed(text: &str) -> typed_trees::TypedTrees {
     super::build_purpose::frontier_with_core(
         text,
         "machine build_entry() {}",
+        source::DependencyScope::Product,
         &[(
             "byte_observation.omg",
             "byte_observation",

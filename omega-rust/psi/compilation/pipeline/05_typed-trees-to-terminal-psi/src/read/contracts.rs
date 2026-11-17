@@ -655,7 +655,9 @@ impl Program<'_> {
             )
         {
             let target = borrow.target;
-            let [collection, count] = self.collection_index_operand_types(id, row);
+            let collection =
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?;
+            let [_, count] = self.collection_index_operand_types(id, row);
             let owner = self.contract_operator_owner(id, scope)?;
             self.complete_builtin_operator(id, owner, target, &[collection, count, count])?;
         }

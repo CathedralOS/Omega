@@ -1901,6 +1901,32 @@ fn finish_storage(
             }
             Err(refused) => return Err(refused),
         };
+        terminal_semantics::validate_structural_store_values(
+            machine,
+            &module.structural_types,
+            &plan.stores,
+        )
+        .map_err(|error| match error {
+            terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: machine.id,
+                concerns: Construct::Machine,
+                source_span: None,
+                detail: format!("replacement input {place:?} has no unique source declaration"),
+            },
+            terminal_semantics::StructuralStoreValueError::CannotDiscard(operation) => {
+                let origin = sources.get(machine.id)
+                    .and_then(|source| source.operations.get(operation)).copied()
+                    .unwrap_or(SourceOrigin::Unpositioned(Unpositioned::SpanAbsent));
+                let mut refusal = reject(
+                    machine.id,
+                    origin,
+                    "whole-value replacement requires discardable incoming custody without conserved claims",
+                );
+                refusal.concerns = Construct::Operation(operation);
+                refusal
+            }
+        })?;
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership

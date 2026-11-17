@@ -114,7 +114,7 @@ impl Program<'_> {
     /// A structural operator keeps the exact source operand type, including
     /// its domains. Physical record metadata describes the plain carrier and
     /// cannot stand in for a qualified source during user-operator lookup.
-    fn structural_operator_operand_reference(
+    pub(super) fn structural_operator_operand_reference(
         &mut self,
         machine: MachineId,
         source: ExpressionHandle,

@@ -6500,7 +6500,7 @@ pub(crate) mod structural_effect {
 }
 pub(crate) mod structural_store {
     use crate::exactly_one::exactly_one;
-    use semantic_vocabulary::{PlaceId, StructuralTypeId};
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
     use terminal_psi::StructuralRecordStorage;
     use terminal_psi::{
         ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
@@ -6550,6 +6550,112 @@ pub(crate) mod structural_store {
                     .any(|claim| claim.input.root == value)
                 && discardable_store_value(types, identity, multiplicity, claims)
         })
+    }
+
+    /// A producer has reconstructed receiving storage before it publishes
+    /// claim transfers. Check the same incoming-value rule as the receiver,
+    /// joining only the actual replacement inputs to their declarations.
+    pub fn validate_structural_store_values(
+        machine: &TerminalMachine,
+        types: &[StructuralTypeDeclaration],
+        stores: &[(OperationId, StructuralStoreDisposition)],
+    ) -> Result<(), StructuralStoreValueError> {
+        let replacements = machine
+            .operations()
+            .filter_map(|operation| {
+                let terminal_psi::OperationKind::StoreStructuralField { value, .. } =
+                    &operation.kind
+                else {
+                    return None;
+                };
+                let position = stores
+                    .binary_search_by_key(&operation.id, |(id, _)| *id)
+                    .ok()?;
+                (stores[position].1 == StructuralStoreDisposition::ReplaceDiscardable)
+                    .then_some((operation.id, value.place))
+            })
+            .collect::<Vec<_>>();
+        if replacements.is_empty() {
+            return Ok(());
+        }
+        let mut values = replacements
+            .iter()
+            .map(|(_, place)| (*place, None, false))
+            .collect::<Vec<_>>();
+        values.sort_unstable_by_key(|(place, _, _)| *place);
+        values.dedup_by_key(|(place, _, _)| *place);
+        // This subset is bounded by the actual store roster, not the largest
+        // supplied place identity. Source declarations are traversed once.
+        let mut declare = |place, declaration| {
+            if let Ok(position) = values.binary_search_by_key(&place, |(place, _, _)| *place)
+                && values[position].1.replace(declaration).is_some()
+            {
+                return Err(StructuralStoreValueError::SourceDeclaration(place));
+            }
+            Ok(())
+        };
+        for parameter in machine
+            .structural_parameters
+            .iter()
+            .chain(machine.block_structural_parameters())
+        {
+            declare(
+                parameter.place,
+                (parameter.structural_type, parameter.multiplicity, false),
+            )?;
+        }
+        for result in machine
+            .operations()
+            .filter_map(|operation| operation.result.structural())
+        {
+            declare(
+                result.place,
+                (
+                    result.structural_type,
+                    result.multiplicity,
+                    !result.claims.is_empty(),
+                ),
+            )?;
+        }
+        for place in machine
+            .entry_claims
+            .iter()
+            .chain(&machine.block_entry_claims)
+            .map(|claim| claim.input)
+            .chain(
+                machine
+                    .content_entry_claims
+                    .iter()
+                    .map(|claim| claim.input.root),
+            )
+        {
+            if let Ok(position) = values.binary_search_by_key(&place, |(place, _, _)| *place) {
+                values[position].2 = true;
+            }
+        }
+        for (operation, place) in replacements {
+            let position = values
+                .binary_search_by_key(&place, |(place, _, _)| *place)
+                .map_err(|_| StructuralStoreValueError::SourceDeclaration(place))?;
+            let (_, declaration, entry_claims) = values[position];
+            let (identity, multiplicity, result_claims) =
+                declaration.ok_or(StructuralStoreValueError::SourceDeclaration(place))?;
+            if !discardable_store_value(
+                types.iter(),
+                identity,
+                multiplicity,
+                entry_claims || result_claims,
+            ) {
+                return Err(StructuralStoreValueError::CannotDiscard(operation));
+            }
+        }
+        Ok(())
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum StructuralStoreValueError {
+        SourceDeclaration(PlaceId),
+        CannotDiscard(OperationId),
     }
 
     pub fn discardable_store_value<'types>(

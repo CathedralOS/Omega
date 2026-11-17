@@ -538,7 +538,10 @@ pub(crate) mod semantic_rows {
 
     pub(crate) use operation_semantic_cohort;
 }
-pub use structural::structural_store::{discardable_store_value, structural_store_value_admitted};
+pub use structural::structural_store::{
+    StructuralStoreValueError, discardable_store_value, structural_store_value_admitted,
+    validate_structural_store_values,
+};
 
 pub use access::access_view_referent::{
     AccessViewInputError, AccessViewReferentError, access_view_input_parameter,
