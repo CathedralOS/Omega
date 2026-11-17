@@ -236,14 +236,14 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
     }
     machine inspect(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        transition position > 0 && windows_filesystem_separator(path as -Path, path[position]) {
+        transition position > 0 && windows_filesystem_separator(path as -Path, (path as -Path)[position]) {
             true -> block create(path, position)
             false -> block walk(path, position + 1)
         }
     }
     machine create(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        let result: UnitResult = block windows_filesystem_create_dir_existing(path[0..position] as +Path);
+        let result: UnitResult = block windows_filesystem_create_dir_existing((path as -Path)[0..position] as +Path);
         transition result {
             UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
             UnitResult::Ok -> block walk(path, position + 1)

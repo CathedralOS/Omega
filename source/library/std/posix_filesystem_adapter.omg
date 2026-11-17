@@ -892,7 +892,7 @@ terminates by remaining
     requires i < path.len && remaining > 0
     terminates by remaining
     {
-        transition path[i] == 47 {
+        transition (path as -Path)[i] == 47 {
             true -> create(filesystem, path, i, remaining)
             false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
@@ -901,7 +901,7 @@ terminates by remaining
     requires i < path.len && remaining > 0
     terminates by remaining
     {
-        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, path[0..i] as +Path);
+        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, (path as -Path)[0..i] as +Path);
         transition result {
             UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
             UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
