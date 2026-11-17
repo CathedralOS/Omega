@@ -1194,9 +1194,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     {
 
         filesystem.rd_idx = filesystem.rd_off + 16;
-        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx as -Wrapping];
         filesystem.rd_idx = filesystem.rd_off + 17;
-        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx as -Wrapping];
         filesystem.rd_reclen = posix_directory_record_length(filesystem.rd_lo, filesystem.rd_hi) as +Wrapping;
         transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rd_accept(filesystem, dfd) _ -> rd_malformed(filesystem, dfd) }
     }
@@ -1290,9 +1290,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     requires filesystem.rd_off < 489
     {
         filesystem.rd_idx = filesystem.rd_off + 16;
-        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx as -Wrapping];
         filesystem.rd_idx = filesystem.rd_off + 17;
-        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx as -Wrapping];
         filesystem.rd_reclen = posix_directory_record_length(filesystem.rd_lo, filesystem.rd_hi) as +Wrapping;
         transition filesystem.rd_reclen >= 24 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdef_name(filesystem, dfd) _ -> rdef_malformed(filesystem) }
     }
@@ -1305,10 +1305,10 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     {
         // Check complete names, not positions, prefixes or d_type. Some Linux
         // filesystems return ordinary children before either dot entry.
-        let dot: bool = filesystem.dir_buf[filesystem.rd_idx] == 46
-            && (filesystem.dir_buf[filesystem.rd_idx + 1] == 0
-                || (filesystem.dir_buf[filesystem.rd_idx + 1] == 46
-                    && filesystem.dir_buf[filesystem.rd_idx + 2] == 0));
+        let dot: bool = filesystem.dir_buf[filesystem.rd_idx as -Wrapping] == 46
+            && (filesystem.dir_buf[(filesystem.rd_idx + 1) as -Wrapping] == 0
+                || (filesystem.dir_buf[(filesystem.rd_idx + 1) as -Wrapping] == 46
+                    && filesystem.dir_buf[(filesystem.rd_idx + 2) as -Wrapping] == 0));
         transition dot { true -> rdef_skip(filesystem, dfd) _ -> rdef_at(filesystem, dfd) }
     }
     machine rdef_accept(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
@@ -1326,7 +1326,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_type(filesystem: &mut PosixFilesystem) -> DirEntryResult
     requires filesystem.rd_idx < 512
     {
-        filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx as -Wrapping];
         filesystem.rd_j = 0u64 as +Wrapping;
         transition { _ -> rdef_copy(filesystem) }
     }
@@ -1340,7 +1340,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_nul_go(filesystem: &mut PosixFilesystem) -> DirEntryResult
     requires filesystem.rd_j < 256
     {
-        filesystem.entry_name[filesystem.rd_j] = 0;
+        filesystem.entry_name[filesystem.rd_j as -Wrapping] = 0;
         transition { _ -> rdef_build(filesystem) }
     }
     machine rdef_cbyte(filesystem: &mut PosixFilesystem) -> DirEntryResult {
@@ -1350,7 +1350,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_cdo(filesystem: &mut PosixFilesystem) -> DirEntryResult
     requires filesystem.rd_ridx < 512
     {
-        filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx];
+        filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx as -Wrapping];
         transition filesystem.rd_nb == 0 { true -> rdef_nul(filesystem) _ -> rdef_room(filesystem) }
     }
     machine rdef_room(filesystem: &mut PosixFilesystem) -> DirEntryResult {
@@ -1361,7 +1361,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_store(filesystem: &mut PosixFilesystem) -> DirEntryResult
     requires filesystem.rd_j < 255
     {
-        filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
+        filesystem.entry_name[filesystem.rd_j as -Wrapping] = filesystem.rd_nb;
         filesystem.rd_j = filesystem.rd_j + 1;
         transition { _ -> rdef_copy(filesystem) }
     }
