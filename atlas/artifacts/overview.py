@@ -42,6 +42,10 @@ def validate(model):
             pending.extend(neighbors[node]-reached)
     if reached != nodes.keys():
         raise ValueError('The overview must be one connected graph')
+    if 'spine' in model:
+        pairs={(e['start'],e['end']) for e in model['edges'] if e.get('main')}
+        if len(model['spine'])!=len(set(model['spine'])) or any(pair not in pairs for pair in zip(model['spine'],model['spine'][1:])):
+            raise ValueError('The main route must follow existing connections in order')
 
 
 def overview_model(architecture):
@@ -188,7 +192,36 @@ def overview_model(architecture):
     for node in nodes:
         owner = records[node['owner']]
         node.update(source=owner['source'], description=owner['description'], page=owner['page'])
-    model = dict(nodes=nodes, edges=edges)
+    # Same-form optimization still has an input and an output. Showing those
+    # versions separately keeps 01 and 04 in the numbered reading order.
+    for number, input_id, output_id, title in (
+        (1,'abstract','optimized-abstract','Optimized abstract operations'),
+        (4,'instructions','allocation-input','Allocation input'),
+    ):
+        operation=f'native-{number}'
+        citation=next(e['source'] for e in edges if e['start']==input_id and e['end']==input_id)
+        edges=[e for e in edges if not (e['start']==input_id and e['end']==input_id)]
+        for e in edges:
+            if e['start']==input_id and e['end']==f'native-{number+1}':
+                e['start']=output_id
+        nodes.extend([
+            dict(id=operation,owner=f'o{number}',group='native',title=f'{number:02} optimize',role='transform',kind='data',width=0,height=0,source=citation,description=records[f'o{number}']['description'],page='omega'),
+            dict(id=output_id,owner=f'o{number}',group='native',title=title,role='artifact',kind='native',width=220,height=60,source=citation,description=records[f'o{number}']['description'],page='omega'),
+        ])
+        edges.extend([
+            dict(id=f'{operation}-input',start=input_id,end=operation,label='',kind='data',source=citation),
+            dict(id=f'{operation}-output',start=operation,end=output_id,label=f'{number:02} optimize',kind='data',source=citation),
+        ])
+    spine = ['build','compiler','files','psi-0','tokens','psi-1','trees','psi-2','resolved','psi-3','typed','psi-4','frozen','psi-5','lowered','psi-6','accepted','closure','selected',
+             'native-0','abstract','native-1','optimized-abstract','native-2','target','native-3','instructions','native-4','allocation-input','native-5','homes','native-6','physical','plan-frame','framed',
+             'native-7','encoded','native-8','layout','native-9','optimized','emit','fragments','apply-frame','framed-fragments','place-text','text','object','objects','compose','composed','image-build','image','publish','published','native-run']
+    main_pairs=set(zip(spine,spine[1:]))
+    for n in nodes:
+        if n['role']!='transform':
+            n['height']=60
+    for e in edges:
+        e['main']=(e['start'],e['end']) in main_pairs
+    model = dict(nodes=nodes, edges=edges, spine=spine)
     validate(model)
     return model
 
@@ -196,13 +229,15 @@ def overview_model(architecture):
 def layout_model(model):
     result = subprocess.run(['node', str(Path(__file__).with_name('layout.mjs'))],
                             input=json.dumps(model), text=True, encoding='utf-8',
-                            capture_output=True, check=True)
+                            capture_output=True)
+    if result.returncode:
+        raise ValueError('Diagram layout failed: '+result.stderr.strip())
     geometry = json.loads(result.stdout)
     positions = {n['id']: n for n in geometry['nodes']}
     routes = {e['id']: e for e in geometry['edges']}
     if positions.keys() != {n['id'] for n in model['nodes']} or routes.keys() != {e['id'] for e in model['edges']}:
         raise ValueError('Layout must retain every node and connection')
-    return dict(width=geometry['width'], height=geometry['height'], groups=geometry['groups'],
+    return dict(width=geometry['width'], height=geometry['height'], groups=geometry['groups'], spine=model['spine'], startLabel=geometry['startLabel'],
                 nodes=[dict(n, **{k:v for k,v in positions[n['id']].items() if k!='id'}) for n in model['nodes']],
                 edges=[dict(e, **{k:v for k,v in routes[e['id']].items() if k not in ('id','sources','targets')}) for e in model['edges']])
 
@@ -211,9 +246,9 @@ def render_overview(architecture):
     model = layout_model(overview_model(architecture))
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
-    parts = ['<div class="arch-reading" id="compiler-overview"><p class="connected-intro">One connected compiler. Select a box or arrow to trace its connections and inspect the source.</p>',
-             '<div class="arch-overview-legend"><span class="legend-psi">Psi form</span><span class="legend-native">Native form</span><span>Shaded: owner / inputs</span><span class="legend-check">Checker verdict</span><span>Dashed: request or result</span><span class="arch-attention">Red: extra inputs / late code</span></div>',
-             '<div class="connected-tools" hidden><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
+    parts = ['<div class="arch-reading" id="compiler-overview"><p class="connected-intro">Follow the bold line from START, top to bottom. Select a dashed connection for its details.</p>',
+             '<div class="arch-overview-legend"><span class="legend-psi">Psi form</span><span class="legend-native">Native form</span><span>Shaded: owner / inputs</span><span class="legend-check">Checker verdict</span><span>Bold: main route</span><span>Dashed: supporting work</span><span class="arch-attention">Red: extra inputs / late code</span></div>',
+             '<div class="connected-tools" hidden><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
@@ -223,11 +258,16 @@ def render_overview(architecture):
         parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs><g class="connected-scene">')
     for g in model['groups']:
-        parts.append(f'<g class="connected-group"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/><text x="{g["x"]+24}" y="{g["y"]+36}">{esc(g["title"])}</text></g>')
+        parts.append(f'<g class="connected-group"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/>')
+        for i,line in enumerate(g['caption']['lines']):
+            parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]}" y="{g["caption"]["y"]+20+i*26}">{esc(line)}</text>')
+        parts.append('</g>')
+    start=model['startLabel']
+    parts.append(f'<text class="connected-start" x="{start["x"]}" y="{start["y"]+20}">START ↓</text>')
     for e in model['edges']:
         kind=e['kind'];css='attention' if kind in ('attention','auxiliary') else 'request' if kind in ('request','result') else kind
         marker='return' if css=='attention' else 'check' if css=='check' else 'arrow'
-        parts.append(f'<g class="overview-edge {css}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}" tabindex="0" role="button" aria-label="{esc(nodes[e["start"]]["title"])} to {esc(nodes[e["end"]]["title"])}: {esc(e["label"])}"><title>{esc(e["label"])} · {esc(e["source"])}</title>')
+        parts.append(f'<g class="overview-edge {css}{" main-path" if e.get("main") else ""}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}" tabindex="0" role="button" aria-label="{esc(nodes[e["start"]]["title"])} to {esc(nodes[e["end"]]["title"])}: {esc(e["label"])}"><title>{esc(e["label"])} · {esc(e["source"])}</title>')
         arrow='' if nodes[e['end']]['role']=='transform' and kind!='auxiliary' else f' marker-end="url(#overview-{marker})"'
         for section in e.get('sections',[]):
             path='M'+' L'.join(f'{p["x"]:g} {p["y"]:g}' for p in section['points'])
@@ -248,7 +288,9 @@ def render_overview(architecture):
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             lines=textwrap.wrap(n['title'],23,break_long_words=False,break_on_hyphens=False)
             for i,line in enumerate(lines):
-                parts.append(f'<text class="overview-box-title" x="{x+w/2}" y="{y+h/2+7-(len(lines)-1)*14+28*i}" text-anchor="middle">{esc(line)}</text>')
+                parts.append(f'<text class="overview-box-title" x="{x+w/2}" y="{y+h/2+7-(len(lines)-1)*14+28*i-(11 if n["id"]=="compiler" else 0)}" text-anchor="middle">{esc(line)}</text>')
+        if n['id']=='compiler':
+            parts.append(f'<text class="overview-note" x="{x+w/2}" y="{y+49}" text-anchor="middle">Coordinates Psi 00–04</text>')
         parts.append('</a>')
     parts.append('</g></svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div></div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the drawing to explore it. The source list below works without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Inspect every arrow and its pinned source</summary><ol>')
     for e in model['edges']:

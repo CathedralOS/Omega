@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build atlas/index.html and atlas/pages from Markdown and explicit diagram semantics.
 
-Requires Python 3.10+, Markdown 3.7, and Graphviz's `dot`. The diagram reader
+Requires Python 3.10+, Markdown 3.7, and Graphviz's `dot` and `neato`. The diagram reader
 deliberately accepts only the documented Mermaid flowchart subset and fails
 on other syntax; it must never silently omit an edge from an evidence page.
 """

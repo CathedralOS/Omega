@@ -33,17 +33,23 @@ def main():
                 model=json.loads(page.locator('#overview-model').text_content())
                 assert page.locator('[data-endpoint]').count()==len(model['nodes'])
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
-                assert float(page.locator('#compiler-overview').get_attribute('data-scale'))==0.85
+                start_camera=page.locator('#compiler-overview').get_attribute('data-camera')
+                start_scale=float(page.locator('#compiler-overview').get_attribute('data-scale'))
+                assert 0.5<start_scale<=0.9
+                route=[next(n for n in model['nodes'] if n['id']==key) for key in model['spine']]
+                assert route[0]['id']=='build' and route[-1]['id']=='native-run'
+                assert all(a['y']+a['height']<b['y'] for a,b in zip(route,route[1:]))
                 page.locator('.connected-jump').select_option('engine')
                 assert page.locator('.connected-detail h3').inner_text()=='Psi interpreter'
                 assert page.locator('.overview-edge.is-traced').count()==6
                 assert page.locator('.overview-node.is-traced').count()==4
                 assert 'Calling-policy evaluator' in page.locator('.connected-detail').inner_text()
+                assert page.locator('.overview-edge:not(.main-path) > text:visible').count()==0
                 page.screenshot(path=str(output/f'engine-{theme}-{width}.png'))
                 page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.activeElement.className')=='connected-jump'
                 page.locator('[data-camera="fit"]').click()
-                assert float(page.locator('#compiler-overview').get_attribute('data-scale'))<0.85
+                assert float(page.locator('#compiler-overview').get_attribute('data-scale'))<start_scale
                 page.locator('[data-camera="natural"]').click()
                 assert float(page.locator('#compiler-overview').get_attribute('data-scale'))==1
                 viewport=page.locator('.connected-viewport')
@@ -52,6 +58,9 @@ def main():
                 assert page.locator('#compiler-overview').get_attribute('data-camera')!=before
                 viewport.press('+')
                 assert float(page.locator('#compiler-overview').get_attribute('data-scale'))>1
+                page.locator('[data-camera="start"]').click()
+                assert page.locator('#compiler-overview').get_attribute('data-camera')==start_camera
+                assert page.locator('.overview-edge.is-traced').count()==0
                 page.locator('[data-camera="expand"]').click()
                 assert page.locator('.architecture').evaluate("e=>e.classList.contains('is-expanded')")
                 page.keyboard.press('Escape')
