@@ -2108,6 +2108,34 @@ pub(crate) mod primitive_storage {
         pub(crate) encoding: Option<PrimitiveStorageEncoding>,
     }
 
+    /// A shared byte snapshot can still refer to an original array window.
+    /// Host storage bindings and address exposure resolve that window through
+    /// one checked endpoint, preserving the referent instead of the snapshot.
+    pub(crate) fn original_scalar_storage_endpoint(
+        execution: &TerminalExecution<'_>,
+        endpoint: &PrimitiveStorageEndpoint,
+    ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
+        let PrimitiveStorageEndpoint::ViewByte { bytes, index } = endpoint else {
+            return Ok(endpoint.clone());
+        };
+        let Some(window) = bytes.original_array() else {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "original byte-view scalar requires its captured array window",
+            ));
+        };
+        if *index >= bytes.len() || *index >= window.length {
+            return Err(malformed());
+        }
+        let index = window.offset.checked_add(*index).ok_or(malformed())?;
+        if index >= execution.stored_byte_array_length(&window.array)? {
+            return Err(malformed());
+        }
+        Ok(PrimitiveStorageEndpoint::ArrayElement {
+            array: window.array.clone(),
+            index,
+        })
+    }
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct PrimitiveStorageEncoding {
         pub(crate) source: ScalarType,
@@ -6040,6 +6068,14 @@ pub(crate) mod storage_addresses {
                     place
                 }
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                    if bytes.original_array().is_some() {
+                        let original =
+                            crate::storage::primitive_storage::original_scalar_storage_endpoint(
+                                self,
+                                &PrimitiveStorageEndpoint::ViewByte { bytes, index },
+                            )?;
+                        return self.endpoint_identity(original);
+                    }
                     let (namespace, index) = bytes
                         .storage_address_coordinate(index)
                         .ok_or_else(exhausted)?;
@@ -6383,6 +6419,23 @@ pub(crate) mod storage_addresses {
                     "invalid window {offset}/{length} at {index}"
                 );
             }
+            let shortened = shared(&execution, &original)
+                .subslice(0, 1)
+                .unwrap()
+                .with_original_array(OriginalByteArrayWindow {
+                    array: original,
+                    array_type: StructuralTypeId::new(2).unwrap(),
+                    offset: 0,
+                    length: 4,
+                });
+            assert!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: shortened,
+                        index: 1,
+                    })
+                    .is_err()
+            );
         }
 
         #[test]
