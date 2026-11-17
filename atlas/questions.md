@@ -98,9 +98,10 @@ not a second instruction/frame generator. This replaces the old proposal to
 move entry/foreign/hosted/writer generators wholesale into an O14 stage.
 
 [Entry bridges currently obtain effects from completed body objects][entry-input]
-and then choose [scratch/frame/encoding details][bridge-encoding]. O08 also
-[re-encodes callback materializations][callback-encoding]. Their replacement
-needs explicit recipes, carried body effects, complete encoding alternatives and
+and then choose [scratch/frame/encoding details][bridge-encoding]. O08's
+[callback routine][callback-encoding] validates carried bytes against an expected
+encoding; it is not evidence of a second callback producer. The replacement for
+late generators needs explicit recipes, carried body effects, encoding alternatives and
 fixups. Preserve body-first relaxation and later frame placement using already
 encoded frame fragments.
 

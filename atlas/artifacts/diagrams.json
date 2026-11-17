@@ -147,7 +147,7 @@
     }
   },
   "psi-1": {
-    "claim": "A prepared source request crosses Psi 00\u201306 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.",
+    "claim": "A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.",
     "default_node": "psi",
     "nodes": {
       "A": "hub",
@@ -521,7 +521,7 @@
     }
   },
   "map-3": {
-    "claim": "Current bypass: O02 supplies EmissionFacts separately from the O03\u201309 machine forms. The optimized program is shared rather than copied.",
+    "claim": "Current bypass: O02 supplies EmissionFacts separately from the O03–09 machine forms. The optimized program is shared rather than copied.",
     "default_node": "native",
     "nodes": {},
     "edges": {
@@ -592,5 +592,30 @@
         "label": "write completed product"
       }
     }
+  },
+  "foundation-and-backend-2": {
+    "claim": "Observed at fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f: root compilation waits after target lowering while demanded handlers become objects and resource requirements return to installation binding. This is a dependency detour, not a runtime benchmark.",
+    "default_node": "native",
+    "nodes": {
+      "C": "hub",
+      "D": "hub"
+    },
+    "edges": {
+      "A->B": {
+        "kind": "bypass"
+      },
+      "B->C": {
+        "kind": "bypass"
+      },
+      "C->D": {
+        "kind": "bypass"
+      }
+    }
+  },
+  "foundation-and-backend-3": {
+    "claim": "Proposed replacement: include retained handlers in the complete physical program, derive resource summaries, bind installations, then use common encoding. Resource/binding stability and exact demand pruning remain unverified planning obligations.",
+    "default_node": "proposed",
+    "nodes": {},
+    "edges": {}
   }
 }
