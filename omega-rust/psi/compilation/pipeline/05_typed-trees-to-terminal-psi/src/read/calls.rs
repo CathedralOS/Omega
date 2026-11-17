@@ -785,9 +785,12 @@ impl<'t> Program<'t> {
         }
         if self.checking_generic_entry(id) {
             let invocation = self.static_invocation(StaticArgumentCall::Statement(call));
-            if let Some(read) =
-                self.generic_value_call(id, slots, &invocation, SourceOrigin::of(call.source_span))?
-            {
+            if let Some(read) = self.static_application_call(
+                id,
+                slots,
+                &invocation,
+                SourceOrigin::of(call.source_span),
+            )? {
                 return Ok(read);
             }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
@@ -943,7 +946,7 @@ impl<'t> Program<'t> {
             // parameters, `same<T>(left, right)`: held to that machine's
             // contract at them.
             let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
-            if let Some(read) = self.generic_value_call(id, slots, &invocation, source)? {
+            if let Some(read) = self.static_application_call(id, slots, &invocation, source)? {
                 return Ok(read);
             }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
@@ -2039,10 +2042,10 @@ impl<'t> Program<'t> {
         Ok(Some((callee.symbol, arguments)))
     }
 
-    /// A const application in a generic body forwards actual rigid inputs as
-    /// ordinary check-form operands. The callee keeps its own formal IDs;
-    /// the checker independently authenticates dependent array correspondence.
-    fn generic_value_call(
+    /// Static applications retain enclosing selections and forward const values
+    /// as ordinary operands. The callee keeps its complete declared contract;
+    /// every captured argument still has to name its exact original binder.
+    fn static_application_call(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -2054,13 +2057,18 @@ impl<'t> Program<'t> {
             return Ok(None);
         };
         let parameters = self.typed.machine_type_parameters(machine);
+        let inherited = self
+            .symbols
+            .get(id)
+            .is_some_and(|caller| self.inherits_static_parameters(*caller, target));
         if parameters.is_empty()
-            || parameters.iter().any(|parameter| {
-                !matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                )
-            })
+            || (!inherited
+                && parameters.iter().any(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                    )
+                }))
         {
             return Ok(None);
         }
@@ -2068,7 +2076,7 @@ impl<'t> Program<'t> {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Call("const application with another call feature"),
+                Unserved::Call("static application with another call feature"),
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;

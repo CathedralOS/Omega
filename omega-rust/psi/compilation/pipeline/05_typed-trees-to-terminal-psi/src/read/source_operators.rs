@@ -220,7 +220,8 @@ impl Program<'_> {
                 )
             }
             (
-                ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index },
+                ExpressionKind::Index { base, index }
+                | ExpressionKind::ByteElement { base, index, .. },
                 ExpressionNode::Indexed(indexed),
             ) => {
                 let source = indexed.collection;

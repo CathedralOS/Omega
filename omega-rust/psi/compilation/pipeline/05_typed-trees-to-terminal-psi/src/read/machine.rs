@@ -729,6 +729,15 @@ impl<'t> Program<'t> {
                 return false;
             }
             let declared_owner = self.typed.symbols.get(parameter.symbol).parent;
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(declared_owner)
+            {
+                return false;
+            }
             // An authored binder of the callee needs an explicit application.
             let mut enclosing = self.typed.symbols.get(target).parent;
             let mut found = false;

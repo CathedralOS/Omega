@@ -1190,7 +1190,10 @@ mod tests {
                     .find(|machine| machine.id == requirement)
                     .unwrap();
                 assert!(machine.declaration.is_none());
-                assert!(machine.declared_service_reach.is_none());
+                assert_eq!(
+                    machine.declared_service_reach.as_deref(),
+                    Some(entry.published_service_ceiling.as_slice())
+                );
                 assert_eq!(
                     machine.published_service_ceiling,
                     entry.published_service_ceiling

@@ -1050,6 +1050,16 @@ fn nested_helpers_keep_mixed_inherited_static_parameters() {
             super::boundary_calls::entry(&source),
         )
         .expect("a lexical helper retains the actual outer static parameters");
+        let root = source
+            .machine_by_symbol(super::boundary_calls::entry(&source))
+            .unwrap();
+        assert!(
+            source
+                .machine_type_parameters(root)
+                .iter()
+                .all(|parameter| form.generic_binders.contains(&parameter.symbol)),
+            "the unused type and callback keep their exact declaration identities"
+        );
         let verdict = judge(Ok(form)).unwrap();
         if result == "value" {
             assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");

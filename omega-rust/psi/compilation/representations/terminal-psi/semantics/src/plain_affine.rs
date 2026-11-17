@@ -324,9 +324,8 @@ struct Root {
     /// This is a static storage restriction, never authority to use a loan.
     whole_restoration: bool,
     parameter: bool,
-    /// A parameter lent with `&mut`: the only storage the machine does not
-    /// own that an owned value may be moved out of, leaving a window the
-    /// machine must close before it returns (`Analysis::argument`).
+    /// A machine or block header lent with `&mut`. A block's incoming edges
+    /// authenticate the requested access; renaming storage grants none.
     exclusive: bool,
 }
 
@@ -751,20 +750,37 @@ pub fn borrowed_address_liveness(
 ) -> Result<BorrowedAddressLiveness, Error> {
     let mut headers = IdSet::new();
     let mut has_headers = false;
-    for parameter in machine.block_structural_parameters() {
-        if parameter.access == StructuralAccess::Owned {
-            continue;
-        }
-        crate::structural_declaration(types.iter(), parameter.structural_type).ok_or(
-            Error::malformed("borrowed address header lost its declared carrier"),
-        )?;
-        if !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
-            && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
-                .owned_slots(types, parameter.place, parameter.structural_type)
-                .is_some_and(|slots| slots.is_empty())
-        {
-            headers.insert(parameter.place);
-            has_headers = true;
+    for block in &machine.blocks {
+        for parameter in &block.structural_parameters {
+            if parameter.access == StructuralAccess::Owned {
+                continue;
+            }
+            let place = machine
+                .structural_places
+                .get(index(parameter.place.get())?)
+                .ok_or(Error::malformed(
+                    "borrowed address header is outside the place domain",
+                ))?;
+            if place.id != parameter.place
+                || !matches!(place.kind,
+                semantic_vocabulary::StructuralPlaceKind::BlockParameter { block: owner, position }
+                if owner == block.id && position == parameter.position)
+            {
+                return Err(Error::malformed(
+                    "borrowed address header has another block owner",
+                ));
+            }
+            crate::structural_declaration(types.iter(), parameter.structural_type).ok_or(
+                Error::malformed("borrowed address header lost its declared carrier"),
+            )?;
+            if !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+                && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
+                    .owned_slots(types, parameter.place, parameter.structural_type)
+                    .is_some_and(|slots| slots.is_empty())
+            {
+                headers.insert(parameter.place);
+                has_headers = true;
+            }
         }
     }
     let mut result = BorrowedAddressLiveness {
@@ -1451,6 +1467,7 @@ fn analyze(
                     ))?;
                 // A block binding changes the name of the incoming storage,
                 // not its owner. Borrowed referents stay outside cleanup.
+                exclusive = parameter.access == StructuralAccess::MutableBorrow;
                 (
                     parameter.structural_type,
                     parameter.access == StructuralAccess::Owned,
@@ -2762,7 +2779,7 @@ impl Analysis<'_> {
                 let root = self.root(source)?.ok_or(Error::unsupported(
                     "a borrowed move requires tracked storage contents",
                 ))?;
-                if !root.owned && (!root.parameter || !root.exclusive) {
+                if !root.owned && !root.exclusive {
                     return Err(Error::unsupported(
                         "a borrowed move requires its incoming mutable loan",
                     ));
@@ -4843,6 +4860,11 @@ mod tests {
         assert_eq!(names.is_live(id(2), (id(99), 0)), None);
         assert_eq!(names.is_live(id(2), (id(2), 2)), None);
         assert!(borrowed_address_liveness(&machine, &types[..2]).is_err());
+        let mut foreign = machine.clone();
+        foreign.blocks[1].structural_parameters[0].place = id(u64::MAX);
+        assert!(borrowed_address_liveness(&foreign, &types).is_err());
+        foreign.blocks[1].structural_parameters[0].place = id(1);
+        assert!(borrowed_address_liveness(&foreign, &types).is_err());
         machine.blocks[1].terminator = forwarding;
         let names = borrowed_address_liveness(&machine, &types).unwrap();
         assert_eq!(names.is_live(id(2), (id(2), 1)), Some(true));
