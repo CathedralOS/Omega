@@ -873,6 +873,7 @@ impl Program<'_> {
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: Default::default(),
             }),
             region_owner: lexical_owner,
             fields: Vec::new(),

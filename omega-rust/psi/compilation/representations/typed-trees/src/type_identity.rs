@@ -10012,6 +10012,53 @@ impl TypedTrees {
         )
     }
 
+    pub fn scoped_declared_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, None)
+    }
+
+    pub fn scoped_carrier_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, Some(owner))
+    }
+
+    fn scoped_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: Option<SymbolHandle>,
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self.contains_type_reference(request.type_reference) {
+            return None;
+        }
+        let invalid = Cell::new(false);
+        let identity = normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                declared_carrier: owner.is_none(),
+                erase_constraints: owner.is_some(),
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                application_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                application_argument_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                invalid_application: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!invalid.get()).then_some(identity)
+    }
+
     pub fn region_free_scoped_type_identity(
         &self,
         request: TypeIdentityRequest<'_>,

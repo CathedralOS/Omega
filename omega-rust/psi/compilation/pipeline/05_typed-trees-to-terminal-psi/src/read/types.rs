@@ -889,7 +889,8 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
             && !arguments.is_empty()
             && lifetime_arguments.is_empty()
-            && (self.typed.closed_data_definition(handle).is_some()
+            && (self.typed.data_application_definition(handle).is_some()
+                || self.typed.closed_data_definition(handle).is_some()
                 || self.typed.layout_storage_arguments(handle).is_some())
         {
             return self.record_at(id, handle);
