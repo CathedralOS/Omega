@@ -1,0 +1,6486 @@
+{
+ "declared_unused": {
+  "arena": [
+   "image-macho",
+   "image-elf",
+   "image-pe",
+   "package-manager",
+   "compiler"
+  ],
+  "artifacts": [
+   "omega"
+  ],
+  "bounded-process": [
+   "orchestration"
+  ],
+  "compiler-storage": [
+   "target",
+   "products",
+   "compiler"
+  ],
+  "diagnostics": [
+   "abstract-operations-to-target-operations",
+   "ind19-spectrum-validation",
+   "target",
+   "layout"
+  ],
+  "flow-effects": [
+   "provider-planning",
+   "build-time-evaluation",
+   "package-compilation",
+   "source-compiler"
+  ],
+  "function-identity": [
+   "legalized-operations",
+   "terminal-psi-to-abstract-operations",
+   "target-operations",
+   "machine-code",
+   "machine-emission"
+  ],
+  "language-core": [
+   "build-settings",
+   "target"
+  ],
+  "language-semantics": [
+   "terminal-psi-to-terminal-psi"
+  ],
+  "layout-plans": [
+   "build-settings",
+   "target"
+  ],
+  "numerics": [
+   "provider-planning",
+   "layout"
+  ],
+  "optimization": [
+   "source-compiler",
+   "compiler"
+  ],
+  "optimization-core": [
+   "image-elf",
+   "ind19-spectrum-validation",
+   "target"
+  ],
+  "semantic-vocabulary": [
+   "post-allocation-machine-to-selected-form-encoding",
+   "resolved-layout-to-resolved-layout",
+   "terminal-codec",
+   "ind19-spectrum-validation",
+   "target"
+  ],
+  "source": [
+   "provider-admission",
+   "trust-model"
+  ],
+  "symbols": [
+   "abstract-operations-to-target-operations",
+   "register-homes",
+   "ind19-spectrum-validation",
+   "layout"
+  ]
+ },
+ "pos": {
+  "abstract-operations": "omega-repr abstract-operations",
+  "abstract-operations-to-abstract-operations": "omega-stage 01",
+  "abstract-operations-to-target-operations": "omega-stage 02",
+  "access-plans": "psi-fdn access-plans",
+  "advection-terminal-validation": "samples cli/scientific/conservative_advection/validation",
+  "arena": "psi-fdn arena",
+  "artifacts": "omega-fdn artifacts",
+  "backend-plan": "backend plans/backend-plan",
+  "bound-installations": "backend runtime/bound-installations",
+  "boundary-applications": "backend artifacts/boundary-applications",
+  "bounded-process": "omega-fdn bounded-process",
+  "build-declarations": "packages build-declarations",
+  "build-output": "packages build-output",
+  "build-settings": "build build-settings",
+  "build-time-evaluation": "psi-comp build-time-evaluation",
+  "build-time-values": "psi-fdn build-time-values",
+  "calling-conventions": "backend calling-conventions",
+  "compiler": "omega-comp compiler",
+  "compiler-storage": "psi-fdn compiler-storage",
+  "compiler-storage-derive": "psi-fdn compiler-storage/derive",
+  "component-description": "backend artifacts/component-description",
+  "diagnostics": "psi-fdn diagnostics",
+  "effects": "backend plans/effects",
+  "encoded-scalar-plan": "backend plans/encoded-scalar-plan",
+  "evaluation-accounting": "psi-fdn evaluation-accounting",
+  "execution-admission": "psi-fdn execution-admission",
+  "extents": "psi-fdn extents",
+  "filesystem-authority": "psi-fdn filesystem-authority",
+  "flow-effects": "psi-fdn flow-effects",
+  "function-identity": "omega-fdn function-identity",
+  "hmm-terminal-validation": "samples cli/scientific/hidden_markov_inference/validation/terminal-driver",
+  "image": "backend images/image",
+  "image-elf": "backend images/image-elf",
+  "image-emission": "backend images/image-emission",
+  "image-macho": "backend images/image-macho",
+  "image-pe": "backend images/image-pe",
+  "ind11-terminal-validation": "samples cli/scientific/pareto_experiment_selection/validation",
+  "ind19-spectrum-validation": "samples cli/scientific/spectrometer_attribution",
+  "installation-evidence": "backend runtime/installation-evidence",
+  "isa-aarch64": "backend isa/isa-aarch64",
+  "isa-conformance": "backend isa/isa-conformance",
+  "isa-x86_64": "backend isa/isa-x86_64",
+  "laminate-stiffness-response-validation": "samples cli/scientific/laminate_stiffness_response/validation",
+  "language-core": "psi-fdn language-core",
+  "language-semantics": "psi-fdn language-semantics",
+  "layered-seismic-refraction-validation": "samples cli/scientific/layered_seismic_refraction/validation",
+  "layout": "backend layout",
+  "layout-plans": "psi-fdn layout-plans",
+  "legalized-operations": "omega-repr target-operations:legalized-operations",
+  "machine-code": "omega-repr machine-code",
+  "machine-emission": "backend machine-emission",
+  "molecular-pair-distribution-validation": "samples cli/scientific/molecular_pair_distribution/validation",
+  "mutation-matrix": "psi-fdn mutation-matrix",
+  "native-artifact": "backend artifacts/native-artifact",
+  "native-compiler": "omega-comp native-compiler",
+  "native-preparation": "omega-stage 02",
+  "native-provider-runtime": "omega-interp native-provider-runtime",
+  "native-vocabulary": "omega-repr native-vocabulary",
+  "new031-terminal-validation": "samples cli/scientific/nonlinear_diode_sweep/validation/terminal-driver",
+  "new087-terminal-validation": "samples cli/scientific/travel_time_tomography/validation/terminal",
+  "normalized-foreign-call-plan": "backend plans/normalized-foreign-call-plan",
+  "numerics": "psi-fdn numerics",
+  "object-file": "backend object-file",
+  "omega": "cli",
+  "omega-bench": "tools benchmark",
+  "optimization": "psi-fdn optimization",
+  "optimization-core": "omega-fdn optimization-core",
+  "optimization-unit": "omega-repr abstract-operations:optimization-unit",
+  "optimization-unit-semantics": "omega-repr abstract-operations:optimization-unit-semantics",
+  "orchestration": "build orchestration",
+  "package-compilation": "packages package-compilation",
+  "package-manager": "packages package-manager",
+  "platform-custody": "omega-fdn platform-custody",
+  "post-allocation-machine": "omega-repr post-allocation-machine",
+  "post-allocation-machine-to-selected-form-encoding": "omega-stage 07",
+  "post-handoff-writer-plan": "backend plans/post-handoff-writer-plan",
+  "products": "omega-comp products",
+  "program-entry-plan": "backend plans/program-entry-plan",
+  "proof-admission": "psi-comp proof-admission",
+  "provider-admission": "realization provider-admission",
+  "provider-planning": "realization provider-planning",
+  "provider-selection": "realization provider-selection",
+  "register-environment": "backend register-environment",
+  "register-homes": "omega-repr register-homes",
+  "register-homes-to-post-allocation-machine": "omega-stage 06",
+  "register-model": "backend register-model",
+  "resolved-layout-to-resolved-layout": "omega-stage 09",
+  "resolver-execution": "packages resolver-execution",
+  "review-evidence": "packages review-evidence",
+  "runtime-abi": "backend runtime/runtime-abi",
+  "sample-runner": "samples cli/scientific/sample-runner",
+  "sci04-terminal-validation": "samples cli/scientific/spatial_diffusion/validation",
+  "selected-dispatch": "realization selected-dispatch",
+  "selected-form-encoding-to-resolved-layout": "omega-stage 08",
+  "selected-instruction-analyses": "omega-repr selected-instructions:analyses",
+  "selected-instructions": "omega-repr selected-instructions",
+  "selected-instructions-to-register-homes": "omega-stage 05",
+  "selected-instructions-to-selected-instructions": "omega-stage 04",
+  "semantic-vocabulary": "psi-fdn semantic-vocabulary",
+  "source": "psi-fdn source",
+  "source-acquisition": "packages source-acquisition",
+  "source-audit": "psi-fdn source-audit",
+  "source-compiler": "psi-comp source-compiler",
+  "source-files-to-tokens": "psi-stage 00",
+  "spectral-power-validation": "samples cli/scientific/spectral_power/validation",
+  "symbol-resolved-trees": "psi-repr symbol-resolved-trees",
+  "symbol-resolved-trees-to-typed-trees": "psi-stage 03",
+  "symbols": "psi-fdn symbols",
+  "syntax-trees": "psi-repr syntax-trees",
+  "syntax-trees-derive": "psi-repr syntax-trees:derive",
+  "syntax-trees-to-symbol-resolved-trees": "psi-stage 02",
+  "target-operations": "omega-repr target-operations",
+  "target-operations-to-selected-instructions": "omega-stage 03",
+  "target-vocabulary": "omega-repr target-operations:target-vocabulary",
+  "task-plans": "backend runtime/task-plans",
+  "terminal-check-tables": "psi-repr terminal-psi:check-tables",
+  "terminal-codec": "psi-repr terminal-psi:codec",
+  "terminal-installation": "psi-comp terminal-installation",
+  "terminal-interpreter": "psi-interp",
+  "terminal-production": "psi-comp terminal-production",
+  "terminal-psi": "psi-repr terminal-psi",
+  "terminal-psi-to-abstract-operations": "omega-stage 00",
+  "terminal-psi-to-terminal-psi": "psi-stage 06",
+  "terminal-runtime": "omega-interp terminal-runtime",
+  "terminal-semantics": "psi-repr terminal-psi:semantics",
+  "terminal-wire": "psi-repr terminal-psi:wire",
+  "terminal-work": "psi-repr terminal-psi:work",
+  "thin-film-reflectometry-validation": "samples cli/scientific/thin_film_reflectometry/validation",
+  "tokens": "psi-repr tokens",
+  "tokens-to-syntax-trees": "psi-stage 01",
+  "trust-model": "realization trust-model",
+  "typed-trees": "psi-repr typed-trees",
+  "typed-trees-to-terminal-psi": "psi-stage 05",
+  "typed-trees-to-typed-trees": "psi-stage 04",
+  "verified-optimization-input": "omega-repr abstract-operations:verified-optimization-input",
+  "wavelet-transient-validation": "samples cli/scientific/wavelet_transient_denoising/validation",
+  "x86_64-encoding": "backend isa/x86_64-encoding",
+  "xtask": "tools xtask"
+ },
+ "usage": {
+  "access-plans": {
+   "AccessExposure": [
+    "build-time-evaluation",
+    "terminal-wire"
+   ],
+   "AccessFieldKey": [
+    "typed-trees"
+   ],
+   "AccessOperation": [
+    "build-time-evaluation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "AccessPermissions": [
+    "build-time-evaluation",
+    "terminal-wire"
+   ],
+   "AccessPlan": [
+    "build-time-evaluation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "AccessPlanDiagnostic": [
+    "terminal-interpreter"
+   ],
+   "AccessResourceCompatibility": [
+    "terminal-interpreter"
+   ],
+   "AdmittedResourceProfile": [
+    "terminal-interpreter"
+   ],
+   "AtomicAccessOperation": [
+    "terminal-psi",
+    "typed-trees"
+   ],
+   "AtomicCapability": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "AtomicPermissions": [
+    "build-time-evaluation",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "AtomicTransferRule": [
+    "terminal-interpreter"
+   ],
+   "BaseCongruence": [
+    "terminal-psi"
+   ],
+   "BorrowPolarity": [
+    "terminal-interpreter"
+   ],
+   "BoundaryReach": [
+    "build-time-evaluation",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "BoundaryServiceReachId": [
+    "build-time-evaluation",
+    "terminal-interpreter",
+    "terminal-wire"
+   ],
+   "EffectiveSupplyKind": [
+    "terminal-interpreter"
+   ],
+   "ExternalCapability": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "ExternalRead": [
+    "target-operations-to-selected-instructions",
+    "terminal-wire"
+   ],
+   "ExternalReadBehavior": [
+    "terminal-interpreter"
+   ],
+   "FieldAccess": [
+    "target-operations-to-selected-instructions",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "FieldRegion": [
+    "target-operations-to-selected-instructions"
+   ],
+   "InitializationResourceCompatibility": [
+    "terminal-interpreter"
+   ],
+   "ObservationModel": [
+    "build-time-evaluation",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "PeerWritability": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "PlacementSnapshot": [
+    "terminal-wire"
+   ],
+   "ResourceProfile": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "ResourceProfileGrant": [
+    "terminal-runtime"
+   ],
+   "ResourceProfileReceiptId": [
+    "terminal-runtime"
+   ],
+   "ResourceRegion": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "StableCapability": [
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics"
+   ],
+   "TransferRule": [
+    "terminal-interpreter"
+   ],
+   "ValidatedPlacement": [
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "ValidatedResourceProfile": [
+    "terminal-interpreter"
+   ],
+   "normalize_access_plan": [
+    "build-time-evaluation",
+    "terminal-semantics"
+   ],
+   "require_stable_region_supply": [
+    "terminal-interpreter"
+   ],
+   "validate_access_resources": [
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "validate_initialization_resources": [
+    "terminal-interpreter"
+   ],
+   "validate_resource_profile": [
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "validate_run_relocation_resources": [
+    "terminal-interpreter"
+   ]
+  },
+  "arena": {
+   "Arena": [
+    "calling-conventions",
+    "flow-effects",
+    "image",
+    "image-emission",
+    "language-semantics",
+    "machine-emission",
+    "object-file",
+    "package-compilation",
+    "proof-admission",
+    "provider-planning",
+    "runtime-abi",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "semantic-vocabulary",
+    "source",
+    "source-compiler",
+    "source-files-to-tokens",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ArenaSlotStorage": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ConcurrentArenaPage": [
+    "tokens-to-syntax-trees"
+   ],
+   "ConcurrentPagedArena": [
+    "tokens-to-syntax-trees"
+   ],
+   "Handle": [
+    "build-settings",
+    "build-time-evaluation",
+    "flow-effects",
+    "image",
+    "image-emission",
+    "language-semantics",
+    "layout",
+    "object-file",
+    "proof-admission",
+    "semantic-vocabulary",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "HandleSpan": [
+    "build-settings",
+    "build-time-evaluation",
+    "calling-conventions",
+    "flow-effects",
+    "language-semantics",
+    "provider-planning",
+    "runtime-abi",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "semantic-vocabulary",
+    "source",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "HierarchyArena": [
+    "symbols"
+   ],
+   "HierarchyNode": [
+    "symbols"
+   ],
+   "HierarchyStorage": [
+    "symbols"
+   ],
+   "OrderedRootArena": [
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "OwnedIndex": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "OwnedInterner": [
+    "typed-trees"
+   ],
+   "OwnedTextInterner": [
+    "typed-trees"
+   ],
+   "PagedArenaFrontier": [
+    "syntax-trees"
+   ],
+   "PagedArenaSet": [
+    "syntax-trees"
+   ],
+   "RetainedArena": [
+    "symbols",
+    "typed-trees"
+   ],
+   "RevisionIndex": [
+    "flow-effects"
+   ],
+   "RootRows": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RootedArena": [
+    "typed-trees"
+   ],
+   "SealedPagedArena": [
+    "tokens-to-syntax-trees"
+   ],
+   "SpanHandles": [
+    "symbols"
+   ]
+  },
+  "artifacts": {
+   "compile_timings": [
+    "build-settings",
+    "compiler",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "products"
+   ]
+  },
+  "bounded-process": {
+   "BoundedCaptureBudget": [
+    "omega-bench",
+    "sample-runner",
+    "source-acquisition"
+   ],
+   "BoundedCaptureLimits": [
+    "omega-bench",
+    "sample-runner",
+    "source-acquisition"
+   ],
+   "BoundedProcessChild": [
+    "native-provider-runtime",
+    "resolver-execution"
+   ],
+   "BoundedProcessCompletion": [
+    "resolver-execution"
+   ],
+   "BoundedProcessExitStatus": [
+    "resolver-execution"
+   ],
+   "BoundedProcessInput": [
+    "omega-bench",
+    "sample-runner",
+    "source-acquisition"
+   ],
+   "BoundedProcessLimits": [
+    "native-provider-runtime",
+    "omega-bench",
+    "resolver-execution",
+    "sample-runner"
+   ],
+   "BoundedProcessOutput": [
+    "omega-bench",
+    "source-acquisition"
+   ],
+   "BoundedProcessPrepared": [
+    "native-provider-runtime",
+    "omega-bench",
+    "resolver-execution",
+    "sample-runner"
+   ],
+   "BoundedProcessRunError": [
+    "source-acquisition"
+   ],
+   "ProcessResourceUsage": [
+    "omega-bench"
+   ],
+   "ToolCommandChild": [
+    "xtask"
+   ],
+   "capture_private_observation": [
+    "omega"
+   ],
+   "run_bounded_process": [
+    "omega-bench",
+    "sample-runner",
+    "source-acquisition"
+   ]
+  },
+  "build-time-values": {
+   "BuildTimeValue": [
+    "build-time-evaluation",
+    "language-semantics",
+    "provider-planning"
+   ]
+  },
+  "compiler-storage": {
+   "Record": [
+    "access-plans",
+    "arena",
+    "build-declarations",
+    "build-output",
+    "build-time-evaluation",
+    "build-time-values",
+    "diagnostics",
+    "effects",
+    "evaluation-accounting",
+    "extents",
+    "filesystem-authority",
+    "flow-effects",
+    "language-core",
+    "language-semantics",
+    "layout-plans",
+    "numerics",
+    "package-compilation",
+    "proof-admission",
+    "semantic-vocabulary",
+    "source",
+    "source-acquisition",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-work",
+    "typed-trees",
+    "typed-trees-to-typed-trees"
+   ],
+   "RecordError": [
+    "access-plans",
+    "arena",
+    "build-time-evaluation",
+    "diagnostics",
+    "effects",
+    "extents",
+    "language-semantics",
+    "semantic-vocabulary",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees"
+   ],
+   "RecordLimits": [
+    "build-time-evaluation",
+    "package-compilation",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "RecordReader": [
+    "access-plans",
+    "arena",
+    "build-time-evaluation",
+    "diagnostics",
+    "effects",
+    "extents",
+    "language-semantics",
+    "semantic-vocabulary",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees"
+   ],
+   "RecordWriter": [
+    "access-plans",
+    "arena",
+    "build-time-evaluation",
+    "diagnostics",
+    "effects",
+    "extents",
+    "language-semantics",
+    "semantic-vocabulary",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees"
+   ],
+   "decode": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "encode": [
+    "build-time-evaluation",
+    "package-compilation",
+    "terminal-production"
+   ],
+   "shared_allocation_bytes": [
+    "arena",
+    "typed-trees"
+   ]
+  },
+  "compiler-storage-derive": {
+   "Record": [
+    "compiler-storage"
+   ]
+  },
+  "diagnostics": {
+   "CoverageForm": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "Diagnostic": [
+    "backend-plan",
+    "build-output",
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "isa-aarch64",
+    "isa-x86_64",
+    "native-artifact",
+    "native-compiler",
+    "omega",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "post-handoff-writer-plan",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "selected-dispatch",
+    "source-compiler",
+    "source-files-to-tokens",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "task-plans",
+    "terminal-check-tables",
+    "terminal-production",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "tokens-to-syntax-trees",
+    "trust-model",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees",
+    "verified-optimization-input"
+   ],
+   "DiagnosticSeverity": [
+    "terminal-production",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ExceededProvision": [
+    "products",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "PhaseSnapshot": [
+    "syntax-trees",
+    "typed-trees"
+   ],
+   "ResolvedSourceLocation": [
+    "compiler",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "bracketed_display_names": [
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "typed-trees"
+   ],
+   "comma_join_display": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "debug_display": [
+    "image-emission",
+    "terminal-production",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "diagnostic_display": [
+    "image",
+    "image-emission"
+   ],
+   "error_in_context": [
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "expected": [
+    "tokens-to-syntax-trees"
+   ],
+   "expected_one_of_here": [
+    "tokens-to-syntax-trees"
+   ],
+   "failed_display": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission"
+   ],
+   "join_messages": [
+    "build-time-evaluation",
+    "terminal-production"
+   ],
+   "list_every_diagnostic": [
+    "omega"
+   ],
+   "parse_error": [
+    "tokens-to-syntax-trees"
+   ],
+   "string_diagnostic": [
+    "program-entry-plan"
+   ],
+   "unexpected_eof": [
+    "tokens-to-syntax-trees"
+   ],
+   "write_bounded_diagnostics": [
+    "orchestration",
+    "package-manager"
+   ],
+   "write_diagnostics": [
+    "omega",
+    "orchestration"
+   ]
+  },
+  "evaluation-accounting": {
+   "BuildEvaluationSponsor": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-manager",
+    "provider-planning"
+   ],
+   "BuildEvaluationSponsorLimits": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "package-manager",
+    "provider-planning"
+   ],
+   "BuildEvaluationUsage": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "CanonicalScalarEvaluationReceipt": [
+    "build-time-evaluation"
+   ],
+   "EvaluationAccountingError": [
+    "build-settings",
+    "terminal-interpreter",
+    "terminal-work"
+   ],
+   "EvaluationInvocationAccount": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "provider-planning",
+    "terminal-interpreter",
+    "terminal-work"
+   ],
+   "EvaluationMeasurementIdentity": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "package-manager",
+    "provider-planning",
+    "terminal-interpreter",
+    "terminal-work"
+   ],
+   "EvaluationResource": [
+    "terminal-interpreter"
+   ],
+   "EvaluationStorageLease": [
+    "build-settings",
+    "package-compilation",
+    "terminal-interpreter"
+   ],
+   "MeasuredEvaluation": [
+    "build-time-evaluation"
+   ],
+   "PureEvaluationRecord": [
+    "build-time-evaluation"
+   ],
+   "PureTerminalEvaluationOutcome": [
+    "build-time-evaluation"
+   ],
+   "PureTerminalEvaluationReceipt": [
+    "build-time-evaluation"
+   ],
+   "RecordedPreCheck": [
+    "build-time-evaluation"
+   ],
+   "SourceCompletionAccounting": [
+    "build-time-evaluation"
+   ],
+   "TerminalStorageScheduleIdentity": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "package-manager",
+    "provider-planning"
+   ]
+  },
+  "execution-admission": {
+   "ExecutionBudget": [
+    "omega"
+   ],
+   "WORKER_STACK_SIZE": [
+    "compiler"
+   ],
+   "current_workers": [
+    "orchestration",
+    "source-compiler",
+    "terminal-psi-to-terminal-psi",
+    "tokens-to-syntax-trees"
+   ],
+   "on_budget_worker": [
+    "compiler"
+   ],
+   "within_budget": [
+    "orchestration",
+    "source-compiler",
+    "source-files-to-tokens",
+    "tokens-to-syntax-trees"
+   ]
+  },
+  "extents": {
+   "ActivationClaimBranch": [
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "ActivationClaimId": [
+    "terminal-interpreter"
+   ],
+   "ActivationClaimLedger": [
+    "terminal-interpreter"
+   ],
+   "ActivationClaimRequest": [
+    "terminal-interpreter"
+   ],
+   "ActivationClaimSiteId": [
+    "terminal-interpreter"
+   ],
+   "AddressSpaceId": [
+    "access-plans",
+    "terminal-runtime"
+   ],
+   "ClaimBoundRow": [
+    "terminal-semantics"
+   ],
+   "Extent": [
+    "access-plans",
+    "terminal-interpreter"
+   ],
+   "ExtentContentInterpretation": [
+    "access-plans"
+   ],
+   "ExtentContentInterpretationId": [
+    "access-plans"
+   ],
+   "ExtentLineageId": [
+    "access-plans",
+    "terminal-runtime"
+   ],
+   "ExtentLoan": [
+    "access-plans"
+   ],
+   "ExtentProvenanceId": [
+    "access-plans",
+    "terminal-runtime"
+   ],
+   "ExtentProviderIssuance": [
+    "terminal-runtime"
+   ],
+   "ExtentRightId": [
+    "terminal-runtime"
+   ],
+   "ExtentRights": [
+    "access-plans",
+    "terminal-runtime"
+   ],
+   "ExtentRootGrant": [
+    "terminal-runtime"
+   ],
+   "ExtentRootOrigin": [
+    "access-plans"
+   ],
+   "LoanPolarity": [
+    "access-plans"
+   ],
+   "MappingEraId": [
+    "access-plans",
+    "terminal-runtime"
+   ],
+   "compose_claim_bounds": [
+    "terminal-semantics"
+   ]
+  },
+  "filesystem-authority": {
+   "BuildOutputObligation": [
+    "package-compilation"
+   ],
+   "BuildOutputObligationState": [
+    "package-compilation"
+   ],
+   "BuildOutputReceipt": [
+    "package-compilation"
+   ],
+   "CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION": [
+    "package-compilation"
+   ],
+   "CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "CanonicalFilesystemMetadataIndex": [
+    "build-output",
+    "package-compilation"
+   ],
+   "CanonicalFilesystemMetadataRow": [
+    "package-compilation"
+   ],
+   "CanonicalFilesystemMetadataRowKind": [
+    "build-output",
+    "package-compilation"
+   ],
+   "FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION": [
+    "package-compilation"
+   ],
+   "FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "FilesystemGrantAccess": [
+    "package-compilation"
+   ],
+   "FilesystemGrantRefusal": [
+    "package-compilation"
+   ],
+   "FilesystemGrantRefusalReason": [
+    "package-compilation"
+   ],
+   "FilesystemGrantRoot": [
+    "build-time-evaluation"
+   ],
+   "FilesystemGrantRootIdentity": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "FilesystemHostOperation": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleIdentity": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleInput": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleInputResolution": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleKind": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleOutput": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleOutputSource": [
+    "package-compilation"
+   ],
+   "FilesystemMetadataLayout": [
+    "build-time-evaluation"
+   ],
+   "FilesystemObservationProvider": [
+    "package-compilation"
+   ],
+   "FilesystemOpenDescriptor": [
+    "package-compilation"
+   ],
+   "FilesystemOperationResult": [
+    "package-compilation"
+   ],
+   "FilesystemSponsor": [
+    "build-output",
+    "build-time-evaluation",
+    "package-manager"
+   ],
+   "FilesystemSponsorEntry": [
+    "package-compilation"
+   ],
+   "FilesystemSponsorError": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "FilesystemSponsorLimits": [
+    "build-time-evaluation",
+    "package-compilation",
+    "package-manager"
+   ],
+   "FsGrants": [
+    "build-time-evaluation"
+   ],
+   "MAX_BUILD_OUTPUT_OBLIGATIONS": [
+    "package-compilation"
+   ],
+   "SourceCaptureObligation": [
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "SourceCaptureRequest": [
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "SourceSelectionError": [
+    "source-acquisition"
+   ],
+   "canonical_filesystem_metadata_path_is_canonical": [
+    "build-output",
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "filesystem_root_relative_path_is_canonical": [
+    "package-compilation"
+   ],
+   "observation_codec": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "open_flags": [
+    "package-compilation"
+   ],
+   "select_source_members": [
+    "package-compilation",
+    "source-acquisition"
+   ]
+  },
+  "flow-effects": {
+   "CapabilityFlowKind": [
+    "review-evidence"
+   ],
+   "ConditionalCarryRequirement": [
+    "terminal-psi"
+   ],
+   "ContractDependency": [
+    "terminal-psi"
+   ],
+   "InvocationTarget": [
+    "typed-trees"
+   ],
+   "installation_reach": [
+    "provider-selection",
+    "terminal-installation"
+   ],
+   "template_contract_commitment": [
+    "terminal-psi"
+   ],
+   "validate_published_dependency": [
+    "terminal-psi"
+   ]
+  },
+  "function-identity": {
+   "MachineFunctionIdentity": [
+    "backend-plan",
+    "bound-installations",
+    "image",
+    "image-emission",
+    "native-artifact",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-vocabulary",
+    "verified-optimization-input"
+   ]
+  },
+  "language-core": {
+   "BindingRelevance": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallOperationalAcknowledgement": [
+    "language-semantics",
+    "syntax-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "CallOperationalAcknowledgementOrigin": [
+    "language-semantics",
+    "syntax-trees"
+   ],
+   "CarryAddress": [
+    "language-semantics",
+    "syntax-trees",
+    "task-plans",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "CarryCpu": [
+    "language-semantics",
+    "syntax-trees",
+    "task-plans",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "CarryHostThread": [
+    "language-semantics",
+    "syntax-trees",
+    "task-plans",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "CarryPermission": [
+    "language-semantics",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "CarryPolicy": [
+    "language-semantics",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "task-plans",
+    "tokens-to-syntax-trees"
+   ],
+   "CarrySuspension": [
+    "language-semantics",
+    "syntax-trees",
+    "task-plans",
+    "terminal-psi-to-terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "CastForm": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees"
+   ],
+   "DataSupplyMode": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "DomainClassification": [
+    "language-semantics",
+    "syntax-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "DomainPredicatePresence": [
+    "language-semantics",
+    "syntax-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "LocalBindingRole": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "Multiplicity": [
+    "language-semantics",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-check-tables",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "OperatorSpelling": [
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PLACE_MEMBER_SEPARATOR": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PatternComponent": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ReferenceAccess": [
+    "language-semantics",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "atomic": [
+    "abstract-operations",
+    "access-plans",
+    "language-semantics",
+    "legalized-operations",
+    "optimization-unit",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-wire",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "cast_form": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "constant_value": [
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "core_vocabulary": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "data_layout_queries": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "descriptor_tables": [
+    "terminal-psi"
+   ],
+   "float_operations": [
+    "terminal-semantics"
+   ],
+   "inline_assembly": [
+    "compiler",
+    "effects",
+    "image-emission",
+    "provider-admission",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "is_reserved_result": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "is_self_receiver": [
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "layout_storage": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "operator_spelling": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "typed-trees"
+   ],
+   "sealed_intrinsics": [
+    "backend-plan",
+    "build-time-evaluation",
+    "effects",
+    "provider-planning",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "signature_reserves_result": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "static_interrupts": [
+    "abstract-operations-to-target-operations",
+    "bound-installations",
+    "effects",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "provider-admission",
+    "review-evidence",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ]
+  },
+  "language-semantics": {
+   "BoundaryQualificationIssuer": [
+    "provider-selection"
+   ],
+   "CallOperationalAcknowledgement": [
+    "build-time-evaluation",
+    "flow-effects",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallOperationalAcknowledgementOrigin": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CarryAddress": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "CarryCpu": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "CarryHostThread": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "CarryPermission": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "CarryPolicy": [
+    "effects",
+    "package-manager",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "CarrySuspension": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "CheckedBodyCandidate": [
+    "provider-selection"
+   ],
+   "DataSupplyMode": [
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainClassification": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "DomainEstablishmentRoute": [
+    "build-time-evaluation",
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainPredicatePresence": [
+    "package-manager",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainSemanticRoles": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ExternalBindingId": [
+    "symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ExternalBindingIdentity": [
+    "compiler",
+    "effects",
+    "provider-planning",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ExternalBindingMechanism": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ExternalBindingTable": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "MachineSupplyMode": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "MachineTerminationPlan": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "Multiplicity": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "PermissionArrival": [
+    "flow-effects",
+    "terminal-wire"
+   ],
+   "ProgressPremise": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "ProgressSubject": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankRange": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "RankingViewDeclaration": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "RankingViewId": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RankingViewSelection": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RankingWitness": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "ReferenceAccess": [
+    "package-compilation",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ScopedPermissionClaimIdentity": [
+    "flow-effects",
+    "terminal-wire"
+   ],
+   "ScopedPermissionEventSource": [
+    "flow-effects",
+    "terminal-wire"
+   ],
+   "ScopedPermissionProvenance": [
+    "flow-effects",
+    "terminal-wire"
+   ],
+   "SemanticDomainId": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SemanticDomainTable": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "ServiceReachId": [
+    "flow-effects",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ServiceReachInterface": [
+    "flow-effects"
+   ],
+   "ServiceReachRowId": [
+    "flow-effects",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ServiceReachRowTable": [
+    "flow-effects",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ServiceReachTable": [
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SuspensionValueOrigin": [
+    "flow-effects",
+    "terminal-wire"
+   ],
+   "TerminationGuarantee": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "TerminationInterface": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "boundary_provider_review": [
+    "provider-selection"
+   ],
+   "boundary_values": [
+    "layout"
+   ],
+   "build_requests": [
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "byte_predicates": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "typed-trees"
+   ],
+   "callback_declarations": [
+    "calling-conventions",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "conformance_identity": [
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "const_value": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "content": [
+    "optimization-unit-semantics"
+   ],
+   "declaration_selection": [
+    "build-declarations",
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "effects",
+    "package-compilation",
+    "products",
+    "provider-planning",
+    "provider-selection",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "native_bindings": [
+    "build-settings"
+   ],
+   "numeric_intrinsics": [
+    "effects",
+    "provider-admission",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "opaque_representations": [
+    "provider-planning",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "provider_declarations": [
+    "provider-planning",
+    "provider-selection",
+    "typed-trees"
+   ],
+   "quotient_correspondence": [
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "reflection": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "service_surface": [
+    "backend-plan",
+    "compiler",
+    "effects",
+    "provider-admission",
+    "provider-planning",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "trust_declarations": [
+    "trust-model",
+    "typed-trees"
+   ],
+   "type_identity": [
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "effects",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "value_domain": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "wire": [
+    "build-time-evaluation",
+    "source-compiler",
+    "typed-trees-to-typed-trees"
+   ]
+  },
+  "layout-plans": {
+   "AggregateFieldSchema": [
+    "terminal-interpreter"
+   ],
+   "AggregateFieldValue": [
+    "terminal-interpreter"
+   ],
+   "AggregateGeometryError": [
+    "calling-conventions",
+    "terminal-semantics"
+   ],
+   "ByteOrder": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "post-handoff-writer-plan",
+    "terminal-interpreter"
+   ],
+   "CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT": [
+    "build-time-evaluation"
+   ],
+   "ConventionalSumGeometry": [
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "IntegerInterpretation": [
+    "access-plans",
+    "calling-conventions",
+    "object-file",
+    "register-homes",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "LayoutFieldEntryReport": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-interpreter",
+    "terminal-wire"
+   ],
+   "LayoutPlacementReport": [
+    "access-plans",
+    "build-time-evaluation",
+    "calling-conventions",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ],
+   "LayoutPlanReport": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "LayoutTargetFacts": [
+    "build-time-evaluation",
+    "build-time-values",
+    "terminal-installation",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "MaterializationAction": [
+    "post-handoff-writer-plan"
+   ],
+   "MaterializationDiagnostic": [
+    "post-handoff-writer-plan",
+    "terminal-interpreter"
+   ],
+   "MaterializationWrite": [
+    "post-handoff-writer-plan"
+   ],
+   "NativeLayoutPlanReport": [
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "PlacementConstraints": [
+    "post-handoff-writer-plan"
+   ],
+   "PlacementPhase": [
+    "post-handoff-writer-plan"
+   ],
+   "PlacementSite": [
+    "post-handoff-writer-plan"
+   ],
+   "PrivateCallbackLayoutDemandReport": [
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "RelocationTarget": [
+    "post-handoff-writer-plan"
+   ],
+   "ScalarFieldValue": [
+    "terminal-interpreter"
+   ],
+   "StorageGeometry": [
+    "build-time-evaluation",
+    "calling-conventions",
+    "terminal-semantics"
+   ],
+   "StoredIntegerFit": [
+    "post-handoff-writer-plan"
+   ],
+   "SymbolicMaterializationPlan": [
+    "post-handoff-writer-plan"
+   ],
+   "compose_private_callback_placements": [
+    "calling-conventions",
+    "provider-planning",
+    "review-evidence"
+   ],
+   "conventional_record_geometry": [
+    "build-time-evaluation"
+   ],
+   "conventional_sum_geometry": [
+    "build-time-evaluation",
+    "calling-conventions",
+    "terminal-semantics"
+   ],
+   "decode_aggregate_field_into": [
+    "terminal-interpreter"
+   ],
+   "field_integer_geometry": [
+    "build-time-evaluation",
+    "calling-conventions"
+   ],
+   "layout_placement_sort_key": [
+    "calling-conventions",
+    "terminal-wire"
+   ],
+   "layout_plan_reports_match_for_replay": [
+    "access-plans"
+   ],
+   "normalized_layout_plan_report_fingerprint": [
+    "access-plans"
+   ],
+   "normalized_native_layout_plan_report_fingerprint": [
+    "layout"
+   ],
+   "stage_aggregate_layout": [
+    "terminal-interpreter"
+   ],
+   "stage_scalar_field": [
+    "terminal-interpreter"
+   ],
+   "standalone_integer_geometry": [
+    "calling-conventions"
+   ],
+   "validate_fragment": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "post-handoff-writer-plan",
+    "terminal-wire"
+   ],
+   "validate_private_callback_placements": [
+    "calling-conventions",
+    "layout",
+    "review-evidence"
+   ],
+   "validate_stored_integer_fit": [
+    "post-handoff-writer-plan"
+   ],
+   "validate_stored_integer_fit_shape": [
+    "post-handoff-writer-plan"
+   ],
+   "validate_write": [
+    "post-handoff-writer-plan"
+   ],
+   "validate_write_source_value": [
+    "post-handoff-writer-plan"
+   ]
+  },
+  "mutation-matrix": {
+   "MutationOutcome": [
+    "optimization-core"
+   ],
+   "OneFieldSubstitutionMatrix": [
+    "optimization-core"
+   ],
+   "custody_field_inventory": [
+    "optimization-core"
+   ],
+   "run_one_field_substitution_matrix": [
+    "optimization-core"
+   ]
+  },
+  "numerics": {
+   "arithmetic": [
+    "effects",
+    "language-semantics",
+    "provider-admission",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "bignum": [
+    "build-time-evaluation",
+    "language-semantics",
+    "proof-admission",
+    "semantic-vocabulary",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "float_projection": [
+    "optimization-unit",
+    "proof-admission",
+    "semantic-vocabulary",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi"
+   ],
+   "float_semantics": [
+    "optimization-unit",
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "float_semantics_catalog": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "integer_bounds": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "integer_carrier": [
+    "language-semantics",
+    "review-evidence",
+    "semantic-vocabulary",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "integer_policy": [
+    "terminal-semantics"
+   ],
+   "literals": [
+    "boundary-applications",
+    "build-time-evaluation",
+    "build-time-values",
+    "effects",
+    "language-core",
+    "language-semantics",
+    "provider-admission",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees",
+    "verified-optimization-input"
+   ],
+   "scalar_predicates": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire"
+   ]
+  },
+  "optimization": {
+   "PsiOptimization": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-core"
+   ],
+   "PsiOptimizationSelectionDecodeError": [
+    "terminal-wire"
+   ],
+   "PsiOptimizationSelectionIdentity": [
+    "terminal-wire"
+   ],
+   "PsiOptimizationSelections": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-core",
+    "terminal-psi-to-terminal-psi",
+    "terminal-wire"
+   ],
+   "codec_bytes": [
+    "filesystem-authority",
+    "language-semantics",
+    "semantic-vocabulary",
+    "terminal-codec",
+    "terminal-wire"
+   ],
+   "cursor": [
+    "terminal-codec",
+    "terminal-wire"
+   ],
+   "digest_encoder": [
+    "access-plans",
+    "flow-effects",
+    "language-semantics",
+    "numerics",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "structural_variant_accessor": [
+    "terminal-psi"
+   ],
+   "truncated_from_adapter": [
+    "terminal-codec",
+    "terminal-wire"
+   ]
+  },
+  "optimization-core": {
+   "AcceptedObligationFactIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "legalized-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "AnalysisInvalidationSet": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit-semantics"
+   ],
+   "AnalysisSet": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "BaselineDecisionLog": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "BaselineDecisionLogBuilder": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "BaselineDecisionLogDecodeError": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "BaselineDecisionOutcome": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "BaselineDecisionRecordError": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "CanonicalIdentityEncoder": [
+    "optimization-unit"
+   ],
+   "CompilerCheckSite": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "ExternalCandidateFeatures": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "ExternalDecisionAction": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "ExternalDecisionContext": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "ExternalDecisionLog": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "ExternalDecisionPoint": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "ExternalDecisionSchemaError": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "FunctionFragmentEmissionIdentity": [
+    "machine-code",
+    "machine-emission"
+   ],
+   "FunctionFragmentEmissionManifestIdentity": [
+    "machine-code",
+    "machine-emission"
+   ],
+   "FunctionFragmentObjectContainerManifestIdentity": [
+    "object-file"
+   ],
+   "FunctionFragmentTextSectionManifestIdentity": [
+    "machine-code",
+    "machine-emission",
+    "object-file"
+   ],
+   "FunctionRelativeOptimizationRealizationManifestIdentity": [
+    "machine-code",
+    "machine-emission"
+   ],
+   "InvalidOptimizationManifestRecord": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "NativeOptimizationProjectionIdentity": [
+    "native-artifact"
+   ],
+   "Optimization": [
+    "abstract-operations-to-abstract-operations",
+    "build-declarations",
+    "isa-x86_64",
+    "machine-code",
+    "machine-emission",
+    "package-compilation",
+    "post-allocation-machine",
+    "register-homes-to-post-allocation-machine",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationCandidateIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "OptimizationCandidateVerdict": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationCatalogDescriptor": [
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationDecisionRecord": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "OptimizationExecutionPhase": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "machine-emission",
+    "native-compiler",
+    "post-allocation-machine",
+    "products",
+    "register-homes-to-post-allocation-machine",
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationFactReference": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationIdentityBundle": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationIdentityBundleIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "OptimizationPassIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationPassManifestRecord": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationPhaseMismatch": [
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationPhaseSelections": [
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationReasonCode": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "OptimizationReportRequest": [
+    "build-settings",
+    "package-compilation",
+    "products"
+   ],
+   "OptimizationRollback": [
+    "compiler",
+    "products"
+   ],
+   "OptimizationRollbackInputError": [
+    "compiler"
+   ],
+   "OptimizationRollbackReceipt": [
+    "products"
+   ],
+   "OptimizationRollbackSettlement": [
+    "compiler",
+    "products"
+   ],
+   "OptimizationRuleContract": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "OptimizationRuleIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "OptimizationRuleSetIdentity": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "OptimizationSafetyClass": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "OptimizationSelectionIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "backend-plan",
+    "machine-code",
+    "machine-emission",
+    "object-file",
+    "post-allocation-machine",
+    "register-homes-to-post-allocation-machine",
+    "selected-dispatch",
+    "selected-instructions-to-selected-instructions",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "OptimizationSelections": [
+    "abstract-operations-to-abstract-operations",
+    "compiler",
+    "machine-emission",
+    "native-compiler",
+    "optimization-unit",
+    "package-compilation",
+    "products",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "OptimizationUnitIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "legalized-operations",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "OptimizationValidatorIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "legalized-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "target-operations-to-selected-instructions"
+   ],
+   "OptimizationWorkBudget": [
+    "abstract-operations-to-abstract-operations",
+    "machine-code",
+    "machine-emission",
+    "native-compiler",
+    "optimization-unit",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "OptimizationWorkUsage": [
+    "abstract-operations-to-abstract-operations",
+    "machine-code",
+    "machine-emission",
+    "optimization-unit",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "resolved-layout-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizedAbstractPlanProjectionIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "machine-emission",
+    "native-artifact",
+    "optimization-unit",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "OptimizedBoundaryOccurrenceIdentity": [
+    "native-artifact"
+   ],
+   "OptimizedOperatorOccurrenceIdentity": [
+    "native-artifact"
+   ],
+   "OwnershipFrontierFactIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "native-vocabulary",
+    "optimization-unit"
+   ],
+   "PostAllocationOptimizationManifestIdentity": [
+    "machine-code",
+    "machine-emission",
+    "post-allocation-machine",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instructions-to-register-homes"
+   ],
+   "PostTerminalOptimizationSelectionProjection": [
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "PostTerminalOptimizationSelections": [
+    "native-compiler",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "PreAllocationOptimizationCompletionIdentity": [
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "PrePhysicalOptimizationManifestIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "machine-emission",
+    "native-preparation",
+    "optimization-unit",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "PsiOptimizationSelectionProjection": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "RelocationFreeObjectContainerIdentity": [
+    "object-file"
+   ],
+   "RelocationFreeObjectPlanIdentity": [
+    "object-file"
+   ],
+   "ScalarConstantFactIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "SelectedLoweringOptimizationCompletionIdentity": [
+    "machine-emission",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "TargetCostModelIdentity": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "TerminalRelocationFreeTextSectionIdentity": [
+    "machine-code",
+    "machine-emission",
+    "object-file"
+   ],
+   "TransformationLedgerIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit"
+   ],
+   "ValidatedCandidateSummary": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "ValueRangeFactIdentity": [
+    "optimization-unit",
+    "optimization-unit-semantics"
+   ],
+   "codec_bytes": [
+    "abstract-operations-to-abstract-operations",
+    "calling-conventions",
+    "function-identity",
+    "image-emission",
+    "image-macho",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-vocabulary",
+    "object-file",
+    "optimization-unit",
+    "package-compilation",
+    "package-manager",
+    "post-allocation-machine",
+    "program-entry-plan",
+    "register-homes",
+    "register-model",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "target-vocabulary"
+   ],
+   "cursor": [
+    "component-description",
+    "machine-code",
+    "machine-emission",
+    "object-file",
+    "optimization-unit",
+    "package-compilation",
+    "register-homes",
+    "selected-instruction-analyses"
+   ],
+   "digest_encoder": [
+    "boundary-applications",
+    "build-output",
+    "calling-conventions",
+    "compiler",
+    "component-description",
+    "effects",
+    "image",
+    "image-emission",
+    "image-macho",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-compiler",
+    "package-compilation",
+    "package-manager",
+    "post-allocation-machine",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "register-model",
+    "review-evidence",
+    "selected-instructions",
+    "source-acquisition",
+    "target-vocabulary",
+    "task-plans",
+    "trust-model"
+   ],
+   "encode_option_u64": [
+    "legalized-operations",
+    "selected-instructions",
+    "target-vocabulary"
+   ],
+   "external_psi_decision_schema_identity": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "hex": [
+    "optimization-unit",
+    "register-homes"
+   ],
+   "invalid_error_display": [
+    "isa-x86_64",
+    "optimization-unit"
+   ],
+   "psi_target_neutral_decision_target_identity": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "record_views": [
+    "machine-emission"
+   ],
+   "structural_variant_accessor": [
+    "abstract-operations",
+    "machine-code",
+    "native-vocabulary"
+   ],
+   "take_error_from_adapter": [
+    "object-file",
+    "optimization-unit",
+    "register-homes"
+   ],
+   "truncated_from_adapter": [
+    "machine-code",
+    "machine-emission",
+    "object-file",
+    "register-homes"
+   ]
+  },
+  "platform-custody": {
+   "SymbolicLinkBehavior": [
+    "source-acquisition"
+   ],
+   "extended_acl_has_allow_entry": [
+    "source-acquisition"
+   ],
+   "file_publication": [
+    "native-artifact",
+    "package-compilation",
+    "products"
+   ],
+   "filesystem_object_identity": [
+    "orchestration"
+   ],
+   "lock_file": [
+    "source-acquisition"
+   ],
+   "open_file_extended_acl_has_allow_entry": [
+    "source-acquisition"
+   ],
+   "record_file": [
+    "package-manager",
+    "source-acquisition"
+   ],
+   "temporary_directory": [
+    "omega",
+    "orchestration"
+   ]
+  },
+  "semantic-vocabulary": {
+   "AdmissionSiteId": [
+    "proof-admission",
+    "terminal-psi"
+   ],
+   "AffineConstructionElement": [
+    "register-homes",
+    "terminal-wire"
+   ],
+   "AtomicCellType": [
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "AuthoredBitFragment": [
+    "calling-conventions",
+    "register-homes",
+    "target-operations-to-selected-instructions",
+    "terminal-wire"
+   ],
+   "AuthoredBitFragments": [
+    "calling-conventions",
+    "legalized-operations",
+    "register-homes",
+    "target-operations-to-selected-instructions",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "AuthoredFieldStorage": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "layout",
+    "legalized-operations",
+    "optimization-unit",
+    "register-homes",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "AuthoredRecordStorage": [
+    "register-homes",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BlockId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "effects",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "register-homes",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundaryCompletion": [
+    "abstract-operations-to-target-operations",
+    "language-semantics",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit-semantics",
+    "package-manager",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-check-tables",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundaryMachineId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "bound-installations",
+    "build-settings",
+    "build-time-evaluation",
+    "calling-conventions",
+    "compiler",
+    "component-description",
+    "effects",
+    "image-emission",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "BoundaryNativeParameterOrigin": [
+    "calling-conventions"
+   ],
+   "BoundaryRequirementKind": [
+    "backend-plan",
+    "native-preparation",
+    "provider-planning",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundedIntegerType": [
+    "register-homes",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ByteSequencePredicate": [
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ByteSequencePredicateSet": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "ByteSequenceStructuralField": [
+    "optimization-unit",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "CallableContractId": [
+    "abstract-operations-to-abstract-operations",
+    "image-emission",
+    "native-vocabulary",
+    "optimization-unit",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallableCrashPolicy": [
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallableInvocationSite": [
+    "terminal-installation",
+    "terminal-production",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "CallableShapeMismatch": [
+    "terminal-check-tables",
+    "typed-trees"
+   ],
+   "CallbackRequirementId": [
+    "calling-conventions",
+    "language-semantics",
+    "terminal-psi"
+   ],
+   "CallingAbiIdentity": [
+    "boundary-applications",
+    "calling-conventions",
+    "effects",
+    "native-compiler",
+    "package-manager",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "CallingDeclarationOwner": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallingGenericFormal": [
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallingOperandKind": [
+    "effects",
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "CallingSignatureId": [
+    "effects",
+    "provider-planning",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallingStaticOperand": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees"
+   ],
+   "CanonicalStructuralPathSegment": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "build-time-evaluation",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "runtime-abi",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ClaimId": [
+    "abstract-operations",
+    "image-emission",
+    "installation-evidence",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations",
+    "task-plans",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ClosedIntegerType": [
+    "abstract-operations-to-target-operations",
+    "build-time-evaluation",
+    "calling-conventions",
+    "layout-plans",
+    "legalized-operations",
+    "native-preparation",
+    "register-homes",
+    "runtime-abi",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ClosedScalarType": [
+    "abstract-operations-to-target-operations",
+    "build-time-evaluation",
+    "calling-conventions",
+    "layout",
+    "legalized-operations",
+    "machine-emission",
+    "native-preparation",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-wire"
+   ],
+   "ContentAlgebra": [
+    "language-semantics",
+    "optimization-unit",
+    "proof-admission",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "ContentAlgebraKind": [
+    "language-semantics",
+    "native-artifact",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "ContentConservation": [
+    "optimization-unit",
+    "proof-admission",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentDomainId": [
+    "register-homes",
+    "terminal-wire"
+   ],
+   "ContentPlaceSegment": [
+    "image-emission",
+    "native-artifact",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentPlaceVersion": [
+    "image-emission",
+    "native-artifact",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ContentProjectionExpression": [
+    "language-semantics",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentProjectionIdentity": [
+    "optimization-unit-semantics",
+    "register-homes",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentProjectionScalar": [
+    "language-semantics",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentStructuralPlace": [
+    "optimization-unit",
+    "register-homes",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContentTerm": [
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ContractId": [
+    "native-compiler",
+    "review-evidence",
+    "terminal-check-tables",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CrashCause": [
+    "language-semantics",
+    "review-evidence",
+    "terminal-check-tables",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CycleComponentId": [
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics"
+   ],
+   "DomainSemanticId": [
+    "optimization-unit-semantics",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "EdgeId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-compiler",
+    "native-preparation",
+    "native-vocabulary",
+    "object-file",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "post-allocation-machine",
+    "provider-admission",
+    "register-homes",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "terminal-work",
+    "typed-trees-to-terminal-psi"
+   ],
+   "EvidenceIdentity": [
+    "proof-admission",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi"
+   ],
+   "EvidenceTermId": [
+    "terminal-check-tables",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "ExternalCompletionKind": [
+    "abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "language-semantics",
+    "legalized-operations",
+    "optimization-unit",
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "FieldInfoDescription": [
+    "build-settings",
+    "source-compiler",
+    "typed-trees"
+   ],
+   "FloatIntegerConversion": [
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "FloatMeaningClause": [
+    "proof-admission",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "FloatMeaningClauseOperand": [
+    "optimization-unit",
+    "proof-admission",
+    "terminal-wire"
+   ],
+   "FloatMeaningClauseValue": [
+    "optimization-unit",
+    "proof-admission",
+    "terminal-wire"
+   ],
+   "FloatMeaningSlot": [
+    "terminal-wire"
+   ],
+   "Fnv1a": [
+    "access-plans",
+    "calling-conventions",
+    "effects",
+    "image",
+    "language-semantics",
+    "layout-plans",
+    "post-handoff-writer-plan",
+    "provider-admission",
+    "task-plans",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "ForeignLocatorCandidate": [
+    "language-semantics",
+    "package-compilation",
+    "review-evidence"
+   ],
+   "IdSet": [
+    "image-emission",
+    "native-compiler",
+    "provider-admission",
+    "terminal-semantics"
+   ],
+   "IdTable": [
+    "calling-conventions",
+    "native-vocabulary",
+    "provider-admission",
+    "task-plans",
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IdTableBuildError": [
+    "terminal-semantics"
+   ],
+   "IeeeFloatComparisonKind": [
+    "optimization-unit",
+    "proof-admission",
+    "review-evidence",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "IeeeFloatComparisonOperation": [
+    "abstract-operations",
+    "boundary-applications",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "optimization-unit",
+    "provider-admission",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-runtime",
+    "terminal-wire",
+    "verified-optimization-input"
+   ],
+   "IeeeFloatFormat": [
+    "abstract-operations",
+    "boundary-applications",
+    "calling-conventions",
+    "image-emission",
+    "language-semantics",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "normalized-foreign-call-plan",
+    "optimization-unit",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "IeeeFloatStructuralField": [
+    "optimization-unit",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "IeeeFloatValue": [
+    "abstract-operations",
+    "abstract-operations-to-target-operations",
+    "machine-code",
+    "native-preparation",
+    "optimization-unit",
+    "proof-admission",
+    "register-homes",
+    "target-operations",
+    "target-vocabulary",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerBinaryKind": [
+    "review-evidence"
+   ],
+   "IntegerCarrier": [
+    "abstract-operations-to-abstract-operations",
+    "calling-conventions",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerMathLiteral": [
+    "proof-admission",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerMathTerm": [
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerSign": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "build-time-evaluation",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerType": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "boundary-applications",
+    "build-settings",
+    "calling-conventions",
+    "image-emission",
+    "language-semantics",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerValue": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "build-time-evaluation",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerWidth": [
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerWidthClosureError": [
+    "terminal-wire"
+   ],
+   "InvocationSite": [
+    "abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-time-evaluation",
+    "effects",
+    "image-emission",
+    "installation-evidence",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "object-file",
+    "optimization-unit-semantics",
+    "post-allocation-machine",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "MachineDescriptorId": [
+    "abstract-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "register-homes",
+    "selected-instructions",
+    "target-operations",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "MachineId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "bound-installations",
+    "boundary-applications",
+    "build-time-evaluation",
+    "compiler",
+    "component-description",
+    "effects",
+    "image-emission",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "package-compilation",
+    "post-allocation-machine",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "register-homes",
+    "review-evidence",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "MathematicalArgument": [
+    "terminal-wire"
+   ],
+   "NativeBindingLocator": [
+    "build-time-evaluation",
+    "language-semantics",
+    "package-compilation",
+    "provider-planning"
+   ],
+   "NativeParameterId": [
+    "calling-conventions",
+    "language-semantics",
+    "terminal-psi"
+   ],
+   "NonDenseIdentities": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "image-emission",
+    "legalized-operations"
+   ],
+   "ObligationId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "OperationId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "bound-installations",
+    "boundary-applications",
+    "effects",
+    "image-emission",
+    "installation-evidence",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "provider-selection",
+    "register-homes",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "terminal-work",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "PackageKeyIdentity": [
+    "backend-plan",
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "effects",
+    "language-semantics",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "provider-planning",
+    "provider-selection",
+    "register-homes",
+    "review-evidence",
+    "source",
+    "source-compiler",
+    "symbols",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ParameterDescription": [
+    "build-settings",
+    "source-compiler",
+    "typed-trees"
+   ],
+   "PlaceId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "package-compilation",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ProfileDecisionId": [
+    "terminal-psi"
+   ],
+   "ProgramEntrySourceCatalog": [
+    "source-compiler"
+   ],
+   "ProgramEntryVisibleParameters": [
+    "compiler",
+    "program-entry-plan"
+   ],
+   "ProofFormalScope": [
+    "terminal-wire"
+   ],
+   "ProofTerm": [
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-wire"
+   ],
+   "ProofTermField": [
+    "terminal-wire"
+   ],
+   "Proposition": [
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PropositionContext": [
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PropositionError": [
+    "proof-admission",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "PropositionId": [
+    "terminal-check-tables",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PsiSemanticId": [
+    "optimization-unit",
+    "provider-admission",
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "QualifiedScalarType": [
+    "native-preparation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ReferenceOriginExtent": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ScalarAddressModel": [
+    "compiler",
+    "terminal-check-tables",
+    "terminal-installation",
+    "typed-trees"
+   ],
+   "ScalarApplicationId": [
+    "build-settings",
+    "build-time-evaluation",
+    "calling-conventions",
+    "layout",
+    "native-compiler",
+    "provider-planning",
+    "register-homes",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "ScalarConditionRole": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ScalarDomainId": [
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarQualificationSetId": [
+    "native-preparation",
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarReadProjection": [
+    "optimization-unit",
+    "provider-admission",
+    "terminal-interpreter",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ScalarRefinement": [
+    "optimization-unit",
+    "register-homes",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ScalarTerm": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarType": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "boundary-applications",
+    "build-settings",
+    "build-time-evaluation",
+    "calling-conventions",
+    "image-emission",
+    "language-semantics",
+    "layout",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "SelectionDeclarationId": [
+    "terminal-installation",
+    "terminal-production"
+   ],
+   "SelectionQuestionId": [
+    "terminal-installation",
+    "terminal-production"
+   ],
+   "SemanticDependencyKind": [
+    "review-evidence"
+   ],
+   "ServiceId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "backend-plan",
+    "bound-installations",
+    "component-description",
+    "effects",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "omega",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StaticMachineBinderId": [
+    "calling-conventions",
+    "language-semantics",
+    "terminal-psi",
+    "typed-trees"
+   ],
+   "StructuralCaseId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "legalized-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralCaseSubject": [
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralDomainId": [
+    "abstract-operations",
+    "abstract-operations-to-target-operations",
+    "native-vocabulary",
+    "optimization-unit-semantics",
+    "register-homes",
+    "target-operations",
+    "target-vocabulary",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralFieldId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "layout",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "runtime-abi",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralIdentitySubject": [
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "StructuralPlaceKind": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralTypeId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "bound-installations",
+    "build-settings",
+    "build-time-evaluation",
+    "calling-conventions",
+    "image-emission",
+    "layout",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "omega",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "package-compilation",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "task-plans",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "SuspensionCrossingId": [
+    "task-plans",
+    "terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "TargetCarrierLayout": [
+    "build-time-evaluation",
+    "runtime-abi",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "TargetMachineCallable": [
+    "build-time-evaluation",
+    "package-compilation",
+    "review-evidence",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "TerminalAuthorityClass": [
+    "effects",
+    "language-semantics"
+   ],
+   "Termination": [
+    "review-evidence",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ValueId": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-time-evaluation",
+    "image-emission",
+    "installation-evidence",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "native-vocabulary",
+    "normalized-foreign-call-plan",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "WidthParameter": [
+    "terminal-check-tables",
+    "typed-trees-to-terminal-psi"
+   ],
+   "WorkScheduleIdentity": [
+    "abstract-operations-to-abstract-operations",
+    "evaluation-accounting",
+    "legalized-operations",
+    "machine-code",
+    "native-preparation",
+    "object-file",
+    "optimization-unit",
+    "package-compilation",
+    "post-allocation-machine",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-work"
+   ],
+   "byte_predicates": [
+    "language-semantics"
+   ],
+   "callback_nominal_report_fingerprint": [
+    "calling-conventions"
+   ],
+   "callback_requirement_id": [
+    "calling-conventions",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "compiler_evaluation": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "products",
+    "provider-planning",
+    "source-compiler",
+    "terminal-installation",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "encode_fingerprint_string": [
+    "language-semantics"
+   ],
+   "fixed_integer_type": [
+    "proof-admission",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "float_integer_failure_condition": [
+    "terminal-semantics"
+   ],
+   "float_integer_preconditions": [
+    "proof-admission",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics"
+   ],
+   "identity_encoding": [
+    "native-vocabulary",
+    "runtime-abi"
+   ],
+   "integer_math_comparison_operands": [
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "nominal_callback_binder_id": [
+    "typed-trees"
+   ],
+   "nominal_callback_native_parameter_id": [
+    "calling-conventions",
+    "typed-trees"
+   ],
+   "ordered_comparison_operands": [
+    "proof-admission",
+    "terminal-interpreter"
+   ],
+   "proof_applications": [
+    "flow-effects",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "scalar_comparison_operands": [
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-installation",
+    "terminal-semantics"
+   ],
+   "scalar_term_binary_operands": [
+    "proof-admission",
+    "terminal-semantics"
+   ],
+   "scalar_term_predicate_quint_pattern": [
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics"
+   ],
+   "scalar_term_unary_operand": [
+    "proof-admission",
+    "terminal-semantics"
+   ],
+   "source_selections": [
+    "compiler",
+    "language-semantics",
+    "package-compilation",
+    "products",
+    "terminal-installation",
+    "terminal-production"
+   ],
+   "structural_path_encoding": [
+    "runtime-abi",
+    "terminal-psi"
+   ]
+  },
+  "source": {
+   "CapturedSourceNode": [
+    "package-compilation",
+    "package-manager",
+    "source-acquisition"
+   ],
+   "CapturedSourceTree": [
+    "package-compilation",
+    "package-manager",
+    "source-acquisition"
+   ],
+   "DependencyScope": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "provider-planning",
+    "review-evidence",
+    "source-compiler",
+    "source-files-to-tokens",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-semantics",
+    "tokens",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "InvocationSourceConsent": [
+    "build-settings",
+    "build-time-evaluation",
+    "terminal-production"
+   ],
+   "LoadedSource": [
+    "package-compilation",
+    "source-compiler",
+    "source-files-to-tokens"
+   ],
+   "LoadedSources": [
+    "package-compilation",
+    "source-compiler",
+    "source-files-to-tokens"
+   ],
+   "SourceBytes": [
+    "syntax-trees",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "SourceCatalogue": [
+    "package-compilation",
+    "products"
+   ],
+   "SourceContents": [
+    "package-compilation",
+    "source-compiler",
+    "source-files-to-tokens"
+   ],
+   "SourceFile": [
+    "package-compilation",
+    "review-evidence",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-semantics"
+   ],
+   "SourceFileSystem": [
+    "package-compilation",
+    "source-compiler",
+    "source-files-to-tokens"
+   ],
+   "SourceId": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "products",
+    "review-evidence",
+    "source-compiler",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceMap": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "products",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SourceOrigin": [
+    "build-time-evaluation",
+    "compiler",
+    "language-semantics",
+    "package-compilation",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-semantics",
+    "tokens",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourcePosition": [
+    "compiler",
+    "source-compiler",
+    "source-files-to-tokens",
+    "tokens-to-syntax-trees"
+   ],
+   "SourceResolutionStratum": [
+    "language-semantics",
+    "package-compilation",
+    "symbols",
+    "terminal-semantics"
+   ],
+   "SourceSnapshot": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "SourceSnapshotEntry": [
+    "package-compilation"
+   ],
+   "SourceSnapshotStorage": [
+    "package-compilation"
+   ],
+   "SourceSpan": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "diagnostics",
+    "effects",
+    "language-semantics",
+    "package-compilation",
+    "provider-planning",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-check-tables",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "Span": [
+    "language-semantics",
+    "package-compilation",
+    "review-evidence",
+    "source-compiler",
+    "source-files-to-tokens",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "tokens",
+    "tokens-to-syntax-trees"
+   ],
+   "anonymous_owner": [
+    "package-compilation"
+   ],
+   "display_literal_bytes": [
+    "diagnostics",
+    "package-manager",
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "typed-trees"
+   ],
+   "read_accounting": [
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "source_assembly": [
+    "package-compilation"
+   ],
+   "source_consumption": [
+    "package-compilation"
+   ],
+   "source_identity": [
+    "compiler",
+    "package-compilation",
+    "review-evidence",
+    "terminal-production",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "source_imports": [
+    "package-compilation"
+   ],
+   "source_snapshot": [
+    "package-compilation"
+   ],
+   "toolchain_library": [
+    "package-compilation"
+   ],
+   "validate_package_key": [
+    "package-manager"
+   ],
+   "validate_package_navigation": [
+    "package-manager"
+   ],
+   "validate_source_identity": [
+    "package-manager"
+   ],
+   "validate_source_lineage": [
+    "package-manager"
+   ]
+  },
+  "symbols": {
+   "BuildSymbolHasher": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinFunction": [
+    "effects",
+    "language-semantics",
+    "provider-admission",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinType": [
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom": [
+    "build-time-evaluation",
+    "language-semantics",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "BuiltinTypeMember": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "FixedCoreDeclaration": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "JoinedPath": [
+    "build-time-evaluation",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ParameterOccurrence": [
+    "terminal-check-tables",
+    "typed-trees"
+   ],
+   "PrimitiveType": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RetainedDeclaration": [
+    "build-time-evaluation",
+    "compiler",
+    "language-semantics",
+    "package-compilation",
+    "review-evidence",
+    "source-compiler",
+    "terminal-check-tables",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceScopedTopLevelBinding": [
+    "build-time-evaluation",
+    "package-compilation",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SourceSpanCandidates": [
+    "build-time-evaluation",
+    "package-compilation",
+    "source-compiler"
+   ],
+   "Symbol": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "SymbolHandle": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "effects",
+    "flow-effects",
+    "language-semantics",
+    "package-compilation",
+    "products",
+    "provider-planning",
+    "review-evidence",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-check-tables",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "trust-model",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "SymbolKeyMap": [
+    "flow-effects",
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind": [
+    "build-time-evaluation",
+    "language-semantics",
+    "package-compilation",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "SymbolLookup": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolMap": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolNameRef": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolPath": [
+    "terminal-check-tables",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolTable": [
+    "language-semantics",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolTableAppender": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolTableBuilder": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "UnresolvedName": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "assign": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "builtin_function_symbols": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "builtin_type_member_symbols": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "builtin_type_symbols": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "fixed_core_declaration_symbols": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "is_builtin_type_spelling": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "same_semantic_name": [
+    "provider-planning"
+   ],
+   "sealed_intrinsic_at": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "top_level": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ]
+  }
+ },
+ "usage2": {
+  "artifacts": {
+   "compile_timings::BUILD_AND_CHECKED_CONTINUATION": [
+    "compiler"
+   ],
+   "compile_timings::CompileTimings": [
+    "build-settings",
+    "compiler",
+    "orchestration",
+    "package-compilation",
+    "products"
+   ],
+   "compile_timings::PhaseTiming": [
+    "products"
+   ],
+   "compile_timings::SOURCE_ASSEMBLY": [
+    "compiler"
+   ],
+   "compile_timings::StageMeta": [
+    "build-settings",
+    "compiler",
+    "orchestration",
+    "package-compilation"
+   ],
+   "compile_timings::counters": [
+    "build-settings",
+    "compiler",
+    "package-manager"
+   ]
+  },
+  "diagnostics": {
+   "parse_error::ParseError": [
+    "tokens-to-syntax-trees"
+   ]
+  },
+  "filesystem-authority": {
+   "observation_codec::ObservationCursor": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "observation_codec::push_framed": [
+    "package-compilation",
+    "package-manager"
+   ],
+   "open_flags::wants_write": [
+    "package-compilation"
+   ]
+  },
+  "flow-effects": {
+   "installation_reach::ReachResolutionError": [
+    "provider-selection",
+    "terminal-installation"
+   ],
+   "installation_reach::ReachRow": [
+    "provider-selection",
+    "terminal-installation"
+   ],
+   "installation_reach::resolve": [
+    "provider-selection",
+    "terminal-installation"
+   ]
+  },
+  "language-core": {
+   "atomic::ATOMIC_FENCE_NAME": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "atomic::ATOMIC_FENCE_NAMESPACE": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "atomic::AtomicCompareExchangeAttemptAxis": [
+    "legalized-operations",
+    "optimization-unit",
+    "terminal-wire"
+   ],
+   "atomic::AtomicCompareExchangeObservationAxis": [
+    "access-plans",
+    "legalized-operations",
+    "optimization-unit",
+    "target-operations-to-selected-instructions",
+    "terminal-psi",
+    "terminal-wire",
+    "tokens-to-syntax-trees"
+   ],
+   "atomic::AtomicCompareExchangeOnceResultCustody": [
+    "abstract-operations",
+    "access-plans",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-wire",
+    "tokens-to-syntax-trees"
+   ],
+   "atomic::AtomicCompareExchangeOutcomeIdentity": [
+    "legalized-operations",
+    "optimization-unit",
+    "terminal-wire"
+   ],
+   "atomic::AtomicCompareExchangeOutcomePayload": [
+    "terminal-interpreter"
+   ],
+   "atomic::AtomicExpressionResultCustody": [
+    "abstract-operations",
+    "language-semantics",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "atomic::AtomicObservingCompareExchangeOperation": [
+    "typed-trees"
+   ],
+   "atomic::AtomicObservingCompareExchangeResultShape": [
+    "typed-trees"
+   ],
+   "atomic::AtomicOrderingPlan": [
+    "abstract-operations",
+    "access-plans",
+    "language-semantics",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "atomic::FenceOrdering": [
+    "abstract-operations",
+    "terminal-psi"
+   ],
+   "atomic::MemoryOrdering": [
+    "abstract-operations",
+    "access-plans",
+    "optimization-unit",
+    "terminal-psi",
+    "tokens-to-syntax-trees"
+   ],
+   "cast_form::CastEntry": [
+    "symbol-resolved-trees-to-typed-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "cast_form::CastEntryKind": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "cast_form::CastForm": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "constant_value::EvaluatedConstant": [
+    "symbol-resolved-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "core_vocabulary::CoreSource": [
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "typed-trees"
+   ],
+   "core_vocabulary::CoreVocabulary": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "core_vocabulary::CoreVocabularyCatalog": [
+    "symbols"
+   ],
+   "core_vocabulary::ExternalBindingVocabulary": [
+    "typed-trees"
+   ],
+   "core_vocabulary::IntegerCarrierDeclaration": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "core_vocabulary::ReflectionDeclaration": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "data_layout_queries::DataLayoutQueryKind": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "data_layout_queries::is_data_layout_query_spelling": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "descriptor_tables::SegmentRegister": [
+    "terminal-psi"
+   ],
+   "descriptor_tables::SegmentReload": [
+    "terminal-psi"
+   ],
+   "float_operations::CANONICAL_FLOAT_OPERATIONS": [
+    "terminal-semantics"
+   ],
+   "float_operations::FloatDeclarationForm": [
+    "terminal-semantics"
+   ],
+   "float_operations::declaration_form": [
+    "terminal-semantics"
+   ],
+   "inline_assembly::ASM_SCRATCH_NAMES": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::ASM_SCRATCH_SLOT_COUNT": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "inline_assembly::ASM_ZERO_FLAG_SLOT": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmAuthorityAdmission": [
+    "compiler",
+    "source-compiler",
+    "typed-trees-to-typed-trees"
+   ],
+   "inline_assembly::AsmCatalogEntry": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmControlRegister": [
+    "effects",
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmFenceKind": [
+    "terminal-psi",
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmGlobalDescriptorTableOperation": [
+    "provider-admission",
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmInstructionAvailability": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmInstructionContract": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmInstructionRefusal": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmInstructionShape": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmInterruptControlKind": [
+    "effects",
+    "image-emission",
+    "provider-admission",
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmMemoryTransferKind": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmRegisterCarrier": [
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmRegisterOperation": [
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmSchedulingHintKind": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::AsmSystemRegister": [
+    "terminal-psi"
+   ],
+   "inline_assembly::AsmTargetApplicability": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "terminal-psi",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "inline_assembly::asm_catalog_entry": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::is_unmodeled_aarch64_scratch_view": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::is_unmodeled_x86_scratch_view": [
+    "tokens-to-syntax-trees"
+   ],
+   "inline_assembly::scratch_register": [
+    "tokens-to-syntax-trees"
+   ],
+   "layout_storage::CONSTRUCTOR_NAME": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "layout_storage::SOURCE": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "layout_storage::SOURCE_FILE_NAME": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "operator_spelling::OperatorSpelling": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "typed-trees"
+   ],
+   "sealed_intrinsics::CollectionPrimitive": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "sealed_intrinsics::CompilerPrimitive": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "sealed_intrinsics::FixedImageOperation": [
+    "effects",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "sealed_intrinsics::HostedOperation": [
+    "backend-plan",
+    "effects",
+    "provider-planning",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "sealed_intrinsics::PlacedPrimitiveOperation": [
+    "typed-trees"
+   ],
+   "sealed_intrinsics::PlacementContent": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "sealed_intrinsics::PlacementOperation": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "sealed_intrinsics::SealedDeclarationSite": [
+    "symbols",
+    "terminal-semantics"
+   ],
+   "sealed_intrinsics::SealedIntrinsic": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "sealed_intrinsics::SealedIntrinsicCatalog": [
+    "symbols",
+    "terminal-semantics"
+   ],
+   "sealed_intrinsics::float_operations_source": [
+    "terminal-semantics"
+   ],
+   "sealed_intrinsics::hosted_process_exit_sources": [
+    "terminal-semantics"
+   ],
+   "static_interrupts::StaticInterruptOperation": [
+    "abstract-operations-to-target-operations",
+    "bound-installations",
+    "effects",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "provider-admission",
+    "review-evidence",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-wire"
+   ]
+  },
+  "language-semantics": {
+   "boundary_provider_review::BoundaryOperatorApplication": [
+    "provider-selection"
+   ],
+   "boundary_provider_review::BoundaryProviderReview": [
+    "provider-selection"
+   ],
+   "boundary_provider_review::BoundaryRequirementReview": [
+    "provider-selection"
+   ],
+   "boundary_provider_review::BoundaryRequirementUse": [
+    "provider-selection"
+   ],
+   "boundary_values::BoundaryFieldRecipe": [
+    "layout"
+   ],
+   "boundary_values::BoundaryRecordStorage": [
+    "layout"
+   ],
+   "boundary_values::BoundaryValueRecipe": [
+    "layout"
+   ],
+   "boundary_values::BoundaryValueRecipes": [
+    "layout"
+   ],
+   "build_requests::BuildCallSite": [
+    "terminal-production"
+   ],
+   "build_requests::SELECTION_PROTOCOL": [
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees-to-terminal-psi"
+   ],
+   "build_requests::SelectionProtocolOperation": [
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees"
+   ],
+   "build_requests::TerminalBuildRequestCall": [
+    "terminal-production"
+   ],
+   "build_requests::TerminalBuildRequestOperation": [
+    "terminal-production"
+   ],
+   "build_requests::is_build_protocol": [
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees-to-terminal-psi"
+   ],
+   "byte_predicates::ByteSequencePredicate": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "typed-trees"
+   ],
+   "byte_predicates::ByteSequencePredicateSet": [
+    "terminal-psi"
+   ],
+   "callback_declarations::BOUNDARY_CALLBACK_CAPACITY": [
+    "provider-planning",
+    "review-evidence"
+   ],
+   "callback_declarations::BOUNDARY_NATIVE_PARAMETER_CAPACITY": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "callback_declarations::BoundaryCallbackBinderDeclaration": [
+    "typed-trees"
+   ],
+   "callback_declarations::BoundaryDirectCallbackDeclaration": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "callback_declarations::BoundaryRuntimeFormal": [
+    "typed-trees"
+   ],
+   "callback_declarations::BoundaryTelescope": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "callback_declarations::CallbackDeclaration": [
+    "terminal-psi"
+   ],
+   "callback_declarations::CallbackRegistrationDeclaration": [
+    "provider-selection",
+    "terminal-psi"
+   ],
+   "callback_declarations::PrivateCallbackSlotSelection": [
+    "calling-conventions",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "verified-optimization-input"
+   ],
+   "conformance_identity::MachineApplicationCommitment": [
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "conformance_identity::MachineOperandSelectionIdentity": [
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "conformance_identity::requirement_application_commitment": [
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "conformance_identity::source_identity_commitments": [
+    "terminal-wire"
+   ],
+   "const_value::CanonicalConstIdentity": [
+    "build-time-evaluation",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "const_value::CanonicalConstValue": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "const_value::DecodedCanonicalConstValue": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "const_value::FiniteScalarValue": [
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "const_value::boolean_literal_spelling": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "const_value::decode_declaration_value": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "content::terminal_projection_report_fingerprint": [
+    "optimization-unit-semantics"
+   ],
+   "declaration_selection::AssumedBindingContract": [
+    "build-time-evaluation"
+   ],
+   "declaration_selection::AuthoredBehaviorExclusion": [
+    "build-time-evaluation",
+    "effects",
+    "source-compiler"
+   ],
+   "declaration_selection::AuthoredBehaviorExclusionKind": [
+    "effects"
+   ],
+   "declaration_selection::AuthoredDeclarationSelection": [
+    "symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionCoordinateError": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionExposure": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionFinalizationError": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionIntrinsic": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionKind": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionLateBinding": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionOccurrenceId": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionRecordError": [
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionSuffixRebase": [
+    "symbol-resolved-trees"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionSuffixRebaseError": [
+    "symbol-resolved-trees"
+   ],
+   "declaration_selection::AuthoredDeclarationSelectionTarget": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::AuthoredDeclarationSelections": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "declaration_selection::AuthoredRootGrant": [
+    "build-time-evaluation",
+    "effects",
+    "source-compiler"
+   ],
+   "declaration_selection::BuildOperation": [
+    "build-settings",
+    "build-time-evaluation",
+    "source-compiler",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production"
+   ],
+   "declaration_selection::BuildSelectionOrigin": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "declaration_selection::BuildSelectionRequest": [
+    "build-settings",
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees"
+   ],
+   "declaration_selection::CapturedNativeIntent": [
+    "build-time-evaluation",
+    "package-compilation",
+    "source-compiler"
+   ],
+   "declaration_selection::CollectionMeasure": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "declaration_selection::CompilerDerivedSelectionPartition": [
+    "symbol-resolved-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "declaration_selection::CompositionMode": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "provider-planning",
+    "provider-selection",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::DescribedProductEntry": [
+    "build-settings",
+    "source-compiler"
+   ],
+   "declaration_selection::DescribedProductProvider": [
+    "build-settings",
+    "source-compiler"
+   ],
+   "declaration_selection::DescribedProductSchema": [
+    "build-settings",
+    "source-compiler"
+   ],
+   "declaration_selection::EnumExclusionRequest": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::ExclusionVocabulary": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::ExecutedBuildSelection": [
+    "build-settings"
+   ],
+   "declaration_selection::ExecutedEnumExclusion": [
+    "build-settings",
+    "build-time-evaluation",
+    "products",
+    "source-compiler"
+   ],
+   "declaration_selection::ExecutedNativeBinding": [
+    "build-settings",
+    "build-time-evaluation",
+    "products",
+    "source-compiler"
+   ],
+   "declaration_selection::ExecutedProductSelection": [
+    "build-settings",
+    "build-time-evaluation",
+    "products",
+    "source-compiler"
+   ],
+   "declaration_selection::ExecutedRootBinding": [
+    "build-settings",
+    "compiler",
+    "products",
+    "source-compiler"
+   ],
+   "declaration_selection::NativeBindingFormation": [
+    "build-settings",
+    "build-time-evaluation",
+    "products",
+    "source-compiler",
+    "terminal-production",
+    "typed-trees"
+   ],
+   "declaration_selection::NativeBindingProducer": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "declaration_selection::NativeBindingSource": [
+    "build-time-evaluation",
+    "package-compilation"
+   ],
+   "declaration_selection::ProductDeclarationOperand": [
+    "build-time-evaluation",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-typed-trees"
+   ],
+   "declaration_selection::ProductDeclarationRequest": [
+    "build-settings",
+    "build-time-evaluation",
+    "products",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees"
+   ],
+   "declaration_selection::ProductOperandRole": [
+    "build-time-evaluation",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "declaration_selection::ProductTarget": [
+    "build-declarations",
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "provider-selection"
+   ],
+   "declaration_selection::ProviderReadinessRequest": [
+    "build-settings"
+   ],
+   "declaration_selection::ResolvedAuthoredCallBinding": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "declaration_selection::ResolvedAuthoredDeclarationSelection": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "declaration_selection::RootBinding": [
+    "provider-planning",
+    "source-compiler"
+   ],
+   "declaration_selection::RootBindingOperand": [
+    "build-settings",
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::RootBindingRequest": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::RootBindingSelection": [
+    "build-settings",
+    "compiler",
+    "source-compiler"
+   ],
+   "declaration_selection::is_unresolved_provider_selection_call": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "declaration_selection::product_operands": [
+    "build-time-evaluation",
+    "package-compilation",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-typed-trees"
+   ],
+   "numeric_intrinsics::NamedNumericIntrinsic": [
+    "typed-trees"
+   ],
+   "numeric_intrinsics::NumericIntrinsic": [
+    "effects",
+    "provider-admission",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "numeric_intrinsics::NumericResult": [
+    "terminal-psi",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "numeric_intrinsics::NumericType": [
+    "effects",
+    "provider-admission",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "numeric_intrinsics::PrimitiveFloatBinaryOperation": [
+    "effects",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "numeric_intrinsics::PrimitiveIntegerComparisonOperation": [
+    "effects",
+    "typed-trees"
+   ],
+   "numeric_intrinsics::primitive_float_operation_tag": [
+    "effects"
+   ],
+   "numeric_intrinsics::primitive_integer_comparison_operation_tag": [
+    "effects"
+   ],
+   "opaque_representations::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION": [
+    "typed-trees"
+   ],
+   "opaque_representations::OpaqueRepresentationApplicationOrigin": [
+    "provider-planning",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "opaque_representations::OpaqueRepresentationCopyDisposition": [
+    "provider-planning",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "opaque_representations::OpaqueRepresentationLifecycleDisposition": [
+    "provider-planning",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "opaque_representations::SelectedOpaqueApplication": [
+    "provider-planning",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "opaque_representations::selected_application_commitment": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "provider_declarations::ClosedProviderInstance": [
+    "provider-selection"
+   ],
+   "provider_declarations::ProviderDeclarations": [
+    "provider-selection"
+   ],
+   "provider_declarations::ProviderInstanceApplication": [
+    "provider-selection"
+   ],
+   "provider_declarations::ProviderRequirementApplication": [
+    "typed-trees"
+   ],
+   "provider_declarations::SelectedTargetMachineOrigin": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "quotient_correspondence::QuotientPositionalRelation": [
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "quotient_correspondence::QuotientRelationIdentity": [
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "reflection::CallableDescription": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "reflection::FieldDescription": [
+    "build-time-evaluation"
+   ],
+   "reflection::SchemaNode": [
+    "build-time-evaluation",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "reflection::SchemaNodeHandle": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "reflection::SchemaQueryAuthority": [
+    "build-time-evaluation"
+   ],
+   "reflection::SemanticSchemaGraph": [
+    "access-plans",
+    "build-time-evaluation",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "service_surface::ProviderSchemaDeclaration": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "service_surface::ServiceContractSink": [
+    "effects"
+   ],
+   "service_surface::ServiceEntryAuthorityFlow": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceEntryClaim": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceMethod": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceProgressEstablishmentRoute": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceProgressEstablishmentRouteKind": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceProgressPremise": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceProgressSubject": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceReceiverApplication": [
+    "backend-plan",
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceResultClaim": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "service_surface::ServiceSurface": [
+    "compiler",
+    "effects",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "service_surface::declared_type_signature": [
+    "backend-plan",
+    "provider-admission",
+    "typed-trees"
+   ],
+   "service_surface::identities": [
+    "effects",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "trust_declarations::AcceptedContractDeclaration": [
+    "trust-model"
+   ],
+   "trust_declarations::AcceptedMachineDeclaration": [
+    "trust-model"
+   ],
+   "trust_declarations::AcceptedTemplateDeclaration": [
+    "trust-model"
+   ],
+   "trust_declarations::TrustDeclarationCardinality": [
+    "trust-model"
+   ],
+   "trust_declarations::TrustDeclarations": [
+    "trust-model",
+    "typed-trees"
+   ],
+   "type_identity::TypeIdentityPackageOwnerVisitor": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "type_identity::TypeIdentityVisitError": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "type_identity::callable_display_path": [
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "provider-admission",
+    "provider-planning"
+   ],
+   "type_identity::encoding": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "type_identity::malformed_identity_offset": [
+    "review-evidence"
+   ],
+   "type_identity::normalize_requirement_lifetime_partition": [
+    "effects",
+    "review-evidence"
+   ],
+   "type_identity::package_declaration_identity": [
+    "typed-trees"
+   ],
+   "type_identity::visit_static_argument_package_owners": [
+    "terminal-semantics"
+   ],
+   "type_identity::visit_type_identity_package_owners": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "type_identity::vocabulary": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "value_domain::ValueDomain": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "wire::WireCompatibilityDemand": [
+    "build-time-evaluation",
+    "source-compiler",
+    "typed-trees-to-typed-trees"
+   ]
+  },
+  "numerics": {
+   "arithmetic::ArithmeticDomain": [
+    "effects",
+    "language-semantics",
+    "provider-admission",
+    "review-evidence",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "bignum::BigInt": [
+    "build-time-evaluation",
+    "language-semantics",
+    "proof-admission",
+    "semantic-vocabulary",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-runtime",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "bignum::BigRational": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "bignum::ExactFloat": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "bignum::IntegerBitwiseOperation": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "float_projection::FloatProjectionContractIdentity": [
+    "optimization-unit",
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-psi"
+   ],
+   "float_projection::FloatProjectionOperation": [
+    "semantic-vocabulary",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "float_semantics::FloatClass": [
+    "terminal-runtime"
+   ],
+   "float_semantics::FloatFormat": [
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "typed-trees-to-terminal-psi"
+   ],
+   "float_semantics::FloatMeaning": [
+    "proof-admission",
+    "terminal-interpreter",
+    "terminal-runtime"
+   ],
+   "float_semantics::FloatSemanticContractIdentity": [
+    "optimization-unit",
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-psi"
+   ],
+   "float_semantics::FloatSemanticEvaluationError": [
+    "proof-admission"
+   ],
+   "float_semantics::FloatSemanticOperand": [
+    "proof-admission"
+   ],
+   "float_semantics::FloatSemanticOperation": [
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-semantics"
+   ],
+   "float_semantics::FloatSemanticOperationIdentity": [
+    "optimization-unit",
+    "terminal-wire"
+   ],
+   "float_semantics::FloatSemanticResult": [
+    "proof-admission"
+   ],
+   "float_semantics::FloatSemanticValueKind": [
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-semantics"
+   ],
+   "float_semantics::FloatSemantics": [
+    "proof-admission",
+    "semantic-vocabulary",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "typed-trees-to-terminal-psi"
+   ],
+   "float_semantics::FloatToIntegerError": [
+    "proof-admission"
+   ],
+   "float_semantics_catalog::FloatSemanticOperation": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "float_semantics_catalog::FloatSemanticValueKind": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "integer_bounds::IntegerBoundStep": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "integer_bounds::evaluate": [
+    "terminal-installation"
+   ],
+   "integer_carrier::FixedInteger": [
+    "language-semantics",
+    "review-evidence",
+    "semantic-vocabulary",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "integer_carrier::IntegerSign": [
+    "language-semantics",
+    "review-evidence",
+    "semantic-vocabulary",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-runtime",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "literals::FloatFormat": [
+    "boundary-applications",
+    "build-time-values",
+    "effects",
+    "language-core",
+    "language-semantics",
+    "provider-admission",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "literals::FloatLiteral": [
+    "language-semantics",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "literals::IntegerLanding": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-typed-trees"
+   ],
+   "literals::IntegerLiteral": [
+    "build-time-evaluation",
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "literals::IntegerRadix": [
+    "build-time-evaluation",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "literals::LandedIntegerType": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "scalar_predicates::PredicateNode": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "scalar_predicates::PredicateOperator": [
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "scalar_predicates::PredicateValueKind": [
+    "terminal-psi"
+   ],
+   "scalar_predicates::ScalarValue": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "scalar_predicates::evaluate_nodes": [
+    "terminal-psi"
+   ]
+  },
+  "optimization": {
+   "cursor::Cursor": [
+    "terminal-wire"
+   ],
+   "digest_encoder::DomainDigestEncoder": [
+    "flow-effects",
+    "language-semantics",
+    "terminal-production",
+    "typed-trees-to-terminal-psi"
+   ]
+  },
+  "optimization-core": {
+   "codec_bytes::push_encoded": [
+    "machine-code",
+    "native-vocabulary",
+    "package-compilation",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions"
+   ],
+   "codec_bytes::u32_at": [
+    "image-emission"
+   ],
+   "cursor::Cursor": [
+    "component-description",
+    "machine-emission",
+    "package-compilation",
+    "register-homes"
+   ],
+   "cursor::TakeError": [
+    "optimization-unit",
+    "package-compilation",
+    "register-homes",
+    "selected-instruction-analyses"
+   ],
+   "cursor::Truncated": [
+    "component-description",
+    "package-compilation",
+    "register-homes",
+    "selected-instruction-analyses"
+   ],
+   "digest_encoder::DomainDigestEncoder": [
+    "compiler",
+    "image-emission",
+    "image-macho",
+    "native-compiler",
+    "package-compilation",
+    "register-model",
+    "selected-instructions",
+    "target-vocabulary"
+   ],
+   "digest_encoder::content_identity": [
+    "review-evidence"
+   ]
+  },
+  "platform-custody": {
+   "file_publication::install_staged_files": [
+    "products"
+   ],
+   "file_publication::make_executable": [
+    "native-artifact"
+   ],
+   "file_publication::publish_exact_file_bytes": [
+    "package-compilation"
+   ],
+   "file_publication::stage_exact_bytes": [
+    "products"
+   ],
+   "lock_file::open_or_create_lock_file": [
+    "source-acquisition"
+   ],
+   "record_file::RecordFileError": [
+    "package-manager"
+   ],
+   "record_file::RecordFileLimits": [
+    "package-manager",
+    "source-acquisition"
+   ],
+   "record_file::RecordFileLock": [
+    "package-manager"
+   ],
+   "record_file::RecordFileRoot": [
+    "package-manager",
+    "source-acquisition"
+   ],
+   "record_file::RootRecordRead": [
+    "package-manager"
+   ],
+   "temporary_directory::TemporaryDirectory": [
+    "omega",
+    "orchestration"
+   ]
+  },
+  "semantic-vocabulary": {
+   "byte_predicates::ByteSequencePredicate": [
+    "language-semantics"
+   ],
+   "byte_predicates::ByteSequencePredicateSet": [
+    "language-semantics"
+   ],
+   "compiler_evaluation::CompilerEvaluationDeclaration": [
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "compiler_evaluation::CompilerEvaluationEffects": [
+    "terminal-installation",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "compiler_evaluation::DeclarationAuthorityRequest": [
+    "terminal-installation",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "compiler_evaluation::DeclarationCustody": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "products",
+    "provider-planning",
+    "terminal-installation",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "compiler_evaluation::DeclarationSelectionAuthority": [
+    "build-settings",
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "products",
+    "provider-planning",
+    "source-compiler",
+    "terminal-installation",
+    "typed-trees"
+   ],
+   "compiler_evaluation::declaration_authority_request": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "compiler_evaluation::require_compiler_evaluation_failures": [
+    "terminal-installation"
+   ],
+   "compiler_evaluation::require_compiler_evaluation_floor": [
+    "terminal-installation"
+   ],
+   "identity_encoding::encode_integer_type": [
+    "native-vocabulary"
+   ],
+   "identity_encoding::encode_scalar_type": [
+    "native-vocabulary"
+   ],
+   "proof_applications::ProofApplicationCall": [
+    "flow-effects",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "proof_applications::ProofApplicationCalls": [
+    "flow-effects"
+   ],
+   "proof_applications::ProofApplicationMachine": [
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "proof_applications::ProofApplicationPlan": [
+    "terminal-psi"
+   ],
+   "proof_applications::ProofApplicationReachability": [
+    "terminal-installation"
+   ],
+   "proof_applications::ProofApplicationTargetMember": [
+    "terminal-wire"
+   ],
+   "proof_applications::ProofApplications": [
+    "terminal-psi"
+   ],
+   "proof_applications::ProofCallGraph": [
+    "terminal-psi",
+    "terminal-wire"
+   ],
+   "proof_applications::ProofCallMachine": [
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "proof_applications::ProofDeclarationDependencies": [
+    "terminal-wire"
+   ],
+   "proof_applications::ProofInvocationEdge": [
+    "terminal-installation"
+   ],
+   "proof_applications::ProofStaticBinding": [
+    "terminal-wire"
+   ],
+   "source_selections::BuildCallSite": [
+    "language-semantics",
+    "terminal-production"
+   ],
+   "source_selections::SelectionBindingKind": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionCallTarget": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionDeclaration": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionForm": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionJoin": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionNode": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionOccurrence": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionProductDesignation": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionPurpose": [
+    "compiler",
+    "package-compilation",
+    "products",
+    "terminal-production"
+   ],
+   "source_selections::SelectionQuestion": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionQuestions": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionReference": [
+    "terminal-production"
+   ],
+   "source_selections::SelectionRole": [
+    "terminal-production"
+   ],
+   "structural_path_encoding::SegmentTag": [
+    "runtime-abi",
+    "terminal-psi"
+   ]
+  },
+  "source": {
+   "anonymous_owner::AnonymousSourceCapture": [
+    "package-compilation"
+   ],
+   "read_accounting::record_source_file_read": [
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "source_assembly::BuildSourceSelection": [
+    "package-compilation"
+   ],
+   "source_consumption::BuildSourceCustody": [
+    "package-compilation"
+   ],
+   "source_consumption::CheckedSourceCustody": [
+    "package-compilation"
+   ],
+   "source_consumption::ConsumedSourceUnit": [
+    "package-compilation"
+   ],
+   "source_consumption::ConsumedSourceUnitKind": [
+    "package-compilation"
+   ],
+   "source_consumption::PackageSourceConsumptionCommitment": [
+    "package-compilation"
+   ],
+   "source_consumption::derive_package_compilation_subject": [
+    "package-compilation"
+   ],
+   "source_consumption::derive_source_consumption_commitment": [
+    "package-compilation"
+   ],
+   "source_consumption::toolchain_source_identities": [
+    "package-compilation"
+   ],
+   "source_consumption::toolchain_source_identity_digest": [
+    "package-compilation"
+   ],
+   "source_identity::ConsumedSourceUnit": [
+    "package-compilation"
+   ],
+   "source_identity::ConsumedSourceUnitKind": [
+    "package-compilation"
+   ],
+   "source_identity::append_canonical_consumed_unit": [
+    "package-compilation"
+   ],
+   "source_identity::canonical_path_components": [
+    "package-compilation"
+   ],
+   "source_identity::canonical_source_entry": [
+    "typed-trees"
+   ],
+   "source_identity::consumed_source_unit": [
+    "package-compilation",
+    "review-evidence"
+   ],
+   "source_identity::toolchain_source_identities": [
+    "compiler",
+    "package-compilation",
+    "review-evidence",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "source_identity::toolchain_source_identity_digest": [
+    "package-compilation",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "source_identity::toolchain_source_revision_digest": [
+    "terminal-semantics"
+   ],
+   "source_imports::selected_program_entry_boundary": [
+    "package-compilation"
+   ],
+   "source_snapshot::BuildSourceCaptureObligation": [
+    "package-compilation"
+   ],
+   "source_snapshot::BuildSourceCaptureRequest": [
+    "package-compilation"
+   ],
+   "source_snapshot::capture_package_source_input": [
+    "package-compilation"
+   ],
+   "source_snapshot::capture_scoped_source_input": [
+    "package-compilation"
+   ]
+  }
+ }
+}

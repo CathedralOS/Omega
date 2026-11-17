@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page name here</title>
+<link rel="stylesheet" href="../design/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Copy this file to atlas/pages/<subject>.html and replace the content.
+   Every color, font and space value comes from ../design/tokens.css. */
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+.page { max-width: 1180px; margin: 0 auto; padding: var(--space-5) max(16px, env(safe-area-inset-right, 0px)) 96px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: var(--space-4); }
+header { display: grid; gap: var(--space-3); max-width: 68ch; }
+.eyebrow { font: var(--type-label); letter-spacing: .02em; color: var(--ink-muted); }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; }
+h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+code { font: var(--type-code); background: var(--surface); padding: 1px 4px; }
+section { display: grid; gap: var(--space-3); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-4); }
+figure { margin: 0; display: grid; gap: var(--space-2); }
+.frame { overflow-x: auto; border: var(--border-hairline) solid var(--rule); background: var(--surface); padding: var(--space-3); }
+figcaption { font: var(--type-label); font-weight: 400; color: var(--ink-muted); max-width: 80ch; }
+
+/* Diagram grammar (see ../design/README.md) */
+svg { display: block; width: 100%; height: auto; font-family: var(--font-serif); }
+svg.wide { min-width: 720px; }
+.b-psi { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.b-native { fill: var(--ink); stroke: var(--ink); stroke-width: 2; }
+.b-hub { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; }
+.b-prop { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; stroke-dasharray: 6 4; }
+.b-around { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.t { fill: var(--ink); font-size: 14px; font-weight: 500; }
+.t-on { fill: var(--ground); font-size: 14px; font-weight: 500; }
+.a { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.ah { fill: var(--ink); }
+.al { fill: var(--ink); font-size: 12px; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.ok { fill: none; stroke: var(--checked); stroke-width: 2; }
+.leak { fill: none; stroke: var(--trap); stroke-width: 2; stroke-dasharray: 6 4; }
+.ah-leak { fill: var(--trap); }
+.al-leak { fill: var(--trap); font-size: 12px; font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">Omega compiler · atlas · YYYY-MM-DD · source revision abcdef12</div>
+    <h1>Page name here</h1>
+    <p>Lead with what the reader can now see or decide, and why it matters. Evidence comes after.</p>
+  </header>
+
+  <section>
+    <h2>One claim per section</h2>
+    <figure>
+      <div class="frame">
+        <svg class="wide" viewBox="0 0 760 120" role="img" aria-label="Example: stage 03 reads symbol-resolved trees and writes typed trees; a red dashed arrow marks a reach-around.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah"/></marker>
+            <marker id="ah-leak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah-leak"/></marker>
+          </defs>
+          <rect class="b-psi" x="20" y="40" width="190" height="46"/>
+          <text class="t" x="115" y="68" text-anchor="middle">symbol-resolved trees</text>
+          <path class="a" d="M210 63 H288" marker-end="url(#ah)"/>
+          <text class="al" x="249" y="56" text-anchor="middle">03 type</text>
+          <rect class="b-psi" x="290" y="40" width="150" height="46"/>
+          <text class="t" x="365" y="68" text-anchor="middle">typed trees</text>
+          <rect class="b-native" x="560" y="40" width="180" height="46"/>
+          <text class="t-on" x="650" y="68" text-anchor="middle">a native form</text>
+          <path class="leak" d="M650 40 C650 10, 115 10, 115 38" marker-end="url(#ah-leak)"/>
+          <text class="al-leak" x="380" y="20" text-anchor="middle">reads around the pipeline</text>
+        </svg>
+      </div>
+      <figcaption>State the figure's claim here, and where its numbers come from (a script in atlas/evidence/scripts/, a line count, or file:line).</figcaption>
+    </figure>
+  </section>
+</div>
+</body>
+</html>

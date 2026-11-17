@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omega Atlas</title>
+<link rel="stylesheet" href="design/tokens.css">
+<link rel="stylesheet" href="design/components/bundle.css">
+<style>
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+.page { max-width: 1040px; margin: 0 auto; padding: var(--space-5) max(16px, env(safe-area-inset-right, 0px)) 96px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: var(--space-4); }
+header { display: grid; gap: var(--space-3); max-width: 68ch; }
+.eyebrow { font: var(--type-label); letter-spacing: .02em; color: var(--ink-muted); }
+h1 { font: var(--type-display); margin: 0; }
+h2 { font: var(--type-heading); margin: 0; }
+p { margin: 0; max-width: 68ch; }
+a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--checked); outline-offset: 2px; }
+section { display: grid; gap: var(--space-3); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-4); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-3); }
+.om-tile a { text-decoration: none; }
+.om-tile a:hover .om-tile-title { text-decoration: underline; text-underline-offset: 4px; }
+.om-tile-solid a { color: var(--ground); }
+ul { margin: 0; padding-left: 20px; display: grid; gap: var(--space-2); }
+code { font: var(--type-code); background: var(--surface); padding: 1px 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">Omega compiler · atlas</div>
+    <h1>Omega Atlas</h1>
+    <p>A map of the Omega codebase and the plan to make it one linear pipeline. Every claim here comes with evidence you can rerun from the repository.</p>
+  </header>
+
+  <section>
+    <h2>Pages</h2>
+    <div class="grid">
+      <section class="om-tile om-tile-outline">
+        <span class="om-tile-label">Map</span>
+        <a href="pages/pipeline-map.html"><h3 class="om-tile-title">Omega pipeline map</h3></a>
+        <div class="om-tile-body">The whole compiler as one linear pipeline, from source files and a target description to a native image, with today's reach-arounds as an overlay.</div>
+      </section>
+      <section class="om-tile om-tile-outline">
+        <span class="om-tile-label">Plan</span>
+        <a href="pages/foundation-backend-plan.html"><h3 class="om-tile-title">Foundation and backend plan</h3></a>
+        <div class="om-tile-body">Where every crate in <code>foundation/</code> and <code>backend/</code> goes, in ordered steps that each end in a deletion.</div>
+      </section>
+    </div>
+  </section>
+
+  <section>
+    <h2>Working files</h2>
+    <p>These live in the repository under <code>atlas/</code>:</p>
+    <ul>
+      <li><a href="https://github.com/CathedralOS/Omega/blob/main/atlas/rulings.md">Rulings</a>: the owner's decisions the plans follow.</li>
+      <li><a href="https://github.com/CathedralOS/Omega/blob/main/atlas/questions.md">Open questions</a>, with the evidence behind each.</li>
+      <li><a href="https://github.com/CathedralOS/Omega/blob/main/atlas/plans/foundation-and-backend.md">The foundation and backend plan</a> as Markdown.</li>
+      <li><a href="https://github.com/CathedralOS/Omega/blob/main/atlas/design/README.md">The design kit</a>: rules, tokens, the Omega Serif font and its source, components, and a page template.</li>
+      <li><a href="https://github.com/CathedralOS/Omega/blob/main/atlas/AGENTS.md">Instructions for agents</a> working in the atlas.</li>
+    </ul>
+  </section>
+</div>
+</body>
+</html>

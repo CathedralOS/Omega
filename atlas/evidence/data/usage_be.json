@@ -1,0 +1,5008 @@
+{
+ "declared_unused": {
+  "backend-plan": [
+   "products"
+  ],
+  "boundary-applications": [
+   "package-manager",
+   "compiler"
+  ],
+  "component-description": [
+   "terminal-psi-to-abstract-operations",
+   "compiler"
+  ],
+  "effects": [
+   "ind19-spectrum-validation"
+  ],
+  "image-emission": [
+   "products"
+  ],
+  "image-pe": [
+   "native-artifact"
+  ],
+  "installation-evidence": [
+   "target-operations"
+  ],
+  "native-artifact": [
+   "package-manager",
+   "compiler"
+  ],
+  "program-entry-plan": [
+   "terminal-psi-to-abstract-operations",
+   "native-artifact",
+   "products"
+  ],
+  "register-environment": [
+   "register-homes-to-post-allocation-machine"
+  ],
+  "register-model": [
+   "native-artifact"
+  ],
+  "runtime-abi": [
+   "compiler"
+  ],
+  "target": [
+   "selected-instructions-to-register-homes"
+  ],
+  "task-plans": [
+   "terminal-psi-to-abstract-operations",
+   "target-operations",
+   "products"
+  ],
+  "x86_64-encoding": [
+   "image-emission"
+  ]
+ },
+ "pos": {
+  "abstract-operations": "omega-repr abstract-operations",
+  "abstract-operations-to-abstract-operations": "omega-stage 01",
+  "abstract-operations-to-target-operations": "omega-stage 02",
+  "access-plans": "psi-fdn access-plans",
+  "advection-terminal-validation": "samples cli/scientific/conservative_advection/validation",
+  "arena": "psi-fdn arena",
+  "artifacts": "omega-fdn artifacts",
+  "backend-plan": "backend plans/backend-plan",
+  "bound-installations": "backend runtime/bound-installations",
+  "boundary-applications": "backend artifacts/boundary-applications",
+  "bounded-process": "omega-fdn bounded-process",
+  "build-declarations": "packages build-declarations",
+  "build-output": "packages build-output",
+  "build-settings": "build build-settings",
+  "build-time-evaluation": "psi-comp build-time-evaluation",
+  "build-time-values": "psi-fdn build-time-values",
+  "calling-conventions": "backend calling-conventions",
+  "compiler": "omega-comp compiler",
+  "compiler-storage": "psi-fdn compiler-storage",
+  "compiler-storage-derive": "psi-fdn compiler-storage/derive",
+  "component-description": "backend artifacts/component-description",
+  "diagnostics": "psi-fdn diagnostics",
+  "effects": "backend plans/effects",
+  "encoded-scalar-plan": "backend plans/encoded-scalar-plan",
+  "evaluation-accounting": "psi-fdn evaluation-accounting",
+  "execution-admission": "psi-fdn execution-admission",
+  "extents": "psi-fdn extents",
+  "filesystem-authority": "psi-fdn filesystem-authority",
+  "flow-effects": "psi-fdn flow-effects",
+  "function-identity": "omega-fdn function-identity",
+  "hmm-terminal-validation": "samples cli/scientific/hidden_markov_inference/validation/terminal-driver",
+  "image": "backend images/image",
+  "image-elf": "backend images/image-elf",
+  "image-emission": "backend images/image-emission",
+  "image-macho": "backend images/image-macho",
+  "image-pe": "backend images/image-pe",
+  "ind11-terminal-validation": "samples cli/scientific/pareto_experiment_selection/validation",
+  "ind19-spectrum-validation": "samples cli/scientific/spectrometer_attribution",
+  "installation-evidence": "backend runtime/installation-evidence",
+  "isa-aarch64": "backend isa/isa-aarch64",
+  "isa-conformance": "backend isa/isa-conformance",
+  "isa-x86_64": "backend isa/isa-x86_64",
+  "laminate-stiffness-response-validation": "samples cli/scientific/laminate_stiffness_response/validation",
+  "language-core": "psi-fdn language-core",
+  "language-semantics": "psi-fdn language-semantics",
+  "layered-seismic-refraction-validation": "samples cli/scientific/layered_seismic_refraction/validation",
+  "layout": "backend layout",
+  "layout-plans": "psi-fdn layout-plans",
+  "legalized-operations": "omega-repr target-operations:legalized-operations",
+  "machine-code": "omega-repr machine-code",
+  "machine-emission": "backend machine-emission",
+  "molecular-pair-distribution-validation": "samples cli/scientific/molecular_pair_distribution/validation",
+  "mutation-matrix": "psi-fdn mutation-matrix",
+  "native-artifact": "backend artifacts/native-artifact",
+  "native-compiler": "omega-comp native-compiler",
+  "native-preparation": "omega-stage 02",
+  "native-provider-runtime": "omega-interp native-provider-runtime",
+  "native-vocabulary": "omega-repr native-vocabulary",
+  "new031-terminal-validation": "samples cli/scientific/nonlinear_diode_sweep/validation/terminal-driver",
+  "new087-terminal-validation": "samples cli/scientific/travel_time_tomography/validation/terminal",
+  "normalized-foreign-call-plan": "backend plans/normalized-foreign-call-plan",
+  "numerics": "psi-fdn numerics",
+  "object-file": "backend object-file",
+  "omega": "cli",
+  "omega-bench": "tools benchmark",
+  "optimization": "psi-fdn optimization",
+  "optimization-core": "omega-fdn optimization-core",
+  "optimization-unit": "omega-repr abstract-operations:optimization-unit",
+  "optimization-unit-semantics": "omega-repr abstract-operations:optimization-unit-semantics",
+  "orchestration": "build orchestration",
+  "package-compilation": "packages package-compilation",
+  "package-manager": "packages package-manager",
+  "platform-custody": "omega-fdn platform-custody",
+  "post-allocation-machine": "omega-repr post-allocation-machine",
+  "post-allocation-machine-to-selected-form-encoding": "omega-stage 07",
+  "post-handoff-writer-plan": "backend plans/post-handoff-writer-plan",
+  "products": "omega-comp products",
+  "program-entry-plan": "backend plans/program-entry-plan",
+  "proof-admission": "psi-comp proof-admission",
+  "provider-admission": "realization provider-admission",
+  "provider-planning": "realization provider-planning",
+  "provider-selection": "realization provider-selection",
+  "register-environment": "backend register-environment",
+  "register-homes": "omega-repr register-homes",
+  "register-homes-to-post-allocation-machine": "omega-stage 06",
+  "register-model": "backend register-model",
+  "resolved-layout-to-resolved-layout": "omega-stage 09",
+  "resolver-execution": "packages resolver-execution",
+  "review-evidence": "packages review-evidence",
+  "runtime-abi": "backend runtime/runtime-abi",
+  "sample-runner": "samples cli/scientific/sample-runner",
+  "sci04-terminal-validation": "samples cli/scientific/spatial_diffusion/validation",
+  "selected-dispatch": "realization selected-dispatch",
+  "selected-form-encoding-to-resolved-layout": "omega-stage 08",
+  "selected-instruction-analyses": "omega-repr selected-instructions:analyses",
+  "selected-instructions": "omega-repr selected-instructions",
+  "selected-instructions-to-register-homes": "omega-stage 05",
+  "selected-instructions-to-selected-instructions": "omega-stage 04",
+  "semantic-vocabulary": "psi-fdn semantic-vocabulary",
+  "source": "psi-fdn source",
+  "source-acquisition": "packages source-acquisition",
+  "source-audit": "psi-fdn source-audit",
+  "source-compiler": "psi-comp source-compiler",
+  "source-files-to-tokens": "psi-stage 00",
+  "spectral-power-validation": "samples cli/scientific/spectral_power/validation",
+  "symbol-resolved-trees": "psi-repr symbol-resolved-trees",
+  "symbol-resolved-trees-to-typed-trees": "psi-stage 03",
+  "symbols": "psi-fdn symbols",
+  "syntax-trees": "psi-repr syntax-trees",
+  "syntax-trees-derive": "psi-repr syntax-trees:derive",
+  "syntax-trees-to-symbol-resolved-trees": "psi-stage 02",
+  "target-operations": "omega-repr target-operations",
+  "target-operations-to-selected-instructions": "omega-stage 03",
+  "target-vocabulary": "omega-repr target-operations:target-vocabulary",
+  "task-plans": "backend runtime/task-plans",
+  "terminal-check-tables": "psi-repr terminal-psi:check-tables",
+  "terminal-codec": "psi-repr terminal-psi:codec",
+  "terminal-installation": "psi-comp terminal-installation",
+  "terminal-interpreter": "psi-interp",
+  "terminal-production": "psi-comp terminal-production",
+  "terminal-psi": "psi-repr terminal-psi",
+  "terminal-psi-to-abstract-operations": "omega-stage 00",
+  "terminal-psi-to-terminal-psi": "psi-stage 06",
+  "terminal-runtime": "omega-interp terminal-runtime",
+  "terminal-semantics": "psi-repr terminal-psi:semantics",
+  "terminal-wire": "psi-repr terminal-psi:wire",
+  "terminal-work": "psi-repr terminal-psi:work",
+  "thin-film-reflectometry-validation": "samples cli/scientific/thin_film_reflectometry/validation",
+  "tokens": "psi-repr tokens",
+  "tokens-to-syntax-trees": "psi-stage 01",
+  "trust-model": "realization trust-model",
+  "typed-trees": "psi-repr typed-trees",
+  "typed-trees-to-terminal-psi": "psi-stage 05",
+  "typed-trees-to-typed-trees": "psi-stage 04",
+  "verified-optimization-input": "omega-repr abstract-operations:verified-optimization-input",
+  "wavelet-transient-validation": "samples cli/scientific/wavelet_transient_denoising/validation",
+  "x86_64-encoding": "backend isa/x86_64-encoding",
+  "xtask": "tools xtask"
+ },
+ "usage": {
+  "backend-plan": {
+   "BoundCallbackPrivateMaterialization": [
+    "verified-optimization-input"
+   ],
+   "DirectBoundaryExecution": [
+    "compiler",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "DirectBoundaryLeaf": [
+    "compiler",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "NativeCallbackEntryParameter": [
+    "verified-optimization-input"
+   ],
+   "NativeCallbackPlacement": [
+    "provider-admission",
+    "verified-optimization-input"
+   ],
+   "NativeCallbackThunkSettlement": [
+    "native-compiler",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "PrivateCallbackDestinationApplication": [
+    "verified-optimization-input"
+   ],
+   "SelectedCheckedInvocationRow": [
+    "review-evidence"
+   ],
+   "TerminalCallbackOccurrenceProposal": [
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "TerminalCallbackThunkArtifact": [
+    "native-compiler",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "TerminalTargetProviderProposal": [
+    "build-settings",
+    "compiler",
+    "native-compiler",
+    "selected-dispatch",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "TerminalTargetProviderSelection": [
+    "build-settings",
+    "provider-planning",
+    "selected-dispatch",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "admit_selected_checked_providers": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "close_checked_provider_specializations": [
+    "provider-selection",
+    "verified-optimization-input"
+   ],
+   "compiler_primitive_schemas": [
+    "provider-planning"
+   ],
+   "folded_constant_dependencies": [
+    "compiler"
+   ],
+   "hosted_requirement_schema": [
+    "provider-planning"
+   ],
+   "matching_folded_constant_dependencies": [
+    "provider-admission"
+   ],
+   "native_callback_thunks": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "selected_checked_adapter_header": [
+    "provider-planning",
+    "provider-selection"
+   ],
+   "selected_checked_invocation_rows": [
+    "provider-planning",
+    "review-evidence"
+   ],
+   "selected_provider_candidate_rows": [
+    "compiler",
+    "component-description",
+    "provider-planning"
+   ],
+   "validate_callback_thunk_joins": [
+    "verified-optimization-input"
+   ]
+  },
+  "bound-installations": {
+   "BoundCallbackEntry": [
+    "provider-admission"
+   ],
+   "BoundFatalInterruptEntry": [
+    "provider-admission"
+   ],
+   "BoundInstallations": [
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "BoundInstalledEntry": [
+    "native-compiler",
+    "provider-admission"
+   ],
+   "BoundInterruptContextAnchor": [
+    "provider-admission"
+   ],
+   "BoundInterruptEntry": [
+    "target-operations-to-selected-instructions"
+   ],
+   "BoundInterruptInstallation": [
+    "provider-admission"
+   ]
+  },
+  "boundary-applications": {
+   "BoundaryApplication": [
+    "verified-optimization-input"
+   ],
+   "BoundaryApplicationRealization": [
+    "native-artifact",
+    "provider-selection",
+    "verified-optimization-input"
+   ],
+   "BoundaryApplicationRealizationCompanion": [
+    "provider-selection",
+    "verified-optimization-input"
+   ],
+   "BoundaryOpaqueRepresentationApplication": [
+    "verified-optimization-input"
+   ],
+   "BoundaryOpaqueRepresentationApplications": [
+    "verified-optimization-input"
+   ],
+   "OperatorApplicationCoverageRef": [
+    "native-artifact"
+   ],
+   "TerminalBoundaryApplicationCoverage": [
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "TerminalBoundaryApplicationDemands": [
+    "native-compiler",
+    "provider-selection",
+    "verified-optimization-input"
+   ],
+   "TerminalBoundaryApplicationRealizations": [
+    "native-compiler",
+    "provider-selection",
+    "verified-optimization-input"
+   ],
+   "TerminalIeeeFloatComparisonOccurrenceProposal": [
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "TerminalIntegerComparisonOccurrenceProposal": [
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ]
+  },
+  "calling-conventions": {
+   "BoundaryCallbackBinding": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BoundaryCallbackLayout": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BoundaryCallingApplication": [
+    "backend-plan",
+    "compiler",
+    "native-artifact",
+    "native-compiler",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "BoundaryCallingApplicationCandidate": [
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BoundaryEntryPlan": [
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "bound-installations",
+    "image-emission",
+    "machine-code",
+    "machine-emission",
+    "native-preparation",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "BoundaryNativeParameterGeometry": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "BoundaryNativeParameterOrigin": [
+    "backend-plan",
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "BoundaryNativeParameterShape": [
+    "native-compiler",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "BoundaryOpaqueApplication": [
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BoundaryPlanResult": [
+    "provider-planning"
+   ],
+   "BoundarySignatureGeometry": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "BoundaryValueClass": [
+    "layout",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "BoundaryValueField": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BoundaryValueGraph": [
+    "layout",
+    "provider-admission",
+    "provider-planning",
+    "terminal-runtime"
+   ],
+   "BoundaryValueShape": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "CallPlan": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallSignature": [
+    "abstract-operations-to-target-operations",
+    "legalized-operations",
+    "machine-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "CallbackBinderRequirement": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackDataGeometry": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackInlineFieldGeometry": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackMaterialization": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackMaterializationContext": [
+    "backend-plan",
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackRequirementId": [
+    "backend-plan",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallbackSlotGeometry": [
+    "layout",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CallingPolicy": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "machine-emission",
+    "native-compiler",
+    "native-preparation",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "CallingPolicyRejection": [
+    "provider-planning"
+   ],
+   "ConventionalSumCaseLayout": [
+    "register-homes"
+   ],
+   "ConventionalSumLayout": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "register-homes",
+    "selected-instructions",
+    "target-operations",
+    "target-vocabulary"
+   ],
+   "DARWIN_LIBOBJC_PATH": [
+    "image-macho"
+   ],
+   "EntryControl": [
+    "image-emission",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "EntryStack": [
+    "image-emission",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ExternalBindingKind": [
+    "backend-plan",
+    "compiler",
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "ExternalBindingRow": [
+    "backend-plan",
+    "compiler",
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "GeneratedEntryControl": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "GeneratedEntryEvidence": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission"
+   ],
+   "GeneratedEntryInstruction": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "IndirectPointerLocation": [
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "InterruptGateAddress": [
+    "target-operations-to-selected-instructions"
+   ],
+   "LayoutPlanId": [
+    "layout",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "LayoutSlotId": [
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "MachineRegime": [
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "MachineRegister": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "image-macho",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "normalized-foreign-call-plan",
+    "program-entry-plan",
+    "provider-planning",
+    "register-environment",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "MachineState": [
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "MachineStateSet": [
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "NativeCallProjection": [
+    "provider-planning"
+   ],
+   "NativeCallbackDemand": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "NativeParameterApplication": [
+    "backend-plan",
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes",
+    "target-vocabulary",
+    "verified-optimization-input"
+   ],
+   "NativeParameterId": [
+    "layout",
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "NativeParameterTelescope": [
+    "provider-planning"
+   ],
+   "NativePlace": [
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "bound-installations",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "layout",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine-to-selected-form-encoding",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "PackedFieldLayout": [
+    "legalized-operations",
+    "native-artifact",
+    "register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "PlanDiagnostic": [
+    "abstract-operations-to-target-operations"
+   ],
+   "Preemption": [
+    "image-emission",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "PrivateCallbackPlacements": [
+    "backend-plan",
+    "bound-installations",
+    "isa-aarch64",
+    "isa-x86_64",
+    "layout",
+    "machine-code",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "provider-admission",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "RegisterSet": [
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "StateEffectsEvidence": [
+    "image",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission"
+   ],
+   "StateFootprintEvidence": [
+    "image",
+    "image-macho",
+    "image-pe",
+    "isa-x86_64"
+   ],
+   "StatePlan": [
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "StaticMachineBinderId": [
+    "backend-plan",
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "SystemVEightbyteClass": [
+    "native-artifact",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TerminalCallingTelescope": [
+    "provider-admission",
+    "provider-planning",
+    "verified-optimization-input"
+   ],
+   "ValidatedBoundaryEntryPlan": [
+    "build-settings",
+    "machine-emission",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "verified-optimization-input"
+   ],
+   "ValueClass": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "layout",
+    "legalized-operations",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-provider-runtime",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "ValueLocation": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "legalized-operations",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine-to-selected-form-encoding",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "ValuePlacement": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "program-entry-plan",
+    "provider-planning",
+    "register-homes",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ValueShape": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "layout",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "byte_size_at_offset_zero": [
+    "abstract-operations-to-target-operations",
+    "native-preparation"
+   ],
+   "callback_destination_slot": [
+    "provider-admission",
+    "verified-optimization-input"
+   ],
+   "callback_layout_field_slot_id": [
+    "layout"
+   ],
+   "callback_layout_plan_id": [
+    "layout"
+   ],
+   "callback_layout_slot_id": [
+    "layout"
+   ],
+   "callback_nominal_report_fingerprint": [
+    "layout",
+    "provider-planning"
+   ],
+   "callback_plan_laid_layout_id": [
+    "layout"
+   ],
+   "callback_requirement_id": [
+    "layout",
+    "native-compiler"
+   ],
+   "classified_boundary_shape": [
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "darwin_import_library": [
+    "image-macho"
+   ],
+   "encode_private_callback_placements": [
+    "machine-code",
+    "object-file",
+    "target-vocabulary"
+   ],
+   "encode_state_plan_identity": [
+    "native-artifact",
+    "target-vocabulary"
+   ],
+   "evaluate_call_plan": [
+    "abstract-operations-to-target-operations",
+    "legalized-operations",
+    "machine-emission",
+    "native-preparation",
+    "provider-admission",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "evaluate_conventional_sum_layout": [
+    "native-preparation",
+    "target-vocabulary"
+   ],
+   "evaluate_ordinary_boundary_entry_plan": [
+    "native-compiler",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "program-entry-plan",
+    "provider-planning"
+   ],
+   "gpr_code": [
+    "isa-x86_64"
+   ],
+   "interrupt_gate_address": [
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "nominal_callback_native_parameter_id": [
+    "review-evidence"
+   ],
+   "register_or_stack_pair_pattern": [
+    "image-emission",
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "terminal_layout": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "task-plans",
+    "verified-optimization-input"
+   ],
+   "validate_boundary_entry_plan": [
+    "abstract-operations-to-target-operations",
+    "native-artifact",
+    "native-preparation",
+    "program-entry-plan",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "validate_boundary_entry_plan_with_callback_materializations": [
+    "abstract-operations-to-target-operations",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "provider-admission",
+    "provider-planning",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "validate_boundary_plan_result": [
+    "provider-planning"
+   ],
+   "validate_fresh_native_parameter_identity": [
+    "provider-planning"
+   ],
+   "windows_import_library": [
+    "image-pe"
+   ]
+  },
+  "component-description": {
+   "ComponentDescriptionFacts": [
+    "native-artifact"
+   ],
+   "VerifiedComponent": [
+    "native-compiler",
+    "products",
+    "provider-admission",
+    "verified-optimization-input"
+   ],
+   "component_description": [
+    "native-artifact"
+   ],
+   "decode_component_description_with_artifact": [
+    "products"
+   ],
+   "publish_component_description": [
+    "native-artifact"
+   ]
+  },
+  "effects": {
+   "AssumedBindingContractSelection": [
+    "backend-plan",
+    "native-artifact",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "AuthoredBehaviorExclusion": [
+    "build-settings",
+    "products",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "AuthoredBehaviorExclusionKind": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BehaviorExclusions": [
+    "native-compiler",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "CheckedPhysicalOperationIdentity": [
+    "provider-admission"
+   ],
+   "CheckedPhysicalTerminalMechanismIdentity": [
+    "provider-admission"
+   ],
+   "CheckedSyscallArgumentContractIdentity": [
+    "provider-admission"
+   ],
+   "CompilerAccessorScalarOperation": [
+    "provider-admission",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CompilerIntrinsicExecutionIdentity": [
+    "backend-plan",
+    "boundary-applications",
+    "native-artifact",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "CompilerNumericType": [
+    "boundary-applications",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CompilerPrimitiveFloatBinaryOperation": [
+    "boundary-applications",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "CompilerPrimitiveIntegerComparisonOperation": [
+    "boundary-applications",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "InstallationReachResolution": [
+    "provider-selection",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "NormalizedForeignArgumentContract": [
+    "provider-admission"
+   ],
+   "NormalizedForeignTerminalMechanismIdentity": [
+    "provider-admission"
+   ],
+   "PortableFilesystemAuthorityFacet": [
+    "provider-admission"
+   ],
+   "SelectedExternalRequirementApplication": [
+    "native-artifact",
+    "provider-selection",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "SelectedProviderPlanCandidate": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "SelectedProviderPlanFacts": [
+    "backend-plan",
+    "build-settings",
+    "component-description",
+    "native-artifact",
+    "native-compiler",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "selected-dispatch",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "trust-model",
+    "verified-optimization-input"
+   ],
+   "SelectedRequirementSpecialization": [
+    "backend-plan",
+    "provider-admission",
+    "provider-selection",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ServiceTerminalAuthorityPermission": [
+    "compiler",
+    "native-compiler",
+    "package-compilation",
+    "package-manager",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "SyscallTerminalMechanismIdentity": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClass": [
+    "package-compilation",
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TerminalAuthorityClosureCustody": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClosureLeaf": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClosureLeafOrigin": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClosureReviewReceipt": [
+    "native-artifact",
+    "provider-admission"
+   ],
+   "TerminalAuthorityDisposition": [
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TerminalAuthorityPermissionPolicyIdentity": [
+    "native-artifact",
+    "provider-admission"
+   ],
+   "TerminalAuthorityPolicyIdentity": [
+    "native-artifact",
+    "provider-admission"
+   ],
+   "TerminalMechanismIdentity": [
+    "provider-admission"
+   ],
+   "authored_behavior_exclusion_set_in": [
+    "verified-optimization-input"
+   ],
+   "compiler_accessor_scalar_contract_identity": [
+    "provider-admission"
+   ],
+   "compiler_intrinsic_execution_identity_bytes": [
+    "boundary-applications"
+   ],
+   "encode_synchronous_invocation": [
+    "review-evidence"
+   ],
+   "external_providers": [
+    "provider-admission",
+    "provider-planning",
+    "provider-selection"
+   ],
+   "lower": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "primitive_float_operation_tag": [
+    "provider-admission"
+   ],
+   "provider_grants": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_plan": [
+    "backend-plan",
+    "boundary-applications",
+    "compiler",
+    "component-description",
+    "native-artifact",
+    "native-compiler",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "trust-model",
+    "verified-optimization-input"
+   ],
+   "terminal_mechanism_identity_bytes": [
+    "provider-admission"
+   ]
+  },
+  "encoded-scalar-plan": {
+   "Step": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "plan": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ]
+  },
+  "image": {
+   "CompilerFunctionValidationDigest": [
+    "native-artifact"
+   ],
+   "CompilerFunctionValidationEvidence": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "CompilerTextDerivationDigest": [
+    "native-artifact"
+   ],
+   "CompilerTextValidationEvidence": [
+    "image-emission"
+   ],
+   "EmittedImageOutput": [
+    "image-emission",
+    "image-macho",
+    "native-artifact"
+   ],
+   "ExecutableImageOutput": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalDataRegion": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalDataRegionOrigin": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalExecutableRegion": [
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalExecutableRegionOrigin": [
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalImage": [
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalImageImport": [
+    "image-emission"
+   ],
+   "FinalImageImportPlan": [
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalImageInput": [
+    "image-emission"
+   ],
+   "FinalImageLayout": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalImageMemory": [
+    "image-emission"
+   ],
+   "FinalImageRelocation": [
+    "image-elf",
+    "image-emission"
+   ],
+   "FinalImageRelocationTable": [
+    "image-elf"
+   ],
+   "FinalImageSection": [
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "FinalImageSymbol": [
+    "image-elf",
+    "image-emission"
+   ],
+   "FinalImageSymbolDigest": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "FinalImageSymbolHandle": [
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "PlacedDataRegionInventory": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "PlacedExecutableRegion": [
+    "image-macho"
+   ],
+   "PlacedExecutableRegionInventory": [
+    "image-macho"
+   ],
+   "PlacedExecutableRegionInventoryDigest": [
+    "native-artifact"
+   ],
+   "align_to": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "align_to_u64": [
+    "image-elf",
+    "image-macho"
+   ],
+   "apply_relocations": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "build_final_image": [
+    "image-emission"
+   ],
+   "codec_bytes": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "dynamic_elf": [
+    "image-emission"
+   ],
+   "emitted_direct_executable_output": [
+    "image-emission"
+   ],
+   "final_image_entry_symbol": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "final_image_imports_symbol": [
+    "image-elf"
+   ],
+   "final_image_symbol_address": [
+    "image-macho"
+   ],
+   "final_image_symbol_digest": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "final_image_validation": [
+    "image-emission"
+   ],
+   "image_output": [
+    "image-emission"
+   ],
+   "place_data_extent": [
+    "image-elf",
+    "image-pe"
+   ],
+   "place_data_regions": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "place_executable_extent": [
+    "image-elf"
+   ],
+   "place_executable_regions": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "rejection_carrier": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "validate_final_text_relocation_envelope": [
+    "image-emission"
+   ],
+   "validate_placed_data_region_inventory": [
+    "image-emission"
+   ],
+   "validate_placed_executable_region_inventory": [
+    "image-emission"
+   ],
+   "validate_relative_relocation_target": [
+    "image-emission"
+   ]
+  },
+  "image-elf": {
+   "ElfComponentExport": [
+    "image-emission"
+   ],
+   "ElfDynamicExecutableEmissionError": [
+    "image-emission"
+   ],
+   "ElfSharedComponentImage": [
+    "image-emission"
+   ],
+   "ValidatedElfDynamicExecutable": [
+    "image-emission"
+   ],
+   "emit_elf_dynamic_executable": [
+    "image-emission"
+   ],
+   "emit_elf_executable": [
+    "image-emission"
+   ],
+   "emit_elf_shared_component": [
+    "image-emission"
+   ]
+  },
+  "image-emission": {
+   "BoundaryExecutionRecord": [
+    "native-artifact"
+   ],
+   "CallableEntryTransport": [
+    "native-compiler"
+   ],
+   "ComponentSharedImage": [
+    "native-artifact",
+    "native-compiler"
+   ],
+   "ExecutableImage": [
+    "native-artifact"
+   ],
+   "ExecutableImageEmissionRequest": [
+    "native-artifact",
+    "native-compiler",
+    "orchestration"
+   ],
+   "FunctionFragmentObjectArtifactRequest": [
+    "native-artifact"
+   ],
+   "ImageApplicationMetadataError": [
+    "native-compiler"
+   ],
+   "InstalledPhysicalCpuRequirement": [
+    "native-artifact"
+   ],
+   "LinkedNativeCodeLayout": [
+    "native-artifact"
+   ],
+   "NativeForeignAdapterImage": [
+    "native-artifact"
+   ],
+   "ObjectArtifact": [
+    "native-artifact",
+    "native-compiler"
+   ],
+   "ObjectBoundarySettlement": [
+    "native-artifact"
+   ],
+   "ObjectCodeAttribution": [
+    "native-artifact"
+   ],
+   "ObjectForeignCall": [
+    "native-artifact"
+   ],
+   "ObjectFunction": [
+    "native-artifact"
+   ],
+   "ObjectScalarCallStack": [
+    "native-artifact"
+   ],
+   "ObjectUnitCallStack": [
+    "native-artifact"
+   ],
+   "PhysicalEntryRequirements": [
+    "native-artifact"
+   ],
+   "PhysicalEntryStackRequirement": [
+    "native-artifact"
+   ],
+   "PrivateFunctionObject": [
+    "native-artifact",
+    "native-compiler"
+   ],
+   "RequestedDynamicElfImage": [
+    "native-artifact"
+   ],
+   "RequestedExecutableImage": [
+    "native-artifact"
+   ],
+   "RetainedTargetOperations": [
+    "native-artifact",
+    "native-compiler"
+   ],
+   "bind_hosted_receiver": [
+    "native-artifact"
+   ],
+   "bind_physical_entry": [
+    "native-artifact"
+   ],
+   "build_function_fragment_object_artifact": [
+    "native-artifact"
+   ],
+   "completion_receipts_have_exact_custody": [
+    "native-artifact"
+   ],
+   "compose_installed_arrival_demands": [
+    "native-compiler"
+   ],
+   "compose_private_function_objects": [
+    "native-artifact"
+   ],
+   "create_callable_entry_transport": [
+    "native-compiler"
+   ],
+   "create_installed_private_function_object": [
+    "native-compiler"
+   ],
+   "create_private_function_object": [
+    "native-compiler"
+   ],
+   "derive_normalized_foreign_call_custody": [
+    "native-artifact"
+   ],
+   "derive_stack_demand": [
+    "native-artifact"
+   ],
+   "durable_home_offsets": [
+    "native-artifact"
+   ],
+   "emit_component_shared_image": [
+    "native-compiler"
+   ],
+   "emit_executable_image": [
+    "native-artifact"
+   ],
+   "emit_native_foreign_adapter": [
+    "native-artifact"
+   ],
+   "foreign_invocation_provenance_matches": [
+    "native-artifact"
+   ],
+   "foreign_result_operand_count": [
+    "native-artifact"
+   ],
+   "fragment_instruction_span": [
+    "native-artifact"
+   ],
+   "inspect_native_code_layouts": [
+    "native-artifact"
+   ],
+   "installed_interrupt_stack_requirement": [
+    "native-compiler"
+   ],
+   "linux_write_line_custody_is_exact": [
+    "native-artifact"
+   ],
+   "prepare_component_function_image": [
+    "native-compiler"
+   ],
+   "require_installed_root_provision": [
+    "native-artifact"
+   ],
+   "scalar_call_result_producer": [
+    "native-artifact"
+   ],
+   "scalar_immediate_span": [
+    "native-artifact"
+   ],
+   "structural_result_capture": [
+    "native-artifact"
+   ],
+   "transported_span_end": [
+    "native-artifact"
+   ],
+   "unique_block_instruction": [
+    "native-artifact"
+   ],
+   "validate_direct_executable_image": [
+    "native-artifact"
+   ],
+   "validate_requested_dynamic_elf_image": [
+    "native-artifact"
+   ],
+   "verify_retained_fixed_frame": [
+    "orchestration"
+   ],
+   "verify_retained_selected_optimization": [
+    "orchestration"
+   ],
+   "verify_retained_target_operations": [
+    "ind19-spectrum-validation",
+    "orchestration"
+   ]
+  },
+  "image-macho": {
+   "MachoComponentExport": [
+    "image-emission"
+   ],
+   "MachoSharedComponentImage": [
+    "image-emission"
+   ],
+   "code_signature_identifier": [
+    "native-artifact"
+   ],
+   "emit_macho_executable": [
+    "image-emission"
+   ],
+   "emit_macho_executable_signed": [
+    "image-emission"
+   ],
+   "emit_macho_shared_component": [
+    "image-emission"
+   ],
+   "validate_macho_import_binding_pairing": [
+    "image-emission"
+   ],
+   "validate_macho_loader_mapping": [
+    "image-emission"
+   ],
+   "validate_macho_object_fixups": [
+    "image-emission"
+   ]
+  },
+  "image-pe": {
+   "PeComponentExport": [
+    "image-emission"
+   ],
+   "PeSharedComponentImage": [
+    "image-emission"
+   ],
+   "emit_pe_shared_component": [
+    "image-emission"
+   ],
+   "emit_pe_x86_64_executable": [
+    "image-emission"
+   ]
+  },
+  "installation-evidence": {
+   "BootstrapAssumptionInterval": [
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "BootstrapEnvironmentAssumption": [
+    "bound-installations",
+    "image-emission",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "InstallationEnvironmentAssumption": [
+    "bound-installations",
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "InstalledArrivalStackDemand": [
+    "image-emission"
+   ],
+   "InstalledAssumedBindingEvidence": [
+    "native-artifact",
+    "native-preparation",
+    "provider-admission",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "InstalledBodyFaultPremises": [
+    "image-emission"
+   ],
+   "InstalledInterruptStackRequirement": [
+    "bound-installations",
+    "image-emission",
+    "native-compiler",
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "InstalledPhysicalStackRoot": [
+    "image-emission",
+    "native-compiler"
+   ],
+   "InstalledProviderCallEvidence": [
+    "abstract-operations-to-target-operations",
+    "provider-admission"
+   ],
+   "InstalledProviderCompletionClaimSource": [
+    "abstract-operations-to-target-operations",
+    "provider-admission"
+   ],
+   "InterruptDeliveryInterval": [
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ObjectEvidence": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "ProviderExecutionEvidence": [
+    "native-artifact",
+    "native-compiler",
+    "provider-admission"
+   ],
+   "ProviderInstallationEvidence": [
+    "abstract-operations-to-target-operations",
+    "provider-admission"
+   ],
+   "StackDemandEvidence": [
+    "image-emission"
+   ],
+   "X86InterruptDeliveryAssumption": [
+    "bound-installations",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86InterruptDeliveryProfile": [
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ]
+  },
+  "isa-aarch64": {
+   "AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "AARCH64_CONDITIONAL_BRANCH_BYTE_REACH": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "AARCH64_FLOAT_RESULT_SATURATING": [
+    "register-environment"
+   ],
+   "AARCH64_FLOAT_RESULT_TRAPPING": [
+    "register-environment"
+   ],
+   "Aarch64CallbackAddressMaterialization": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64CallbackMaterializationDestination": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64ConditionalBranchForm": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64FrameProtocolError": [
+    "machine-emission"
+   ],
+   "Aarch64FrameSlot": [
+    "machine-emission"
+   ],
+   "Aarch64MachineEffectCatalogValidationError": [
+    "selected-instruction-analyses"
+   ],
+   "Aarch64NormalizedForeignCallFixup": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64NormalizedForeignCallFixupKind": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64NormalizedForeignCallFixupState": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64NormalizedForeignCallTemplateError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64RegisterConstraintCatalogValidationError": [
+    "register-environment"
+   ],
+   "Aarch64ScalarCallFixup": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64ScalarCallFixupKind": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64ScalarCallFixupState": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64ScalarCallTemplateError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "Aarch64SelectedFormEncodingError": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64StackProbe": [
+    "machine-emission"
+   ],
+   "ORDINARY_DIRECT_CALL_BYTES": [
+    "image-emission",
+    "machine-emission"
+   ],
+   "ORDINARY_RETURN_BYTES": [
+    "machine-emission"
+   ],
+   "aarch64_fixed_register_view": [
+    "register-environment"
+   ],
+   "aarch64_hosted_write_byte_i32_byte_count": [
+    "image-emission"
+   ],
+   "aarch64_linux_system_call_keys": [
+    "machine-emission"
+   ],
+   "aarch64_machine_effect_catalog": [
+    "selected-instruction-analyses"
+   ],
+   "aarch64_normalized_foreign_call_declaration": [
+    "selected-instruction-analyses"
+   ],
+   "aarch64_physical_register_model": [
+    "machine-emission",
+    "register-environment"
+   ],
+   "aarch64_preservation_convention_for_target": [
+    "machine-emission",
+    "register-environment",
+    "selected-instruction-analyses"
+   ],
+   "aarch64_preservation_storage_catalog": [
+    "register-environment"
+   ],
+   "aarch64_selected_constraint_keys": [
+    "register-environment"
+   ],
+   "decode_aarch64_generated_entry": [
+    "image-emission",
+    "machine-emission"
+   ],
+   "decode_aarch64_selected_hosted_exit_process_i32": [
+    "image-emission"
+   ],
+   "decode_aarch64_selected_hosted_read_byte": [
+    "image-emission"
+   ],
+   "decode_aarch64_selected_hosted_write_byte_i32": [
+    "image-emission"
+   ],
+   "encode_aapcs64_frame_protocol": [
+    "machine-emission"
+   ],
+   "encode_aarch64_aligned_frame_address": [
+    "machine-emission"
+   ],
+   "encode_aarch64_frame_address": [
+    "machine-emission"
+   ],
+   "encode_aarch64_frame_memory": [
+    "machine-emission"
+   ],
+   "encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form": [
+    "machine-emission"
+   ],
+   "encode_aarch64_integer_constant": [
+    "machine-emission"
+   ],
+   "encode_aarch64_pointer_memory": [
+    "machine-emission"
+   ],
+   "encode_aarch64_selected_conditional_branch_form": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_aarch64_selected_dynamic_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_form": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_frame_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_hosted_exit_process_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_hosted_read_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_hosted_write_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_jump_form": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_aarch64_selected_memory_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_normalized_foreign_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_scalar_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_system_call_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_aarch64_selected_table_call_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_hosted_exit_process_i32": [
+    "image-emission"
+   ],
+   "encode_linux_read_byte_to_stack": [
+    "native-artifact"
+   ],
+   "encode_linux_write_line_literal": [
+    "image-emission"
+   ],
+   "encode_macos_read_byte_to_stack": [
+    "native-artifact"
+   ],
+   "encode_private_callback_materialization": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_restore_fpcr_from_sp_displacement": [
+    "native-artifact"
+   ],
+   "encode_save_fpcr_to_sp_displacement": [
+    "native-artifact"
+   ],
+   "prepare_aarch64_register_constraint_catalog": [
+    "register-environment"
+   ],
+   "validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form": [
+    "machine-emission"
+   ],
+   "validate_aarch64_selected_conditional_branch_form": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_aarch64_selected_form_encoding": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_frame_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_hosted_exit_process_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_hosted_read_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_hosted_write_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_jump_form": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_aarch64_selected_memory_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_normalized_foreign_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_scalar_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_system_call_form": [
+    "native-artifact",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_aarch64_selected_table_call_form": [
+    "native-artifact",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validated_aarch64_physical_register_model": [
+    "native-artifact"
+   ]
+  },
+  "isa-x86_64": {
+   "CLEAR_DIRECTION_FLAG_BYTES": [
+    "machine-emission"
+   ],
+   "INTERRUPT_RETURN_BYTES": [
+    "machine-emission"
+   ],
+   "ORDINARY_DIRECT_CALL_BYTES": [
+    "image-emission",
+    "machine-emission"
+   ],
+   "ORDINARY_RETURN_BYTES": [
+    "machine-emission"
+   ],
+   "PRIVILEGED_STOP_BYTES": [
+    "machine-emission"
+   ],
+   "ValidatedX86_64SelectedFormEncoding": [
+    "resolved-layout-to-resolved-layout"
+   ],
+   "X86_64CallbackAddressMaterialization": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64CallbackMaterializationDestination": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "X86_64FrameProtocolError": [
+    "machine-emission"
+   ],
+   "X86_64FrameSlot": [
+    "machine-emission"
+   ],
+   "X86_64MachineEffectCatalogValidationError": [
+    "selected-instruction-analyses"
+   ],
+   "X86_64MovR32Imm32I64MaterializationError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64MovR64Imm32SignExtendedI64MaterializationError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64NormalizedForeignCallFixup": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64NormalizedForeignCallFixupKind": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64NormalizedForeignCallFixupState": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64NormalizedForeignCallTemplateError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64RegisterConstraintCatalogValidationError": [
+    "register-environment"
+   ],
+   "X86_64ScalarCallFixup": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64ScalarCallFixupKind": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64ScalarCallFixupState": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64ScalarCallTemplateError": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64SelectedFormEncodingError": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "X86_64StackProbe": [
+    "machine-emission"
+   ],
+   "X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "X86_64_FLOAT_RESULT_SATURATING": [
+    "register-environment"
+   ],
+   "X86_64_FLOAT_RESULT_TRAPPING": [
+    "register-environment"
+   ],
+   "X86_64_IMPORT_THUNK_BYTE_COUNT": [
+    "image-macho"
+   ],
+   "decode_x86_64_generated_entry": [
+    "image-emission",
+    "machine-emission"
+   ],
+   "decode_x86_64_import_thunk": [
+    "image-macho"
+   ],
+   "decode_x86_64_selected_hosted_exit_process_i32": [
+    "image-emission"
+   ],
+   "decode_x86_64_selected_hosted_read_byte": [
+    "image-emission"
+   ],
+   "decode_x86_64_selected_hosted_write_byte_i32": [
+    "image-emission"
+   ],
+   "encode_darwin_read_byte_to_stack": [
+    "native-artifact"
+   ],
+   "encode_hosted_exit_process_i32": [
+    "image-emission"
+   ],
+   "encode_ldmxcsr_rsp_displacement": [
+    "native-artifact"
+   ],
+   "encode_linux_read_byte_to_stack": [
+    "native-artifact"
+   ],
+   "encode_linux_write_line_literal": [
+    "image-emission"
+   ],
+   "encode_private_callback_materialization": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_stmxcsr_rsp_displacement": [
+    "native-artifact"
+   ],
+   "encode_system_v_amd64_frame_protocol": [
+    "machine-emission"
+   ],
+   "encode_x86_64_aligned_frame_address": [
+    "machine-emission"
+   ],
+   "encode_x86_64_frame_address": [
+    "machine-emission"
+   ],
+   "encode_x86_64_frame_memory": [
+    "machine-emission"
+   ],
+   "encode_x86_64_integer_constant": [
+    "machine-emission"
+   ],
+   "encode_x86_64_pointer_memory": [
+    "machine-emission"
+   ],
+   "encode_x86_64_selected_dynamic_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_form": [
+    "machine-emission",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_frame_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_hosted_exit_process_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_hosted_read_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_hosted_write_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_i64_less_than_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_x86_64_selected_jump_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_x86_64_selected_memory_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_nonzero_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "encode_x86_64_selected_normalized_foreign_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_scalar_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_short_nonzero_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout"
+   ],
+   "encode_x86_64_selected_system_call_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_table_call_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "encode_x86_64_selected_u64_less_than_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "prepare_x86_64_register_constraint_catalog": [
+    "register-environment"
+   ],
+   "validate_x86_64_selected_form_encoding": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_frame_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_hosted_exit_process_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_hosted_read_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_hosted_write_byte_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_i64_less_than_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_x86_64_selected_jump_form": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_x86_64_selected_memory_form": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_nonzero_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_x86_64_selected_normalized_foreign_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_scalar_call_template": [
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_short_nonzero_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validate_x86_64_selected_system_call_form": [
+    "native-artifact",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_table_call_form": [
+    "native-artifact",
+    "post-allocation-machine-to-selected-form-encoding"
+   ],
+   "validate_x86_64_selected_u64_less_than_branch_form": [
+    "machine-emission",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "validated_x86_64_physical_register_model": [
+    "image-emission",
+    "machine-emission",
+    "native-artifact"
+   ],
+   "x86_64_fixed_register_view": [
+    "register-environment"
+   ],
+   "x86_64_import_thunk_footprint": [
+    "image-macho"
+   ],
+   "x86_64_linux_system_call_keys": [
+    "machine-emission"
+   ],
+   "x86_64_machine_effect_catalog": [
+    "selected-instruction-analyses"
+   ],
+   "x86_64_model_specific_register_state": [
+    "image-emission"
+   ],
+   "x86_64_normalized_foreign_call_declaration": [
+    "selected-instruction-analyses"
+   ],
+   "x86_64_physical_register_model": [
+    "machine-emission",
+    "register-environment"
+   ],
+   "x86_64_preservation_convention_for_target": [
+    "machine-emission",
+    "register-environment",
+    "selected-instruction-analyses"
+   ],
+   "x86_64_preservation_storage_catalog": [
+    "register-environment"
+   ],
+   "x86_64_selected_constraint_keys": [
+    "register-environment"
+   ]
+  },
+  "layout": {
+   "BOUNDARY_VALUE_FIELD_CAPACITY": [
+    "provider-planning"
+   ],
+   "BOUNDARY_VALUE_SHAPE_CAPACITY": [
+    "provider-planning"
+   ],
+   "BoundaryValueLayout": [
+    "provider-admission",
+    "provider-planning"
+   ],
+   "CallbackLayoutCoordinates": [
+    "provider-planning"
+   ],
+   "CallbackStorageRoot": [
+    "provider-planning"
+   ],
+   "LayoutTarget": [
+    "provider-admission",
+    "provider-planning"
+   ],
+   "TerminalBoundaryRecipes": [
+    "provider-admission",
+    "provider-planning"
+   ],
+   "TerminalCallbackLayouts": [
+    "provider-planning"
+   ],
+   "TerminalRecordStorage": [
+    "provider-admission"
+   ]
+  },
+  "machine-emission": {
+   "EmissionFacts": [
+    "native-compiler",
+    "object-file"
+   ],
+   "FunctionFragmentFrameApplicationError": [
+    "image-emission"
+   ],
+   "FunctionRealizationReplay": [
+    "native-compiler"
+   ],
+   "FunctionRelativeOptimizationRealizationError": [
+    "native-compiler"
+   ],
+   "OptimizedProgramProjection": [
+    "native-compiler"
+   ],
+   "RelocationFreeTextSectionPlacementError": [
+    "object-file"
+   ],
+   "StagedFunctionFragmentFrameApplication": [
+    "image-emission"
+   ],
+   "StagedOptimizedFixedFrameTextSection": [
+    "image-emission",
+    "object-file"
+   ],
+   "StagedOptimizedFunctionFragmentEmissionSource": [
+    "image-emission",
+    "native-artifact",
+    "native-compiler"
+   ],
+   "assemble_fixed_frame_realization": [
+    "native-compiler"
+   ],
+   "code_layout": [
+    "image-emission"
+   ],
+   "frame_layout": [
+    "native-compiler"
+   ],
+   "native_entry_bridge": [
+    "image-emission"
+   ],
+   "native_foreign_bridge": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "stage_function_fragment_frame_application": [
+    "native-artifact"
+   ],
+   "stage_function_frame": [
+    "native-compiler"
+   ],
+   "stage_optimized_fixed_frame_text_section": [
+    "native-artifact"
+   ],
+   "stage_optimized_function_fragment_emission": [
+    "native-artifact"
+   ],
+   "validate_optimized_fixed_frame_text_section": [
+    "object-file"
+   ]
+  },
+  "native-artifact": {
+   "DynamicElfNativeArtifact": [
+    "products"
+   ],
+   "DynamicElfNativeArtifactIdentity": [
+    "products"
+   ],
+   "DynamicElfPublicationReceipt": [
+    "products"
+   ],
+   "ExecutableContainerDigest": [
+    "products"
+   ],
+   "ExecutableInstallationEvidenceDigest": [
+    "products"
+   ],
+   "ExecutablePublicationReceipt": [
+    "products"
+   ],
+   "FragmentObjectProjection": [
+    "native-compiler"
+   ],
+   "FragmentObjectPublicationRequest": [
+    "native-compiler"
+   ],
+   "NativeArtifact": [
+    "native-compiler",
+    "products",
+    "terminal-runtime"
+   ],
+   "NativeArtifactIdentity": [
+    "products"
+   ],
+   "NativeBindingRuntimeInputs": [
+    "native-compiler"
+   ],
+   "NativeComponentProduct": [
+    "native-compiler",
+    "products",
+    "terminal-runtime"
+   ],
+   "NativeComponentPublicationReceipt": [
+    "products"
+   ],
+   "NativeForeignAdapterImage": [
+    "native-provider-runtime"
+   ],
+   "NativePackagePublicationReceipt": [
+    "products"
+   ],
+   "NativePublicationCertificateDigest": [
+    "products"
+   ],
+   "NativePublicationEvidenceDigest": [
+    "products"
+   ],
+   "PackagePublicationComponent": [
+    "products"
+   ],
+   "PreparedDynamicElfPublication": [
+    "products"
+   ],
+   "PreparedExecutablePublication": [
+    "products"
+   ],
+   "PublishedFragmentObject": [
+    "native-compiler"
+   ],
+   "RequestedNativeArtifact": [
+    "native-compiler",
+    "products"
+   ],
+   "TerminalCallableRuntimeProvisions": [
+    "native-compiler"
+   ],
+   "TerminalRuntimeHostProvision": [
+    "native-compiler",
+    "products",
+    "terminal-runtime"
+   ],
+   "TerminalRuntimeHostProvisions": [
+    "native-compiler",
+    "terminal-runtime"
+   ],
+   "TerminalRuntimeProvisions": [
+    "native-compiler",
+    "products",
+    "terminal-runtime"
+   ],
+   "admit_executable_entry": [
+    "native-compiler"
+   ],
+   "emit_fragment_object": [
+    "native-compiler"
+   ],
+   "executable_installation_evidence_digest": [
+    "products"
+   ],
+   "publish_fragment_object": [
+    "native-compiler"
+   ],
+   "publish_macos_application_package": [
+    "products"
+   ]
+  },
+  "normalized-foreign-call-plan": {
+   "Error": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "Fixup": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "Template": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "admit": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ]
+  },
+  "object-file": {
+   "FunctionSymbolPlan": [
+    "image-emission"
+   ],
+   "NormalizedImportPlan": [
+    "image-emission"
+   ],
+   "ObjectContainerOutput": [
+    "image-emission"
+   ],
+   "ObjectLocalSymbolId": [
+    "native-artifact"
+   ],
+   "ObjectPlan": [
+    "image",
+    "image-emission",
+    "image-macho"
+   ],
+   "ObjectSymbolHandle": [
+    "image",
+    "image-emission",
+    "native-artifact"
+   ],
+   "RelocationFreeObjectContainerError": [
+    "image-emission"
+   ],
+   "RelocationFreeObjectNormalizedImport": [
+    "native-artifact"
+   ],
+   "RelocationFreeObjectPlan": [
+    "native-artifact"
+   ],
+   "RelocationFreeObjectUnresolvedForeignCall": [
+    "native-artifact"
+   ],
+   "RelocationKind": [
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "native-artifact"
+   ],
+   "RelocationOrigin": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "RelocationPlan": [
+    "image",
+    "image-emission",
+    "image-macho"
+   ],
+   "RelocationRecord": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "SectionKind": [
+    "image",
+    "image-emission",
+    "image-macho",
+    "native-artifact"
+   ],
+   "SectionPlan": [
+    "image-emission"
+   ],
+   "StagedOptimizedRelocationFreeObjectContainer": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "SymbolKind": [
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe"
+   ],
+   "SymbolPlan": [
+    "image-emission"
+   ],
+   "SymbolSection": [
+    "image",
+    "image-emission",
+    "image-macho"
+   ],
+   "canonical_normalized_foreign_import_symbol_name": [
+    "native-artifact"
+   ],
+   "entry_symbol_name": [
+    "image-emission"
+   ],
+   "invocation_relocation_origin": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "normalized_foreign_import_symbol_name": [
+    "image-emission"
+   ],
+   "normalized_import_symbol_name": [
+    "image-emission"
+   ],
+   "object_function_reference": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "object_function_symbol": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "object_symbol_handle_by_foreign_locator": [
+    "image-emission"
+   ],
+   "object_symbol_handle_by_import_locator": [
+    "image-emission"
+   ],
+   "object_symbol_name": [
+    "image-emission"
+   ],
+   "relocation_kind_tag": [
+    "image",
+    "image-elf",
+    "native-artifact"
+   ],
+   "stage_optimized_relocation_free_object_container": [
+    "native-artifact"
+   ],
+   "validate_optimized_relocation_free_object_container": [
+    "image-emission"
+   ]
+  },
+  "post-handoff-writer-plan": {
+   "GeneratedPostHandoffWriterFragmentPlan": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "POST_HANDOFF_WRITER_CONTEXT_ABI_V1": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "post_handoff_writer_context_byte_len": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "validate_step": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ]
+  },
+  "program-entry-plan": {
+   "LINUX_ARM64_I32_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "LINUX_ARM64_U64_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "LINUX_X86_64_ADDRESS_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "LINUX_X86_64_I32_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "MACOS_ARM64_ADDRESS_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "MACOS_ARM64_I32_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "MACOS_X86_64_ADDRESS_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "MACOS_X86_64_I32_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "ProgramEntryPhysicalContractPackageSourceDigest": [
+    "provider-planning"
+   ],
+   "ProgramEntryPhysicalContractPlan": [
+    "image-emission",
+    "provider-planning"
+   ],
+   "SelectedProgramEntrySignature": [
+    "compiler",
+    "image-emission",
+    "provider-planning",
+    "verified-optimization-input"
+   ],
+   "SelectedProgramStorageEntryPlan": [
+    "provider-planning",
+    "verified-optimization-input"
+   ],
+   "WINDOWS_X86_64_U32_TYPE_IDENTITY": [
+    "image-emission"
+   ],
+   "exact_hosted_physical_boundary_entry_plan": [
+    "image-emission"
+   ],
+   "exact_physical_contract_package_source_digest": [
+    "image-emission"
+   ]
+  },
+  "register-environment": {
+   "FrameAbiPreservationConvention": [
+    "machine-emission",
+    "selected-instructions-to-register-homes"
+   ],
+   "TargetRegisterEnvironmentValidationError": [
+    "native-compiler"
+   ],
+   "ValidatedTargetRegisterEnvironment": [
+    "machine-emission",
+    "post-allocation-machine",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "baseline_target_register_environment": [
+    "native-compiler"
+   ],
+   "fixed_register_view": [
+    "selected-instruction-analyses"
+   ],
+   "selected_abi_preservation": [
+    "machine-emission",
+    "selected-instructions-to-register-homes"
+   ],
+   "selected_preservation_storage_catalog": [
+    "machine-emission"
+   ]
+  },
+  "register-model": {
+   "AARCH64_AAPCS64_CALL": [
+    "isa-aarch64"
+   ],
+   "AARCH64_AAPCS64_RETURN": [
+    "isa-aarch64"
+   ],
+   "AARCH64_AAPCS64_RETURN_UNIT": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ACCESSOR_READ": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ACCESSOR_WRITE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ADDRESS_OFFSET": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ADD_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ADD_I64_IMMEDIATE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_COMPARE_EXCHANGE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_FENCE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_LOAD": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_STORE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ATOMIC_UPDATE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_BITS_TO_FLOAT32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_BITS_TO_FLOAT64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_BYTE_LITERAL_IMAGE_ADDRESS": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COMPARE_BYTE_SEQUENCES": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COMPARE_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COMPARE_I64_IMMEDIATE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COMPARE_I64_ZERO": [
+    "isa-aarch64"
+   ],
+   "AARCH64_CONDITIONAL_BRANCH": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COPY_BYTES": [
+    "isa-aarch64"
+   ],
+   "AARCH64_COPY_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_CRASH": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_CALL": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_HOSTED_READ_BYTE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_RETURN": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DARWIN_RETURN_UNIT": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DIVIDE_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_DIVIDE_U64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_FLOAT32_TO_BITS": [
+    "isa-aarch64"
+   ],
+   "AARCH64_FLOAT64_TO_BITS": [
+    "isa-aarch64"
+   ],
+   "AARCH64_FLOAT_RESULT_SATURATING": [
+    "isa-aarch64"
+   ],
+   "AARCH64_FLOAT_RESULT_TRAPPING": [
+    "isa-aarch64"
+   ],
+   "AARCH64_FRAME_ADDRESS": [
+    "isa-aarch64"
+   ],
+   "AARCH64_HOSTED_EXIT_PROCESS_I32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_HOSTED_READ_BYTE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_HOSTED_WRITE_BYTE_I32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_IEEE_FLOAT_ARITHMETIC": [
+    "isa-aarch64"
+   ],
+   "AARCH64_IEEE_FLOAT_TERNARY": [
+    "isa-aarch64"
+   ],
+   "AARCH64_IEEE_FLOAT_UNARY": [
+    "isa-aarch64"
+   ],
+   "AARCH64_JUMP": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD16": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD32": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD8": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD8_INDEXED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD_ENCODED_SCALAR": [
+    "isa-aarch64"
+   ],
+   "AARCH64_LOAD_PACKED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_MATERIALIZE_BOOLEAN": [
+    "isa-aarch64"
+   ],
+   "AARCH64_MATERIALIZE_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_MEMORY_FENCE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_MULTIPLY_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_REMAINDER_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_REMAINDER_U64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_RESTORE_FLOATING_CONTROL": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_ADD_CLAMPED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_ADD_U64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_DIVIDE_SIGNED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_MULTIPLY_CLAMPED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_MULTIPLY_U64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_SUBTRACT_CLAMPED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SATURATING_SUBTRACT_UNSIGNED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SAVE_FLOATING_CONTROL": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SCAN_BYTE_SEQUENCE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SHIFT_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_STORE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_STORE64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_STORE_ENCODED_SCALAR": [
+    "isa-aarch64"
+   ],
+   "AARCH64_STORE_PACKED": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SUBTRACT_I64": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SUBTRACT_I64_IMMEDIATE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SYSTEM_REGISTER_READ": [
+    "isa-aarch64"
+   ],
+   "AARCH64_SYSTEM_REGISTER_WRITE": [
+    "isa-aarch64"
+   ],
+   "AARCH64_TRAPPING_BINARY": [
+    "isa-aarch64"
+   ],
+   "AARCH64_TRAPPING_CONVERT": [
+    "isa-aarch64"
+   ],
+   "AARCH64_TRAPPING_FIXED_PAIR": [
+    "isa-aarch64"
+   ],
+   "AARCH64_TRAPPING_SHIFT": [
+    "isa-aarch64"
+   ],
+   "AARCH64_ZERO_BYTES": [
+    "isa-aarch64"
+   ],
+   "Aarch64RegisterConstraintCatalogValidationError": [
+    "isa-aarch64"
+   ],
+   "FrameAbiPreservationConvention": [
+    "machine-code",
+    "register-environment",
+    "register-homes"
+   ],
+   "PhysicalModelBuilder": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "PhysicalRegisterModel": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "register-environment",
+    "selected-instruction-analyses"
+   ],
+   "PhysicalRegisterModelIdentity": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-code",
+    "machine-emission",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine",
+    "register-homes",
+    "selected-instruction-analyses"
+   ],
+   "PreparedRegisterConstraintCatalog": [
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "register-environment",
+    "register-homes-to-post-allocation-machine",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "PreservationConvention": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "register-environment"
+   ],
+   "PreservationStorageCatalog": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "PreservationStorageCatalogIdentity": [
+    "machine-code",
+    "machine-emission"
+   ],
+   "PreservationStorageCatalogValidationError": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "PreservationStorageGroup": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "PreservationStorageGroupId": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-code",
+    "machine-emission"
+   ],
+   "RegisterClass": [
+    "selected-instruction-analyses"
+   ],
+   "RegisterClassId": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "post-allocation-machine",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterConstraintCatalog": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "RegisterConstraintCatalogIdentity": [
+    "post-allocation-machine",
+    "selected-instructions"
+   ],
+   "RegisterConstraintCatalogValidationError": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "RegisterConstraintFamily": [
+    "isa-conformance",
+    "machine-emission",
+    "register-homes",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterConstraintId": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "RegisterConstraintKey": [
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "machine-emission",
+    "register-environment",
+    "register-homes",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterInstructionConstraint": [
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "normalized-foreign-call-plan",
+    "register-environment",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterModelValidationError": [
+    "register-environment"
+   ],
+   "RegisterOperandAccess": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "machine-emission",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine",
+    "post-allocation-machine-to-selected-form-encoding",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterOperandConstraint": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "RegisterReservationProfile": [
+    "register-environment"
+   ],
+   "RegisterReservationProfileValidationError": [
+    "register-environment"
+   ],
+   "RegisterUnitId": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-code",
+    "machine-emission",
+    "post-allocation-machine",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "RegisterUnitKind": [
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "RegisterView": [
+    "isa-x86_64",
+    "machine-emission",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes"
+   ],
+   "RegisterViewId": [
+    "encoded-scalar-plan",
+    "image-emission",
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "machine-code",
+    "machine-emission",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine",
+    "post-allocation-machine-to-selected-form-encoding",
+    "register-environment",
+    "register-homes",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterWriteSemantics": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "post-allocation-machine",
+    "register-homes"
+   ],
+   "ReservationReason": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "Sha256RegisterDigest": [
+    "register-homes"
+   ],
+   "TargetRegisterEnvironmentConstraintKeys": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "register-environment",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "TargetRegisterEnvironmentIdentity": [
+    "machine-code",
+    "machine-emission",
+    "post-allocation-machine",
+    "register-environment",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "ValidatedPhysicalRegisterModel": [
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "machine-emission",
+    "normalized-foreign-call-plan",
+    "post-allocation-machine",
+    "post-allocation-machine-to-selected-form-encoding",
+    "register-environment",
+    "register-homes-to-post-allocation-machine",
+    "resolved-layout-to-resolved-layout",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes"
+   ],
+   "ValidatedPreservationStorageCatalog": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "register-environment"
+   ],
+   "ValidatedRegisterReservationProfile": [
+    "register-environment",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes"
+   ],
+   "X86_64RegisterConstraintCatalogValidationError": [
+    "isa-x86_64"
+   ],
+   "X86_64_ACCESSOR_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_ACCESSOR_WRITE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ADDRESS_OFFSET": [
+    "isa-x86_64"
+   ],
+   "X86_64_ADD_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_ADD_I64_IMMEDIATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_BITWISE_UPDATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_COMPARE_EXCHANGE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_FENCE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_LOAD": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_STORE": [
+    "isa-x86_64"
+   ],
+   "X86_64_ATOMIC_UPDATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_BITS_TO_FLOAT32": [
+    "isa-x86_64"
+   ],
+   "X86_64_BITS_TO_FLOAT64": [
+    "isa-x86_64"
+   ],
+   "X86_64_BYTE_LITERAL_IMAGE_ADDRESS": [
+    "isa-x86_64"
+   ],
+   "X86_64_CODE_SEGMENT_RELOAD": [
+    "isa-x86_64"
+   ],
+   "X86_64_COMPARE_BYTE_SEQUENCES": [
+    "isa-x86_64"
+   ],
+   "X86_64_COMPARE_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_COMPARE_I64_IMMEDIATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_COMPARE_I64_ZERO": [
+    "isa-x86_64"
+   ],
+   "X86_64_CONDITIONAL_BRANCH": [
+    "isa-x86_64"
+   ],
+   "X86_64_CONTROL_REGISTER_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_CONTROL_REGISTER_WRITE": [
+    "isa-x86_64"
+   ],
+   "X86_64_COPY_BYTES": [
+    "isa-x86_64"
+   ],
+   "X86_64_COPY_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_CRASH": [
+    "isa-x86_64"
+   ],
+   "X86_64_DATA_SEGMENT_RELOAD": [
+    "isa-x86_64"
+   ],
+   "X86_64_DIVIDE_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_DIVIDE_U64": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLAGS_RESTORE": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLAGS_SNAPSHOT": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLOAT32_TO_BITS": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLOAT64_TO_BITS": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLOAT_RESULT_SATURATING": [
+    "isa-x86_64"
+   ],
+   "X86_64_FLOAT_RESULT_TRAPPING": [
+    "isa-x86_64"
+   ],
+   "X86_64_FRAME_ADDRESS": [
+    "isa-x86_64"
+   ],
+   "X86_64_GLOBAL_DESCRIPTOR_TABLE": [
+    "isa-x86_64"
+   ],
+   "X86_64_HOSTED_EXIT_PROCESS_I32": [
+    "isa-x86_64"
+   ],
+   "X86_64_HOSTED_READ_BYTE": [
+    "isa-x86_64"
+   ],
+   "X86_64_HOSTED_WRITE_BYTE_I32": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_ARITHMETIC": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_CONVERSION_CONTROL": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_DIRECTED_BINARY": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_DIRECTED_UNARY": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_TERNARY": [
+    "isa-x86_64"
+   ],
+   "X86_64_IEEE_FLOAT_UNARY": [
+    "isa-x86_64"
+   ],
+   "X86_64_INSTALLED_INTERRUPT_CPU_CHECK": [
+    "isa-x86_64"
+   ],
+   "X86_64_INSTALLED_INTERRUPT_TABLE_PUBLICATION": [
+    "isa-x86_64"
+   ],
+   "X86_64_INSTALLED_INTERRUPT_TASK_COMMIT": [
+    "isa-x86_64"
+   ],
+   "X86_64_INTERRUPT_CONTROL": [
+    "isa-x86_64"
+   ],
+   "X86_64_JUMP": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD16": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD32": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD64": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD8": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD8_INDEXED": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD_ENCODED_SCALAR": [
+    "isa-x86_64"
+   ],
+   "X86_64_LOAD_PACKED": [
+    "isa-x86_64"
+   ],
+   "X86_64_MATERIALIZE_BOOLEAN": [
+    "isa-x86_64"
+   ],
+   "X86_64_MATERIALIZE_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_MEMORY_FENCE": [
+    "isa-x86_64"
+   ],
+   "X86_64_MICROSOFT_CALL": [
+    "isa-x86_64"
+   ],
+   "X86_64_MICROSOFT_CALL_UNIT": [
+    "isa-x86_64"
+   ],
+   "X86_64_MICROSOFT_RETURN": [
+    "isa-x86_64"
+   ],
+   "X86_64_MICROSOFT_RETURN_UNIT": [
+    "isa-x86_64"
+   ],
+   "X86_64_MODEL_SPECIFIC_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_MODEL_SPECIFIC_WRITE": [
+    "isa-x86_64"
+   ],
+   "X86_64_MULTIPLY_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_PORT_REGISTER_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_PORT_REGISTER_WRITE": [
+    "isa-x86_64"
+   ],
+   "X86_64_PORT_WRITE": [
+    "isa-x86_64"
+   ],
+   "X86_64_PRIVILEGED_CRASH": [
+    "isa-x86_64"
+   ],
+   "X86_64_PROCESSOR_HALT": [
+    "isa-x86_64"
+   ],
+   "X86_64_REMAINDER_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_REMAINDER_U64": [
+    "isa-x86_64"
+   ],
+   "X86_64_RESTORE_FLOATING_CONTROL": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_ADD_CLAMPED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_ADD_U64": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_DIVIDE_SIGNED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_MULTIPLY_CLAMPED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_MULTIPLY_U64": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_SUBTRACT_CLAMPED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SATURATING_SUBTRACT_UNSIGNED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SAVE_FLOATING_CONTROL": [
+    "isa-x86_64"
+   ],
+   "X86_64_SCAN_BYTE_SEQUENCE": [
+    "isa-x86_64"
+   ],
+   "X86_64_SEGMENT_SELECTOR_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_SHIFT_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_STORE": [
+    "isa-x86_64"
+   ],
+   "X86_64_STORE64": [
+    "isa-x86_64"
+   ],
+   "X86_64_STORE_ENCODED_SCALAR": [
+    "isa-x86_64"
+   ],
+   "X86_64_STORE_PACKED": [
+    "isa-x86_64"
+   ],
+   "X86_64_SUBTRACT_I64": [
+    "isa-x86_64"
+   ],
+   "X86_64_SUBTRACT_I64_IMMEDIATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_SYSTEM_V_CALL": [
+    "isa-x86_64"
+   ],
+   "X86_64_SYSTEM_V_RETURN": [
+    "isa-x86_64"
+   ],
+   "X86_64_SYSTEM_V_RETURN_UNIT": [
+    "isa-x86_64"
+   ],
+   "X86_64_TASK_REGISTER_ACTIVATE": [
+    "isa-x86_64"
+   ],
+   "X86_64_TASK_REGISTER_READ": [
+    "isa-x86_64"
+   ],
+   "X86_64_TRAPPING_BINARY": [
+    "isa-x86_64"
+   ],
+   "X86_64_TRAPPING_CONVERT": [
+    "isa-x86_64"
+   ],
+   "X86_64_TRAPPING_FIXED_PAIR": [
+    "isa-x86_64"
+   ],
+   "X86_64_TRAPPING_SHIFT": [
+    "isa-x86_64"
+   ],
+   "X86_64_ZERO_BYTES": [
+    "isa-x86_64"
+   ],
+   "aarch64_aapcs64_mixed_unit_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_aapcs64_normalized_foreign_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_aapcs64_register_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_aapcs64_register_unit_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_darwin_mixed_unit_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_darwin_normalized_foreign_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_darwin_register_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_darwin_register_unit_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_fixed_register_view": [
+    "isa-aarch64"
+   ],
+   "aarch64_float_scalar_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_float_scalar_return_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_indirect_aggregate_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_linux_system_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_mixed_aggregate_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_physical_register_model": [
+    "isa-aarch64"
+   ],
+   "aarch64_physical_register_model_ref": [
+    "isa-aarch64"
+   ],
+   "aarch64_preservation_convention_for_target": [
+    "isa-aarch64"
+   ],
+   "aarch64_register_aggregate_call_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_register_aggregate_return_keys": [
+    "isa-aarch64"
+   ],
+   "aarch64_register_constraint_catalog": [
+    "isa-aarch64"
+   ],
+   "aarch64_register_constraint_catalog_for": [
+    "isa-aarch64"
+   ],
+   "call_constraint_keys": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "canonical_aarch64_physical_register_model_identity": [
+    "isa-aarch64"
+   ],
+   "canonical_x86_64_physical_register_model_identity": [
+    "isa-x86_64"
+   ],
+   "complement": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "encode_constraint_key": [
+    "register-homes",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "find_register_constraint": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "infrastructure_environment_agrees": [
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes"
+   ],
+   "prepare_aarch64_register_constraint_catalog": [
+    "isa-aarch64"
+   ],
+   "prepare_x86_64_register_constraint_catalog": [
+    "isa-x86_64"
+   ],
+   "produce_register_constraint_catalog": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "reservation_overlay": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "sha256_length": [
+    "machine-emission",
+    "register-homes"
+   ],
+   "sha256_register_units": [
+    "machine-emission",
+    "register-homes"
+   ],
+   "sorted_units": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "target_register_environment_identity": [
+    "register-environment",
+    "selected-instruction-analyses",
+    "selected-instructions-to-register-homes"
+   ],
+   "units_for": [
+    "isa-x86_64"
+   ],
+   "validate_aarch64_register_constraint_catalog": [
+    "isa-aarch64"
+   ],
+   "validate_physical_register_model": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "register-environment"
+   ],
+   "validate_preservation_storage_catalog": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "validate_register_constraint_catalog": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "validate_register_reservation_profile": [
+    "register-environment"
+   ],
+   "validate_x86_64_register_constraint_catalog": [
+    "isa-x86_64"
+   ],
+   "validated_aarch64_physical_register_model": [
+    "isa-aarch64"
+   ],
+   "validated_x86_64_physical_register_model": [
+    "isa-x86_64"
+   ],
+   "view_ids": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "views_with_access": [
+    "isa-aarch64",
+    "isa-x86_64"
+   ],
+   "write_semantics_tag": [
+    "post-allocation-machine",
+    "register-homes"
+   ],
+   "x86_64_fixed_register_view": [
+    "isa-x86_64"
+   ],
+   "x86_64_float_scalar_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_float_scalar_return_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_indirect_aggregate_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_linux_system_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_aggregate_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_aggregate_return_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_mixed_aggregate_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_mixed_unit_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_normalized_foreign_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_register_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_microsoft_register_unit_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_physical_register_model": [
+    "isa-x86_64"
+   ],
+   "x86_64_physical_register_model_ref": [
+    "isa-x86_64"
+   ],
+   "x86_64_preservation_convention_for_target": [
+    "isa-x86_64"
+   ],
+   "x86_64_register_constraint_catalog": [
+    "isa-x86_64"
+   ],
+   "x86_64_register_constraint_catalog_for": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_aggregate_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_aggregate_return_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_mixed_aggregate_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_mixed_unit_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_normalized_foreign_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_register_call_keys": [
+    "isa-x86_64"
+   ],
+   "x86_64_system_v_register_unit_call_keys": [
+    "isa-x86_64"
+   ]
+  },
+  "runtime-abi": {
+   "BorrowedStorageEncodingError": [
+    "register-homes"
+   ],
+   "CASE_TAG_BYTE_ALIGNMENT": [
+    "calling-conventions"
+   ],
+   "CASE_TAG_BYTE_SIZE": [
+    "calling-conventions",
+    "target-operations-to-selected-instructions"
+   ],
+   "DescriptorAbi": [
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "DescriptorOperation": [
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "HostInternetAddress": [
+    "terminal-runtime"
+   ],
+   "NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET": [
+    "machine-emission"
+   ],
+   "NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET": [
+    "machine-emission"
+   ],
+   "NativeBorrowedStorageDiscriminator": [
+    "terminal-runtime"
+   ],
+   "NativeBorrowedStorageField": [
+    "terminal-runtime"
+   ],
+   "NativeBorrowedStorageLayout": [
+    "abstract-operations-to-target-operations",
+    "native-artifact",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "NativeBorrowedStorageLayouts": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "native-artifact",
+    "native-compiler",
+    "register-homes",
+    "selected-instructions",
+    "target-operations"
+   ],
+   "NativeForeignFrame": [
+    "native-provider-runtime"
+   ],
+   "NativeStorageCaseTag": [
+    "abstract-operations-to-target-operations"
+   ],
+   "NativeStorageRepetition": [
+    "abstract-operations-to-target-operations",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "ScalarReferenceLayout": [
+    "calling-conventions",
+    "terminal-runtime"
+   ],
+   "ScalarStorageCodec": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "image-emission",
+    "legalized-operations",
+    "machine-emission",
+    "native-preparation",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "terminal-runtime"
+   ],
+   "WINDOWS_INTERNET_PROVIDER_LIBRARY": [
+    "products",
+    "terminal-runtime"
+   ],
+   "capture_host_x86_flags": [
+    "terminal-runtime"
+   ],
+   "descriptor_import": [
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "descriptor_import_identity": [
+    "terminal-runtime"
+   ],
+   "descriptor_system_call": [
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "fat_descriptor_layout": [
+    "calling-conventions",
+    "layout"
+   ],
+   "host_affine_transform": [
+    "terminal-runtime"
+   ],
+   "host_integer_absolute": [
+    "terminal-runtime"
+   ],
+   "host_integer_division": [
+    "terminal-runtime"
+   ],
+   "image_imports_windows_internet_provider": [
+    "products"
+   ],
+   "parse_host_long": [
+    "terminal-runtime"
+   ],
+   "static_interrupts": [
+    "image-emission",
+    "installation-evidence",
+    "machine-emission",
+    "native-compiler",
+    "target-operations-to-selected-instructions"
+   ],
+   "target_carrier_layout": [
+    "build-settings",
+    "layout",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "windows_internet_provider_dll": [
+    "products"
+   ]
+  },
+  "target": {
+   "AdmittedX86ScalarFmaProvider": [
+    "package-compilation",
+    "provider-admission",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "ApplicationIdentifier": [
+    "build-settings",
+    "image-emission",
+    "native-artifact",
+    "package-compilation",
+    "products",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "Architecture": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "native-artifact",
+    "native-provider-runtime",
+    "object-file",
+    "package-compilation",
+    "post-allocation-machine-to-selected-form-encoding",
+    "provider-admission",
+    "register-environment",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "register-model",
+    "resolved-layout-to-resolved-layout",
+    "review-evidence",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "CASE_TAG_BYTE_ALIGNMENT": [
+    "runtime-abi"
+   ],
+   "CASE_TAG_BYTE_SIZE": [
+    "runtime-abi"
+   ],
+   "CanonicalFloatRealization": [
+    "backend-plan",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ELF_INTERPRETER_TARGET_PROFILES": [
+    "package-compilation"
+   ],
+   "ExplicitTargetSet": [
+    "compiler",
+    "omega",
+    "orchestration"
+   ],
+   "FloatControlObligation": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "FloatIsaAdmission": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ForeignLocatorCandidate": [
+    "effects",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "native-compiler",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "ForeignLocatorIdentityDigest": [
+    "effects",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ForeignLocatorValidationError": [
+    "effects"
+   ],
+   "HostedApplicationIntent": [
+    "build-settings",
+    "image-emission",
+    "package-compilation",
+    "products",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "HostedIntrinsicBundle": [
+    "effects",
+    "target-vocabulary"
+   ],
+   "NativeApplicationMetadata": [
+    "products",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "NativeTarget": [
+    "abstract-operations-to-target-operations",
+    "bound-installations",
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-x86_64",
+    "layout",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "post-allocation-machine",
+    "post-allocation-machine-to-selected-form-encoding",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "register-environment",
+    "register-homes",
+    "register-model",
+    "resolved-layout-to-resolved-layout",
+    "runtime-abi",
+    "selected-dispatch",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "NormalizedComponentLocator": [
+    "image-elf",
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "register-homes",
+    "target-vocabulary"
+   ],
+   "NormalizedElfInterpreterPlan": [
+    "image-elf",
+    "image-emission",
+    "native-compiler",
+    "package-compilation",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "NormalizedForeignLocator": [
+    "calling-conventions",
+    "effects",
+    "image-emission",
+    "machine-code",
+    "native-artifact",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "provider-admission",
+    "register-homes",
+    "runtime-abi",
+    "target-vocabulary",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "NormalizedImportLocator": [
+    "image",
+    "image-elf",
+    "image-macho",
+    "image-pe",
+    "native-artifact",
+    "object-file"
+   ],
+   "NormalizedImportLocatorRef": [
+    "image-emission",
+    "object-file",
+    "target-vocabulary"
+   ],
+   "ObjectFormat": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "isa-aarch64",
+    "isa-x86_64",
+    "machine-emission",
+    "native-provider-runtime",
+    "object-file",
+    "products",
+    "register-environment",
+    "register-homes",
+    "register-model",
+    "review-evidence",
+    "selected-instructions",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "PackageReviewRepresentationArchitecture": [
+    "review-evidence"
+   ],
+   "PackageReviewRepresentationObjectFormat": [
+    "review-evidence"
+   ],
+   "PackageReviewRepresentationTarget": [
+    "review-evidence"
+   ],
+   "PackageReviewRepresentationTargetProfile": [
+    "review-evidence"
+   ],
+   "ProgramEntry": [
+    "build-settings",
+    "provider-planning"
+   ],
+   "ProgramEntryCallingConvention": [
+    "calling-conventions",
+    "program-entry-plan"
+   ],
+   "ProgramEntryPhysicalContractPackage": [
+    "package-compilation",
+    "program-entry-plan",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ProgramEntrySchema": [
+    "image-emission",
+    "native-artifact",
+    "program-entry-plan",
+    "provider-admission",
+    "target-vocabulary",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "ProgramEntrySlotDeclaration": [
+    "native-artifact",
+    "package-compilation",
+    "products",
+    "program-entry-plan",
+    "provider-planning"
+   ],
+   "ProgramEntrySlots": [
+    "compiler"
+   ],
+   "ProgramEntryVisibleParameters": [
+    "program-entry-plan",
+    "provider-planning"
+   ],
+   "SymbolicTargetObservationApplication": [
+    "program-entry-plan"
+   ],
+   "TargetEntryStackGuarantee": [
+    "image-emission",
+    "program-entry-plan"
+   ],
+   "TargetProfile": [
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "build-settings",
+    "calling-conventions",
+    "compiler",
+    "effects",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "ind19-spectrum-validation",
+    "installation-evidence",
+    "layout",
+    "legalized-operations",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-provider-runtime",
+    "new087-terminal-validation",
+    "normalized-foreign-call-plan",
+    "omega",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "register-homes",
+    "review-evidence",
+    "runtime-abi",
+    "sample-runner",
+    "selected-dispatch",
+    "selected-instructions",
+    "target-operations",
+    "target-vocabulary",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "TargetSemantics": [
+    "build-settings",
+    "compiler",
+    "program-entry-plan",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TargetWireIdentityError": [
+    "machine-code",
+    "machine-emission",
+    "object-file",
+    "register-homes"
+   ],
+   "UefiX86_64": [
+    "program-entry-plan"
+   ],
+   "X86DeploymentFeatures": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86FeatureRequirement": [
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86ScalarFmaDifferentialReceipt": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86ScalarFmaSlot": [
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86TargetFeature": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86_SCALAR_FMA_REQUIRED_FEATURES": [
+    "package-compilation"
+   ],
+   "compatibility_fingerprint": [
+    "image-elf"
+   ],
+   "component_export_slot": [
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "target-vocabulary"
+   ],
+   "control_flow": [
+    "native-preparation"
+   ],
+   "declared_elf_interpreter_default": [
+    "package-compilation"
+   ],
+   "evaluated_syscall_identity_digest": [
+    "effects"
+   ],
+   "normalize_elf_interpreter_plan": [
+    "package-compilation",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "normalize_foreign_locator": [
+    "effects",
+    "image-emission",
+    "native-compiler",
+    "native-provider-runtime",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "provider-planning",
+    "register-homes",
+    "runtime-abi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime"
+   ],
+   "validate": [
+    "review-evidence"
+   ],
+   "validate_target": [
+    "native-preparation"
+   ]
+  },
+  "task-plans": {
+   "AdmittedSameStackContribution": [
+    "machine-code",
+    "native-artifact",
+    "native-compiler",
+    "provider-admission",
+    "target-vocabulary"
+   ],
+   "AdmittedStackContributionReportId": [
+    "image-emission"
+   ],
+   "SameStackContributionAdmissionCandidate": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes"
+   ],
+   "SameStackContributionAdmissionReceiptId": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes"
+   ],
+   "SameStackContributionCommitment": [
+    "image-emission"
+   ],
+   "SameStackProviderPlanCommitment": [
+    "native-artifact",
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes"
+   ],
+   "admit_same_stack_contribution": [
+    "native-compiler",
+    "normalized-foreign-call-plan",
+    "provider-admission",
+    "register-homes"
+   ],
+   "realize_task_activations": [
+    "compiler",
+    "verified-optimization-input"
+   ]
+  },
+  "x86_64-encoding": {
+   "IMMEDIATE_PORT_READ_U8_WIDTH": [
+    "native-artifact"
+   ],
+   "IMMEDIATE_PORT_WRITE_WIDTH": [
+    "isa-x86_64",
+    "native-artifact"
+   ],
+   "encode_immediate_port_read_u8": [
+    "native-artifact"
+   ],
+   "encode_immediate_port_write": [
+    "isa-x86_64",
+    "native-artifact"
+   ]
+  }
+ },
+ "usage2": {
+  "calling-conventions": {
+   "terminal_layout::NativeGeometry": [
+    "image-emission",
+    "legalized-operations",
+    "provider-admission"
+   ],
+   "terminal_layout::StructuralLayouts": [
+    "abstract-operations-to-target-operations",
+    "task-plans",
+    "verified-optimization-input"
+   ],
+   "terminal_layout::TerminalLayoutError": [
+    "abstract-operations-to-target-operations"
+   ],
+   "terminal_layout::byte_sequence_shape": [
+    "abstract-operations-to-target-operations"
+   ],
+   "terminal_layout::checked_align_up_u32": [
+    "abstract-operations-to-target-operations",
+    "target-operations-to-selected-instructions"
+   ],
+   "terminal_layout::element_view_length_offset": [
+    "abstract-operations-to-target-operations",
+    "legalized-operations",
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "terminal_layout::is_native_view_descriptor": [
+    "abstract-operations-to-target-operations",
+    "native-preparation"
+   ],
+   "terminal_layout::scalar_shape": [
+    "provider-admission",
+    "task-plans"
+   ]
+  },
+  "component-description": {
+   "component_description::StackDemandFacts": [
+    "native-artifact"
+   ]
+  },
+  "effects": {
+   "external_providers::canonical_external_execution": [
+    "provider-planning",
+    "provider-selection"
+   ],
+   "external_providers::matches_external_selection": [
+    "provider-admission"
+   ],
+   "external_providers::reconcile_numeric_meaning": [
+    "provider-admission",
+    "provider-selection"
+   ],
+   "external_providers::reconcile_sealed_execution": [
+    "provider-selection"
+   ],
+   "external_providers::selected_numeric_provider": [
+    "provider-selection"
+   ],
+   "external_providers::selected_sealed_native_provider": [
+    "provider-selection"
+   ],
+   "provider_grants::AuthoredRootGrant": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_grants::ProviderGrantSelectorKind": [
+    "trust-model"
+   ],
+   "provider_grants::ResolvedAuthoredSelectedProviderGrant": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_grants::ResolvedSelectedProviderGrant": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_grants::resolve_authored_selected_provider_grants": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_grants::resolve_selected_provider_grants": [
+    "provider-selection",
+    "trust-model"
+   ],
+   "provider_plan::BoundaryCallingPlanCommitment": [
+    "native-compiler",
+    "package-manager",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::BoundaryCallingPlanPromise": [
+    "native-compiler",
+    "package-manager",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::BuildNativeBindingOrigin": [
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedBindingEvaluationDigest": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedBindingMaterializationDigest": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedBindingProducerClosureDigest": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedBindingReceipt": [
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedBindingUsage": [
+    "native-compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedForeignImport": [
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedForeignSyscall": [
+    "provider-admission",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::EvaluatedNativeBinding": [
+    "backend-plan",
+    "compiler",
+    "package-compilation",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ProviderBinding": [
+    "backend-plan",
+    "compiler",
+    "component-description",
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ProviderIdentityId": [
+    "provider-planning",
+    "provider-selection",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ProviderIdentityTable": [
+    "package-manager",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ProviderPlan": [
+    "backend-plan",
+    "boundary-applications",
+    "compiler",
+    "component-description",
+    "native-compiler",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "trust-model",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ProviderPlanDigest": [
+    "backend-plan",
+    "boundary-applications",
+    "native-artifact",
+    "package-compilation",
+    "package-manager",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations",
+    "trust-model",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ProviderPlanDigestMemo": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ProviderPlanInput": [
+    "component-description"
+   ],
+   "provider_plan::ProviderPlanInputRow": [
+    "component-description"
+   ],
+   "provider_plan::ProviderPlanRow": [
+    "backend-plan",
+    "native-compiler",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceCallingApplication": [
+    "native-compiler",
+    "package-manager",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceCallingPlan": [
+    "native-compiler",
+    "package-manager",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ServiceEntryAuthorityFlow": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceEntryClaim": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceMethod": [
+    "backend-plan",
+    "native-compiler",
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ServiceProgressEstablishmentRoute": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceProgressEstablishmentRouteKind": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceProgressPremise": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceProgressSubject": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceReceiverApplication": [
+    "package-manager",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceResultClaim": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceSchema": [
+    "backend-plan",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "program-entry-plan",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "task-plans",
+    "terminal-psi-to-abstract-operations",
+    "verified-optimization-input"
+   ],
+   "provider_plan::ServiceSchemaDigest": [
+    "package-compilation",
+    "package-manager",
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::ServiceSurface": [
+    "backend-plan",
+    "package-manager",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::TableFieldStorage": [
+    "review-evidence",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "provider_plan::evaluated_syscall_identity_digest": [
+    "provider-planning"
+   ]
+  },
+  "image": {
+   "codec_bytes::write_u16": [
+    "image-elf",
+    "image-pe"
+   ],
+   "codec_bytes::write_u32": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "codec_bytes::write_u64": [
+    "image-elf",
+    "image-macho",
+    "image-pe"
+   ],
+   "dynamic_elf::RequestedDynamicElfImage": [
+    "image-emission"
+   ],
+   "dynamic_elf::validate_requested_dynamic_elf_image": [
+    "image-emission"
+   ],
+   "final_image_validation::native_code_layouts": [
+    "image-emission"
+   ],
+   "image_output::ExecutableImage": [
+    "image-emission"
+   ],
+   "image_output::ExecutableImageEmissionRequest": [
+    "image-emission"
+   ],
+   "image_output::ImageApplicationMetadataError": [
+    "image-emission"
+   ],
+   "image_output::ObjectContainer": [
+    "image-emission"
+   ],
+   "image_output::RequestedExecutableImage": [
+    "image-emission"
+   ],
+   "image_output::can_emit_executable_image": [
+    "image-emission"
+   ],
+   "image_output::emit_executable_image": [
+    "image-emission"
+   ],
+   "image_output::validate_direct_executable_image": [
+    "image-emission"
+   ],
+   "image_output::validate_direct_executable_image_output": [
+    "image-emission"
+   ]
+  },
+  "machine-emission": {
+   "code_layout::NativeCodeLayout": [
+    "image-emission"
+   ],
+   "code_layout::NativeCodeLayoutError": [
+    "image-emission"
+   ],
+   "code_layout::describe_native_code_layout": [
+    "image-emission"
+   ],
+   "frame_layout::TargetFrameLayoutPolicy": [
+    "native-compiler"
+   ],
+   "native_entry_bridge::InstalledInterruptEntryPlan": [
+    "image-emission"
+   ],
+   "native_entry_bridge::NativeEntryBridge": [
+    "image-emission"
+   ],
+   "native_entry_bridge::NativeEntryBridgeError": [
+    "image-emission"
+   ],
+   "native_entry_bridge::NativeEntryBridgeRequest": [
+    "image-emission"
+   ],
+   "native_entry_bridge::NativeEntryParameter": [
+    "image-emission"
+   ],
+   "native_entry_bridge::emit_installed_interrupt_entry_bridge": [
+    "image-emission"
+   ],
+   "native_entry_bridge::emit_native_entry_bridge": [
+    "image-emission"
+   ],
+   "native_entry_bridge::validate_native_entry_bridge": [
+    "image-emission"
+   ],
+   "native_foreign_bridge::NativeForeignBridge": [
+    "image-emission"
+   ],
+   "native_foreign_bridge::NativeForeignBridgeRequest": [
+    "native-artifact"
+   ],
+   "native_foreign_bridge::emit_native_foreign_bridge": [
+    "native-artifact"
+   ]
+  },
+  "runtime-abi": {
+   "static_interrupts::ALIGNMENT": [
+    "machine-emission"
+   ],
+   "static_interrupts::InstalledInterruptEntryPlan": [
+    "image-emission",
+    "installation-evidence",
+    "machine-emission",
+    "native-compiler",
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::InstalledInterruptFrame": [
+    "image-emission",
+    "machine-emission",
+    "native-compiler",
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::InstalledInterruptProtocol": [
+    "image-emission",
+    "machine-emission",
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::WORD_BYTES": [
+    "image-emission"
+   ],
+   "static_interrupts::acknowledgement": [
+    "machine-emission",
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::permit": [
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::root": [
+    "image-emission",
+    "machine-emission",
+    "target-operations-to-selected-instructions"
+   ],
+   "static_interrupts::self": [
+    "target-operations-to-selected-instructions"
+   ]
+  },
+  "target": {
+   "compatibility_fingerprint::Fnv1a": [
+    "image-elf"
+   ],
+   "control_flow::sources": [
+    "native-preparation"
+   ]
+  }
+ }
+}
