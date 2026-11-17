@@ -20,26 +20,14 @@
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
-  const stageIndex=root.querySelector('.stage-index');
-  const stageButtons=[...stageIndex.querySelectorAll('[data-stage]')];
-  const stageContext=root.querySelector('.stage-context');
-  let activeStage=null,flight=0;
+  const stagePicker=root.querySelector('.stage-picker');
+  const stageSelect=stagePicker.querySelector('select');
+  let flight=0;
   function trackStage(transform){
     if(view!=='proposed')return;
     const top=(Math.min(80,viewport.clientHeight/5)-transform.y)/transform.k;
-    const group=model.groups.find(g=>top<=g.y+g.height)||model.groups.at(-1);
-    if(activeStage===group.id)return;
-    activeStage=group.id;
-    const phase=model.phases.find(([id])=>id===group.id);
-    const owner=nodes.get(phase[1]),output=nodes.get(phase[2]);
-    for(const b of stageButtons){
-      if(b.dataset.stage===owner.id)b.setAttribute('aria-current','step');
-      else b.removeAttribute('aria-current');
-    }
-    stageContext.querySelector('h3').textContent=owner.title;
-    stageContext.querySelector('.stage-result').textContent=output.title;
-    stageContext.querySelector('p').textContent=output.description;
-    stageContext.querySelector('a').href=output.source;
+    const index=model.groups.findIndex(group=>top<=group.y+group.height);
+    stageSelect.selectedIndex=index<0?model.groups.length-1:index;
   }
   let miniWindow;
   function drawMinimap(){
@@ -57,7 +45,8 @@
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   const camera=zoom().scaleExtent([0.02,2.5]).extent(()=>[[0,0],[viewport.clientWidth,viewport.clientHeight]])
-    .filter(event=>!event.button && (event.type==='wheel' ? view!=='proposed'||event.ctrlKey : event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
+    .clickDistance(3)
+    .on('start',event=>{if(event.sourceEvent)stopFlight();})
     .on('zoom',event=>{
       current=event.transform;trackStage(current);scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
@@ -87,17 +76,7 @@
     }
     flight=requestAnimationFrame(step);
   }
-  for(const b of stageButtons)b.addEventListener('click',()=>visitStage(b.dataset.stage));
-  viewport.addEventListener('pointerdown',stopFlight);
-  viewport.addEventListener('wheel',event=>{
-    stopFlight();
-    if(view!=='proposed'||event.ctrlKey)return;
-    const factor=event.deltaMode===1?16:event.deltaMode===2?viewport.clientHeight:1;
-    const floor=Math.min(8,viewport.clientHeight-24-model.height*current.k);
-    const y=Math.max(floor,Math.min(8,current.y-event.deltaY*factor));
-    if(y===current.y)return;
-    event.preventDefault();move(current.x,y,current.k);
-  },{passive:false});
+  stageSelect.addEventListener('change',()=>visitStage(stageSelect.value));
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
     const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
@@ -155,8 +134,8 @@
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
-    stageIndex.hidden=stageContext.hidden=view!=='proposed';
-    const help=view==='proposed'?'Scroll to follow the pipeline · pinch or use + and − to zoom · select an arrow to inspect its handoff.':'Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
+    stagePicker.hidden=view!=='proposed';
+    const help='Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
     root.querySelector('.connected-help').textContent=help;
     viewport.setAttribute('aria-label',help+' Arrow keys pan. F fits all.');
     root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
@@ -166,12 +145,12 @@
     root.querySelector('.arch-arrow-evidence').hidden=view!=='current';
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
-    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Proposed architecture':'Whole compiler';
+    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
     svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
   }
   function switchView(next){
     if(next===view)return;
-    stopFlight();activeStage=null;
+    stopFlight();
     cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
     nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
     const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;

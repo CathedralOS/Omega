@@ -175,7 +175,7 @@ execution. The source and policy evaluators connect to the same interpreter as
 the runtime host. Provider closure repeats policy-input preparation using
 accepted code. Extra inputs terminate at the operations that consume them.
 
-In Proposed, scroll down the numbered stages or jump directly from the stage index. In Current, drag to pan and scroll to zoom. Find reaches individual components in either view.
+Drag to pan and scroll to zoom in either view. In Proposed, use Stage to jump to a numbered group. Find reaches individual components in either view.
 Select a box or arrow to highlight its connections and open pinned source.
 Follow the bold route down from START; phase frames and numbered stages show
 its order. Dashed supporting connections show their labels beside the lines.

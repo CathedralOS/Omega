@@ -76,10 +76,32 @@ def main():
                 assert page.locator('.connected-viewport [data-endpoint="engine"]').count()==0
                 assert page.locator('.connected-viewport [data-endpoint="compiler"]').count()==0
                 assert page.locator('.connected-viewport [data-edge]').count()==len(proposed['edges'])
-                index=page.get_by_role('navigation',name='Proposed stages')
-                index.get_by_role('button',name='01 Source compilation').click()
-                page.locator('[data-stage="source-settlement"][aria-current="step"]').wait_for()
-                assert page.locator('.stage-result').text_content()=='Accepted program + values'
+                assert viewport.evaluate('v=>v.clientWidth===v.parentElement.clientWidth')
+                assert page.locator('.connected-minimap').is_visible()
+                stage=page.get_by_label('Jump to stage')
+                stage.select_option('source-settlement')
+                source=page.locator('.connected-viewport [data-endpoint="source-settlement"]')
+                page.wait_for_function("""() => {
+                    const box=document.querySelector('.connected-viewport [data-endpoint="source-settlement"]').getBoundingClientRect();
+                    const top=document.querySelector('.connected-viewport').getBoundingClientRect().top;
+                    return Math.abs(box.top-top-22)<2;
+                }""")
+                page.locator('[data-camera="expand"]').click()
+                assert viewport.evaluate('v=>v.getBoundingClientRect().bottom<=window.innerHeight+1')
+                page.locator('[data-camera="expand"]').click()
+                source.scroll_into_view_if_needed()
+                box=source.bounding_box()
+                x,y=box['x']+box['width']/2,box['y']+box['height']/2
+                before=page.locator('#compiler-overview').get_attribute('data-camera')
+                page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+26,y+35,steps=5);page.mouse.up()
+                assert page.locator('#compiler-overview').get_attribute('data-camera')!=before
+                assert page.locator('.connected-detail').is_hidden()
+                zoom_before=float(page.locator('#compiler-overview').get_attribute('data-scale'))
+                page.mouse.wheel(0,-100)
+                page.wait_for_function("k=>Number(document.querySelector('#compiler-overview').dataset.scale)>k",arg=zoom_before)
+                source.click()
+                assert page.locator('.connected-detail h3').inner_text()=='01 Source compilation'
+                page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
                 page.locator('.connected-jump').select_option('native-planning')
                 assert 'Open contract:' in page.locator('.connected-detail').inner_text()
