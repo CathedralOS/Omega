@@ -211,6 +211,9 @@ pub(crate) fn classify_scalar_leaves(
             return Ok(ValueClass::Float);
         }
     }
+    if policy == CallingPolicy::DarwinAapcs64 {
+        return Ok(ValueClass::IntegerAggregate);
+    }
     if policy != CallingPolicy::SystemVAMD64 || referent.byte_size > 16 {
         return Ok(ValueClass::Integer);
     }
@@ -323,6 +326,43 @@ mod tests {
                 stored_scalar: stored,
             }),
         }
+    }
+
+    #[test]
+    fn darwin_record_classification_keeps_composite_identity_at_scalar_size() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let declarations = [declaration(
+            1,
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                    byte_size: 4,
+                    byte_alignment: 2,
+                }),
+                fields: vec![
+                    field(
+                        1,
+                        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap()),
+                        0,
+                        None,
+                    ),
+                    field(
+                        2,
+                        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+                        2,
+                        None,
+                    ),
+                ],
+            },
+        )];
+        let geometry = NativeGeometry::new(&declarations).unwrap();
+        assert_eq!(
+            classified_boundary_shape(root, &geometry, CallingPolicy::DarwinAapcs64).unwrap(),
+            ValueShape::integer_aggregate(4, 2)
+        );
+        assert_eq!(
+            classified_boundary_shape(root, &geometry, CallingPolicy::Aapcs64).unwrap(),
+            ValueShape::integer(4, 2)
+        );
     }
 
     #[test]

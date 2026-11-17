@@ -16,6 +16,9 @@ pub(crate) fn encode_value_placement(
     encoder.field("class", |encoder| {
         match shape.class() {
             PackageReviewBoundaryValueClass::Integer => encoder.tag("integer", 0),
+            PackageReviewBoundaryValueClass::IntegerAggregate => {
+                encoder.tag("integer_aggregate", 6)
+            }
             PackageReviewBoundaryValueClass::Float => encoder.tag("float", 1),
             PackageReviewBoundaryValueClass::BorrowedReference => {
                 encoder.tag("borrowed_reference", 4)

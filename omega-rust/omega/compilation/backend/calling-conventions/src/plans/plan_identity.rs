@@ -235,6 +235,7 @@ impl Fnv1a {
     fn value_shape(&mut self, shape: ValueShape) {
         match shape.class {
             ValueClass::Integer => self.u8(0),
+            ValueClass::IntegerAggregate => self.u8(6),
             ValueClass::Float => self.u8(1),
             ValueClass::BorrowedReference => self.u8(4),
             ValueClass::BorrowedScalarReference => self.u8(5),

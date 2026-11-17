@@ -1452,14 +1452,14 @@ mod owned_store_home {
     }
 }
 mod projected_result {
-    use calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+    use calling_conventions::{ValueLocation, ValuePlacement};
     use semantic_vocabulary::PlaceId;
     use target_operations::TargetUnitOperation;
     use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
     use terminal_psi::StructuralMultiplicity;
 
     pub(crate) fn has_store_fragments(placement: &ValuePlacement) -> bool {
-        placement.shape.class == ValueClass::Integer
+        placement.shape.class.is_integer()
             && placement.shape.byte_size != 0
             && placement
                 .locations
