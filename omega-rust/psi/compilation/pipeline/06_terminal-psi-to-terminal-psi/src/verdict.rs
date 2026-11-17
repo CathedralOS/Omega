@@ -250,7 +250,7 @@ pub enum PublicationError {
     /// The closure retains abstract requirements, logical-frame envelopes,
     /// open source binders, static-value formals or opaque rigid values.
     /// These generic check forms are never executable source programs.
-    GenericCheckForm,
+    GenericCheckForm(String),
     /// A machine of the module has no declaration identity, for the reason
     /// given (`Elaboration::undeclared`). product.md: "Source-produced
     /// machine bodies retain a portable checked declaration identity".
@@ -318,7 +318,43 @@ impl AcceptedClosure {
                     .any(|(_, value)| value.rigid.is_some())
             })
         {
-            return Err(PublicationError::GenericCheckForm);
+            // Report each guarded roster together so a refused publication can
+            // be traced without dumping its module or changing its admission.
+            let mut static_values = self
+                .elaboration
+                .value_parameters
+                .iter()
+                .filter(|(_, count)| **count != 0);
+            let first_static = static_values.next();
+            let static_count = static_values.count() + usize::from(first_static.is_some());
+            let mut rigid_values =
+                self.elaboration
+                    .tables
+                    .machines
+                    .iter()
+                    .flat_map(|(machine, row)| {
+                        row.values.iter().filter_map(move |(value, row)| {
+                            row.rigid.map(|rigid| (machine, value, rigid))
+                        })
+                    });
+            let first_rigid = rigid_values.next();
+            let rigid_count = rigid_values.count() + usize::from(first_rigid.is_some());
+            return Err(PublicationError::GenericCheckForm(format!(
+                "abstract requirements: {} (first {:?}); check-form envelopes: {} (first {:?}); open source binders: {} (first {:?}); static-value machines: {} (first {:?}); rigid values: {} (first {:?})",
+                self.elaboration.requirements.len(),
+                self.elaboration.requirements.first(),
+                self.elaboration.check_form_envelopes.len(),
+                self.elaboration
+                    .check_form_envelopes
+                    .first()
+                    .map(|row| row.machine),
+                self.elaboration.generic_binders.len(),
+                self.elaboration.generic_binders.first(),
+                static_count,
+                first_static,
+                rigid_count,
+                first_rigid,
+            )));
         }
         if let Some((machine, reason)) = self.elaboration.undeclared.first() {
             return Err(PublicationError::Undeclared(*machine, reason));

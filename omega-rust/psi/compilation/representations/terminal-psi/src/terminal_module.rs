@@ -1290,25 +1290,38 @@ impl TerminalModule {
                     })
             })
     }
+    /// Resolve the declaration instance attached to this boundary, rather than
+    /// looking up its template by name. Closed calls can share a template while
+    /// retaining different ordered static arguments.
+    pub fn boundary_calling_abi(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<&crate::CallingAbiDeclaration, String> {
+        // Source publication sorts this roster; the receiving foundation check
+        // requires increasing boundary IDs. Reuse that order for each demand.
+        let missing = "boundary has no unique Terminal calling declaration";
+        let position = self
+            .calling_signatures
+            .binary_search_by_key(&boundary, |row| row.boundary)
+            .map_err(|_| missing.to_owned())?;
+        if (position != 0 && self.calling_signatures[position - 1].boundary == boundary)
+            || self
+                .calling_signatures
+                .get(position + 1)
+                .is_some_and(|row| row.boundary == boundary)
+        {
+            return Err(missing.into());
+        }
+        let declaration = &self.calling_signatures[position];
+        self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
+            .ok_or_else(|| "boundary lost its exact declaration ABI".into())
+    }
+
     pub fn calling_abi_identity(
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration = self
-            .calling_signatures
-            .iter()
-            .find(|row| row.boundary == boundary)
-            .ok_or_else(|| {
-                let name = self
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == boundary)
-                    .and_then(|declaration| self.identities.text(declaration.identity))
-                    .unwrap_or("<unknown>");
-                format!("boundary `{name}` has no Terminal calling declaration")
-            })?;
-        self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
-            .ok_or("boundary lost its exact declaration ABI")?
+        self.boundary_calling_abi(boundary)?
             .identity(&self.identities)
     }
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {

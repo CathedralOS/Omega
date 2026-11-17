@@ -2,8 +2,8 @@
 //! returns them prepared for the checker. `preparation.rs` is the stage: one
 //! entrance and the ordered list of passes every program runs. `passes/`
 //! holds one module per pass; `product/` holds the Product operand
-//! entrances: a slot or provider applied to static arguments is formed, a
-//! requirement applied to them is still refused.
+//! entrances: slots, providers and requirements retain the complete static
+//! applications their Build requests select.
 
 #![forbid(unsafe_code)]
 

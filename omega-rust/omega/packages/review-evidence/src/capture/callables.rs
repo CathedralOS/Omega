@@ -436,6 +436,29 @@ impl PackageReviewInput<'_> {
         declaration: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
     ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
+        let typed = self.typed();
+        self.signature_contracts(
+            typed
+                .machine_contracts(declaration)
+                .iter()
+                .chain(typed.state_contracts(state)),
+            super::declarations::ContractScope {
+                owner: state.symbol,
+                subject: None,
+                parameters: typed.state_parameters(state),
+                statics: Default::default(),
+                result: None,
+            },
+            state.return_type,
+        )
+    }
+
+    pub(super) fn signature_contracts<'clause>(
+        &self,
+        clauses: impl IntoIterator<Item = &'clause typed_trees::signature::SignatureContract>,
+        scope: super::declarations::ContractScope<'_>,
+        return_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
         use crate::record::{
             PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
             PackageReviewResultCaseIdentity,
@@ -443,11 +466,7 @@ impl PackageReviewInput<'_> {
         use typed_trees::signature::SignatureContractKind;
         let typed = self.typed();
         let mut rows = Vec::new();
-        for clause in typed
-            .machine_contracts(declaration)
-            .iter()
-            .chain(typed.state_contracts(state))
-        {
+        for clause in clauses {
             let (kind, result_case) = match clause.kind {
                 SignatureContractKind::Requires => (PackageReviewContractKind::Requires, None),
                 SignatureContractKind::Ensures => (PackageReviewContractKind::Ensures, None),
@@ -464,10 +483,8 @@ impl PackageReviewInput<'_> {
                 SignatureContractKind::Crashes { .. } => continue,
             };
             let scope = super::declarations::ContractScope {
-                owner: state.symbol,
-                subject: None,
-                parameters: typed.state_parameters(state),
-                result: (kind == PackageReviewContractKind::Ensures).then_some(state.return_type),
+                result: (kind == PackageReviewContractKind::Ensures).then_some(return_type),
+                ..scope
             };
             let facts = typed
                 .proof_facts

@@ -84,26 +84,11 @@ pub(crate) fn publish(
             }
             let declaration = identities.intern(&source.schema_declaration);
             let application = identities.intern(&source.schema_application);
-            let mut existing = elaboration
-                .module
-                .service_schemas
-                .iter()
-                .chain(&schemas)
-                .filter(|row| row.declaration == declaration && row.application == application);
-            match (existing.next(), existing.next()) {
-                (None, None) => schemas.push(terminal_psi::TerminalServiceSchema {
-                    declaration,
-                    application,
-                    surface: std::sync::Arc::clone(&source.surface),
-                }),
-                (Some(existing), None) if existing.surface == source.surface => {}
-                _ => {
-                    return Err(unavailable(
-                        context,
-                        "provider schema differs from an existing canonical source schema",
-                    ));
-                }
-            }
+            schemas.push(terminal_psi::TerminalServiceSchema {
+                declaration,
+                application,
+                surface: std::sync::Arc::clone(&source.surface),
+            });
             if rows.iter().any(|row| {
                 row.target == source.target
                     && row.schema_declaration == declaration
@@ -140,7 +125,9 @@ pub(crate) fn publish(
     })();
     elaboration.module.identities = identities.build();
     prepared?;
-    elaboration.module.service_schemas.extend(schemas);
+    elaboration.module.service_schemas =
+        terminal_psi::TerminalServiceSchema::join(&elaboration.module.service_schemas, &schemas)
+            .map_err(|reason| unavailable(context, reason))?;
     elaboration.module.provider_selections = rows;
     Ok(())
 }

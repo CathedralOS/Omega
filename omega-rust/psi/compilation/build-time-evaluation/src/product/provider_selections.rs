@@ -129,13 +129,7 @@ fn operand(
     };
     let text = typed
         .product_operand_application_identity(application)
-        .map_err(|reason| refusal(request, reason))?
-        .map(|identity| {
-            typed
-                .type_identity_text(identity)
-                .ok_or_else(|| refusal(request, "provider application lost its canonical identity"))
-        })
-        .transpose()?;
+        .map_err(|reason| refusal(request, reason))?;
     identity.application = application;
     identity.applied = text.is_some();
     identity.application_identity = text;
