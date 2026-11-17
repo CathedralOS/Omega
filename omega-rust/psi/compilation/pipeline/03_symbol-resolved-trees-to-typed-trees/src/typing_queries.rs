@@ -465,12 +465,12 @@ fn declared_projection_type(
     Err(crate::unavailable_judgment("assignment storage expression"))
 }
 
-fn declared_field_type(
-    program: &TypedTrees,
+pub(crate) fn declared_projection_field<'program>(
+    program: &'program TypedTrees,
     reference: TypeReferenceHandle,
     name: &str,
     selected: SymbolHandle,
-) -> Result<TypeReferenceHandle, Diagnostic> {
+) -> Result<&'program DataField, Diagnostic> {
     let carrier = program
         .type_reference_table
         .peeled_type_reference(reference);
@@ -499,7 +499,17 @@ fn declared_field_type(
         // connect them; a same-spelled foreign field cannot supply this type.
         return Err(crate::unavailable_judgment("assignment field identity"));
     }
-    collection_field_type(program, carrier, field.symbol)
+    Ok(field)
+}
+
+fn declared_field_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+    selected: SymbolHandle,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let field = declared_projection_field(program, reference, name, selected)?;
+    collection_field_type(program, reference, field.symbol)
 }
 
 use typed_trees::deferred_refusals::DeferredRequest;
@@ -1932,7 +1942,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.message,
-            "typing could not complete the check (collection field owner/type)"
+            "typing could not complete the check (assignment field identity)"
         );
         let DataMember::Field(field) = program.data_members.get_mut(applied_field) else {
             panic!("field")
