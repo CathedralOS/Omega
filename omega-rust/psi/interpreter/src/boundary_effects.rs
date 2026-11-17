@@ -18,7 +18,7 @@ pub(crate) mod boundary_predicates {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
     use crate::engine::execution::TerminalExecution;
-    use terminal_semantics::substitution::substitute_proposition_values;
+    use terminal_semantics::substitution::substitute_proposition_values_with;
 
     pub(crate) fn scalar_literals(
         arguments: &[TerminalScalarValue],
@@ -34,6 +34,39 @@ pub(crate) mod boundary_predicates {
             ))
     }
 
+    fn scalar_bindings(
+        boundary: &BoundaryMachineDeclaration,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<(Vec<terminal_psi::ValueDeclaration>, Vec<ScalarTerm>), TerminalInterpretError>
+    {
+        let parameters = boundary
+            .scalar_contract_parameters()
+            .ok_or_else(malformed)?;
+        if arguments.len() != parameters.len()
+            || arguments
+                .iter()
+                .zip(&parameters)
+                .any(|(actual, parameter)| actual.scalar_type() != parameter.scalar_type)
+        {
+            return Err(malformed());
+        }
+        let arguments = scalar_literals(arguments)?;
+        if arguments
+            .iter()
+            .any(|argument| argument.validate().is_err())
+        {
+            return Err(malformed());
+        }
+        Ok((parameters, arguments))
+    }
+
+    fn bind_scalars(predicate: &Proposition, arguments: &[ScalarTerm]) -> Proposition {
+        substitute_proposition_values_with(predicate, &|identity| {
+            let index = usize::try_from(identity.get()).ok()?.checked_sub(1)?;
+            arguments.get(index)
+        })
+    }
+
     pub(crate) fn validate_input_requirements(
         boundary: &BoundaryMachineDeclaration,
         arguments: &[crate::boundary::values::TerminalScalarValue],
@@ -45,20 +78,7 @@ pub(crate) mod boundary_predicates {
         if boundary.scalar_requires.is_empty() {
             return Ok(());
         }
-        let arguments = scalar_literals(arguments)?;
-        let parameters = boundary
-            .scalar_contract_parameters()
-            .ok_or_else(malformed)?;
-        if arguments.len() != parameters.len()
-            || arguments
-                .iter()
-                .zip(&parameters)
-                .any(|(actual, parameter)| {
-                    actual.scalar_type() != parameter.scalar_type || actual.validate().is_err()
-                })
-        {
-            return Err(malformed());
-        }
+        let (parameters, arguments) = scalar_bindings(boundary, arguments)?;
         proof_admission::check_predicate_evaluation_size(boundary.scalar_requires.iter()).map_err(
             |_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
@@ -80,11 +100,6 @@ pub(crate) mod boundary_predicates {
             }),
         )
         .map_err(|_| malformed())?;
-        let substitutions = parameters
-            .iter()
-            .zip(&arguments)
-            .map(|(parameter, argument)| (parameter.id, argument.clone()))
-            .collect();
         let mut integers = ClosedIntegerEvaluator::default();
         let observations = InputObservations {
             execution,
@@ -96,7 +111,7 @@ pub(crate) mod boundary_predicates {
             if requirement.validate().is_err() || context.validate(requirement).is_err() {
                 return Err(malformed());
             }
-            let requirement = substitute_proposition_values(requirement, &substitutions);
+            let requirement = bind_scalars(requirement, &arguments);
             match observations.evaluate(&requirement, &mut integers)? {
                 Some(true) => {}
                 Some(false) => {
@@ -107,6 +122,97 @@ pub(crate) mod boundary_predicates {
                 None => {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "boundary input requirement has no supported closed evaluation",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Imported normal results must support the declaration's scalar promises
+    /// before caller values or borrowed storage are committed. Unobserved
+    /// storage predicates remain unknown, never assumed from an earlier image.
+    pub(crate) fn validate_output_guarantees(
+        boundary: &BoundaryMachineDeclaration,
+        arguments: &[TerminalScalarValue],
+        returned: &crate::TerminalEffectResult,
+    ) -> Result<(), TerminalInterpretError> {
+        if boundary.scalar_ensures.is_empty() {
+            return Ok(());
+        }
+        let (mut parameters, mut arguments) = scalar_bindings(boundary, arguments)?;
+        if let Some(result) = boundary.scalar_contract_result() {
+            let crate::TerminalEffectResult::Scalar(value) = returned else {
+                return Err(malformed());
+            };
+            if value.scalar_type() != result.scalar_type {
+                return Err(malformed());
+            }
+            let literal = scalar_literal(*value)?;
+            literal.validate().map_err(|_| malformed())?;
+            parameters.push(result);
+            arguments.push(literal);
+        }
+        proof_admission::check_predicate_evaluation_size(boundary.scalar_ensures.iter()).map_err(
+            |_| {
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary output guarantee evaluation exceeds the resource limit",
+                )
+            },
+        )?;
+        let result_place = if matches!(
+            boundary.result,
+            terminal_psi::BoundaryMachineResult::Structural(_)
+        ) {
+            let ordinal = u64::try_from(boundary.structural_parameters.len())
+                .ok()
+                .and_then(|length| length.checked_add(1))
+                .ok_or_else(malformed)?;
+            Some((
+                PlaceId::new(ordinal).ok_or_else(malformed)?,
+                StructuralPlaceKind::Result,
+            ))
+        } else {
+            None
+        };
+        let context = PropositionContext::from_value_types_and_places(
+            parameters
+                .iter()
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
+            boundary
+                .structural_parameters
+                .iter()
+                .map(|parameter| {
+                    (
+                        parameter.place,
+                        StructuralPlaceKind::Parameter {
+                            position: parameter.position,
+                        },
+                    )
+                })
+                .chain(result_place),
+        )
+        .map_err(|_| malformed())?;
+        let mut integers = ClosedIntegerEvaluator::default();
+        for guarantee in &boundary.scalar_ensures {
+            if guarantee.validate().is_err() || context.validate(guarantee).is_err() {
+                return Err(malformed());
+            }
+            let guarantee = bind_scalars(guarantee, &arguments);
+            match closed_guard(&guarantee, &mut integers).map_err(|_| {
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary output guarantee evaluation exceeds the resource limit",
+                )
+            })? {
+                Some(true) => {}
+                Some(false) => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "boundary output guarantee is false for this invocation",
+                    ));
+                }
+                None => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "boundary output guarantee has no supported closed evaluation",
                     ));
                 }
             }
@@ -485,6 +591,89 @@ pub(crate) mod boundary_predicates {
                 )),
             };
             assert_eq!(closed_guard(&mismatched, &mut integers).unwrap(), None);
+        }
+
+        #[test]
+        fn boundary_scalar_postconditions_use_actual_formals_and_result() {
+            use crate::{TerminalEffectResult, TerminalInterpretError, TerminalScalarValue};
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+            };
+            let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let kind = ScalarType::Integer(carrier);
+            let scalar = |value| TerminalScalarValue::Integer {
+                scalar_type: carrier,
+                value: IntegerValue::Unsigned(value),
+            };
+            let mut declaration = idle_boundary();
+            declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
+            declaration.scalar_parameters = vec![kind];
+            declaration.result = terminal_psi::BoundaryMachineResult::Scalar(kind.into());
+            declaration.scalar_ensures = vec![Proposition::Equal(
+                ScalarTerm::value(ValueId::new(2).unwrap(), kind),
+                ScalarTerm::value(ValueId::new(1).unwrap(), kind),
+            )];
+            super::validate_output_guarantees(
+                &declaration,
+                &[scalar(17)],
+                &TerminalEffectResult::Scalar(scalar(17)),
+            )
+            .unwrap();
+            let false_return = super::validate_output_guarantees(
+                &declaration,
+                &[scalar(17)],
+                &TerminalEffectResult::Scalar(scalar(18)),
+            )
+            .unwrap_err();
+            declaration.scalar_ensures = vec![unknown()];
+            let unknown_return = super::validate_output_guarantees(
+                &declaration,
+                &[scalar(17)],
+                &TerminalEffectResult::Scalar(scalar(17)),
+            )
+            .unwrap_err();
+            declaration.scalar_ensures = vec![Proposition::Equal(
+                ScalarTerm::value(ValueId::new(3).unwrap(), kind),
+                ScalarTerm::value(ValueId::new(2).unwrap(), kind),
+            )];
+            let foreign_formal = super::validate_output_guarantees(
+                &declaration,
+                &[scalar(17)],
+                &TerminalEffectResult::Scalar(scalar(17)),
+            )
+            .unwrap_err();
+            let observed = [
+                (
+                    "false returned value",
+                    false_return,
+                    "boundary output guarantee is false for this invocation",
+                ),
+                (
+                    "unknown promise",
+                    unknown_return,
+                    "boundary output guarantee has no supported closed evaluation",
+                ),
+            ];
+            for (name, verdict, _) in &observed {
+                eprintln!("{name}: {verdict:?}");
+            }
+            eprintln!("foreign formal: {foreign_formal:?}");
+            for (name, verdict, expected) in observed {
+                assert!(
+                    matches!(verdict, TerminalInterpretError::UnsupportedSemanticVariant(reason) if reason == expected),
+                    "{name}: {verdict:?}"
+                );
+            }
+            assert!(
+                matches!(
+                    foreign_formal,
+                    TerminalInterpretError::VerifiedOperationMalformed { .. }
+                ),
+                "{foreign_formal:?}"
+            );
+            let mut unit = idle_boundary();
+            unit.scalar_ensures = vec![Proposition::Truth];
+            super::validate_output_guarantees(&unit, &[], &TerminalEffectResult::Unit).unwrap();
         }
 
         pub(crate) fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {

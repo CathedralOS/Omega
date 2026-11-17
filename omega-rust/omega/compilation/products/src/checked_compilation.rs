@@ -129,13 +129,13 @@ impl CheckedCompilation {
     }
 
     pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
-        let grants = self.build().config.root_grant_selectors();
+        let grants = &self.build().config.grants;
         if grants.is_empty() {
             return Ok(());
         }
-        // A root grant names a provider this target selected, so the settled
-        // plans are the whole roster a grant can resolve against; the trust
-        // claims come from the source census the inventory already holds.
+        // Grants retain their resolved subject. Settlement joins that exact
+        // provider application or native requirement to this target's supply;
+        // accepted-machine claims use the existing source-owned census.
         let declarations = self
             .source_inspection()
             .inventory()
@@ -143,12 +143,68 @@ impl CheckedCompilation {
             .map_err(|error| vec![error])?;
         trust_model::reconstruct_trust_obligations(
             declarations,
-            &grants,
+            grants,
             &self.execution().plans().plans().iter().collect::<Vec<_>>(),
             self.execution().plans(),
-            self.sources.package_subject().is_some(),
+            &self.native_grant_evidence(grants)?,
+            match self.sources.package_subject() {
+                None => trust_model::RootTrustPolicy::Unpackaged,
+                Some(subject)
+                    if subject.root_role()
+                        == build_declarations::BuildDeclarationKind::Application =>
+                {
+                    trust_model::RootTrustPolicy::Application(subject.root().digest())
+                }
+                Some(_) => trust_model::RootTrustPolicy::PackageReview,
+            },
         )
         .map(drop)
+    }
+
+    fn native_grant_evidence(
+        &self,
+        grants: &[language_semantics::declaration_selection::AuthoredRootGrant],
+    ) -> Result<Vec<Result<backend_plan::NativeRequirementTrust, String>>, Vec<Diagnostic>> {
+        use language_semantics::declaration_selection::RootGrantSubject;
+        let requests = grants
+            .iter()
+            .filter_map(|grant| {
+                let RootGrantSubject::BoundaryRequirement {
+                    declaration,
+                    callable,
+                } = &grant.subject
+                else {
+                    return None;
+                };
+                Some((grant, (declaration.as_str(), callable.as_str())))
+            })
+            .collect::<Vec<_>>();
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+        let realization = self.execution().realization();
+        let mut leaves = realization
+            .direct_boundary_leaves()
+            .iter()
+            .collect::<Vec<_>>();
+        fn key(leaf: &backend_plan::DirectBoundaryLeaf) -> (&str, &str) {
+            (&leaf.declaration_identity, &leaf.callable_identity)
+        }
+        leaves.sort_unstable_by(|left, right| key(left).cmp(&key(right)));
+        let publication = self.terminal_publication().accepted()?;
+        let module = &publication.closure().elaboration.module;
+        Ok(requests.into_iter().map(|(grant, selected)| {
+            let first = leaves.partition_point(|leaf| key(leaf) < selected);
+            let last = leaves.partition_point(|leaf| key(leaf) <= selected);
+            let [leaf] = &leaves[first..last] else {
+                return Err(format!(
+                    "root grant `{}` has no unique selected native requirement with its exact declaration and callable application",
+                    grant.selector
+                ));
+            };
+            leaf.prepare_native_trust(grant, realization.target(), module,
+                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
+        }).collect())
     }
 
     pub fn package_build_handoff(
@@ -199,3 +255,7 @@ impl std::ops::Deref for CheckedCompilation {
         self.source_inspection().program()
     }
 }
+
+#[cfg(test)]
+#[path = "checked_compilation_trust_tests.rs"]
+mod trust_tests;

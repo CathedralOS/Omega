@@ -2758,6 +2758,7 @@ dependencies = [
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
  "diagnostics",
  "effects",
  "language-semantics",

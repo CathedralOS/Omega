@@ -12,6 +12,8 @@ use language_semantics::trust_declarations::{
 fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
     AcceptedMachineDeclaration {
         machine: symbols::SymbolHandle::from_arena_index(index),
+        declaration_identity: name.to_owned(),
+        package_identity: None,
         name: name.to_owned(),
         template: Ok(None),
         contract: Ok(AcceptedContractDeclaration {
@@ -26,17 +28,43 @@ fn admit(
     grants: &[&str],
     package_aware: bool,
 ) -> Result<Vec<TrustAdmission>, String> {
+    let declarations = TrustDeclarations {
+        machines: machines.into_boxed_slice(),
+    };
+    let mut machine_rows = declarations.machines.iter().collect::<Vec<_>>();
+    machine_rows.sort_unstable_by_key(|machine| {
+        (machine.machine.arena_index(), machine.machine.generation())
+    });
+    let grants = grants
+        .iter()
+        .map(|grant| {
+            let crate::NonProviderTrustGrant::AcceptedMachine(symbol) =
+                crate::resolve_non_provider_trust_grant(&declarations, grant)
+                    .map_err(|error| error.message)?;
+            let machine = crate::accepted_machine_grants::accepted_machine(&machine_rows, symbol)
+                .map_err(|error| error.message)?;
+            Ok(language_semantics::declaration_selection::AuthoredRootGrant {
+            selector: (*grant).to_owned(),
+            subject: language_semantics::declaration_selection::RootGrantSubject::AcceptedMachine {
+                declaration: machine.declaration_identity.clone(), machine: symbol,
+            },
+            subject_package: machine.package_identity,
+            selecting_machine: symbols::SymbolHandle::from_arena_index(0),
+            source_span: source::SourceSpan::default(),
+        })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     reconstruct_trust_obligations(
-        &TrustDeclarations {
-            machines: machines.into_boxed_slice(),
-        },
-        &grants
-            .iter()
-            .map(|grant| (*grant).to_owned())
-            .collect::<Vec<_>>(),
+        &declarations,
+        &grants,
         &[],
         &effects::SelectedProviderPlanFacts::default(),
-        package_aware,
+        &[],
+        if package_aware {
+            crate::RootTrustPolicy::PackageReview
+        } else {
+            crate::RootTrustPolicy::Unpackaged
+        },
     )
     .map_err(|errors| format!("{errors:?}"))
 }
@@ -194,4 +222,80 @@ fn selector_failures_precede_final_contract_validation() {
     let error = admit(vec![declaration], &["Claim", "Unknown"], false).unwrap_err();
     assert!(error.contains("root grant `Unknown`"), "{error}");
     assert!(!error.contains("checked machine contract plan"));
+}
+
+#[test]
+fn an_accepted_machine_handle_cannot_replace_the_retained_declaration() {
+    use language_semantics::declaration_selection::{AuthoredRootGrant, RootGrantSubject};
+    let declarations = TrustDeclarations {
+        machines: vec![
+            machine(1, "package-a::Claim"),
+            machine(2, "package-b::Claim"),
+        ]
+        .into_boxed_slice(),
+    };
+    let grant = AuthoredRootGrant {
+        selector: "Claim".into(),
+        subject: RootGrantSubject::AcceptedMachine {
+            declaration: "package-a::Claim".into(),
+            machine: symbols::SymbolHandle::from_arena_index(2),
+        },
+        subject_package: None,
+        selecting_machine: symbols::SymbolHandle::from_arena_index(9),
+        source_span: source::SourceSpan::default(),
+    };
+    let errors = reconstruct_trust_obligations(
+        &declarations,
+        &[grant],
+        &[],
+        &effects::SelectedProviderPlanFacts::default(),
+        &[],
+        crate::RootTrustPolicy::Unpackaged,
+    )
+    .unwrap_err();
+    assert!(
+        errors[0]
+            .message
+            .contains("changes its exact declaration identity"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn native_admission_keeps_the_checked_promise_and_selected_binding() {
+    use effects::provider_plan::ProviderPlanDigest;
+    let admit = |contract, plan| {
+        TrustAdmission::for_native_requirement(
+            "native requirement: Root::allocate".into(),
+            37,
+            &contract,
+            ProviderPlanDigest::from_digest(plan),
+        )
+    };
+    let actual = admit([1; 32], [2; 32]).unwrap();
+    assert_ne!(
+        actual,
+        admit([3; 32], [2; 32]).unwrap(),
+        "changing a scalar promise invalidates admission even when ABI and locator are unchanged"
+    );
+    assert_ne!(
+        actual,
+        admit([1; 32], [4; 32]).unwrap(),
+        "changing selected execution invalidates admission under the same promise"
+    );
+    assert!(
+        admit([0; 32], [2; 32])
+            .unwrap_err()
+            .contains("complete checked requirement contract")
+    );
+    let provider = TrustAdmission::for_provider_plan(
+        "native requirement: Root::allocate".into(),
+        37,
+        ProviderPlanDigest::from_digest([2; 32]),
+    )
+    .unwrap();
+    assert_ne!(
+        actual, provider,
+        "provider and native requirement grants keep distinct trust domains"
+    );
 }

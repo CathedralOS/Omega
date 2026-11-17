@@ -15,6 +15,7 @@ pub use language_semantics::declaration_selection::AuthoredRootGrant;
 pub enum ProviderGrantSelectorKind {
     PlanName,
     ProviderSlot,
+    ProviderApplication,
 }
 
 fn selected_subjects_coincide(plan: &ProviderPlan, slot_plan: &ProviderPlan) -> bool {
@@ -42,6 +43,20 @@ impl ResolvedSelectedProviderGrant {
         match self.selector_kind {
             ProviderGrantSelectorKind::PlanName => {
                 format!("provider plan: {}", self.selected_plan.name)
+            }
+            ProviderGrantSelectorKind::ProviderApplication => {
+                let plan = &self.selected_plan;
+                format!(
+                    "provider application: {} [{}] for {} on {}",
+                    plan.provider_type,
+                    plan.identities.text(plan.provider_application),
+                    plan.schema
+                        .root_application_identity()
+                        .unwrap_or_else(|| plan
+                            .schema
+                            .identity_text(plan.schema.declaration.trait_name)),
+                    plan.target,
+                )
             }
             ProviderGrantSelectorKind::ProviderSlot => {
                 format!(
@@ -168,18 +183,66 @@ pub fn resolve_authored_selected_provider_grants(
     selected: &crate::SelectedProviderPlanFacts,
     authored_grants: &[AuthoredRootGrant],
 ) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {
+    use language_semantics::declaration_selection::RootGrantSubject;
+    fn application_key(plan: &ProviderPlan) -> (&str, &str) {
+        (
+            &plan.provider_type,
+            plan.identities.text(plan.provider_application),
+        )
+    }
+    let mut candidate_rows = candidates.to_vec();
+    candidate_rows
+        .sort_unstable_by(|left, right| application_key(left).cmp(&application_key(right)));
+    let mut selected_rows = selected.plans().iter().collect::<Vec<_>>();
+    selected_rows
+        .sort_unstable_by(|left, right| application_key(left).cmp(&application_key(right)));
     let mut resolved_authored = Vec::new();
     for authored in authored_grants {
-        let mut resolved = resolve_selected_provider_grants(
-            candidates,
-            selected,
-            std::slice::from_ref(&authored.selector),
-        )?;
-        let Some(grant) = resolved.pop() else {
+        let RootGrantSubject::Provider {
+            declaration,
+            application,
+        } = &authored.subject
+        else {
             continue;
         };
+        let key = (declaration.as_str(), application.as_deref().unwrap_or(""));
+        let first = selected_rows.partition_point(|plan| application_key(plan) < key);
+        let last = selected_rows.partition_point(|plan| application_key(plan) <= key);
+        let [plan] = &selected_rows[first..last] else {
+            return Err(Diagnostic::error(format!(
+                "root grant `{}` has {} selected plans for its exact provider declaration and application",
+                authored.selector,
+                last - first,
+            )));
+        };
+        let first = candidate_rows.partition_point(|plan| application_key(plan) < key);
+        let last = candidate_rows.partition_point(|plan| application_key(plan) <= key);
+        if candidate_rows[first..last]
+            .iter()
+            .filter(|candidate| *candidate == plan)
+            .count()
+            != 1
+        {
+            return Err(Diagnostic::error(format!(
+                "root grant `{}` has no unique exact candidate for its selected provider application",
+                authored.selector,
+            )));
+        }
+        if plan.provider_type_package_identity != authored.subject_package {
+            return Err(Diagnostic::error(format!(
+                "root grant `{}` changes its provider package identity",
+                authored.selector
+            ))
+            .with_source_span(authored.source_span));
+        }
         resolved_authored.push(ResolvedAuthoredSelectedProviderGrant {
-            grant,
+            grant: ResolvedSelectedProviderGrant {
+                selector: authored.selector.clone(),
+                selector_kind: ProviderGrantSelectorKind::ProviderApplication,
+                selected_plan: (*plan).clone(),
+                selected_plan_digest: plan.identity_digest(),
+                selected_plan_report_identity: plan.report_fingerprint(),
+            },
             selecting_machine: authored.selecting_machine,
             source_span: authored.source_span,
         });

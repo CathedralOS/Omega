@@ -2,6 +2,7 @@
 //! Targets and composition come from execution; source supplies the exact slot,
 //! provider, and lexical author. Nothing here executes or accepts a provider body.
 
+use super::authored_requests::{AuthoredRequests, refusal};
 use super::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, form, identity,
 };
@@ -14,64 +15,12 @@ use language_semantics::declaration_selection::{
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::{
-    ProductDeclarationLookup, ProductRequestAuthors, ProductSelectionOccurrence,
-    collect_product_selection_occurrences,
-};
+use typed_trees::product_operand::ProductDeclarationLookup;
 
-struct Formation<'request> {
-    request: &'request ProductDeclarationRequest,
-    author: SymbolHandle,
+struct Formation {
     /// `None` for a request authored inside a generic helper: each executed
     /// choice forms its own selection from the helper's arguments.
     selection: Option<ProviderSelection>,
-}
-
-type OccurrenceKey = (usize, usize, usize);
-
-fn key(typed: &TypedTrees, request: &ProductDeclarationRequest) -> OccurrenceKey {
-    let span = typed.symbols.rejoin_product_occurrence(request.source_span);
-    (span.source_id.0, span.span.start, span.span.end)
-}
-
-fn refusal(request: &ProductDeclarationRequest, reason: impl Into<String>) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(reason).with_source_span(request.source_span)]
-}
-
-fn author(
-    typed: &TypedTrees,
-    occurrences: &[ProductSelectionOccurrence],
-    request: &ProductDeclarationRequest,
-) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    let selected = key(typed, request);
-    let start = occurrences.partition_point(|row| key(typed, &row.request) < selected);
-    let mut owners = occurrences[start..]
-        .iter()
-        .take_while(|row| key(typed, &row.request) == selected)
-        .filter(|row| typed.same_product_request_source(&row.request, request))
-        .map(|row| typed.symbols.authored_origin(row.machine));
-    let owner = owners.next().ok_or_else(|| {
-        refusal(
-            request,
-            "provider request has no original authored occurrence",
-        )
-    })?;
-    if owners.any(|other| other != owner) {
-        return Err(refusal(
-            request,
-            "provider request has ambiguous lexical authors",
-        ));
-    }
-    if !typed
-        .symbols
-        .symbol_is_in_dependency_scope(owner, source::DependencyScope::Build)
-    {
-        return Err(refusal(
-            request,
-            "provider request author is not Build source",
-        ));
-    }
-    Ok(owner)
 }
 
 /// One operand of a request as the declaration it names and, when it is
@@ -251,7 +200,7 @@ pub(super) fn collect(
     declared: &[Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-    let mut requests = declared
+    let requests = declared
         .iter()
         .filter(|request| request.operation == BuildOperation::ProviderSelection)
         .collect::<Vec<_>>();
@@ -271,49 +220,19 @@ pub(super) fn collect(
             ProductOperandRole::Provider,
         ],
     );
-    let authors = ProductRequestAuthors::new(typed);
-    let mut occurrences = collect_product_selection_occurrences(typed);
-    occurrences.retain(|row| row.request.operation == BuildOperation::ProviderSelection);
-    occurrences.sort_unstable_by_key(|row| key(typed, &row.request));
-    requests.sort_unstable_by_key(|request| key(typed, request));
-    let mut formations = Vec::with_capacity(requests.len());
-    // Validate unexecuted requests too: lack of an event cannot hide an invalid
-    // declaration selection. Keep source lookup separate from executed order.
-    for request in requests {
-        let author = author(typed, &occurrences, request)?;
+    let authored = AuthoredRequests::new(typed, declared, BuildOperation::ProviderSelection)?;
+    let mut formations = Vec::with_capacity(authored.rows.len());
+    // Unexecuted requests still have to name valid declarations.
+    for row in &authored.rows {
         formations.push(Formation {
-            request,
-            author,
-            selection: formation(context, &declarations, request, author, None)?,
+            selection: formation(context, &declarations, row.request, row.author, None)?,
         });
     }
     let mut selections: Vec<ProviderSelection> = Vec::new();
     for (ordinal, event) in events {
         let request = &event.request;
-        let activation = activation
-            .filter(|symbol| {
-                typed.machine_by_symbol(*symbol).is_some()
-                    && typed
-                        .symbols
-                        .symbol_is_in_dependency_scope(*symbol, source::DependencyScope::Build)
-            })
-            .ok_or_else(|| {
-                refusal(
-                    request,
-                    "executed provider choice has no original Build activation",
-                )
-            })?;
-        let author = authors
-            .resolve(event.selecting_machine.ok_or_else(|| {
-                refusal(request, "executed provider choice lost its lexical author")
-            })?)
-            .map_err(|reason| refusal(request, reason))?;
-        let selected = key(typed, request);
-        let start = formations.partition_point(|row| key(typed, row.request) < selected);
-        let formation = formations[start..].iter()
-            .take_while(|row| key(typed, row.request) == selected)
-            .find(|row| row.author == author && typed.same_product_request_source(row.request, request))
-            .ok_or_else(|| refusal(request, "executed provider choice does not match its declared source occurrence and author"))?;
+        let (index, author, activation) = authored.execution(activation, event)?;
+        let formation = &formations[index];
         // A choice whose operands are applied is formed from what this
         // execution gave the helper that made it: two calls of one helper
         // share the authored request and differ in their arguments.

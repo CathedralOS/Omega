@@ -64,7 +64,7 @@ pub fn bind_selected_provider_plan_facts(
     root_grants: &[String],
     authored_root_grants: &[AuthoredRootGrant],
 ) -> Result<SelectedProviderPlanBinding, Vec<Diagnostic>> {
-    let provider_grants =
+    let mut provider_grants =
         effects::provider_grants::resolve_selected_provider_grants(candidates, &facts, root_grants)
             .map_err(|diagnostic| vec![diagnostic])?;
     let grants = effects::provider_grants::resolve_authored_selected_provider_grants(
@@ -73,6 +73,11 @@ pub fn bind_selected_provider_plan_facts(
         authored_root_grants,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    for authored in &grants {
+        if !provider_grants.iter().any(|grant| grant == &authored.grant) {
+            provider_grants.push(authored.grant.clone());
+        }
+    }
     validate_qualification_grants(
         issuers.map_err(|reason| vec![Diagnostic::error(reason)])?,
         &facts,
