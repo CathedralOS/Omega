@@ -5814,6 +5814,17 @@ pub(crate) mod structural_storage {
                 &self,
                 source: &TerminalStructuralValue,
             ) -> Result<OriginalAllocation, TerminalInterpretError> {
+                self.maybe_original_owned_allocation(source)?.ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "storage source has no live supplying allocation",
+                    ),
+                )
+            }
+
+            pub(crate) fn maybe_original_owned_allocation(
+                &self,
+                source: &TerminalStructuralValue,
+            ) -> Result<Option<OriginalAllocation>, TerminalInterpretError> {
                 let homes = self
                     .call_stack
                     .iter()
@@ -5873,9 +5884,7 @@ pub(crate) mod structural_storage {
                 if competing {
                     return Err(malformed());
                 }
-                selected.ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "storage source has no live supplying allocation",
-                ))
+                Ok(selected)
             }
         }
     }
