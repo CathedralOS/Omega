@@ -194,6 +194,13 @@ their exact selections or the required unoptimized/optimized checker order.
 Prove each operation's owner and order inside its macro stage; merely placing
 the old cross-stage APIs behind a new coordinator does not complete the change.
 
+A Psi-only request carries its completed portable artifact forward to publication.
+Native phases process only its requested native products, including any required
+auxiliary adapters; they do not demand a native main program. An empty native
+request carries the record through without native work. Retained portable bytes
+are a finished output, never an earlier executable graph used to recover facts.
+Specify these product/request variants in the input-custody gate before coding.
+
 Native planning absorbs the current early realization/Omega 00–04 operations
 that must cooperate to close retained-body demand. Physical planning owns
 allocation, physical alternatives, frames and generated-body construction.
