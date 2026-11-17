@@ -41,6 +41,15 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
             else:
                 self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])
 
+    def test_an_installer_selects_its_guards_after_planning_its_handlers(self):
+        spine=self.model['spine']
+        order=['native-planning-closure','physical-planning-handler-order',
+               'physical-planning-select','physical-planning-optimize-selected',
+               'physical-planning-allocate','binding-summarize','binding-bind','encoding-bodies']
+        self.assertEqual(sorted(order,key=spine.index),order)
+        operations={n['id']:n for n in self.model['nodes']}
+        self.assertIn('Reuse buffers on the next file',operations['source-settlement-parse']['notes'])
+
     def test_repair_stops_follow_the_planned_order(self):
         for repair in self.model['repairs'].values():
             indices=[self.model['spine'].index(key) for key in repair['stops']]

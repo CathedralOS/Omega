@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Codebase map</h1>
       <p class="lede">How the Rust reference compiler, Omega source, bootstrap, tools, and library fit together.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/repository.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/repository.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -658,81 +658,81 @@ the construction application, compilation library, Psi, std and core. Its
 dependency edges and toolchain roles are explicit invocation inputs. It records
 Build files but <strong>does not execute them</strong>. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/construct.py#L17-L30">Inputs</a>.</p>
 <p>The current mechanism is:</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild."><svg viewBox="0.00 0.00 1756.00 75.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild." style="min-width:1756px">
-<title>Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.</title><defs><marker id="repository-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="repository-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="repository-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="repository-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 66)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild."><svg viewBox="0.00 0.00 1855.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild." style="min-width:1855px">
+<title>Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.</title><defs><marker id="repository-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="repository-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="repository-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="repository-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
 <g id="repository-diagram-1-node1" class="node around" data-node="A">
 <title>A</title>
-<polygon points="156.93,-51.72 0,-51.72 0,0 156.93,0 156.93,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="78.46" y="-30.01">Explicit package roots</text>
-<text xml:space="preserve" text-anchor="middle" x="78.46" y="-13.51">and edges</text>
+<polygon points="165,-50 0,-50 0,0 165,0 165,-50" />
+<text text-anchor="middle" x="82.5" y="-28.6">Explicit package roots</text>
+<text text-anchor="middle" x="82.5" y="-14.6">and edges</text>
 </g>
 
 <g id="repository-diagram-1-node2" class="node around" data-node="B">
 <title>B</title>
-<polygon points="490.36,-51.72 313.18,-51.72 313.18,0 490.36,0 490.36,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="401.77" y="-30.01">construct.py copies exact</text>
-<text xml:space="preserve" text-anchor="middle" x="401.77" y="-13.51">source bytes</text>
+<polygon points="515,-50 331,-50 331,0 515,0 515,-50" />
+<text text-anchor="middle" x="423" y="-28.6">construct.py copies exact</text>
+<text text-anchor="middle" x="423" y="-14.6">source bytes</text>
 </g>
 
 <g id="repository-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
 <title>A-&gt;B</title>
-<path d="M157.24,-25.86C204.23,-25.86 264.25,-25.86 312.94,-25.86" marker-end="url(#repository-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="235.05" y="-30.21">select source roots</text>
+<path d="M165.01,-25C214.99,-25 279.09,-25 330.76,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="248" y="-28.4">select source roots</text>
 </g>
 
 <g id="repository-diagram-1-node3" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="792.29,-51.72 635.36,-51.72 635.36,0 792.29,0 792.29,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="713.82" y="-30.01">Closed source set and</text>
-<text xml:space="preserve" text-anchor="middle" x="713.82" y="-13.51">manifest</text>
+<polygon points="834,-50 667,-50 667,0 834,0 834,-50" />
+<text text-anchor="middle" x="750.5" y="-28.6">Closed source set and</text>
+<text text-anchor="middle" x="750.5" y="-14.6">manifest</text>
 </g>
 
 <g id="repository-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
 <title>B-&gt;C</title>
-<path d="M490.79,-25.86C536.18,-25.86 591.05,-25.86 634.89,-25.86" marker-end="url(#repository-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="562.86" y="-30.21">copy exact bytes</text>
+<path d="M515.1,-25C562.69,-25 620.48,-25 666.77,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="591" y="-28.4">copy exact bytes</text>
 </g>
 
 <g id="repository-diagram-1-node4" class="node native" data-node="D">
 <title>D</title>
-<polygon points="1102.47,-51.72 952.29,-51.72 952.29,0 1102.47,0 1102.47,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1027.38" y="-30.01">Supplied constructor</text>
-<text xml:space="preserve" text-anchor="middle" x="1027.38" y="-13.51">executable</text>
+<polygon points="1162,-50 1003,-50 1003,0 1162,0 1162,-50" />
+<text text-anchor="middle" x="1082.5" y="-28.6">Supplied constructor</text>
+<text text-anchor="middle" x="1082.5" y="-14.6">executable</text>
 </g>
 
 <g id="repository-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
 <title>C-&gt;D</title>
-<path d="M792.64,-25.86C841.39,-25.86 903.87,-25.86 951.97,-25.86" marker-end="url(#repository-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="872.29" y="-30.21">supply closed input</text>
+<path d="M834.35,-25C885.99,-25 952.05,-25 1002.88,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="918.5" y="-28.4">supply closed input</text>
 </g>
 
 <g id="repository-diagram-1-node5" class="node native" data-node="E">
 <title>E</title>
-<polygon points="1421.65,-51.72 1257.97,-51.72 1257.97,0 1421.65,0 1421.65,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1339.81" y="-30.01">Compilation status and</text>
-<text xml:space="preserve" text-anchor="middle" x="1339.81" y="-13.51">Alpha output</text>
+<polygon points="1503,-50 1329,-50 1329,0 1503,0 1503,-50" />
+<text text-anchor="middle" x="1416" y="-28.6">Compilation status and</text>
+<text text-anchor="middle" x="1416" y="-14.6">Alpha output</text>
 </g>
 
 <g id="repository-diagram-1-edge4" class="edge handoff" data-from="D" data-to="E">
 <title>D-&gt;E</title>
-<path d="M1102.74,-25.86C1149.46,-25.86 1209.75,-25.86 1257.71,-25.86" marker-end="url(#repository-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1180.22" y="-45.96">compile supported</text>
-<text xml:space="preserve" text-anchor="middle" x="1180.22" y="-30.21">subset</text>
+<path d="M1162.06,-25C1212.22,-25 1277.28,-25 1328.86,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1245.5" y="-41.4">compile supported</text>
+<text text-anchor="middle" x="1245.5" y="-28.4">subset</text>
 </g>
 
 <g id="repository-diagram-1-node6" class="node around" data-node="F">
 <title>F</title>
-<polygon points="1738.58,-51.72 1586.9,-51.72 1586.9,0 1738.58,0 1738.58,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1662.74" y="-30.01">Publish after identity</text>
-<text xml:space="preserve" text-anchor="middle" x="1662.74" y="-13.51">and success checks</text>
+<polygon points="1838,-50 1679,-50 1679,0 1838,0 1838,-50" />
+<text text-anchor="middle" x="1758.5" y="-28.6">Publish after identity</text>
+<text text-anchor="middle" x="1758.5" y="-14.6">and success checks</text>
 </g>
 
 <g id="repository-diagram-1-edge5" class="edge handoff" data-from="E" data-to="F">
 <title>E-&gt;F</title>
-<path d="M1421.79,-25.86C1472.39,-25.86 1537.1,-25.86 1586.57,-25.86" marker-end="url(#repository-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1504.27" y="-30.21">check before writing</text>
+<path d="M1503.36,-25C1557.35,-25 1626.33,-25 1678.81,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1591" y="-28.4">check before writing</text>
 </g>
 </g>
 </svg></div><figcaption>Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -802,7 +802,7 @@ these contradictions; this mapping change does not rewrite those owners.</p></ma
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;

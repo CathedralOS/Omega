@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Bundled library</h1>
       <p class="lede">Language declarations, target providers, and their use through Build and realization.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/library.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/library.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -624,82 +624,82 @@ newline and exit zero. Its application Build binds entries and depends on
 std; it does not select Console itself. Std's <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/build.omg#L661-L683">Build helper</a> chooses
 <code>LinuxX86Console</code> and binds <code>LinuxX86ConsoleIo::write</code> to syscall 1 for
 <code>linux_x86_64</code>.</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run."><svg viewBox="0.00 0.00 1715.00 75.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run." style="min-width:1715px">
-<title>For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run.</title><defs><marker id="library-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="library-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="library-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="library-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 66)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run."><svg viewBox="0.00 0.00 1816.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run." style="min-width:1816px">
+<title>For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run.</title><defs><marker id="library-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="library-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="library-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="library-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
 <g id="library-diagram-1-node1" class="node psi" data-node="A">
 <title>A</title>
-<polygon points="187.68,-51.72 0,-51.72 0,0 187.68,0 187.68,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="93.84" y="-30.01">Consumer requires Console</text>
-<text xml:space="preserve" text-anchor="middle" x="93.84" y="-13.51">write_byte</text>
+<polygon points="202,-50 0,-50 0,0 202,0 202,-50" />
+<text text-anchor="middle" x="101" y="-28.6">Consumer requires Console</text>
+<text text-anchor="middle" x="101" y="-14.6">write_byte</text>
 </g>
 
 <g id="library-diagram-1-node2" class="node around" data-node="B">
 <title>B</title>
-<polygon points="457.36,-51.72 328.93,-51.72 328.93,0 457.36,0 457.36,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="393.14" y="-30.01">Std Build selects</text>
-<text xml:space="preserve" text-anchor="middle" x="393.14" y="-13.51">LinuxX86Console</text>
+<polygon points="486,-50 350,-50 350,0 486,0 486,-50" />
+<text text-anchor="middle" x="418" y="-28.6">Std Build selects</text>
+<text text-anchor="middle" x="418" y="-14.6">LinuxX86Console</text>
 </g>
 
 <g id="library-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
 <title>A-&gt;B</title>
-<path d="M188.09,-25.86C233.9,-25.86 287.9,-25.86 328.84,-25.86" marker-end="url(#library-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="258.3" y="-30.21">require Console</text>
+<path d="M202.1,-25C250.38,-25 307,-25 349.99,-25" marker-end="url(#library-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="276" y="-28.4">require Console</text>
 </g>
 
 <g id="library-diagram-1-node3" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="779.54,-51.72 596.36,-51.72 596.36,0 779.54,0 779.54,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="687.95" y="-30.01">Checked byte adapter and</text>
-<text xml:space="preserve" text-anchor="middle" x="687.95" y="-13.51">raw map</text>
+<polygon points="830,-50 635,-50 635,0 830,0 830,-50" />
+<text text-anchor="middle" x="732.5" y="-28.6">Checked byte adapter and</text>
+<text text-anchor="middle" x="732.5" y="-14.6">raw map</text>
 </g>
 
 <g id="library-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
 <title>B-&gt;C</title>
-<path d="M457.68,-25.86C498.13,-25.86 551.17,-25.86 596.04,-25.86" marker-end="url(#library-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="526.86" y="-45.96">select</text>
-<text xml:space="preserve" text-anchor="middle" x="526.86" y="-30.21">implementation</text>
+<path d="M486.04,-25C529.44,-25 586.65,-25 634.92,-25" marker-end="url(#library-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="560.5" y="-41.4">select</text>
+<text text-anchor="middle" x="560.5" y="-28.4">implementation</text>
 </g>
 
 <g id="library-diagram-1-node4" class="node psi" data-node="D">
 <title>D</title>
-<polygon points="1103.97,-51.72 932.04,-51.72 932.04,0 1103.97,0 1103.97,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1018" y="-30.01">LinuxX86ConsoleIo write</text>
-<text xml:space="preserve" text-anchor="middle" x="1018" y="-13.51">requirement</text>
+<polygon points="1173,-50 990,-50 990,0 1173,0 1173,-50" />
+<text text-anchor="middle" x="1081.5" y="-28.6">LinuxX86ConsoleIo write</text>
+<text text-anchor="middle" x="1081.5" y="-14.6">requirement</text>
 </g>
 
 <g id="library-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
 <title>C-&gt;D</title>
-<path d="M779.9,-25.86C827.4,-25.86 885.17,-25.86 931.8,-25.86" marker-end="url(#library-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="855.79" y="-30.21">call raw boundary</text>
+<path d="M830.16,-25C880.09,-25 940.67,-25 989.72,-25" marker-end="url(#library-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="910" y="-28.4">call raw boundary</text>
 </g>
 
 <g id="library-diagram-1-node5" class="node around" data-node="E">
 <title>E</title>
-<polygon points="1392.4,-51.72 1234.72,-51.72 1234.72,0 1392.4,0 1392.4,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1313.56" y="-30.01">Build binding to Linux</text>
-<text xml:space="preserve" text-anchor="middle" x="1313.56" y="-13.51">syscall 1</text>
+<polygon points="1477,-50 1310,-50 1310,0 1477,0 1477,-50" />
+<text text-anchor="middle" x="1393.5" y="-28.6">Build binding to Linux</text>
+<text text-anchor="middle" x="1393.5" y="-14.6">syscall 1</text>
 </g>
 
 <g id="library-diagram-1-edge4" class="edge handoff" data-from="D" data-to="E">
 <title>D-&gt;E</title>
-<path d="M1104.31,-25.86C1145.44,-25.86 1194.44,-25.86 1234.57,-25.86" marker-end="url(#library-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1169.34" y="-45.96">resolve native</text>
-<text xml:space="preserve" text-anchor="middle" x="1169.34" y="-30.21">supply</text>
+<path d="M1173.42,-25C1216.56,-25 1267.75,-25 1309.79,-25" marker-end="url(#library-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1241.5" y="-41.4">resolve native</text>
+<text text-anchor="middle" x="1241.5" y="-28.4">supply</text>
 </g>
 
 <g id="library-diagram-1-node6" class="node native" data-node="F">
 <title>F</title>
-<polygon points="1698.08,-51.72 1535.9,-51.72 1535.9,0 1698.08,0 1698.08,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1616.99" y="-30.01">Realization checks and</text>
-<text xml:space="preserve" text-anchor="middle" x="1616.99" y="-13.51">target lowering</text>
+<polygon points="1799,-50 1628,-50 1628,0 1799,0 1799,-50" />
+<text text-anchor="middle" x="1713.5" y="-28.6">Realization checks and</text>
+<text text-anchor="middle" x="1713.5" y="-14.6">target lowering</text>
 </g>
 
 <g id="library-diagram-1-edge5" class="edge handoff" data-from="E" data-to="F">
 <title>E-&gt;F</title>
-<path d="M1392.58,-25.86C1436.45,-25.86 1491.13,-25.86 1535.41,-25.86" marker-end="url(#library-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1464.15" y="-30.21">admit and lower</text>
+<path d="M1477.22,-25C1523.6,-25 1581.32,-25 1627.98,-25" marker-end="url(#library-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1552.5" y="-28.4">admit and lower</text>
 </g>
 </g>
 </svg></div><figcaption>For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -813,7 +813,7 @@ declarations or source size into a support matrix. This follows the
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;

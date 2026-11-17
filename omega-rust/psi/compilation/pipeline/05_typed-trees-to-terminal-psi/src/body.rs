@@ -1253,6 +1253,7 @@ pub enum ExpressionKind {
         callee: CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
+        static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

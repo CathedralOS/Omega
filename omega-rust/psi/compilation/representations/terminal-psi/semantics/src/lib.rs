@@ -51,6 +51,7 @@ pub use scalar_target_ranges::{
     TargetScalarRange, application_sized_storage, target_scalar_ranges,
 };
 pub mod scalars;
+pub mod static_reach;
 pub mod storage;
 pub mod structural;
 pub mod structural_qualifications;
@@ -118,8 +119,9 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence, RetainedCallLoan,
-    borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
+    BorrowedLoanSource, BorrowedLoanSources, ReferenceCompletionError,
+    ReferenceCompletionOccurrence, RetainedCallLoan, borrowed_entry_reference_referent,
+    borrowed_loan_source, borrowed_loan_sources, cleanup_disposes_reference,
     incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
     validate_reference_result_completion,
 };
