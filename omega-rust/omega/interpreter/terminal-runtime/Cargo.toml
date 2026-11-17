@@ -13,19 +13,19 @@ extents = { path = "../../../psi/runtime/extents" }
 access-admission = { path = "../../../psi/compilation/access-admission" }
 native-provider-runtime = { path = "../native-provider-runtime" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
-runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
 numerics = { path = "../../../psi/compilation/representations/scalar-values" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
-backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
-target = { path = "../../compilation/backend/target" }
+backend-plan = { path = "../../compilation/representations/provider-plans" }
+target = { path = "../../compilation/target-description/target" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-interpreter = { path = "../../../psi/interpreter" }
 target-operations = { path = "../../compilation/representations/target-operations" }
-calling-conventions = { path = "../../compilation/backend/calling-conventions" }
-native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 
 [dev-dependencies]

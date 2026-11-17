@@ -7,10 +7,10 @@ version.workspace = true
 [dependencies]
 wire = { path = "../../../psi/foundation/wire" }
 bounded-process = { path = "../../host-support/bounded-process" }
-native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-target = { path = "../../compilation/backend/target" }
-calling-conventions = { path = "../../compilation/backend/calling-conventions" }
-runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
+native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }
+target = { path = "../../compilation/target-description/target" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
 sha2 = "0.10.9"
 
 [target.'cfg(unix)'.dependencies]
@@ -25,8 +25,8 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [dev-dependencies]
-physical-planning = { path = "../../compilation/pipeline/01_physical-program-planning" }
-native-encoding = { path = "../../compilation/pipeline/03_native-encoding", features = ["test-support"] }
+physical-planning = { path = "../../compilation/pipeline/04_physical-program-planning" }
+native-encoding = { path = "../../compilation/pipeline/06_native-encoding", features = ["test-support"] }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
-function-layout = { path = "../../compilation/pipeline/04_native-layout/function-layout" }
-image-emission = { path = "../../compilation/backend/images/image-emission" }
+function-layout = { path = "../../compilation/pipeline/07_native-layout/function-layout" }
+image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }

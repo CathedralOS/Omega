@@ -3,7 +3,7 @@
 # may only fall: derived data is computed once by its owner, not cached
 # (AGENTS.md conventions).
 # Written by `cargo xtask check-rules --update-cache-state`.
-1 omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan.rs
+1 omega-rust/omega/compilation/representations/native-effects/src/provider_evidence/providers/provider_plan.rs
 2 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs
 1 omega-rust/omega/packages/package-compilation/src/bindings.rs
 5 omega-rust/omega/packages/package-compilation/src/reuse/checked_source_cache.rs

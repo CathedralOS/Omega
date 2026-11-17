@@ -13,7 +13,7 @@ path = "../../validation/terminal_probe/src/main.rs"
 compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 package-manager = { path = "../../../../../../omega-rust/omega/packages/package-manager" }
-target = { path = "../../../../../../omega-rust/omega/compilation/backend/target" }
+target = { path = "../../../../../../omega-rust/omega/compilation/target-description/target" }
 terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
 serde_json = "1"
 

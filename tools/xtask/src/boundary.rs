@@ -46,7 +46,7 @@ const BUILD_COORDINATOR: &str = "omega-rust/omega/build-system/orchestration";
 const CLI_APPLICATION: &str = "omega-rust/omega/application";
 const TRUST_MODEL: &str = "omega-rust/omega/compilation/realization/trust-model";
 const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
-const PSI_FACADE: &str = "omega-rust/psi/compilation/source-compiler";
+const PSI_FACADE: &str = "omega-rust/psi/compilation/pipeline/01_source-compilation";
 const TERMINAL_PRODUCTION: &str = "omega-rust/psi/compilation/terminal-production";
 const PROVIDER_PLANNING: &str = "omega-rust/omega/compilation/realization/provider-planning";
 
@@ -91,8 +91,8 @@ const OMEGA_STAGES: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/03_native-encoding",
-    "omega-rust/omega/compilation/pipeline/04_native-layout",
+    "omega-rust/omega/compilation/pipeline/06_native-encoding",
+    "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -116,15 +116,15 @@ const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
     // Object replay and validation rerun stage 02 preparation and stage 03
     // geometry helpers on the earlier program an audit request retains.
     Allowance {
-        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
     },
     Allowance {
-        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
     },
     Allowance {
-        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     },
 ];
@@ -240,7 +240,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         Rule {
             owners: vec![PACKAGE_MANAGER],
             forbidden: vec![
-                "omega-rust/omega/compilation/backend/artifacts/component-description",
+                "omega-rust/omega/compilation/representations/component-description",
                 PROVIDER_PLANNING,
                 "omega-rust/psi/foundation/flow-effects",
                 "omega-rust/psi/foundation/symbols",
@@ -264,7 +264,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
                 "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",
-                "omega-rust/omega/compilation/backend/target",
+                "omega-rust/omega/compilation/target-description/target",
                 "omega-rust/psi/foundation/semantic-vocabulary",
             ],
             reason: "trust admission does not reconstruct grants from source or target owners",
@@ -438,7 +438,7 @@ const STAGE_02_WORKING_FORM: &str =
 /// from the prepared plan onward. None of them is handed stage 02's working
 /// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
-    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/representations/bound-installations",
     "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
@@ -447,12 +447,12 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/representations/register-homes",
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/target-description/register-environment",
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/03_native-encoding",
-    "omega-rust/omega/compilation/pipeline/04_native-layout",
+    "omega-rust/omega/compilation/pipeline/06_native-encoding",
+    "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -473,8 +473,8 @@ const AFTER_SELECTION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/03_native-encoding",
-    "omega-rust/omega/compilation/pipeline/04_native-layout",
+    "omega-rust/omega/compilation/pipeline/06_native-encoding",
+    "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
@@ -487,7 +487,7 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// crates may reach an earlier program form. The check follows every
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
-    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/representations/bound-installations",
     "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/native-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations",
@@ -497,12 +497,12 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/register-homes",
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/target-description/register-environment",
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/03_native-encoding",
-    "omega-rust/omega/compilation/pipeline/04_native-layout",
+    "omega-rust/omega/compilation/pipeline/06_native-encoding",
+    "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -726,7 +726,7 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
 ];
 
 /// Stage 02's accessor for its working program.
@@ -741,25 +741,25 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
 /// cannot give object production access to stage 02's working program.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/validation.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/validation.rs",
 ];
 const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
     (
-        "omega-rust/omega/compilation/backend/images/image-emission/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/lib.rs",
         "mod retained_working_program;",
     ),
     (
-        "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+        "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments.rs",
         "pub(super) mod retained_source_validation;",
     ),
 ];
@@ -835,37 +835,37 @@ fn call_violations_in(
 /// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization.rs",
+        "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout/src/function_realization.rs",
         "stage_function_frame",
         2,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/03_native-encoding/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/06_native-encoding/src/lib.rs",
         "stage_optimized_layout_independent_selected_form_encoding",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/03_native-encoding/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/06_native-encoding/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
         "stage_optimized_resolved_selected_form_layout",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
         "execute_resolved_layout_optimization",
         3,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization.rs",
+        "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout/src/function_realization.rs",
         "assemble_fixed_frame_realization",
         1,
     ),
@@ -986,8 +986,8 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         "omega-rust/omega/compilation/backend",
         &["execution_plan", "pre_physical_manifest("],
         &[
-            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
-            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
+            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1212,7 +1212,7 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        const LIBRARY: &str = "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout";
+        const LIBRARY: &str = "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout";
         const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
         for (owner, dependency, kind, permitted) in [
             (NATIVE_ROOT, OMEGA_STAGES[9], None, true),
@@ -1230,7 +1230,7 @@ mod tests {
             (LIBRARY, OMEGA_STAGES[9], None, false),
             // A row of the shrinking allowance list stays permitted.
             (
-                "omega-rust/omega/compilation/backend/images/image-emission",
+                "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
                 OMEGA_STAGES[3],
                 None,
                 true,
@@ -1499,7 +1499,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image = "omega-rust/omega/compilation/backend/images/image-emission/src";
+        let image = "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
         let files = [
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1691,13 +1691,13 @@ mod tests {
                     NATIVE_ROOT,
                     &[(
                         "effects",
-                        "omega-rust/omega/compilation/backend/plans/effects",
+                        "omega-rust/omega/compilation/representations/native-effects",
                         None,
                     )],
                 ),
                 pkg(
                     "effects",
-                    "omega-rust/omega/compilation/backend/plans/effects",
+                    "omega-rust/omega/compilation/representations/native-effects",
                     &[(
                         "typed-trees",
                         "omega-rust/psi/compilation/representations/typed-trees",

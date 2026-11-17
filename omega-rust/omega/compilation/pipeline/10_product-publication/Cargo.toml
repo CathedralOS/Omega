@@ -1,0 +1,12 @@
+[package]
+name = "product-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+image-emission = { path = "../09_image-construction/image-emission" }
+native-artifact = { path = "../09_image-construction/native-artifact" }
+platform-custody = { path = "../../../host-support/platform-custody" }
+target = { path = "../../target-description/target" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }

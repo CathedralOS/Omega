@@ -11,14 +11,14 @@ path = "src/lib.rs"
 [dependencies]
 optimization-core = { path = "../../representations/optimization-contracts" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-calling-conventions = { path = "../../backend/calling-conventions" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
 machine-code = { path = "../../representations/machine-code" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
-isa-aarch64 = { path = "../../backend/isa/isa-aarch64" }
-isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }
-register-model = { path = "../../backend/register-model" }
+isa-aarch64 = { path = "../../pipeline/06_native-encoding/isa-aarch64" }
+isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }
+register-model = { path = "../../target-description/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-target = { path = "../../backend/target" }
+target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 
 [dev-dependencies]

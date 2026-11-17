@@ -13,14 +13,14 @@ source-admission = { path = "../../../psi/compilation/representations/source-adm
 source-text = { path = "../../../psi/foundation/source-text" }
 evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
 artifact-evaluation = { path = "../../../psi/evaluation/artifact-evaluation" }
-backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
-calling-conventions = { path = "../../compilation/backend/calling-conventions" }
+backend-plan = { path = "../../compilation/representations/provider-plans" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
 terminal-interpreter = { path = "../../../psi/interpreter" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-source-compiler = { path = "../../../psi/compilation/source-compiler" }
+source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
 evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 artifacts = { path = "../../compilation/products/measurements" }
@@ -28,14 +28,14 @@ products = { path = "../../compilation/products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/compilation/representations/source-vocabulary" }
 build-output = { path = "../../packages/build-output" }
-effects = { path = "../../compilation/backend/plans/effects" }
+effects = { path = "../../compilation/representations/native-effects" }
 optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }
-native-program-planning = { path = "../../compilation/pipeline/00_native-program-planning" }
+native-program-planning = { path = "../../compilation/pipeline/03_native-program-planning" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
-target = { path = "../../compilation/backend/target" }
-runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
+target = { path = "../../compilation/target-description/target" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
@@ -46,4 +46,4 @@ build-declarations = { path = "../../packages/build-declarations" }
 [dev-dependencies]
 tokens = { path = "../../../psi/compilation/representations/tokens" }
 
-source-compiler = { path = "../../../psi/compilation/source-compiler", features = ["test-support"] }
+source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }

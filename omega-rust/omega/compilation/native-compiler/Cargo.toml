@@ -5,39 +5,39 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-native-runtime-provisions = { path = "../pipeline/00_native-program-planning/runtime-provisions" }
+native-runtime-provisions = { path = "../pipeline/03_native-program-planning/runtime-provisions" }
 provider-admission = { path = "../verification/provider-admission" }
-installation-binding = { path = "../pipeline/02_installation-binding" }
-physical-planning = { path = "../pipeline/01_physical-program-planning" }
+installation-binding = { path = "../pipeline/05_installation-binding" }
+physical-planning = { path = "../pipeline/04_physical-program-planning" }
 arena = { path = "../../../psi/foundation/arena" }
 function-identity = { path = "../representations/function-identity" }
 selected-instructions = { path = "../representations/selected-instructions" }
 native-verification = { path = "../verification/native-verification" }
 abstract-operations = { path = "../representations/abstract-operations" }
 wire = { path = "../../../psi/foundation/wire" }
-bound-installations = { path = "../backend/runtime/bound-installations" }
-installation-evidence = { path = "../backend/runtime/installation-evidence" }
-task-plans = { path = "../backend/runtime/task-plans" }
-component-description = { path = "../backend/artifacts/component-description" }
-effects = { path = "../backend/plans/effects" }
-native-program-planning = { path = "../pipeline/00_native-program-planning" }
+bound-installations = { path = "../representations/bound-installations" }
+installation-evidence = { path = "../representations/installation-evidence" }
+task-plans = { path = "../representations/task-plans" }
+component-description = { path = "../representations/component-description" }
+effects = { path = "../representations/native-effects" }
+native-program-planning = { path = "../pipeline/03_native-program-planning" }
 selected-instruction-analyses = { path = "../representations/selected-instructions/analyses" }
-native-encoding = { path = "../pipeline/03_native-encoding" }
-native-layout = { path = "../pipeline/04_native-layout" }
-backend-plan = { path = "../backend/plans/backend-plan" }
-calling-conventions = { path = "../backend/calling-conventions" }
-boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+native-encoding = { path = "../pipeline/06_native-encoding" }
+native-layout = { path = "../pipeline/07_native-layout" }
+backend-plan = { path = "../representations/provider-plans" }
+calling-conventions = { path = "../target-description/calling-conventions" }
+boundary-applications = { path = "../representations/boundary-applications" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-image-emission = { path = "../backend/images/image-emission" }
+image-emission = { path = "../pipeline/09_image-construction/image-emission" }
 machine-code = { path = "../representations/machine-code" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
 register-homes = { path = "../representations/register-homes" }
-function-layout = { path = "../pipeline/04_native-layout/function-layout" }
-native-artifact = { path = "../backend/artifacts/native-artifact" }
+function-layout = { path = "../pipeline/07_native-layout/function-layout" }
+native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 optimization-core = { path = "../representations/optimization-contracts" }
-register-environment = { path = "../backend/register-environment" }
-runtime-abi = { path = "../backend/runtime/runtime-abi" }
-target = { path = "../backend/target" }
+register-environment = { path = "../target-description/register-environment" }
+runtime-abi = { path = "../target-description/runtime-abi" }
+target = { path = "../target-description/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
@@ -45,10 +45,10 @@ verified-optimization-input = { path = "../representations/abstract-operations/v
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 
 [dev-dependencies]
-native-encoding = { path = "../pipeline/03_native-encoding", features = ["test-support"] }
-physical-planning = { path = "../pipeline/01_physical-program-planning", features = ["test-support"] }
+native-encoding = { path = "../pipeline/06_native-encoding", features = ["test-support"] }
+physical-planning = { path = "../pipeline/04_physical-program-planning", features = ["test-support"] }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
-native-program-planning = { path = "../pipeline/00_native-program-planning" }
+native-program-planning = { path = "../pipeline/03_native-program-planning" }
 target-operations = { path = "../representations/target-operations" }

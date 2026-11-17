@@ -16,7 +16,7 @@ program entry, application roots and calling/storage plans from that same
 artifact (`product_execution`). Unsupported Build demands refuse there.
 */
 
-use super::product_code::ProductCodeSource;
+use portable_publication::ProductCodeSource;
 use crate::execution_settlement::SelectedProviderCustody;
 use crate::observations::PsiStageTimings;
 use artifacts::compile_timings::{CompileTimings, StageMeta};

@@ -38,8 +38,7 @@ pub use verified_optimization_input::{
 
 mod checked_compilation;
 mod published_compilation;
-mod published_program;
-pub use published_program::{PublishedProgram, ExecutablePackageInputs};
+pub use portable_publication::{ExecutablePackageInputs, PublishedProgram};
 pub use published_compilation::PublishedCompilation;
 mod compilation_products;
 mod compile_outcomes;

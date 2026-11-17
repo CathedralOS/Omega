@@ -8,7 +8,7 @@ version.workspace = true
 execution-admission = { path = "../../../psi/foundation/execution-admission" }
 rayon = "1.10"
 native-compiler = { path = "../../compilation/native-compiler" }
-image-emission = { path = "../../compilation/backend/images/image-emission" }
+image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }
 compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 package-compilation = { path = "../../packages/package-compilation" }
@@ -19,7 +19,7 @@ package-manager = { path = "../../packages/package-manager" }
 artifacts = { path = "../../compilation/products/measurements" }
 platform-custody = { path = "../../host-support/platform-custody" }
 bounded-process = { path = "../../host-support/bounded-process" }
-target = { path = "../../compilation/backend/target" }
+target = { path = "../../compilation/target-description/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
@@ -27,5 +27,5 @@ terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 [dev-dependencies]
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 sha2 = "0.10.9"
-native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-native-program-planning = { path = "../../compilation/pipeline/00_native-program-planning" }
+native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }
+native-program-planning = { path = "../../compilation/pipeline/03_native-program-planning" }

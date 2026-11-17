@@ -1,0 +1,25 @@
+[package]
+name = "image-macho"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_macho"
+path = "src/lib.rs"
+
+[dependencies]
+machine-code = { path = "../../../representations/machine-code" }
+wire = { path = "../../../../../psi/foundation/wire" }
+arena = { path = "../../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+object-file = { path = "../../08_object-construction" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+target = { path = "../../../target-description/target" }
+isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
+sha2 = "0.10"
+
+[dev-dependencies]
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }

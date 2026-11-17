@@ -5,8 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-target = { path = "../../omega/compilation/backend/target" }
-physical-planning = { path = "../../omega/compilation/pipeline/01_physical-program-planning" }
-native-encoding = { path = "../../omega/compilation/pipeline/03_native-encoding" }
-image = { path = "../../omega/compilation/backend/images/image" }
+target = { path = "../../omega/compilation/target-description/target" }
+physical-planning = { path = "../../omega/compilation/pipeline/04_physical-program-planning" }
+native-encoding = { path = "../../omega/compilation/pipeline/06_native-encoding" }
+image = { path = "../../omega/compilation/pipeline/09_image-construction/image" }
 machine-code = { path = "../../omega/compilation/representations/machine-code" }

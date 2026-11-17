@@ -1,0 +1,16 @@
+[package]
+name = "installation-binding"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+physical-planning = { path = "../04_physical-program-planning" }
+bound-installations = { path = "../../representations/bound-installations" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+
+[dev-dependencies]
+target = { path = "../../target-description/target" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+runtime-abi = { path = "../../target-description/runtime-abi" }

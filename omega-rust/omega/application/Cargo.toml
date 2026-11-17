@@ -24,7 +24,7 @@ package-manager = { path = "../packages/package-manager" }
 source-acquisition = { path = "../packages/source-acquisition" }
 package-compilation = { path = "../packages/package-compilation" }
 resolver-execution = { path = "../packages/resolver-execution" }
-target = { path = "../compilation/backend/target" }
+target = { path = "../compilation/target-description/target" }
 semantic-vocabulary = { path = "../../psi/compilation/representations/semantic-vocabulary" }
 diagnostics = { path = "../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../psi/compilation/representations/terminal-psi/codec" }

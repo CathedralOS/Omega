@@ -1,0 +1,75 @@
+[package]
+name = "image-emission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_emission"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+native-verification = { path = "../../../verification/native-verification" }
+installation-binding = { path = "../../05_installation-binding" }
+native-encoding = { path = "../../06_native-encoding" }
+physical-planning = { path = "../../04_physical-program-planning" }
+register-homes = { path = "../../../representations/register-homes" }
+wire = { path = "../../../../../psi/foundation/wire" }
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+provider-admission = { path = "../../../verification/provider-admission" }
+register-model = { path = "../../../target-description/register-model" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
+function-layout = { path = "../../07_native-layout/function-layout" }
+runtime-abi = { path = "../../../target-description/runtime-abi" }
+arena = { path = "../../../../../psi/foundation/arena" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+program-entry-plan = { path = "../../../representations/program-entry" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+image = { path = "../image" }
+image-elf = { path = "../image-elf" }
+image-macho = { path = "../image-macho" }
+image-pe = { path = "../image-pe" }
+object-file = { path = "../../08_object-construction" }
+target = { path = "../../../target-description/target" }
+x86_64-encoding = { path = "../../06_native-encoding/x86_64-encoding" }
+machine-code = { path = "../../../representations/machine-code" }
+function-identity = { path = "../../../representations/function-identity" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
+target-operations = { path = "../../../representations/target-operations" }
+native-program-planning = { path = "../../03_native-program-planning" }
+task-plans = { path = "../../../representations/task-plans" }
+isa-aarch64 = { path = "../../06_native-encoding/isa-aarch64" }
+isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+
+[dev-dependencies]
+native-encoding = { path = "../../06_native-encoding", features = ["test-support"] }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+native-program-planning = { path = "../../03_native-program-planning" }
+compiler = { path = "../../../compiler" }
+image-emission = { path = ".", features = ["test-support"] }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+extents = { path = "../../../../../psi/runtime/extents" }
+
+source-compiler = { path = "../../../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }

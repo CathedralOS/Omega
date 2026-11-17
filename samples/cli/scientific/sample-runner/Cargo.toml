@@ -9,5 +9,5 @@ orchestration = { path = "../../../../omega-rust/omega/build-system/orchestratio
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
 serde_json = "=1.0.151"
-target = { path = "../../../../omega-rust/omega/compilation/backend/target" }
+target = { path = "../../../../omega-rust/omega/compilation/target-description/target" }
 sha2 = "0.10.9"

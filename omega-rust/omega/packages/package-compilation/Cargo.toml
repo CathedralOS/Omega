@@ -23,12 +23,12 @@ flow-effects = { path = "../../../psi/compilation/representations/source-effects
 optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
-source-compiler = { path = "../../../psi/compilation/source-compiler" }
+source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../host-support/platform-custody" }
-effects = { path = "../../compilation/backend/plans/effects" }
-target = { path = "../../compilation/backend/target" }
+effects = { path = "../../compilation/representations/native-effects" }
+target = { path = "../../compilation/target-description/target" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

@@ -14,4 +14,4 @@ orchestration = { path = "../../../../../../omega-rust/omega/build-system/orches
 compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
-target = { path = "../../../../../../omega-rust/omega/compilation/backend/target" }
+target = { path = "../../../../../../omega-rust/omega/compilation/target-description/target" }

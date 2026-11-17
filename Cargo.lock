@@ -338,6 +338,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "compilation-inputs"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "installation-evidence",
+ "optimization-core",
+ "optimization-requests",
+ "provider-admission",
+ "target",
+ "terminal-installation",
+]
+
+[[package]]
 name = "compiler"
 version = "0.1.0"
 dependencies = [
@@ -391,6 +404,7 @@ dependencies = [
  "package-manager",
  "physical-planning",
  "platform-custody",
+ "portable-publication",
  "products",
  "program-entry-plan",
  "proof-admission",
@@ -1854,6 +1868,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-publication"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "optimization",
+ "package-compilation",
+ "semantic-vocabulary",
+ "source-compiler",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
@@ -1895,6 +1922,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "product-publication"
+version = "0.1.0"
+dependencies = [
+ "image-emission",
+ "native-artifact",
+ "platform-custody",
+ "target",
+ "terminal-codec",
+]
+
+[[package]]
 name = "products"
 version = "0.1.0"
 dependencies = [
@@ -1904,6 +1942,7 @@ dependencies = [
  "build-declarations",
  "build-output",
  "calling-conventions",
+ "compilation-inputs",
  "compiler-storage",
  "component-description",
  "declaration-contracts",
@@ -1921,6 +1960,8 @@ dependencies = [
  "optimization-requests",
  "package-compilation",
  "platform-custody",
+ "portable-publication",
+ "product-publication",
  "program-entry-plan",
  "provider-admission",
  "provider-choices",

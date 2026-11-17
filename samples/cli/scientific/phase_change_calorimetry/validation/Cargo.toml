@@ -7,7 +7,7 @@ orchestration = { path = "../../../../../omega-rust/omega/build-system/orchestra
 compiler = { path = "../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 package-manager = { path = "../../../../../omega-rust/omega/packages/package-manager" }
-target = { path = "../../../../../omega-rust/omega/compilation/backend/target" }
+target = { path = "../../../../../omega-rust/omega/compilation/target-description/target" }
 bounded-process = { path = "../../../../../omega-rust/omega/host-support/bounded-process" }
 
 [workspace]

@@ -2,11 +2,11 @@
 # an arena Handle, per non-test file. Counts may only fall: dense IDs index
 # flat tables (AGENTS.md conventions).
 # Written by `cargo xtask check-rules --update-dense-id-maps`.
-3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
-1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
-2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
-8 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
-1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
+3 omega-rust/omega/compilation/representations/component-description/src/component_description.rs
+1 omega-rust/omega/compilation/target-description/calling-conventions/src/terminal_layout.rs
+2 omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments.rs
+8 omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_artifact.rs
+1 omega-rust/omega/compilation/representations/installation-evidence/src/lib.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs
 3 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_storage.rs
@@ -32,9 +32,9 @@
 20 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_reference_custody.rs
 1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs
 1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_target.rs
-7 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection.rs
-1 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection_inputs.rs
-1 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection_scalar_graph.rs
+7 omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/instruction_selection/selection.rs
+1 omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/instruction_selection/selection_inputs.rs
+1 omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/instruction_selection/selection_scalar_graph.rs
 1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation.rs
 2 omega-rust/omega/compilation/realization/provider-admission/src/access_lifecycles.rs
 1 omega-rust/omega/compilation/realization/provider-admission/src/settlements_source_imports.rs
