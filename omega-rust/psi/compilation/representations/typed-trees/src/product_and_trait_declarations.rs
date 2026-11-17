@@ -3457,7 +3457,7 @@ pub mod trait_definition {
                     program: &TypedTrees,
                     retained: &mut impl crate::references::TypedReferences,
                 ) {
-                    retained.declaration_description_dependency(self.argument_owner);
+                    retained.formation_owner(self.argument_owner);
                     for frame in program.trait_application_frames.span_or_empty(self.frames) {
                         retained.declaration_description_dependency(frame.declaration);
                         for binding in program

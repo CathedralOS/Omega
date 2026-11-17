@@ -18,7 +18,7 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-impl Program<'_> {
+impl<'program> Program<'program> {
     /// Whether a formal or the result of `signature` holds a fixed array sized
     /// by one of the requirement's own `const` binders (`&[u8; Count]`). Such
     /// a type has an extent only in a closed application.
@@ -155,6 +155,20 @@ impl Program<'_> {
             ));
         }
         self.read_trait_schema(context, declaration).map(|_| ())
+    }
+
+    /// A generic schema is checked as authored, but has no bare runtime
+    /// service identity. Its closed requirements publish the applied services.
+    pub(super) fn claim_boundary_trait(
+        &mut self,
+        context: MachineId,
+        declaration: &'program TraitDefinition,
+    ) -> Checked<()> {
+        self.boundary_trait_declaration(context, declaration)?;
+        if declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty() {
+            self.declared_service(context, declaration)?;
+        }
+        Ok(())
     }
 
     pub(super) fn read_trait_schema(
@@ -538,7 +552,7 @@ impl Program<'_> {
         let position = match self
             .static_contracts
             .formed
-            .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
+            .binary_search_by_key(&key(symbol), |row| key(row.declaration))
         {
             Ok(_) => return Ok(true),
             Err(position) => position,
@@ -778,8 +792,15 @@ impl Program<'_> {
                 provider,
             });
         }
+        let start = self.static_contracts.conformances.len();
         self.static_contracts.conformances.extend(questions);
-        self.static_contracts.formed.insert(position, symbol);
+        self.static_contracts.formed.insert(
+            position,
+            crate::static_contracts::FormedConformance {
+                declaration: symbol,
+                questions: start..self.static_contracts.conformances.len(),
+            },
+        );
         Ok(true)
     }
 

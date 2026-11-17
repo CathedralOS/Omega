@@ -29,6 +29,20 @@ impl<'source> Program<'source> {
             source: typed,
             rows: Vec::new(),
         };
+        let symbol_key =
+            |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let supply_key = |row: &crate::SuppliedRequirement| {
+            (
+                symbol_key(row.provider),
+                symbol_key(row.requirement),
+                row.machine,
+            )
+        };
+        let mut supplied_keys = self
+            .supplied
+            .iter()
+            .map(supply_key)
+            .collect::<std::collections::BTreeSet<_>>();
         for selected in selected.choices {
             if selected.target.is_empty()
                 || !typed.symbols.symbols().nodes().is_valid(selected.provider)
@@ -159,6 +173,46 @@ impl<'source> Program<'source> {
                     context,
                     "provider schema projection changed its actual root application",
                 ));
+            }
+            // The canonical conformance questions already retain each exact
+            // receiving header and body. Publish those same supplies rather
+            // than reading the choice again as a bare trait nomination.
+            let questions = self
+                .static_contracts
+                .conformance_questions(provider)
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "provider lost its checked conformance questions",
+                    )
+                })?;
+            for question in questions {
+                if question.application != application {
+                    continue;
+                }
+                let (
+                    Some(candidate),
+                    crate::static_contracts::SourceImplementation::Machine(machine),
+                ) = (&question.provider, question.implementation)
+                else {
+                    continue;
+                };
+                let requirement = self
+                    .boundaries
+                    .rows
+                    .get(candidate.boundary)
+                    .ok_or_else(|| {
+                        services::unavailable(context, "provider lost its exact receiving header")
+                    })?
+                    .source;
+                let row = crate::SuppliedRequirement {
+                    provider,
+                    requirement,
+                    machine,
+                };
+                if supplied_keys.insert(supply_key(&row)) {
+                    self.supplied.push(row);
+                }
             }
             prepared.rows.push(SourceProviderSelection {
                 target: selected.target.clone(),

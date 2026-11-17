@@ -953,7 +953,6 @@ impl Program<'_> {
         }
         for (_, row) in self.boundaries.rows.iter() {
             source_roots(&row.envelope, &mut roots);
-            roots.extend(row.owning_service);
         }
         for row in &self.external_providers.rows {
             source_roots(&row.envelope, &mut roots);
