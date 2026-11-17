@@ -834,7 +834,16 @@ impl<'t> Program<'t> {
                 Unserved::Machine("selected witness names another public declaration"),
             ));
         }
-        self.witnessed_signature(declared, arguments, expected)
+        // The requirement applied by the implementation's map names that
+        // implementation's binders; its view is read for the implementation.
+        let owner = self
+            .unapplied_map_body(implementation)
+            .then_some(implementation)
+            .or(self.signature_view_owner);
+        let outer = std::mem::replace(&mut self.signature_view_owner, owner);
+        let witnessed = self.witnessed_signature(declared, arguments, expected);
+        self.signature_view_owner = outer;
+        witnessed
     }
 
     pub(crate) fn witnessed_signature(
@@ -1974,7 +1983,17 @@ impl<'t> Program<'t> {
             return Ok(());
         }
         let (inherited, inherited_names) = if self.rigid && self.is_generic_template(machine) {
-            self.applied_requirement_signature(id, requirement, RequirementValues::Rigid)?
+            // The requirement is applied by this machine's implementation and
+            // names its binders; its view is read for this machine.
+            let owner = self
+                .unapplied_map_body(machine.symbol)
+                .then_some(machine.symbol)
+                .or(self.signature_view_owner);
+            let outer = std::mem::replace(&mut self.signature_view_owner, owner);
+            let read =
+                self.applied_requirement_signature(id, requirement, RequirementValues::Rigid);
+            self.signature_view_owner = outer;
+            read?
         } else {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
             self.requirement_signature(id, requirement, &arguments)?
@@ -2513,6 +2532,8 @@ impl<'t> Program<'t> {
         self.admitted_declarations.include(signature.symbol);
         if !self.admitted_signature_views.contains(signature) {
             self.admitted_signature_views.push(signature.clone());
+            self.admitted_signature_view_owners
+                .push(self.signature_view_owner.unwrap_or(signature.symbol));
         }
     }
 

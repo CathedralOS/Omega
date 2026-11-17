@@ -16,7 +16,44 @@ use super::Program;
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
+/// Machine contracts name their entry State; source traversal owns the
+/// same clause under its uniquely registered machine declaration.
+fn operator_owner(typed: &typed_trees::TypedTrees, source_owner: SymbolHandle) -> SymbolHandle {
+    typed
+        .unique_machine_by_entry_state_symbol(source_owner)
+        .map_or(source_owner, |(declaration, _)| declaration.symbol)
+}
+
 impl Program<'_> {
+    /// Disjuncts that static type equations decide false are not read
+    /// (`guarded_false`). Record them so source capture skips the same
+    /// subtrees, and complete each `||` the reader resolved around them.
+    pub(super) fn skip_vacuous_disjuncts(
+        &mut self,
+        machine: MachineId,
+        source_owner: SymbolHandle,
+        disjunction: ExpressionHandle,
+        vacuous: &[ExpressionHandle],
+    ) -> Checked<()> {
+        let boolean = self.operator_operand_reference(ValueType::plain(ScalarType::Boolean));
+        let mut pending = vec![disjunction];
+        while let Some(expression) = pending.pop() {
+            if let ExpressionNode::Binary(binary) =
+                self.typed.expression_table.expression(expression)
+                && binary.operator == BinaryOperator::Or
+            {
+                let (left, right) = (binary.left, binary.right);
+                self.complete_builtin_operator(machine, source_owner, expression, &[boolean; 2])?;
+                pending.extend([left, right].into_iter().filter(|side| side.is_valid()));
+            }
+        }
+        let owner = operator_owner(self.typed, source_owner);
+        for &disjunct in vacuous {
+            self.completed_operators.record_vacuous(owner, disjunct);
+        }
+        Ok(())
+    }
+
     /// Complete only the static proposition this reader actually evaluated.
     /// Folding its result must retain the operator questions of its operands,
     /// including a guard whose known-false branch is never read as a value.
@@ -293,9 +330,7 @@ impl Program<'_> {
         }
         // Machine contracts name their entry State; source traversal owns the
         // same clause under its uniquely registered machine declaration.
-        let owner = typed
-            .unique_machine_by_entry_state_symbol(source_owner)
-            .map_or(source_owner, |(declaration, _)| declaration.symbol);
+        let owner = operator_owner(typed, source_owner);
         if !owner.is_valid() || !typed.symbols.symbols().nodes().is_valid(owner) {
             return Err(refuse(format!(
                 "completed operator {expression:?} has no exact source owner {source_owner:?}"

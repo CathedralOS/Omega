@@ -15,7 +15,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::authority::Access;
 use super::places::Member;
@@ -187,6 +187,44 @@ impl Program<'_> {
         }
         let owner = self.contract_operator_owner(id, scope)?;
         self.complete_builtin_operator(id, owner, expression, &operands)
+    }
+
+    /// A width-parameterized integer (`u<N>`) has no builtin carrier to name,
+    /// so the operand keeps the declared type of the formal or result it
+    /// reads. Every other operand returns `None` here.
+    fn width_parameter_operand_reference(
+        &self,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operand: ValueType,
+    ) -> Option<TypeReferenceHandle> {
+        let ValueType::Scalar(ScalarType::Integer(integer), qualification) = operand else {
+            return None;
+        };
+        if integer.bits().is_some() || !qualification.domains.is_empty() {
+            return None;
+        }
+        let typed = self.typed;
+        let ExpressionNode::Name(path) = typed.expression_table.expression(expression) else {
+            return None;
+        };
+        let state = typed.state_by_symbol(scope.owner)?;
+        let reference = if path.reserved_result_of.is_valid() {
+            state.return_type
+        } else {
+            typed
+                .state_parameter_by_symbol(state, path.resolved_symbol()?)?
+                .type_reference
+        };
+        let TypeReferenceNode::Generic { base_symbol, .. } =
+            typed.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        typed
+            .symbols
+            .integer_family(*base_symbol)
+            .map(|_| reference)
     }
 
     fn contract_operator_owner(
@@ -389,10 +427,11 @@ impl Program<'_> {
                 .iter()
                 .any(|disjunct| self.guarded_false(*disjunct))
             {
-                let open: Vec<_> = disjuncts
+                let (vacuous, open): (Vec<_>, Vec<_>) = disjuncts
                     .into_iter()
-                    .filter(|disjunct| !self.guarded_false(*disjunct))
-                    .collect();
+                    .partition(|disjunct| self.guarded_false(*disjunct));
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.skip_vacuous_disjuncts(id, owner, expression, &vacuous)?;
                 return match open[..] {
                     [only] => self.clause(id, scope, only),
                     [] => unserved("disjunction that type equations decide false"),
@@ -487,7 +526,11 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
-        *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
+        *operands =
+            [(binary.left, left_type), (binary.right, right_type)].map(|(expression, operand)| {
+                self.operator_operand_reference(operand)
+                    .or_else(|| self.width_parameter_operand_reference(scope, expression, operand))
+            });
         // Core policy comparisons have the same exact declared signatures
         // as executable comparisons. Plain cross-carrier comparisons keep
         // their separately specified mathematical-value relation below.

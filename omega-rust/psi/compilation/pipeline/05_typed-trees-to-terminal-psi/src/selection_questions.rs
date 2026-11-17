@@ -24,6 +24,21 @@ use typed_trees::types::TypeReferenceHandle;
 #[derive(Default)]
 pub(crate) struct CompletedOperators {
     reads: Vec<CompletedOperatorRead>,
+    /// Disjuncts this form did not read because a static type equation
+    /// decides them false for its instantiation (generics.md, "Static type
+    /// equality": "For an instantiation where the equation is false, that
+    /// conjunction is false and its later conjuncts are not evaluated").
+    /// Their operators owe no selection.
+    vacuous: Vec<(SymbolHandle, ExpressionHandle)>,
+}
+
+fn vacuous_key(row: &(SymbolHandle, ExpressionHandle)) -> (u32, u32, u32, u32) {
+    (
+        row.0.arena_index(),
+        row.0.generation(),
+        row.1.arena_index(),
+        row.1.generation(),
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -122,9 +137,23 @@ impl CompletedOperators {
         )
     }
 
+    /// Record a disjunct the reader skipped as vacuous. Only the reader's
+    /// own static decision supplies one; capture never infers it.
+    pub(crate) fn record_vacuous(&mut self, owner: SymbolHandle, expression: ExpressionHandle) {
+        self.vacuous.push((owner, expression));
+    }
+
     pub(crate) fn finish(&mut self) {
         self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
         self.reads.dedup();
+        self.vacuous.sort_unstable_by_key(vacuous_key);
+        self.vacuous.dedup();
+    }
+
+    fn is_vacuous(&self, owner: SymbolHandle, expression: ExpressionHandle) -> bool {
+        self.vacuous
+            .binary_search_by_key(&vacuous_key(&(owner, expression)), vacuous_key)
+            .is_ok()
     }
 
     fn contains(
@@ -246,6 +275,9 @@ struct Capture<'a> {
     closed_signature_templates: Vec<SymbolHandle>,
     output: RawSelectionQuestions,
     owner: SymbolHandle,
+    /// The machine an applied requirement view is read for, while it is
+    /// visited: its references to implementation binders belong there.
+    dependency_owner: Option<SymbolHandle>,
     scopes: Vec<SymbolHandle>,
     expressions: Vec<ExpressionScope>,
     statement: Option<StatementHandle>,
@@ -371,21 +403,19 @@ impl Capture<'_> {
         role: RawSelectionRole,
         kind: RawDependencyKind,
     ) {
-        if !self.valid_symbol(self.owner, "dependency owner")
+        let owner = self.dependency_owner.unwrap_or(self.owner);
+        if !self.valid_symbol(owner, "dependency owner")
             || !self.valid_symbol(target, "referenced declaration")
         {
             return;
         }
         let row = RawSelectionDependency {
-            lexical_owner: self.owner,
+            lexical_owner: owner,
             target,
             role,
             kind,
         };
-        if self
-            .seen_dependencies
-            .insert((self.owner, target, role, kind))
-        {
+        if self.seen_dependencies.insert((owner, target, role, kind)) {
             self.output.dependencies.push(row);
         }
     }
@@ -788,6 +818,11 @@ impl TypedReferences for Capture<'_> {
         if !self.seen_expressions.insert(key) {
             return false;
         }
+        // The reader decided this disjunct false and never read it, so its
+        // operators have no source question to answer.
+        if self.completed_operators.is_vacuous(self.owner, expression) {
+            return false;
+        }
         let designated = match self.designated(expression) {
             Ok(designated) => designated,
             Err(reason) => {
@@ -1061,12 +1096,17 @@ pub(crate) fn capture(
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
+    let owners = signature_views
+        .iter()
+        .map(|view| view.symbol)
+        .collect::<Vec<_>>();
     capture_with_bodies(
         typed,
         admitted,
         admitted,
         completed_operators,
         signature_views,
+        &owners,
     )
 }
 
@@ -1076,7 +1116,13 @@ pub(crate) fn capture_with_bodies(
     bodies: &DeclarationSelection,
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
+    view_owners: &[SymbolHandle],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
+    if view_owners.len() != signature_views.len() {
+        return Err(SelectionCaptureError(
+            "source selection capture lost the owner of an admitted signature view".into(),
+        ));
+    }
     let roots = admitted.explicit_symbols().ok_or_else(|| {
         SelectionCaptureError(
             "source selection capture requires the reader's explicit finite declaration roster"
@@ -1118,6 +1164,7 @@ pub(crate) fn capture_with_bodies(
             ..RawSelectionQuestions::default()
         },
         owner: SymbolHandle::invalid(),
+        dependency_owner: None,
         scopes: Vec::new(),
         expressions: Vec::new(),
         statement: None,
@@ -1135,9 +1182,11 @@ pub(crate) fn capture_with_bodies(
     // A prepared application retains its declaration symbol but has its own
     // parameter and clause handles. Visit that actual read before considering
     // declaration-wide traversal or the standalone-signature fallback.
-    for signature in signature_views {
+    for (signature, owner) in signature_views.iter().zip(view_owners) {
         if capture.declaration(signature.symbol) {
+            capture.dependency_owner = (*owner != signature.symbol).then_some(*owner);
             typed_trees::references::visit_signature(typed, &mut capture, signature);
+            capture.dependency_owner = None;
         }
     }
     typed_trees::references::visit_program(typed, &mut capture);

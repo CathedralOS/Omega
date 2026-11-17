@@ -1495,7 +1495,24 @@ impl<'source> Declarations<'source> {
                 visible = true;
                 break;
             }
-            let parent = self.typed.symbols.get(scope).parent;
+            // A machine an implementation owns is written inside that
+            // implementation, so it sees the implementation's own binders
+            // (`Selected<Value> satisfies Step<Value>` gives its members
+            // `Value`) even though its symbol is not nested under it. A copy
+            // stage 04 generated to close an application is its template's
+            // body, so it sees the template's binders the same way.
+            let parent = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                owner.symbol
+            } else if let Some(template) = self
+                .typed
+                .executable_application_template(scope)
+                .ok()
+                .flatten()
+            {
+                template
+            } else {
+                self.typed.symbols.get(scope).parent
+            };
             scope = parent;
         }
         if !visible {
@@ -1556,6 +1573,13 @@ impl<'source> Declarations<'source> {
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
             return Ok(SelectionReference::Intrinsic {
                 identity: intrinsic_identity(&atom, "builtin-type-v1:")?,
+            });
+        }
+        // The open-ended integer family (`u<N>`, `i<N>`) is builtin like each
+        // width it names; it has no authored source or package.
+        if let Some(sign) = self.typed.symbols.integer_family(symbol) {
+            return Ok(SelectionReference::Intrinsic {
+                identity: intrinsic_identity(&sign, "builtin-integer-family-v1:")?,
             });
         }
         if let Some(function) = self.typed.symbols.builtin_function_for_symbol(symbol) {

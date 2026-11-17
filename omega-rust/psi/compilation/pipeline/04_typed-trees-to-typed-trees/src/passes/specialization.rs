@@ -2448,10 +2448,18 @@ fn substitute_widths(
                 let [argument] = table.type_reference_handles(*arguments) else {
                     return None;
                 };
-                matches!(
-                    table.type_reference(*argument),
-                    TypeReferenceNode::Named { symbol, .. } if *symbol == operand.parameter
-                )
+                // Copying the signature may already have replaced the binder
+                // with this operand's own value reference; that exact handle
+                // is the same width (`apply_copied_callable_types`).
+                let substituted = matches!(
+                    operand.value,
+                    StaticMachineBindingValue::Const(actual) if actual == *argument
+                );
+                (substituted
+                    || matches!(
+                        table.type_reference(*argument),
+                        TypeReferenceNode::Named { symbol, .. } if *symbol == operand.parameter
+                    ))
                 .then_some((handle, sign))
             })
             .collect::<Vec<_>>();

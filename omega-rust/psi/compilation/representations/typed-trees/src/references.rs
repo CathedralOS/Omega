@@ -3309,14 +3309,18 @@ pub fn visit_type_reference(
                 visit_expression(program, retained, *expression);
             }
         }
-        // A checked integer argument is a value, not a declaration. Its
-        // constant origins were visited above; every present coordinate and
-        // unresolved ordinary name must still reach the receiving visitor.
+        // A checked const argument (an integer, or the canonical value of a
+        // record constant such as `Sizes::SIZE`) is a value, not a
+        // declaration. Its constant origins were visited above; every present
+        // coordinate and unresolved ordinary name must still reach the
+        // receiving visitor.
         TypeReferenceNode::Named { symbol, .. }
             if *symbol == SymbolHandle::invalid()
-                && program
+                && (program
                     .static_const_literal_from_type_reference(type_reference)
-                    .is_some() => {}
+                    .is_some()
+                    || crate::canonical_const_argument_value(program, type_reference)
+                        .is_some()) => {}
         TypeReferenceNode::Named { symbol, .. } => {
             visit_symbol(retained, *symbol);
         }

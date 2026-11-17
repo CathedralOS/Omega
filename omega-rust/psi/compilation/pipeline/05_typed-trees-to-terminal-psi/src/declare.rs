@@ -1398,11 +1398,20 @@ fn template_commitment(
         if form.machines.get(entry) != Some(&generic.template) {
             return Err("a specialization's template check form belongs to another declaration");
         }
+        // Report why the form declared no contract, when it recorded one.
         let declaration = form
             .module
             .machine(entry)
             .and_then(|machine| machine.declaration.as_ref())
-            .ok_or("a specialization's template check form has no exact contract")?;
+            .ok_or_else(|| {
+                form.undeclared
+                    .iter()
+                    .find(|(machine, _)| *machine == entry)
+                    .map_or(
+                        "a specialization's template check form has no exact contract",
+                        |(_, reason)| *reason,
+                    )
+            })?;
         digest.raw(&declaration.contract);
     }
     Ok(Some(digest.finish()))

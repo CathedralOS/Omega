@@ -960,6 +960,7 @@ fn capture_source_questions(
         &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
+        &program.admitted_signature_view_owners,
     )
     .map_err(|error| Refusal {
         source_span: None,
@@ -1402,6 +1403,9 @@ fn lower_program<'source>(
         signatures.machines.map(|_, signature| RequirementCeilings {
             reaches: signature.reaches.clone(),
             invokes: signature.invokes.clone(),
+            suspends: signature.operational.suspension,
+            blocks: signature.operational.blocking,
+            terminates: matches!(signature.termination, body::Termination::Promised),
         })
     };
     // One source owner fixes the local inference boundary. Result clauses

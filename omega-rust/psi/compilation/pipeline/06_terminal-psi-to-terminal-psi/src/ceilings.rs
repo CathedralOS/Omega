@@ -275,6 +275,21 @@ struct Contributions {
 }
 
 impl Contributions {
+    /// Add an abstract callable's declared suspension, blocking and progress.
+    /// Returns false, adding nothing, when its signature leaves suspension or
+    /// blocking open: such a call cannot fit a closed caller envelope.
+    fn abstract_operational(
+        &mut self,
+        envelope: &terminal_check_tables::contracts::RequirementCeilings,
+    ) -> bool {
+        let (Some(suspends), Some(blocks)) = (envelope.suspends, envelope.blocks) else {
+            return false;
+        };
+        self.suspends |= suspends;
+        self.blocks |= blocks;
+        self.may_diverge |= !envelope.terminates;
+        true
+    }
     fn operational(&mut self, envelope: &TerminalCallableEnvelope) {
         self.suspends |= envelope.suspends;
         self.blocks |= envelope.blocks;
@@ -990,12 +1005,15 @@ pub(crate) fn judge(
             }
             match envelope {
                 Envelope::Runtime(envelope) => reached.operational(envelope),
-                Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-                    return Err(context.unsupported(
-                        "abstract callable has no closed suspension, blocking or progress envelope",
-                    ));
+                Envelope::Abstract(abstract_envelope) => {
+                    if !reached.abstract_operational(abstract_envelope)
+                        && matches!(ceiling, Envelope::Runtime(_))
+                    {
+                        return Err(context.unsupported(
+                            "abstract callable has no closed suspension, blocking or progress envelope",
+                        ));
+                    }
                 }
-                Envelope::Abstract(_) => {}
             }
             if let Callee::Selected { callable } = call.inputs.callee {
                 let contract = call.inputs.contract.ok_or_else(|| {
@@ -1136,12 +1154,15 @@ fn tail_contribution(
     }
     match envelope {
         Envelope::Runtime(envelope) => reached.operational(envelope),
-        Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-            return Err(context.unsupported(
-                "abstract callable has no closed suspension, blocking or progress envelope",
-            ));
+        Envelope::Abstract(abstract_envelope) => {
+            if !reached.abstract_operational(abstract_envelope)
+                && matches!(ceiling, Envelope::Runtime(_))
+            {
+                return Err(context.unsupported(
+                    "abstract callable has no closed suspension, blocking or progress envelope",
+                ));
+            }
         }
-        Envelope::Abstract(_) => {}
     }
     if reached.conditional_progress
         && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination,

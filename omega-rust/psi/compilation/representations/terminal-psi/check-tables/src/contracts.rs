@@ -32,6 +32,13 @@ pub enum Ceiling {
 pub struct RequirementCeilings {
     pub reaches: Ceiling,
     pub invokes: Ceiling,
+    /// The declared suspension and blocking of the abstract callable, or
+    /// `None` when its signature leaves them open.
+    pub suspends: Option<bool>,
+    pub blocks: Option<bool>,
+    /// Whether the signature promises termination with no premises. A
+    /// requirement without that promise may run forever.
+    pub terminates: bool,
 }
 
 #[derive(Debug, Clone, Default)]
