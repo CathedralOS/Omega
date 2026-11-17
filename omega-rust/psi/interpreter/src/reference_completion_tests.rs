@@ -686,10 +686,14 @@ fn resident_rows_release_backing_after_the_last_reborrow_retires() {
     }
 }
 
-#[test]
-fn nested_resident_backing_cannot_bypass_the_outer_completion_contract() {
+fn nested_reference_fixture() -> (
+    TerminalExecution<'static>,
+    BoundaryMachineDeclaration,
+    StructuralOperationResult,
+    TerminalReferenceResult,
+) {
     let field = StructuralFieldId::new(1).unwrap();
-    let (mut execution, boundary, result) = setup(
+    let (execution, boundary, result) = setup(
         vec![
             ty(1, StructuralTypeShape::PrimitiveScalar(scalar())),
             ty(
@@ -734,6 +738,12 @@ fn nested_resident_backing_cannot_bypass_the_outer_completion_contract() {
             ),
         )],
     };
+    (execution, boundary, result, supplied)
+}
+
+#[test]
+fn nested_resident_backing_cannot_bypass_the_outer_completion_contract() {
+    let (mut execution, boundary, result, supplied) = nested_reference_fixture();
     let mut materialized = supplied.clone();
     let TerminalReferencePayload::Resident { aggregate, .. } =
         &materialized.references[0].1.referent
@@ -759,4 +769,266 @@ fn nested_resident_backing_cannot_bypass_the_outer_completion_contract() {
     assert_eq!(execution.structural_primitive_storage.len(), 0);
     assert!(execution.reference_referents.is_empty());
     commit(&mut execution, &boundary, &result, materialized).unwrap();
+}
+
+struct ReferenceHandler {
+    returned: TerminalReferenceResult,
+    calls: usize,
+}
+impl crate::TerminalEffectHandler for ReferenceHandler {
+    fn handle_effect(&mut self, _: &crate::TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Err(TerminalEffectRejection::new("unexpected untyped effect"))
+    }
+    fn handle_effect_result(
+        &mut self,
+        effect: &crate::TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        assert!(matches!(effect, crate::TerminalEffect::BoundaryCall { .. }));
+        self.calls += 1;
+        Ok(TerminalEffectResult::Reference(self.returned.clone()))
+    }
+}
+fn dispatch(
+    execution: &mut TerminalExecution<'_>,
+    handler: &mut impl crate::TerminalEffectHandler,
+) -> Result<crate::engine::execution::OperationFlow, crate::TerminalInterpretError> {
+    let operation =
+        execution.program.machine(execution.current_machine)?.blocks[0].operations[0].clone();
+    execution.execute_boundary_call(
+        &operation,
+        handler,
+        &mut terminal_work::WorkMeter::with_budget(1000),
+        &mut crate::embedding::instance::ComponentBindings::new(),
+    )
+}
+
+#[test]
+fn ordinary_dispatch_keeps_canonical_provider_reference_live() {
+    let (mut execution, _, result) = fixture();
+    let home = backing(word(scalar(), 37));
+    let mut handler = ReferenceHandler {
+        returned: resident(
+            1,
+            vec![(vec![], word(scalar(), 37), scalar(), home.clone())],
+        ),
+        calls: 0,
+    };
+    let outcome = dispatch(&mut execution, &mut handler);
+    assert_eq!(
+        handler.calls, 1,
+        "the ordinary host handler must actually supply its result"
+    );
+    assert!(matches!(
+        outcome.unwrap(),
+        crate::engine::execution::OperationFlow::Advance
+    ));
+    assert_eq!(
+        read(&execution, &result, &[], scalar()).unwrap(),
+        word(scalar(), 37)
+    );
+    *home.value.borrow_mut() = word(scalar(), 91);
+    assert_eq!(
+        read(&execution, &result, &[], scalar()).unwrap(),
+        word(scalar(), 91)
+    );
+    assert_eq!(execution.effects().len(), 1);
+}
+
+fn edit_boundary(
+    execution: &mut TerminalExecution<'_>,
+    update: impl FnOnce(&mut BoundaryMachineDeclaration),
+) {
+    let module = Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .fixture_module_mut();
+    update(&mut module.boundary_machines[0]);
+}
+fn legacy_invocation(execution: &mut TerminalExecution<'_>, referent: u64) {
+    edit_boundary(execution, |boundary| {
+        boundary.result_lifetimes = None;
+        boundary.result_reference_regions = vec![TerminalDynamicReferenceRegion {
+            path: vec![],
+            source_path: vec![],
+            access: StructuralAccess::SharedBorrow,
+            origin: TerminalDynamicReferenceOrigin::Invocation {
+                carrier_type: StructuralTypeId::new(referent).unwrap(),
+            },
+        }];
+    });
+}
+
+#[test]
+fn ordinary_dispatch_refuses_missing_and_forged_provider_frontiers_before_the_handler() {
+    for invalid in 0..5 {
+        let (mut execution, _, result) = fixture();
+        edit_boundary(&mut execution, |boundary| match invalid {
+            0 => boundary.result_lifetimes = None,
+            1 => boundary.result_lifetimes = Some(vec![]),
+            2 => {
+                boundary.result_lifetimes.as_mut().unwrap()[0].results[0] =
+                    vec![StructuralPathSegment::FixedIndex(0)]
+            }
+            3 => boundary.result_lifetimes.as_mut().unwrap()[0]
+                .results
+                .push(vec![]),
+            4 => {
+                let BoundaryMachineResult::Structural(declared) = &mut boundary.result else {
+                    unreachable!()
+                };
+                declared.structural_type = StructuralTypeId::new(1).unwrap();
+            }
+            _ => unreachable!(),
+        });
+        let mut handler = ReferenceHandler {
+            returned: resident(
+                1,
+                vec![(
+                    vec![],
+                    word(scalar(), 37),
+                    scalar(),
+                    backing(word(scalar(), 37)),
+                )],
+            ),
+            calls: 0,
+        };
+        assert!(
+            dispatch(&mut execution, &mut handler).is_err(),
+            "invalid {invalid}"
+        );
+        assert_eq!(
+            handler.calls, 0,
+            "invalid {invalid} must refuse before invoking the provider"
+        );
+        assert!(!execution.structural_values.contains_key(&result.place));
+        assert!(execution.reference_referents.is_empty());
+    }
+}
+
+#[test]
+fn ordinary_dispatch_preserves_materialized_reference_contracts() {
+    for zeroed in [false, true] {
+        for legacy in [false, true] {
+            let (mut execution, _, result) = fixture();
+            if legacy {
+                legacy_invocation(&mut execution, 1);
+            }
+            let TerminalReferencePayload::Resident { aggregate, .. } = resident(
+                1,
+                vec![(
+                    vec![],
+                    word(scalar(), 37),
+                    scalar(),
+                    backing(word(scalar(), 37)),
+                )],
+            )
+            .referent
+            else {
+                unreachable!()
+            };
+            let mut handler = ReferenceHandler {
+                returned: TerminalReferenceResult {
+                    referent: if zeroed {
+                        TerminalReferencePayload::Zeroed
+                    } else {
+                        TerminalReferencePayload::Aggregate(aggregate)
+                    },
+                    references: vec![],
+                },
+                calls: 0,
+            };
+            let outcome = dispatch(&mut execution, &mut handler);
+            assert_eq!(handler.calls, 1);
+            if legacy {
+                assert!(matches!(
+                    outcome.unwrap(),
+                    crate::engine::execution::OperationFlow::Advance
+                ));
+                assert_eq!(
+                    read(&execution, &result, &[], scalar()).unwrap(),
+                    word(scalar(), if zeroed { 0 } else { 37 })
+                );
+            } else {
+                assert!(
+                    outcome.is_err(),
+                    "a canonical lifetime alone must not authorize materialized reference contents"
+                );
+                assert!(!execution.structural_values.contains_key(&result.place));
+                assert!(execution.reference_referents.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_dispatch_refuses_nested_resident_under_a_legacy_materialized_reference() {
+    let (mut execution, _, result, supplied) = nested_reference_fixture();
+    legacy_invocation(&mut execution, 3);
+    let mut handler = ReferenceHandler {
+        returned: supplied,
+        calls: 0,
+    };
+    assert!(dispatch(&mut execution, &mut handler).is_err());
+    assert_eq!(handler.calls, 1);
+    assert!(!execution.structural_values.contains_key(&result.place));
+    assert_eq!(execution.structural_primitive_storage.len(), 0);
+    assert!(execution.reference_referents.is_empty());
+}
+
+struct WaitingReferenceHandler {
+    inner: ReferenceHandler,
+    waiting: bool,
+}
+impl crate::TerminalEffectHandler for WaitingReferenceHandler {
+    fn handle_effect(
+        &mut self,
+        effect: &crate::TerminalEffect,
+    ) -> Result<(), TerminalEffectRejection> {
+        self.inner.handle_effect(effect)
+    }
+    fn handle_effect_result(
+        &mut self,
+        effect: &crate::TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        self.inner.handle_effect_result(effect)
+    }
+    fn poll_host_computation(
+        &mut self,
+        _: &crate::TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(!std::mem::replace(&mut self.waiting, false))
+    }
+}
+#[test]
+fn ordinary_dispatch_resumes_the_same_live_provider_reference_completion() {
+    let (mut execution, _, result) = fixture();
+    let home = backing(word(scalar(), 37));
+    let mut handler = WaitingReferenceHandler {
+        inner: ReferenceHandler {
+            returned: resident(
+                1,
+                vec![(vec![], word(scalar(), 37), scalar(), home.clone())],
+            ),
+            calls: 0,
+        },
+        waiting: true,
+    };
+    assert!(matches!(
+        dispatch(&mut execution, &mut handler).unwrap(),
+        crate::engine::execution::OperationFlow::Yield(
+            crate::TerminalExecutionStatus::HostComputationPending(_)
+        )
+    ));
+    assert_eq!(handler.inner.calls, 0);
+    assert!(!execution.structural_values.contains_key(&result.place));
+    assert!(matches!(
+        dispatch(&mut execution, &mut handler).unwrap(),
+        crate::engine::execution::OperationFlow::Advance
+    ));
+    assert_eq!(handler.inner.calls, 1);
+    *home.value.borrow_mut() = word(scalar(), 91);
+    assert_eq!(
+        read(&execution, &result, &[], scalar()).unwrap(),
+        word(scalar(), 91)
+    );
+    assert_eq!(execution.effects().len(), 1);
 }
