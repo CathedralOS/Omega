@@ -3856,6 +3856,12 @@ pub(crate) mod normalized_identities {
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
             input.record(|input| {
+                let cache_allocation =
+                    compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                        CompositeIndex,
+                    >())
+                    .ok_or_else(|| input.error("type identity cache allocation overflow"))?;
+                input.allocate(cache_allocation)?;
                 Ok(Self {
                     texts: compiler_storage::Record::read(input)?,
                     composites: Default::default(),
@@ -4101,6 +4107,71 @@ pub(crate) mod normalized_identities {
                 .unwrap()
             };
             assert_eq!(encoded(&child), encoded(&independent));
+        }
+
+        #[test]
+        fn identity_decoder_charges_the_empty_shared_cache_before_constructing_it() {
+            fn minimum_allocation<T: compiler_storage::Record>(bytes: &[u8]) -> usize {
+                let mut lower = 0;
+                let mut upper = 4096;
+                assert!(
+                    compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: upper,
+                            ..Default::default()
+                        }
+                    )
+                    .is_ok()
+                );
+                while lower < upper {
+                    let candidate = lower + (upper - lower) / 2;
+                    if compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: candidate,
+                            ..Default::default()
+                        },
+                    )
+                    .is_ok()
+                    {
+                        upper = candidate;
+                    } else {
+                        lower = candidate + 1;
+                    }
+                }
+                lower
+            }
+            let bytes = compiler_storage::encode(&TypeIdentityTable::default(), Default::default())
+                .unwrap();
+            let text_allocation = minimum_allocation::<arena::OwnedTextInterner>(&bytes);
+            let cache_allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                    super::CompositeIndex,
+                >())
+                .unwrap();
+            let required = text_allocation + cache_allocation;
+            assert_eq!(minimum_allocation::<TypeIdentityTable>(&bytes), required);
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required - 1,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+            );
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required,
+                        ..Default::default()
+                    }
+                )
+                .is_ok()
+            );
         }
     }
 
