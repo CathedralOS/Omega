@@ -359,7 +359,7 @@ reaches Console
 crashes Trap
 blocks
 {
-    transition { _ -> block next(resolver_harness, 0, 0, 1) }
+    transition { _ -> block next(resolver_harness, 0u64 as +Trapping, 0u64 as +Trapping, 1u64 as +Trapping) }
 
     machine next(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
@@ -381,7 +381,7 @@ blocks
     }
 
     machine ended() -> HarnessWord {
-        HarnessWord { value: 0, complete: false }
+        HarnessWord { value: 0u64 as +Trapping, complete: false }
     }
 }
 
@@ -456,7 +456,7 @@ crashes Trap
     write_byte(resolver_harness, 83);
     write_byte(resolver_harness, 49);
     write_byte(resolver_harness, 0);
-    write_u64(resolver_harness, 3);
+    write_u64(resolver_harness, 3u64 as +Trapping);
     transition output.accepted {
         true -> accepted_header(resolver_harness, output)
         _ -> rejected_header(resolver_harness, output)
@@ -518,7 +518,7 @@ crashes Trap
         write_byte(resolver_harness, tag);
         write_source_span(resolver_harness, output.diagnostic.source_span);
         write_u64(resolver_harness, output.binding_count as u64 in Trapping);
-        transition { _ -> binding(resolver_harness, output, 0) }
+        transition { _ -> binding(resolver_harness, output, 0u64 as +Trapping) }
     }
 
     machine binding(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
@@ -534,7 +534,7 @@ crashes Trap
     // value, 14 proposition) and two handles.
     machine value_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         write_u64(resolver_harness, output.value_binding_count as u64 in Trapping);
-        transition { _ -> value(resolver_harness, output, 0) }
+        transition { _ -> value(resolver_harness, output, 0u64 as +Trapping) }
     }
 
     machine value(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
@@ -546,7 +546,7 @@ crashes Trap
 
     machine path_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         write_u64(resolver_harness, output.path_binding_count as u64 in Trapping);
-        transition { _ -> path(resolver_harness, output, 0) }
+        transition { _ -> path(resolver_harness, output, 0u64 as +Trapping) }
     }
 
     machine path(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
@@ -558,7 +558,7 @@ crashes Trap
 
     machine requirement_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         write_u64(resolver_harness, output.requirement_count as u64 in Trapping);
-        transition { _ -> requirement(resolver_harness, output, 0) }
+        transition { _ -> requirement(resolver_harness, output, 0u64 as +Trapping) }
     }
 
     machine requirement(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
@@ -572,7 +572,7 @@ crashes Trap
         let binding: ValueBinding = psi::name_resolution_requirement(output, index);
         transition binding {
             ValueBinding::Machine { handle } -> requirement_tag(resolver_harness, output, index, 1, handle)
-            _ -> requirement_tag(resolver_harness, output, index, 0, 0)
+            _ -> requirement_tag(resolver_harness, output, index, 0, 0u64 as +Trapping)
         }
     }
 
@@ -585,7 +585,7 @@ crashes Trap
     machine path_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let path_binding: PathBinding = psi::path_binding(output, index);
         transition path_binding {
-            PathBinding::Unresolved -> path_tag(resolver_harness, output, index, 0, 0)
+            PathBinding::Unresolved -> path_tag(resolver_harness, output, index, 0, 0u64 as +Trapping)
             PathBinding::Machine { handle } -> path_tag(resolver_harness, output, index, 1, handle)
             PathBinding::Domain { item } -> path_tag(resolver_harness, output, index, 2, item)
         }
@@ -600,23 +600,23 @@ crashes Trap
     machine value_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let value_binding: ValueBinding = output.value_bindings[index];
         transition value_binding {
-            ValueBinding::NotAName -> value_tag(resolver_harness, output, index, 0, 0, 0)
-            ValueBinding::Unresolved -> value_tag(resolver_harness, output, index, 1, 0, 0)
-            ValueBinding::Ambiguous -> value_tag(resolver_harness, output, index, 9, 0, 0)
-            ValueBinding::Local { statement } -> value_tag(resolver_harness, output, index, 2, statement, 0)
-            ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0)
-            ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0)
-            ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0)
-            ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0)
+            ValueBinding::NotAName -> value_tag(resolver_harness, output, index, 0, 0u64 as +Trapping, 0u64 as +Trapping)
+            ValueBinding::Unresolved -> value_tag(resolver_harness, output, index, 1, 0u64 as +Trapping, 0u64 as +Trapping)
+            ValueBinding::Ambiguous -> value_tag(resolver_harness, output, index, 9, 0u64 as +Trapping, 0u64 as +Trapping)
+            ValueBinding::Local { statement } -> value_tag(resolver_harness, output, index, 2, statement, 0u64 as +Trapping)
+            ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0u64 as +Trapping)
+            ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0u64 as +Trapping)
+            ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0u64 as +Trapping)
+            ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0u64 as +Trapping)
             ValueBinding::DataCase { item, data_case } -> value_tag(resolver_harness, output, index, 8, item, data_case)
-            ValueBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 10, parameter, 0)
-            ValueBinding::Constant { constant } -> value_tag(resolver_harness, output, index, 11, constant, 0)
-            ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0)
-            ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
-            ValueBinding::ContractReturnedValue { contract } -> value_tag(resolver_harness, output, index, 19, contract, 0)
-            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 20, item, 0)
-            ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
-            ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
+            ValueBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 10, parameter, 0u64 as +Trapping)
+            ValueBinding::Constant { constant } -> value_tag(resolver_harness, output, index, 11, constant, 0u64 as +Trapping)
+            ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0u64 as +Trapping)
+            ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0u64 as +Trapping)
+            ValueBinding::ContractReturnedValue { contract } -> value_tag(resolver_harness, output, index, 19, contract, 0u64 as +Trapping)
+            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 20, item, 0u64 as +Trapping)
+            ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0u64 as +Trapping)
+            ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0u64 as +Trapping)
             ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
             ValueBinding::LayoutQuery { query } -> layout_row(resolver_harness, output, index, query)
         }
@@ -625,15 +625,15 @@ crashes Trap
     // A layout query: 1 `size_of`, 2 `align_of`.
     machine layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
         transition query {
-            LayoutQuery::Size -> value_tag(resolver_harness, output, index, 18, 1, 0)
-            LayoutQuery::Align -> value_tag(resolver_harness, output, index, 18, 2, 0)
+            LayoutQuery::Size -> value_tag(resolver_harness, output, index, 18, 1u64 as +Trapping, 0u64 as +Trapping)
+            LayoutQuery::Align -> value_tag(resolver_harness, output, index, 18, 2u64 as +Trapping, 0u64 as +Trapping)
         }
     }
 
     machine predicate_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, predicate: BytePredicate) {
         let tag: u64 = byte_predicate_tag(predicate);
         let first: u64 in Trapping = tag as u64 in Trapping;
-        transition { _ -> value_tag(resolver_harness, output, index, 17, first, 0) }
+        transition { _ -> value_tag(resolver_harness, output, index, 17, first, 0u64 as +Trapping) }
     }
 
     machine value_tag(
@@ -658,15 +658,15 @@ crashes Trap
     {
         let type_binding: TypeBinding = output.type_bindings[index];
         transition type_binding {
-            TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0)
-            TypeBinding::Ambiguous -> type_row(resolver_harness, output, index, 8, 0)
+            TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0u64 as +Trapping)
+            TypeBinding::Ambiguous -> type_row(resolver_harness, output, index, 8, 0u64 as +Trapping)
             TypeBinding::Builtin { builtin } -> builtin_row(resolver_harness, output, index, builtin)
             TypeBinding::Data { item } -> type_row(resolver_harness, output, index, 2, item)
             TypeBinding::GenericParameter { parameter } -> type_row(resolver_harness, output, index, 3, parameter)
-            TypeBinding::Reference -> type_row(resolver_harness, output, index, 4, 0)
-            TypeBinding::Array -> type_row(resolver_harness, output, index, 5, 0)
-            TypeBinding::Slice -> type_row(resolver_harness, output, index, 6, 0)
-            TypeBinding::Literal -> type_row(resolver_harness, output, index, 7, 0)
+            TypeBinding::Reference -> type_row(resolver_harness, output, index, 4, 0u64 as +Trapping)
+            TypeBinding::Array -> type_row(resolver_harness, output, index, 5, 0u64 as +Trapping)
+            TypeBinding::Slice -> type_row(resolver_harness, output, index, 6, 0u64 as +Trapping)
+            TypeBinding::Literal -> type_row(resolver_harness, output, index, 7, 0u64 as +Trapping)
             TypeBinding::Trait { item } -> type_row(resolver_harness, output, index, 9, item)
             TypeBinding::Conformance { item } -> type_row(resolver_harness, output, index, 10, item)
             TypeBinding::Machine { handle } -> type_row(resolver_harness, output, index, 11, handle)
@@ -682,27 +682,27 @@ crashes Trap
     requires index <= 65535
     {
         transition builtin {
-            BuiltinType::Bool -> type_row(resolver_harness, output, index, 1, 0)
-            BuiltinType::I8 -> type_row(resolver_harness, output, index, 1, 1)
-            BuiltinType::I16 -> type_row(resolver_harness, output, index, 1, 2)
-            BuiltinType::I32 -> type_row(resolver_harness, output, index, 1, 3)
-            BuiltinType::I64 -> type_row(resolver_harness, output, index, 1, 4)
-            BuiltinType::U8 -> type_row(resolver_harness, output, index, 1, 5)
-            BuiltinType::U16 -> type_row(resolver_harness, output, index, 1, 6)
-            BuiltinType::U32 -> type_row(resolver_harness, output, index, 1, 7)
-            BuiltinType::U64 -> type_row(resolver_harness, output, index, 1, 8)
-            BuiltinType::Address -> type_row(resolver_harness, output, index, 1, 9)
-            BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10)
-            BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11)
-            BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12)
-            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 13)
-            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 14)
-            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 15)
-            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 16)
-            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 17)
-            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 18)
-            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 19)
-            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 20)
+            BuiltinType::Bool -> type_row(resolver_harness, output, index, 1, 0u64 as +Trapping)
+            BuiltinType::I8 -> type_row(resolver_harness, output, index, 1, 1u64 as +Trapping)
+            BuiltinType::I16 -> type_row(resolver_harness, output, index, 1, 2u64 as +Trapping)
+            BuiltinType::I32 -> type_row(resolver_harness, output, index, 1, 3u64 as +Trapping)
+            BuiltinType::I64 -> type_row(resolver_harness, output, index, 1, 4u64 as +Trapping)
+            BuiltinType::U8 -> type_row(resolver_harness, output, index, 1, 5u64 as +Trapping)
+            BuiltinType::U16 -> type_row(resolver_harness, output, index, 1, 6u64 as +Trapping)
+            BuiltinType::U32 -> type_row(resolver_harness, output, index, 1, 7u64 as +Trapping)
+            BuiltinType::U64 -> type_row(resolver_harness, output, index, 1, 8u64 as +Trapping)
+            BuiltinType::Address -> type_row(resolver_harness, output, index, 1, 9u64 as +Trapping)
+            BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10u64 as +Trapping)
+            BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11u64 as +Trapping)
+            BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12u64 as +Trapping)
+            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 13u64 as +Trapping)
+            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 14u64 as +Trapping)
+            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 15u64 as +Trapping)
+            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 16u64 as +Trapping)
+            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 17u64 as +Trapping)
+            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 18u64 as +Trapping)
+            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 19u64 as +Trapping)
+            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 20u64 as +Trapping)
         }
     }
 
@@ -744,20 +744,20 @@ crashes Trap
 }
 
 machine write_source_span(resolver_harness: &mut ResolverHarness, source_span: SourceSpan) reaches Console {
-    write_u64(resolver_harness, source_span.source.value as u64 in Trapping);
+    write_u64(resolver_harness, source_span.source.value as -Trapping as u64 +Trapping);
     write_u64(resolver_harness, source_span.span.start);
     write_u64(resolver_harness, source_span.span.end);
 }
 
 machine write_u64(resolver_harness: &mut ResolverHarness, value: u64 in Trapping) reaches Console {
-    write_byte(resolver_harness, (value % 256) as u8);
-    write_byte(resolver_harness, (value / 256 % 256) as u8);
-    write_byte(resolver_harness, (value / 65536 % 256) as u8);
-    write_byte(resolver_harness, (value / 16777216 % 256) as u8);
-    write_byte(resolver_harness, (value / 4294967296 % 256) as u8);
-    write_byte(resolver_harness, (value / 1099511627776 % 256) as u8);
-    write_byte(resolver_harness, (value / 281474976710656 % 256) as u8);
-    write_byte(resolver_harness, (value / 72057594037927936 % 256) as u8);
+    write_byte(resolver_harness, (value % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 256 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 65536 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 16777216 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 4294967296 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 1099511627776 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 281474976710656 % 256) as -Trapping as u8);
+    write_byte(resolver_harness, (value / 72057594037927936 % 256) as -Trapping as u8);
 }
 
 machine write_byte(resolver_harness: &mut ResolverHarness, value: u8) reaches Console {
