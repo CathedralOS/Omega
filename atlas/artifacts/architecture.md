@@ -3,8 +3,7 @@
 In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dotted gray arrows show supporting calls and data. The teal checker marks its verdict.
 
 Use **Current / Proposed** above the drawing to compare the observed compiler
-with the recorded migration plan on the same canvas. Each view remembers its
-camera. Selecting a proposed box opens its contract,
+with the recorded migration plan on the same canvas. Choose a detour under Trace and toggle to Proposed to see its planned repair. Select an operation in the repair note to jump to it. Toggling back restores your position and zoom for that detour. Selecting a proposed box opens its contract,
 plan citation and any unresolved planning obligation. Proposed stages are numbered
 00–10. These are draft ordering numbers, not current crate numbers or a claim
 that the migration is implemented. Every proposed handoff moves forward; each
@@ -14,7 +13,7 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
-The proposed route runs down the canvas. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
+The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
 Follow the main route from START, down each numbered run and across to the next group. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed

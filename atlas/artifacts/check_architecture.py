@@ -55,6 +55,37 @@ def main():
                     trace.select_option(item['id'])
                     assert set(page.locator('.overview-edge.is-traced').evaluate_all("(edges)=>edges.map(e=>e.dataset.edge)"))==set(item['edges'])
                     assert page.locator('.trace-explanation').is_visible()
+                    canvas=page.locator('#compiler-overview')
+                    current_position=canvas.get_attribute('data-camera')
+                    page.get_by_role('button',name='Proposed',exact=True).click()
+                    assert trace.input_value()==item['id']
+                    repair=json.loads(page.locator('#overview-proposed-model').text_content())['repairs'][item['id']]
+                    note=page.locator('.trace-explanation')
+                    assert repair['description'] in note.inner_text()
+                    assert note.get_by_role('link',name='Repair plan').get_attribute('href')==repair['source']
+                    assert set(page.locator('.overview-node.is-traced').evaluate_all(
+                        "(nodes)=>nodes.map(n=>n.dataset.endpoint)"))==set(repair['stops'])
+                    page.emulate_media(reduced_motion='reduce')
+                    if repair['stops']:
+                        note.get_by_role('button').last.click()
+                        last=repair['stops'][-1]
+                        page.wait_for_function("""key=>{
+                            const node=document.querySelector('.connected-scene [data-endpoint="'+key+'"]');
+                            return Math.abs(node.getBoundingClientRect().top -
+                                document.querySelector('.connected-viewport').getBoundingClientRect().top - 22)<2;
+                        }""",arg=last)
+                    proposed_position=canvas.get_attribute('data-camera')
+                    page.get_by_role('button',name='Current',exact=True).click()
+                    assert trace.input_value()==item['id'] and canvas.get_attribute('data-camera')==current_position
+                    page.get_by_role('button',name='Proposed',exact=True).click()
+                    assert canvas.get_attribute('data-camera')==proposed_position,(item['id'],proposed_position,canvas.get_attribute('data-camera'))
+                    page.get_by_role('button',name='Current',exact=True).click()
+                trace.select_option('')
+                page.locator('.connected-jump').select_option('installations')
+                page.get_by_role('button',name='Proposed',exact=True).click()
+                assert trace.input_value()=='handlers'
+                page.get_by_role('button',name='Current',exact=True).click()
+                page.emulate_media(reduced_motion='no-preference')
                 trace.select_option('')
                 page.locator('.connected-jump').select_option('engine')
                 assert page.locator('.connected-detail h3').inner_text()=='Psi interpreter'

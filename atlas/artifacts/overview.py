@@ -348,11 +348,11 @@ def render_scene(model):
             parts.append(f'<text class="current-title" x="{text_x}" y="{y+h/2}" dominant-baseline="central" text-anchor="{anchor}">{esc(title)}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
-            parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')
+            parts.append(f'<text class="stage-title" x="{x+22}" y="{y+36}">{esc(n["title"])}</text>')
             for i,line in enumerate(n.get('notes',[])):
-                parts.append(f'<text class="overview-step-note" x="{x+16}" y="{y+47+i*19}">{esc(line)}</text>')
+                parts.append(f'<text class="overview-step-note" x="{x+22}" y="{y+63+i*24}">{esc(line)}</text>')
             if n['reference']:
-                parts.append(f'<text class="overview-step-note" x="{x+w-12}" y="{y+25}" text-anchor="end">{esc(n["reference"])}</text>')
+                parts.append(f'<text class="overview-step-note" x="{x+22}" y="{y+63+len(n["notes"])*24}">{esc(n["reference"])}</text>')
         parts.append('</a>')
     parts.append('</g>')
     return ''.join(parts)

@@ -165,7 +165,7 @@ templates and build entrypoints have been removed.
 
 The [interactive architecture page](pages/architecture.html) has one connected
 SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
-remembers each view's camera; both support pan, zoom, Find and selection. The proposed graph cites its recorded migration plan, uses its named
+remembers the position and zoom on each side of a detour comparison. Trace shows the code in Current and the planned handoffs in Proposed. The proposed graph cites its recorded migration plan, uses its named
 stages numbered 00–10, and exposes unresolved contracts on
 selection. It remains a proposal, separate from the compiler snapshot.
 
@@ -186,7 +186,7 @@ its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
 `artifacts/proposed.py` defines the recorded proposed contracts and plan citations;
-both models use the same SVG renderer. Proposed stages use the vertical layout in `artifacts/stage_flow.py`. Only one graph is mounted in
+both models use the same SVG renderer. Proposed stages use the column layout in `artifacts/stage_flow.py`. Only one graph is mounted in
 the interactive canvas. The proposed contract list remains readable without JS.
 `artifacts/layout.mjs` places the numbered runs in columns and draws each call and return to its named endpoint.
 `artifacts/connected.js` uses D3 Zoom to move the SVG and highlight connections.

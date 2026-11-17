@@ -10,6 +10,29 @@ PLAN_REVISION = 'd6ea87967106d47eb007b4780c7df2974de8fe37'
 PLAN_PATH = 'atlas/plans/foundation-and-backend.md'
 
 
+# Each entry points at the repair condition in the audited plan and at the
+# operations a reader can inspect on the proposed canvas. The runtime repair
+# names the data to carry but leaves its producing stage open.
+DETOUR_REPAIRS = {
+    'evaluation': (87, ['source-settlement-prepare', 'accepted'],
+        'Source preparation evaluates required invocations inside stage 01. Its result carries the computed values and receipts.'),
+    'policy': (88, ['accepted', 'native-planning-policies'],
+        'Stage 01 settles source choices. Stage 03 computes calling policies from the carried choices and accepted policy code.'),
+    'handlers': (86, ['physical-planning-generated', 'binding-summarize', 'binding-bind'],
+        'Stage 04 builds handler bodies with the rest of the program. Stage 05 measures their resource needs and binds them before encoding.'),
+    'emission': (85, ['native-planning-target', 'encoding-bodies'],
+        'From target lowering onward, each form carries the facts its successor needs. Encoding can consume physical code and those facts directly.'),
+    'callbacks': (89, ['native-planning-closure', 'object-stage-container'],
+        'Native planning closes demand for callback bodies before encoding. Object construction receives the resulting laid-out code.'),
+    'frames': (90, ['encoding-bodies', 'encoding-fixups', 'layout-stage-relax'],
+        'Encoding emits frames, alternatives and fixups together. Layout picks an encoding and patches it.'),
+    'image': (91, ['physical-planning-generated', 'encoding-bodies', 'image-stage-finish'],
+        'Entries and adapters join the physical program in stage 04 and pass through common encoding. The image stage finishes container metadata.'),
+    'runtime-layout': (92, [],
+        'Runtime provisions would consume explicit storage-layout records. The plan leaves the producing stage open. Psi-only execution must still work.'),
+}
+
+
 def proposed_model():
     # Each row is an owner followed by its complete result, on the same spine.
     contracts=[
@@ -73,5 +96,8 @@ def proposed_model():
                intro='Draft stage order. Switch to Current to trace the observed compiler detours. Source and native planning can revisit work.',
                phaseGaps={n['id']:32 for n in nodes if n['role']=='owner'},
                phases=phases,placements=[])
+    audit = 'https://github.com/CathedralOS/Omega/blob/9c3100603b816814610190bf73f78814abefb760/' + PLAN_PATH
+    model['repairs'] = {key: dict(stops=stops, description=description, source=f'{audit}#L{line}')
+                        for key,(line,stops,description) in DETOUR_REPAIRS.items()}
     validate(model)
     return model
