@@ -9,9 +9,14 @@ name = "source_files_to_tokens"
 path = "src/lib.rs"
 
 [dependencies]
+memchr = "2"
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 execution-admission = { path = "../../../foundation/execution-admission" }
 rayon = "1.10"
 source = { path = "../../../foundation/source" }
 tokens = { path = "../../representations/tokens" }
+
+[dev-dependencies]
+syntax-trees = { path = "../../representations/syntax-trees" }
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
