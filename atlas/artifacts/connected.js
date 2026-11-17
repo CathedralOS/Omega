@@ -15,6 +15,9 @@
   const cameras=new Map();
   const detail=root.querySelector('.connected-detail');
   const scale=root.querySelector('.connected-scale');
+  const tracePicker=root.querySelector('.trace-picker');
+  const traceSelect=tracePicker.querySelector('select');
+  const traceNote=root.querySelector('.trace-explanation');
   const jump=root.querySelector('.connected-jump');
   const mini=root.querySelector('.connected-minimap svg');
   const NS='http://www.w3.org/2000/svg';
@@ -78,7 +81,7 @@
   }
   stageSelect.addEventListener('change',()=>visitStage(stageSelect.value));
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
-    const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
+    const k=Math.min(1.2,(viewport.clientWidth-20)/bounds.width,(viewport.clientHeight-20)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
   }
   function focusNode(n){const k=Math.max(0.75,Math.min(1,current.k));move(viewport.clientWidth/2-(n.x+n.width/2)*k,viewport.clientHeight/2-(n.y+n.height/2)*k,k);}
@@ -93,7 +96,32 @@
   }
   function link(text,href,parent){const a=document.createElement('a');a.textContent=text;a.href=href;parent.append(a);return a;}
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
-  function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function clear(){traceNote.hidden=true;traceSelect.value='';selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function traceDetour(id){
+    stopFlight();clear();
+    const trace=model.traces.find(t=>t.id===id);
+    if(!trace){fit();return;}
+    traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
+    const points=[];
+    for(const edgeId of trace.edges){
+      const e=edges.get(edgeId);
+      scene.querySelector(`[data-edge="${e.id}"]`).classList.add('is-traced');
+      for(const key of [e.start,e.end]){
+        scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+        const n=nodes.get(key);points.push(n,{x:n.x+n.width,y:n.y+n.height});
+      }
+      for(const section of e.sections)points.push(...section.points);
+    }
+    traceNote.replaceChildren(trace.description+' ');
+    link('Repair plan','foundation-backend-plan.html#start-with-the-extra-arrows',traceNote);
+    for(const [i,edgeId] of trace.edges.entries()){
+      traceNote.append(' · ');link(trace.edges.length===1?'Source':'Source '+(i+1),edges.get(edgeId).source,traceNote);
+    }
+    traceNote.hidden=false;
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    fit({x:x-24,y:y-32,width:Math.max(...points.map(p=>p.x))-x+48,height:Math.max(...points.map(p=>p.y))-y+64});
+  }
+  traceSelect.addEventListener('change',()=>traceDetour(traceSelect.value));
   function inspect(id,isEdge=false,trigger=null){
     stopFlight();clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
@@ -134,6 +162,7 @@
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
+    tracePicker.hidden=view!=='current';
     stagePicker.hidden=view!=='proposed';
     const help='Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
     root.querySelector('.connected-help').textContent=help;
@@ -158,7 +187,7 @@
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
     const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
+    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else if(view==='current')fit();else start();
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
@@ -167,12 +196,12 @@
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
     stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
-    if(action==='fit')fit();
+    if(action==='fit'){clear();fit();}
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
     if(action==='expand'){
-      const fitted=view==='proposed' && root.dataset.whole==='true';
+      const fitted=root.dataset.whole==='true';
       expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
       control.textContent=expanded?'Collapse':'Expand';
       if(fitted)fit();
@@ -205,8 +234,12 @@
       const t=stagePosition(null);move(t.x,t.y,t.k);
       return;
     }
-    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+    const k=Math.min(1,(viewport.clientWidth-30)/240);move(8,8,k);
   }
-  start();
+  fit();
+  if(location.hash==='#detours'){
+    root.querySelector('[data-camera="expand"]').click();
+    fit();
+  }
   if(location.hash==='#proposed')switchView('proposed');
 })();

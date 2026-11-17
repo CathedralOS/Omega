@@ -32,7 +32,7 @@ class GeometryContracts:
         for edge in self.layout['edges']:
             points=[(p['x'],p['y']) for section in edge['sections'] for p in section['points']]
             for node in nodes.values():
-                if node['role']=='transform' or node['id'] in (edge['start'],edge['end']):
+                if node['id'] in (edge['start'],edge['end']):
                     continue
                 for a,b in zip(points,points[1:]):
                     self.assertFalse(enters(a,b,node), f'{edge["start"]} → {edge["end"]} crosses {node["id"]}')
@@ -125,15 +125,26 @@ class OverviewContracts(GeometryContracts, unittest.TestCase):
                 reached.add(node);pending.extend(neighbors[node]-reached)
         self.assertEqual(reached,set(neighbors))
 
-    def test_the_main_route_starts_at_build_and_runs_down_one_column(self):
+    def test_every_handoff_is_drawn_in_the_landscape_map(self):
         self.assertEqual(self.model['spine'][0],'build')
         self.assertEqual(self.model['spine'][-1],'native-run')
+        self.assertGreater(self.layout['width'],1.8*self.layout['height'])
+        self.assertEqual({e['id'] for e in self.model['edges']},{e['id'] for e in self.layout['edges']})
         nodes={n['id']:n for n in self.layout['nodes']}
-        route=[nodes[key] for key in self.model['spine']]
-        centers=[n['x']+n['width']/2 for n in route]
-        self.assertLess(max(centers)-min(centers),0.1)
-        for a,b in zip(route,route[1:]):
-            self.assertLess(a['y']+a['height'],b['y'])
+        for a,b in zip(self.model['spine'],self.model['spine'][1:]):
+            if nodes[a]['x']==nodes[b]['x']:
+                self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            else:
+                self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])
+
+    def test_repairs_trace_observed_edges_and_leave_runtime_calls_distinct(self):
+        by_id={e['id']:e for e in self.model['edges']}
+        traces={t['id']:[(by_id[i]['start'],by_id[i]['end']) for i in t['edges']] for t in self.model['traces']}
+        self.assertEqual(traces['emission'],[('target','emit')])
+        self.assertEqual(traces['handlers'],[('target','installations'),('installations','native-3')])
+        self.assertEqual(traces['callbacks'],[('objects','callbacks'),('callbacks','compose')])
+        self.assertEqual(traces['runtime-layout'],[('admit','runtime-layout'),('runtime-layout','admit')])
+        self.assertFalse(any(e.get('detour') for e in by_id.values() if 'engine' in (e['start'],e['end'])))
 
     def test_both_numbered_pipelines_are_complete_and_in_order(self):
         for prefix,count in (('psi-',7),('native-',10)):

@@ -1,5 +1,7 @@
 # Interactive architecture
 
+In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dashed teal arrows show supporting calls and data.
+
 Use **Current / Proposed** above the drawing to compare the observed compiler
 with the recorded migration plan on the same canvas. Each view remembers its
 camera. Selecting a proposed box opens its contract,
@@ -14,7 +16,7 @@ revisit operations; internal arrows show dependencies, not one-pass execution.
 
 The proposed route runs down the canvas. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
-Follow the bold route from START, top to bottom. Numbered stages show the
+Follow the main route from START, down each numbered run and across to the next group. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed
 connections show the observed supporting calls and returns; each shared component
 appears once, including the Psi interpreter. Proposed puts compiler evaluation

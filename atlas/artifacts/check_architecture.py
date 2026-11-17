@@ -35,10 +35,16 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
                 start_camera=page.locator('#compiler-overview').get_attribute('data-camera')
                 start_scale=float(page.locator('#compiler-overview').get_attribute('data-scale'))
-                assert 0.5<start_scale<=0.9
+                assert page.locator('#compiler-overview').get_attribute('data-whole')=='true'
                 route=[next(n for n in model['nodes'] if n['id']==key) for key in model['spine']]
                 assert route[0]['id']=='build' and route[-1]['id']=='native-run'
-                assert all(a['y']+a['height']<b['y'] for a,b in zip(route,route[1:]))
+                assert all(a['x']<b['x'] or a['y']+a['height']<b['y'] for a,b in zip(route,route[1:]))
+                trace=page.get_by_label('Trace a pipeline detour')
+                for item in model['traces']:
+                    trace.select_option(item['id'])
+                    assert set(page.locator('.overview-edge.is-traced').evaluate_all("(edges)=>edges.map(e=>e.dataset.edge)"))==set(item['edges'])
+                    assert page.locator('.trace-explanation').is_visible()
+                trace.select_option('')
                 page.locator('.connected-jump').select_option('engine')
                 assert page.locator('.connected-detail h3').inner_text()=='Psi interpreter'
                 assert page.locator('.overview-edge.is-traced').count()==6
@@ -51,7 +57,7 @@ def main():
                 page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.activeElement.className')=='connected-jump'
                 page.locator('[data-camera="fit"]').click()
-                assert float(page.locator('#compiler-overview').get_attribute('data-scale'))<start_scale
+                assert page.locator('#compiler-overview').get_attribute('data-whole')=='true'
                 page.locator('[data-camera="natural"]').click()
                 assert float(page.locator('#compiler-overview').get_attribute('data-scale'))==1
                 viewport=page.locator('.connected-viewport')
@@ -61,7 +67,7 @@ def main():
                 viewport.press('+')
                 assert float(page.locator('#compiler-overview').get_attribute('data-scale'))>1
                 page.locator('[data-camera="start"]').click()
-                assert page.locator('#compiler-overview').get_attribute('data-camera')==start_camera
+                assert float(page.locator('#compiler-overview').get_attribute('data-scale'))>=start_scale
                 assert page.locator('.overview-edge.is-traced').count()==0
                 viewport.press('ArrowDown')
                 current_camera=page.locator('#compiler-overview').get_attribute('data-camera')
