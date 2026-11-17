@@ -3573,7 +3573,7 @@ pub mod evidence_calls {
                 caller.id,
                 use_position,
                 &DescriptorCasePredicate {
-                    subject: DescriptorLocation::whole(result.place),
+                    subject: DescriptorLocation::whole(result.place).into(),
                     case: row.guard.result_case,
                 },
             ) {

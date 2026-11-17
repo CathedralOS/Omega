@@ -3926,6 +3926,54 @@ pub(crate) mod tests {
         }
     }
 
+    #[test]
+    fn source_jobs_execute_case_matches_through_indexed_fields() {
+        let program = program(
+            "data Choice { case A; case B; }
+             data Cell { tag: Choice; }
+             data Table { cells: [Cell; 2]; }
+             machine answer(table: Table, index: u64) -> u64 requires index < 2 {
+                 match table.cells[index].tag {
+                     Choice::A -> 41u64,
+                     Choice::B -> 73u64
+                 }
+             }",
+        );
+        let cell = |variant: &str| BuildTimeValue::Struct {
+            type_name: "Cell".into(),
+            fields: vec![(
+                "tag".into(),
+                BuildTimeValue::Case {
+                    variant: variant.into(),
+                    payload: Vec::new(),
+                },
+            )],
+        };
+        let table = BuildTimeValue::Struct {
+            type_name: "Table".into(),
+            fields: vec![(
+                "cells".into(),
+                BuildTimeValue::Array(vec![cell("A"), cell("B")]),
+            )],
+        };
+        for (index, expected) in [(0, 41), (1, 73)] {
+            assert_eq!(
+                run(
+                    &program,
+                    &[table.clone(), BuildTimeValue::Int(index)],
+                    &mut terminal_work::WorkMeter::unbounded(),
+                )
+                .expect("the selected element's actual case chooses the result"),
+                BuildTimeValue::Int(expected),
+            );
+        }
+        let mut refused = terminal_work::WorkMeter::unbounded();
+        let error = run(&program, &[table, BuildTimeValue::Int(2)], &mut refused)
+            .expect_err("an indexed case still requires its declared index bound");
+        assert!(error.contains("requires"), "{error}");
+        assert_eq!(refused.usage().total_units(), 0);
+    }
+
     // The real interpreter must replace exactly the selected owned element.
     // A neighboring element and sibling field retain their supplied values;
     // the same source still refuses an index beyond its declared extent.

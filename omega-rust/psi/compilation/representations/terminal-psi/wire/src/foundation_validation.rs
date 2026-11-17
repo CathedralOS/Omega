@@ -3142,7 +3142,7 @@ mod empty_elimination_foundations {
                     observed.path.push(match segment {
                         StructuralPathSegment::Case(case) => {
                             if !analysis.case_is_established(machine.id, position, &DescriptorCasePredicate {
-                                subject: observed.clone(),
+                                subject: observed.clone().into(),
                                 case: *case,
                             }) {
                                 return malformed("empty elimination has no current selected case at its source path");

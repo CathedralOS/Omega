@@ -59,7 +59,7 @@ pub mod descriptor_lifetimes {
             pub steps: Vec<DescriptorContentsStep>,
         }
 
-        #[derive(Clone)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum DescriptorFlowSource {
             Location(DescriptorLocation),
             Contents(DescriptorContentsQuery),
@@ -3553,7 +3553,9 @@ pub mod descriptor_results {
             DescriptorFlowSource::from_query(root, query)
         }
 
-        fn descriptor_contents_query_with(
+        /// Capture a typed storage query and its already-selected index terms.
+        /// An unknown index remains an element query rather than a fixed cell.
+        pub fn descriptor_contents_query_with(
             types: &[StructuralTypeDeclaration],
             root: PlaceId,
             root_type: StructuralTypeId,
@@ -14668,9 +14670,10 @@ pub mod descriptor_results {
         DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
         DescriptorContentsTransfer, DescriptorPayloadTarget, DescriptorStoreFlow,
         ElementPayloadMemberships, PayloadMembershipContract, descriptor_contents_query,
-        descriptor_contents_transfers, descriptor_leaf_store, descriptor_scalar_arguments,
-        element_payload_memberships, element_payload_memberships_in, entry_selector,
-        payload_memberships, reference_backing_memberships, terminal_payload_contract,
+        descriptor_contents_query_with, descriptor_contents_transfers, descriptor_leaf_store,
+        descriptor_scalar_arguments, element_payload_memberships, element_payload_memberships_in,
+        entry_selector, payload_memberships, reference_backing_memberships,
+        terminal_payload_contract,
     };
 
     pub(crate) use contents::{
@@ -16765,7 +16768,7 @@ pub mod descriptor_results {
                                 graph.case_constructors.insert(
                                     position,
                                     vec![DescriptorCasePredicate {
-                                        subject: DescriptorLocation::whole(result?.place),
+                                        subject: DescriptorLocation::whole(result?.place).into(),
                                         case: *result_case,
                                     }],
                                 );
@@ -17590,8 +17593,20 @@ pub mod descriptor_results {
                 } = &block.terminator
                 {
                     *failure_detail =
-                        Some("descriptor case terminator has no exact subject location");
-                    let subject = location(*source, path, None)?;
+                        Some("descriptor case terminator has no checked subject projection");
+                    let subject = match location(*source, path, None) {
+                        Some(location) => DescriptorFlowSource::Location(location),
+                        None => DescriptorFlowSource::Contents(
+                            super::contents::descriptor_contents_query_with(
+                                &module.structural_types,
+                                *source,
+                                *graph.place_types.get(source)?,
+                                path,
+                                None,
+                                |value| scalar_expressions.expression(value),
+                            )?,
+                        ),
+                    };
                     graph.case_successors.insert(
                         position,
                         cases
@@ -18560,7 +18575,7 @@ pub mod descriptor_results {
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct DescriptorCasePredicate {
-        pub subject: DescriptorLocation,
+        pub subject: descriptor_lifetimes::DescriptorFlowSource,
         pub case: semantic_vocabulary::StructuralCaseId,
     }
 
@@ -18586,7 +18601,10 @@ pub mod descriptor_results {
             ) else {
                 return Vec::new();
             };
-            predicates.push(DescriptorCasePredicate { subject, case });
+            predicates.push(DescriptorCasePredicate {
+                subject: subject.into(),
+                case,
+            });
         }
         predicates
     }

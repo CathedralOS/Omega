@@ -567,7 +567,8 @@ fn reference_backing_uses(
                         subject: DescriptorLocation {
                             root: slot.root,
                             path: slot.path[..position].to_vec(),
-                        },
+                        }
+                        .into(),
                         case: *case,
                     };
                     if references.case_feasibility(graph.id, *at, &predicate)

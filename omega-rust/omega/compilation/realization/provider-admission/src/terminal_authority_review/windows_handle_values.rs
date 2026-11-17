@@ -727,7 +727,8 @@ impl<'a> HandleValueReader<'a> {
                 subject: DescriptorLocation {
                     root: observed.root,
                     path: observed.path[..ordinal].to_vec(),
-                },
+                }
+                .into(),
                 case: *case,
             };
             if self
