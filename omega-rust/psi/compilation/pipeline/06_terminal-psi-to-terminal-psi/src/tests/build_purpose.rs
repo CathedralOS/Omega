@@ -267,7 +267,7 @@ fn a_build_subject_cannot_hide_a_generic_guarantee_rejection() {
     let rejected = judge_build(&negative);
     assert!(
         matches!(rejected, Ok(RouteVerdict::Rejected { ref unproved, .. })
-            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::PublishedGuarantee { .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
                 && row.cause == UnprovedCause::NoDerivation)),
         "the uncalled generic declaration still owes its guarantee: {rejected:?}"
     );

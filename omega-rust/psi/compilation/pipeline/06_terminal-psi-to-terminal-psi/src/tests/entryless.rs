@@ -107,14 +107,14 @@ fn a_later_generic_guarantee_rejection_prevents_whole_subject_acceptance() {
             .iter()
             .skip(1)
             .any(|part| matches!(part, Ok(RouteVerdict::Rejected { unproved, .. })
-                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::PublishedGuarantee { .. })
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
                     && row.cause == UnprovedCause::NoDerivation))),
         "the generic body must owe its false guarantee: {parts:?}"
     );
     let result = judged_typed_result(&typed, false);
     assert!(
         matches!(result, Ok(RouteVerdict::Rejected { ref unproved, .. })
-            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::PublishedGuarantee { .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
                 && row.cause == UnprovedCause::NoDerivation)),
         "the accepted closure must not hide the generic-body rejection: {result:?}"
     );
