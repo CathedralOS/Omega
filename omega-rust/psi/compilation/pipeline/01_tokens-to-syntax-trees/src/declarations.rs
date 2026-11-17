@@ -713,15 +713,30 @@ pub(crate) mod data {
         Ok((Some(identity), rest))
     }
 
+    // A retired identity starts with both tokens. The same word before a
+    // colon remains a field name in records and case payloads.
+    fn take_retired_identity<'tokens, 'source>(
+        input: Input<'tokens, 'source>,
+    ) -> ParseResult<'tokens, 'source, Option<u64>> {
+        if !input.at_contextual("retired") {
+            return Ok((None, input));
+        }
+        let after_name = input.take_contextual("retired")?;
+        if !after_name.at_punctuation(PunctuationKind::Hash) {
+            return Ok((None, input));
+        }
+        let after_hash = after_name.take_punctuation(PunctuationKind::Hash, "#")?;
+        let (identity, rest) = after_hash.take_identity()?;
+        Ok((Some(identity), rest))
+    }
+
     fn parse_data_member<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
-        mut input: Input<'tokens, 'source>,
+        input: Input<'tokens, 'source>,
     ) -> ParseResult<'tokens, 'source, DataMember> {
-        if input.at_contextual("retired") {
-            input = input.take_contextual("retired")?;
-            input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-            let (identity, input) = input.take_identity()?;
-            let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        let (retired, after_retired) = take_retired_identity(input)?;
+        if let Some(identity) = retired {
+            let input = after_retired.take_punctuation(PunctuationKind::Semicolon, ";")?;
             return Ok((DataMember::Retired(identity), input));
         }
 
@@ -853,10 +868,8 @@ pub(crate) mod data {
 
         let mut retired_identities = Vec::new();
         while !input.at_punctuation(PunctuationKind::RightParen) {
-            if input.at_contextual("retired") {
-                input = input.take_contextual("retired")?;
-                input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-                let (identity, next) = input.take_identity()?;
+            let (retired, next) = take_retired_identity(input)?;
+            if let Some(identity) = retired {
                 retired_identities.push(identity);
                 input = next;
                 if input.at_punctuation(PunctuationKind::Comma) {
