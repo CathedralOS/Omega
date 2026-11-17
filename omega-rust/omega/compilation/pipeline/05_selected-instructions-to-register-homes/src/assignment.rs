@@ -1,9 +1,11 @@
 /*
-We sequence the register-home staging routes invoked by `stage_register_allocation`:
-baseline home custody (`baseline`), transformed homes after completed rewrite
-runs (`transformed`), declared recovery routes (`recovery`), iterative physical
-victim spilling and splitting (`runtime_spill`), and the `PostAllocationOptimizationManifest`
-published by every route (`post_allocation_manifest`).
+We hold the register-home staging `stage_register_allocation` runs: baseline
+home custody (`baseline`), the three allocation procedures a selected recovery
+catalog entry chooses among (`recovery`), iterative physical victim spilling
+and splitting (`runtime_spill`), and the `PostAllocationOptimizationManifest`
+every procedure publishes (`post_allocation_manifest`). The program's Omega 04
+history arrives in its legality stage's `SelectedOptimizationRecord` and enters
+the manifest as evidence; no procedure branches on it.
 */
 
 macro_rules! assignment_context_accessors {
@@ -108,8 +110,7 @@ pub(crate) mod baseline {
             let upstream = legality.custody();
             let manifest = project_post_allocation_optimization_manifest(
                 upstream.manifest(),
-                None,
-                None,
+                legality.record(),
                 &[],
                 legality.ranges(),
                 legality.legality(),
@@ -143,8 +144,10 @@ pub(crate) mod baseline {
             let _environment = reanalysis.register_environment();
             let manifest = project_post_allocation_optimization_manifest(
                 source.source().manifest(),
-                None,
-                None,
+                reanalysis
+                    .transformation_stage()
+                    .source_legality_stage()
+                    .record(),
                 &[PostAllocationSelectedTransformation::FixedViewCopy(
                     source.source().transformation(),
                 )],
@@ -243,6 +246,9 @@ pub(crate) mod baseline {
         pub fn selected(&self) -> SelectedProgramRef<'_> {
             SelectedProgramRef::new(self.legality.selected())
         }
+        pub const fn history(&self) -> &selected_instruction_analyses::SelectedOptimizationRecord {
+            self.legality.record()
+        }
         admitted_stage_accessors!(const pub, legality);
         pub const fn liveness(&self) -> &ValidatedLiveness {
             self.legality.liveness()
@@ -313,6 +319,12 @@ pub(crate) mod baseline {
     impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
         pub const fn selected(&self) -> &MaterializedFixedViewCopies {
             self.reanalysis.transformation_stage().copies()
+        }
+        pub fn history(&self) -> &selected_instruction_analyses::SelectedOptimizationRecord {
+            self.reanalysis
+                .transformation_stage()
+                .source_legality_stage()
+                .record()
         }
         admitted_stage_accessors!(const pub, reanalysis);
         pub const fn liveness(&self) -> &ValidatedLiveness {
@@ -523,13 +535,12 @@ pub(crate) mod post_allocation_manifest {
         }
     }
 
-    use optimization_core::{
-        PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
-        SelectedLoweringOptimizationCompletionIdentity,
-    };
+    use optimization_core::PrePhysicalOptimizationManifestIdentity;
 
     use crate::AssignedRegisterHomes;
-    use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
+    use selected_instruction_analyses::{
+        SelectedOptimizationRecord, ValidatedAllocationLegality, ValidatedLiveRanges,
+    };
 
     pub use register_homes::post_allocation_manifest::{
         PostAllocationManifestStage, PostAllocationOptimizationManifest,
@@ -538,11 +549,13 @@ pub(crate) mod post_allocation_manifest {
         PostAllocationUnavailableData,
     };
 
+    /// The allocation manifest: the program's Omega 04 `history` followed by
+    /// the `recovery` rewrites allocation applied, and the final analyses and
+    /// homes. Every allocation path projects its manifest here.
     pub(crate) fn project_post_allocation_optimization_manifest(
         pre_physical: PrePhysicalOptimizationManifestIdentity,
-        selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
-        pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
-        selected_transformations: &[PostAllocationSelectedTransformation],
+        history: &SelectedOptimizationRecord,
+        recovery: &[PostAllocationSelectedTransformation],
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
         homes: &AssignedRegisterHomes,
@@ -550,9 +563,9 @@ pub(crate) mod post_allocation_manifest {
     {
         let record = reconstruction::expected_record(
             pre_physical,
-            selected_lowering_completion,
-            pre_allocation_completion,
-            selected_transformations,
+            history.selected_lowering_completion,
+            history.pre_allocation_completion,
+            &history.followed_by(recovery),
             ranges,
             legality,
             homes,
@@ -572,8 +585,14 @@ pub(crate) mod post_allocation_manifest {
     }
 }
 pub(crate) mod recovery {
+    // The three allocation procedures. `stage_register_allocation` runs the
+    // one the selected allocation-recovery catalog entry names, or plain
+    // assignment when none is selected. Each procedure falls back to runtime
+    // spilling when register pressure remains, and none depends on which
+    // Omega 04 phase produced its input: that history is in the legality
+    // stage's record and reaches the manifest unchanged.
     use crate::FixedViewCopyPolicy;
-    use crate::{PreAllocationResult, SelectedLoweringResult};
+    use crate::output::StagedAllocation;
     use crate::{
         PressureRematerializationPolicy, StagedOptimizedSelectedReanalysis,
         probe_optimized_fixed_precolored_segment_homes,
@@ -581,14 +600,32 @@ pub(crate) mod recovery {
         stage_optimized_selected_reanalysis,
     };
     use crate::{
-        RegisterAllocationError, RetainedAllocation,
-        stage_optimized_active_resident_rematerialization_pressure,
+        RegisterAllocationError, stage_optimized_active_resident_rematerialization_pressure,
     };
     use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
-    use selected_instruction_analyses::{
-        StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
-        stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    };
+    use selected_instruction_analyses::StagedOptimizedAllocationLegality;
+
+    /// Assign homes directly; spill and split at run time when pressure
+    /// leaves values without a register.
+    pub(crate) fn assign_with_runtime_recovery(
+        legality: StagedOptimizedAllocationLegality,
+    ) -> Result<StagedAllocation, RegisterAllocationError> {
+        let mut home_reuse =
+            crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
+        match crate::assignment::runtime_spill::assign_source_reusing(&legality, &mut home_reuse) {
+            Ok(homes) => Ok(StagedAllocation::Homes(
+                crate::assignment::baseline::stage_register_homes_with_assignment(legality, homes)
+                    .map_err(RegisterAllocationError::Homes)?,
+            )),
+            Err(error) if error.admits_runtime_recovery() => Ok(StagedAllocation::RuntimeSpill(
+                crate::assignment::runtime_spill::recover_with_reuse(legality, home_reuse)
+                    .map_err(RegisterAllocationError::RuntimeSpill)?,
+            )),
+            Err(error) => Err(RegisterAllocationError::Homes(
+                crate::OptimizedRegisterHomeCustodyError::Assignment(error),
+            )),
+        }
+    }
 
     fn fixed_view_reanalysis(
         legality: StagedOptimizedAllocationLegality,
@@ -602,10 +639,12 @@ pub(crate) mod recovery {
         stage_optimized_selected_reanalysis(copies).map_err(RegisterAllocationError::Reanalysis)
     }
 
-    fn fixed_view_allocation(
+    /// Split fixed-register conflicts with explicit copies under `policy`,
+    /// then assign homes.
+    pub(crate) fn fixed_view_allocation(
         legality: StagedOptimizedAllocationLegality,
         policy: FixedViewCopyPolicy,
-    ) -> Result<RetainedAllocation, RegisterAllocationError> {
+    ) -> Result<StagedAllocation, RegisterAllocationError> {
         if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
             let budget = legality.budget_per_pass();
             if probe_optimized_fixed_precolored_segment_homes(&legality, budget)
@@ -613,131 +652,68 @@ pub(crate) mod recovery {
                 .and_then(|error| error.capacity_decline())
                 .is_some()
             {
-                return RetainedAllocation::try_from(
+                return Ok(StagedAllocation::RuntimeSpill(
                     crate::assignment::runtime_spill::recover_after_declined_fixed_view_probe(
-                        legality, policy,
+                        legality,
                     )
                     .map_err(RegisterAllocationError::RuntimeSpill)?,
-                )
-                .map_err(RegisterAllocationError::Admission);
+                ));
             }
         }
         let reanalysis = fixed_view_reanalysis(legality, policy)?;
         match crate::assignment::baseline::assign_optimized_register_homes_after_fixed_view_copies(
             &reanalysis,
         ) {
-            Ok(homes) => RetainedAllocation::try_from(
+            Ok(homes) => Ok(StagedAllocation::FixedViewHomes(
                 crate::assignment::baseline::stage_register_homes_after_fixed_view_copies_with_assignment(
                     reanalysis,
                     homes,
                 )
                 .map_err(RegisterAllocationError::FixedViewHomes)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
+            )),
+            Err(error) if error.admits_runtime_recovery() => Ok(StagedAllocation::RuntimeSpill(
                 crate::assignment::runtime_spill::recover_after_fixed_view_copies(reanalysis)
                     .map_err(RegisterAllocationError::RuntimeSpill)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
+            )),
             Err(error) => Err(RegisterAllocationError::FixedViewHomes(
                 crate::OptimizedPostCopyRegisterHomeCustodyError::Assignment(error),
             )),
         }
     }
 
-    pub(crate) fn stage_shared_entry_fixed_view_register_allocation(
+    /// Rematerialize a chosen active-resident immediate before its uses under
+    /// the given policies, then assign homes.
+    pub(crate) fn pressure_rematerialization_allocation(
         legality: StagedOptimizedAllocationLegality,
-    ) -> Result<RetainedAllocation, RegisterAllocationError> {
-        fixed_view_allocation(
-            legality,
-            FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-        )
-    }
-
-    pub(crate) fn stage_active_resident_register_allocation(
-        ranges: StagedOptimizedLiveRanges,
-    ) -> Result<RetainedAllocation, RegisterAllocationError> {
-        let budget = ranges.budget_per_pass();
-        let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges).map_err(RegisterAllocationError::Legality)?;
+        choice: SpillChoicePolicy,
+        classification: RecoveryClassificationPolicy,
+        rematerialization: PressureRematerializationPolicy,
+    ) -> Result<StagedAllocation, RegisterAllocationError> {
+        let budget = legality.budget_per_pass();
         let pressure = stage_optimized_active_resident_rematerialization_pressure(
             legality,
-            SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
-            RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            choice,
+            classification,
+            rematerialization,
             budget,
-        ).map_err(RegisterAllocationError::Rematerialization)?;
+        )
+        .map_err(RegisterAllocationError::Rematerialization)?;
         let environment = pressure.source().register_environment();
         match crate::assign_register_homes(pressure.legality(), pressure.ranges(), environment) {
-            Ok(homes) => RetainedAllocation::try_from(
+            Ok(homes) => Ok(StagedAllocation::Rematerialized(
                 crate::rewrites::complete_optimized_active_resident_rematerialization(
                     pressure, homes,
                 )
                 .map_err(RegisterAllocationError::Rematerialization)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
+            )),
+            Err(error) if error.admits_runtime_recovery() => Ok(StagedAllocation::RuntimeSpill(
                 crate::assignment::runtime_spill::recover_after_active_resident_rematerialization(
                     pressure,
                 )
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
+            )),
             Err(error) => Err(RegisterAllocationError::Rematerialization(
                 crate::OptimizedActiveResidentRematerializationError::Homes(error),
-            )),
-        }
-    }
-
-    pub(crate) fn stage_selected_lowering_register_allocation(
-        run: SelectedLoweringResult,
-    ) -> Result<RetainedAllocation, RegisterAllocationError> {
-        let mut home_reuse =
-            crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
-        match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
-            &run,
-            Some(&mut home_reuse),
-        ) {
-            Ok(homes) => RetainedAllocation::try_from(
-                crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering_with_assignment(run, homes)
-                    .map_err(RegisterAllocationError::TransformedHomes)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
-                crate::assignment::runtime_spill::recover_after_selected_lowering_with_reuse(
-                    run, home_reuse,
-                )
-                .map_err(RegisterAllocationError::RuntimeSpill)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) => Err(RegisterAllocationError::TransformedHomes(
-                crate::OptimizedPostSelectedLoweringHomeCustodyError::Assignment(error),
-            )),
-        }
-    }
-
-    pub(crate) fn stage_pre_allocation_register_allocation(
-        run: PreAllocationResult,
-    ) -> Result<RetainedAllocation, RegisterAllocationError> {
-        let mut home_reuse =
-            crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
-        match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(
-            &run,
-            Some(&mut home_reuse),
-        ) {
-            Ok(homes) => RetainedAllocation::try_from(
-                crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation_with_assignment(run, homes)
-                    .map_err(RegisterAllocationError::PreAllocationHomes)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) if error.admits_runtime_recovery() => RetainedAllocation::try_from(
-                crate::assignment::runtime_spill::recover_after_pre_allocation_with_reuse(
-                    run, home_reuse,
-                )
-                .map_err(RegisterAllocationError::RuntimeSpill)?,
-            )
-            .map_err(RegisterAllocationError::Admission),
-            Err(error) => Err(RegisterAllocationError::PreAllocationHomes(
-                crate::OptimizedPostPreAllocationHomeCustodyError::Assignment(error),
             )),
         }
     }
@@ -751,16 +727,12 @@ pub(crate) mod runtime_spill {
         };
         use crate::assignment::home_assignment::compute::FunctionHomeReuse;
         use crate::{
-            FixedViewCopyPolicy, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
-            ValidatedSelectedAnalysis,
-        };
-        use crate::{PreAllocationResult, SelectedLoweringResult};
-        use crate::{
             RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedSelectedReanalysis,
             materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
             spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
             split_selected_runtime_value,
         };
+        use crate::{ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis};
         use optimization_core::OptimizationWorkBudget;
         use register_homes::PostAllocationSelectedTransformation;
         use selected_instruction_analyses::SelectedProgramView;
@@ -1584,10 +1556,9 @@ pub(crate) mod runtime_spill {
 
         pub(crate) fn recover_after_declined_fixed_view_probe(
             legality: StagedOptimizedAllocationLegality,
-            policy: FixedViewCopyPolicy,
         ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
             recover_over(
-                RuntimeSpillSource::DeclinedFixedView { legality, policy },
+                RuntimeSpillSource::DeclinedFixedView(legality),
                 FunctionHomeReuse::default(),
             )
         }
@@ -1601,20 +1572,6 @@ pub(crate) mod runtime_spill {
             )
         }
 
-        pub(crate) fn recover_after_selected_lowering_with_reuse(
-            run: SelectedLoweringResult,
-            home_reuse: FunctionHomeReuse,
-        ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-            recover_over(RuntimeSpillSource::SelectedLowering(run), home_reuse)
-        }
-
-        pub(crate) fn recover_after_pre_allocation_with_reuse(
-            run: PreAllocationResult,
-            home_reuse: FunctionHomeReuse,
-        ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-            recover_over(RuntimeSpillSource::PreAllocation(run), home_reuse)
-        }
-
         fn project_recovery_manifest(
             base: &RuntimeSpillManifestBase,
             recorded: &[PostAllocationSelectedTransformation],
@@ -1625,8 +1582,7 @@ pub(crate) mod runtime_spill {
         {
             crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
                 base.pre_physical,
-                base.selected_lowering_completion,
-                base.pre_allocation_completion,
+                &base.history,
                 &transformations(&base.prefix, recorded),
                 ranges,
                 legality,
@@ -2357,27 +2313,22 @@ pub(crate) mod runtime_spill {
         StagedOptimizedSelectedReanalysis,
     };
     use crate::{
-        FixedViewCopyPolicy, ValidatedFixedOccurrences, ValidatedRuntimeRematerialization,
-        ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+        ValidatedFixedOccurrences, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+        ValidatedRuntimeSplit,
     };
-    use crate::{PreAllocationResult, SelectedLoweringResult};
-    use optimization_core::{
-        PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
-        SelectedLoweringOptimizationCompletionIdentity,
-    };
+    use optimization_core::PrePhysicalOptimizationManifestIdentity;
     pub(crate) use recovery::{
         assign_source_reusing, recover_after_active_resident_rematerialization,
         recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
-        recover_after_pre_allocation_with_reuse, recover_after_selected_lowering_with_reuse,
         recover_with_reuse,
     };
     use register_homes::{
         PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
     };
     use selected_instruction_analyses::{
-        AllocationLegalityError, LiveRangeError, LivenessError, SelectedProgramRef,
-        StagedOptimizedAllocationLegality, ValidatedAllocationLegality, ValidatedLiveRanges,
-        ValidatedLiveness,
+        AllocationLegalityError, LiveRangeError, LivenessError, SelectedOptimizationRecord,
+        SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedAllocationLegality,
+        ValidatedLiveRanges, ValidatedLiveness,
     };
     use selected_instructions::SelectedInstructionPlan;
 
@@ -2390,33 +2341,23 @@ pub(crate) mod runtime_spill {
         pub(crate) manifest: ValidatedPostAllocationOptimizationManifest,
     }
 
-    impl RuntimeSpillAllocation {
-        pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
-            self.source.recovery_prefix_selection()
-        }
-    }
-
     #[derive(Debug)]
     pub(crate) enum RuntimeSpillSource {
         Legality(StagedOptimizedAllocationLegality),
-        DeclinedFixedView {
-            legality: StagedOptimizedAllocationLegality,
-            policy: FixedViewCopyPolicy,
-        },
+        DeclinedFixedView(StagedOptimizedAllocationLegality),
         FixedViewCopies(StagedOptimizedSelectedReanalysis),
         ActiveResidentRematerialization(
             crate::StagedOptimizedActiveResidentRematerializationPressure,
         ),
-        SelectedLowering(SelectedLoweringResult),
-        PreAllocation(PreAllocationResult),
     }
 
+    /// What every runtime-spill manifest starts from: the pre-physical
+    /// manifest, the program's Omega 04 history, and the recovery rewrites
+    /// allocation applied before it started spilling.
     #[derive(Debug)]
     pub(crate) struct RuntimeSpillManifestBase {
         pub(crate) pre_physical: PrePhysicalOptimizationManifestIdentity,
-        pub(crate) selected_lowering_completion:
-            Option<SelectedLoweringOptimizationCompletionIdentity>,
-        pub(crate) pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
+        pub(crate) history: SelectedOptimizationRecord,
         pub(crate) prefix: Vec<PostAllocationSelectedTransformation>,
     }
 
@@ -2432,129 +2373,62 @@ pub(crate) mod runtime_spill {
     impl RuntimeSpillSource {
         fn legality_stage(&self) -> &StagedOptimizedAllocationLegality {
             match self {
-                Self::Legality(source) => source,
-                Self::DeclinedFixedView { legality, .. } => legality,
+                Self::Legality(source) | Self::DeclinedFixedView(source) => source,
                 Self::FixedViewCopies(reanalysis) => {
                     reanalysis.transformation_stage().source_legality_stage()
                 }
                 Self::ActiveResidentRematerialization(pressure) => pressure.source(),
-                Self::SelectedLowering(run) => run.source_legality_stage(),
-                Self::PreAllocation(run) => run.source_legality_stage(),
             }
         }
 
         admitted_stage_accessors!(fn pub(crate), legality_stage);
 
-        pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
-            match self {
-                Self::ActiveResidentRematerialization(_) => {
-                    Some(optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
-                }
-                Self::DeclinedFixedView { policy, .. } => declared_shared_entry_selection(*policy),
-                Self::FixedViewCopies(reanalysis) => {
-                    declared_shared_entry_selection(reanalysis.custody().source().policy())
-                }
-                Self::Legality(_) | Self::SelectedLowering(_) | Self::PreAllocation(_) => None,
-            }
+        pub(crate) fn history(&self) -> &SelectedOptimizationRecord {
+            self.legality_stage().record()
         }
 
         pub(crate) fn resolve(&self) -> ResolvedSpillSource<'_> {
+            let legality_stage = self.legality_stage();
+            let manifest = |prefix| RuntimeSpillManifestBase {
+                pre_physical: legality_stage.custody().manifest(),
+                history: legality_stage.record().clone(),
+                prefix,
+            };
             match self {
-                Self::Legality(legality) | Self::DeclinedFixedView { legality, .. } => {
+                Self::Legality(legality) | Self::DeclinedFixedView(legality) => {
                     ResolvedSpillSource {
-                        legality_stage: legality,
+                        legality_stage,
                         base: SelectedProgramRef::new(legality.selected()),
                         liveness: legality.liveness(),
                         ranges: legality.ranges(),
                         legality: legality.legality(),
-                        manifest: RuntimeSpillManifestBase {
-                            pre_physical: legality.custody().manifest(),
-                            selected_lowering_completion: None,
-                            pre_allocation_completion: None,
-                            prefix: Vec::new(),
-                        },
+                        manifest: manifest(Vec::new()),
                     }
                 }
-                Self::FixedViewCopies(reanalysis) => {
-                    let upstream = reanalysis.custody();
-                    ResolvedSpillSource {
-                        legality_stage: reanalysis.transformation_stage().source_legality_stage(),
-                        base: SelectedProgramRef::new(reanalysis.transformation_stage().copies()),
-                        liveness: reanalysis.liveness(),
-                        ranges: reanalysis.ranges(),
-                        legality: reanalysis.legality(),
-                        manifest: RuntimeSpillManifestBase {
-                            pre_physical: upstream.source().manifest(),
-                            selected_lowering_completion: None,
-                            pre_allocation_completion: None,
-                            prefix: vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                                upstream.source().transformation(),
-                            )],
-                        },
-                    }
-                }
-                Self::ActiveResidentRematerialization(pressure) => {
-                    let upstream = pressure.custody();
-                    ResolvedSpillSource {
-                        legality_stage: pressure.source(),
-                        base: SelectedProgramRef::new(pressure.rematerialization()),
-                        liveness: pressure.liveness(),
-                        ranges: pressure.ranges(),
-                        legality: pressure.legality(),
-                        manifest: RuntimeSpillManifestBase {
-                            pre_physical: upstream.source().manifest(),
-                            selected_lowering_completion: None,
-                            pre_allocation_completion: None,
-                            prefix: vec![
-                                PostAllocationSelectedTransformation::PressureRematerialization(
-                                    upstream.rematerialization(),
-                                ),
-                            ],
-                        },
-                    }
-                }
-                Self::SelectedLowering(run) => {
-                    let upstream = run.ledger();
-                    ResolvedSpillSource {
-                        legality_stage: run.source_legality_stage(),
-                        base: run.current(),
-                        liveness: run.liveness(),
-                        ranges: run.ranges(),
-                        legality: run.legality(),
-                        manifest: RuntimeSpillManifestBase {
-                            pre_physical: upstream.source().manifest(),
-                            selected_lowering_completion: Some(upstream.identity()),
-                            pre_allocation_completion: None,
-                            prefix: upstream.transformations().to_vec(),
-                        },
-                    }
-                }
-                Self::PreAllocation(run) => {
-                    let upstream = run.ledger();
-                    ResolvedSpillSource {
-                        legality_stage: run.source_legality_stage(),
-                        base: run.current(),
-                        liveness: run.liveness(),
-                        ranges: run.ranges(),
-                        legality: run.legality(),
-                        manifest: RuntimeSpillManifestBase {
-                            pre_physical: upstream.source().manifest(),
-                            selected_lowering_completion: None,
-                            pre_allocation_completion: Some(upstream.identity()),
-                            prefix: upstream.transformations().to_vec(),
-                        },
-                    }
-                }
+                Self::FixedViewCopies(reanalysis) => ResolvedSpillSource {
+                    legality_stage,
+                    base: SelectedProgramRef::new(reanalysis.transformation_stage().copies()),
+                    liveness: reanalysis.liveness(),
+                    ranges: reanalysis.ranges(),
+                    legality: reanalysis.legality(),
+                    manifest: manifest(vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                        reanalysis.custody().source().transformation(),
+                    )]),
+                },
+                Self::ActiveResidentRematerialization(pressure) => ResolvedSpillSource {
+                    legality_stage,
+                    base: SelectedProgramRef::new(pressure.rematerialization()),
+                    liveness: pressure.liveness(),
+                    ranges: pressure.ranges(),
+                    legality: pressure.legality(),
+                    manifest: manifest(vec![
+                        PostAllocationSelectedTransformation::PressureRematerialization(
+                            pressure.custody().rematerialization(),
+                        ),
+                    ]),
+                },
             }
         }
-    }
-
-    fn declared_shared_entry_selection(
-        policy: FixedViewCopyPolicy,
-    ) -> Option<optimization_core::Optimization> {
-        (policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).then_some(
-            optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-        )
     }
 
     #[derive(Debug)]
@@ -2757,296 +2631,4 @@ pub(crate) mod same_home {
         }
         position
     }
-}
-pub(crate) mod transformed {
-    pub(crate) mod construction {
-        use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-        use crate::{AssignedRegisterHomes, RegisterHomeError};
-
-        use crate::{
-            PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger,
-            SelectedLoweringResult,
-        };
-
-        use super::projection::{
-            pre_allocation_final_analysis, pre_allocation_transformations,
-            selected_lowering_final_analysis, selected_lowering_transformations,
-        };
-        use super::{
-            OptimizedPostPreAllocationHomeCustodyError,
-            OptimizedPostSelectedLoweringHomeCustodyError,
-            StagedOptimizedRegisterHomesAfterPreAllocation,
-            StagedOptimizedRegisterHomesAfterSelectedLowering,
-        };
-
-        pub(crate) fn assign_register_homes_after_pre_allocation(
-            run: &PreAllocationResult,
-            reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
-        ) -> Result<AssignedRegisterHomes, RegisterHomeError> {
-            let (ranges, legality) = pre_allocation_final_analysis(run);
-            let environment = run.source_legality_stage().register_environment();
-            crate::assignment::home_assignment::assign_register_homes_reusing(
-                legality,
-                ranges,
-                environment,
-                reuse,
-            )
-        }
-
-        pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
-            run: PreAllocationResult,
-            homes: AssignedRegisterHomes,
-        ) -> Result<
-            StagedOptimizedRegisterHomesAfterPreAllocation,
-            OptimizedPostPreAllocationHomeCustodyError,
-        > {
-            let source = run.ledger().clone();
-            finish_register_homes_after_pre_allocation(run, source, homes)
-        }
-
-        fn finish_register_homes_after_pre_allocation(
-            run: PreAllocationResult,
-            source: PreAllocationLedger,
-            homes: AssignedRegisterHomes,
-        ) -> Result<
-            StagedOptimizedRegisterHomesAfterPreAllocation,
-            OptimizedPostPreAllocationHomeCustodyError,
-        > {
-            let (ranges, legality) = pre_allocation_final_analysis(&run);
-            let transformations = pre_allocation_transformations(&source);
-            let manifest = project_post_allocation_optimization_manifest(
-                source.source().manifest(),
-                None,
-                Some(source.identity()),
-                &transformations,
-                ranges,
-                legality,
-                &homes,
-            )
-            .map_err(OptimizedPostPreAllocationHomeCustodyError::Manifest)?;
-            let custody = crate::assignment::PostHomeCustodyReceipt::new(
-                source,
-                homes.receipt(),
-                manifest.record().identity,
-            );
-            Ok(StagedOptimizedRegisterHomesAfterPreAllocation {
-                run,
-                homes,
-                manifest,
-                custody,
-            })
-        }
-
-        pub(crate) fn assign_register_homes_after_selected_lowering(
-            run: &SelectedLoweringResult,
-            reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
-        ) -> Result<AssignedRegisterHomes, RegisterHomeError> {
-            let (ranges, legality) = selected_lowering_final_analysis(run);
-            let environment = run.source_legality_stage().register_environment();
-            crate::assignment::home_assignment::assign_register_homes_reusing(
-                legality,
-                ranges,
-                environment,
-                reuse,
-            )
-        }
-
-        pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
-            run: SelectedLoweringResult,
-            homes: AssignedRegisterHomes,
-        ) -> Result<
-            StagedOptimizedRegisterHomesAfterSelectedLowering,
-            OptimizedPostSelectedLoweringHomeCustodyError,
-        > {
-            let source = run.ledger().clone();
-            finish_register_homes_after_selected_lowering(run, source, homes)
-        }
-
-        fn finish_register_homes_after_selected_lowering(
-            run: SelectedLoweringResult,
-            source: SelectedLoweringLedger,
-            homes: AssignedRegisterHomes,
-        ) -> Result<
-            StagedOptimizedRegisterHomesAfterSelectedLowering,
-            OptimizedPostSelectedLoweringHomeCustodyError,
-        > {
-            let (ranges, legality) = selected_lowering_final_analysis(&run);
-            let transformations = selected_lowering_transformations(&source);
-            let manifest = project_post_allocation_optimization_manifest(
-                source.source().manifest(),
-                Some(source.identity()),
-                None,
-                &transformations,
-                ranges,
-                legality,
-                &homes,
-            )
-            .map_err(OptimizedPostSelectedLoweringHomeCustodyError::Manifest)?;
-            let custody = crate::assignment::PostHomeCustodyReceipt::new(
-                source,
-                homes.receipt(),
-                manifest.record().identity,
-            );
-            Ok(StagedOptimizedRegisterHomesAfterSelectedLowering {
-                run,
-                homes,
-                manifest,
-                custody,
-            })
-        }
-    }
-    pub(crate) mod projection {
-        use register_homes::PostAllocationSelectedTransformation;
-
-        use crate::{
-            PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger,
-            SelectedLoweringResult,
-        };
-        use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
-
-        pub(crate) fn selected_lowering_final_analysis(
-            run: &SelectedLoweringResult,
-        ) -> (&ValidatedLiveRanges, &ValidatedAllocationLegality) {
-            (run.ranges(), run.legality())
-        }
-
-        pub(crate) fn pre_allocation_final_analysis(
-            run: &PreAllocationResult,
-        ) -> (&ValidatedLiveRanges, &ValidatedAllocationLegality) {
-            (run.ranges(), run.legality())
-        }
-
-        pub(crate) fn pre_allocation_transformations(
-            source: &PreAllocationLedger,
-        ) -> Vec<PostAllocationSelectedTransformation> {
-            source.transformations().to_vec()
-        }
-
-        pub(crate) fn selected_lowering_transformations(
-            source: &SelectedLoweringLedger,
-        ) -> Vec<PostAllocationSelectedTransformation> {
-            source.transformations().to_vec()
-        }
-    }
-
-    use crate::{
-        AssignedRegisterHomes, RegisterHomeError, ValidatedPostAllocationOptimizationManifest,
-    };
-    use crate::{
-        PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger, SelectedLoweringResult,
-    };
-    use register_homes::PostAllocationOptimizationManifestError;
-    use selected_instruction_analyses::{
-        SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    };
-
-    use super::PostHomeCustodyReceipt;
-
-    pub(crate) use construction::{
-        assign_register_homes_after_pre_allocation as assign_optimized_register_homes_after_pre_allocation,
-        assign_register_homes_after_selected_lowering as assign_optimized_register_homes_after_selected_lowering,
-        stage_optimized_register_homes_after_pre_allocation_with_assignment,
-        stage_optimized_register_homes_after_selected_lowering_with_assignment,
-    };
-
-    macro_rules! source_evidence_accessors {
-        ($field:ident) => {
-            pub const fn register_environment(
-                &self,
-            ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-                self.$field.source_legality_stage().register_environment()
-            }
-            pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-                self.$field.source_legality_stage().selections()
-            }
-            pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-                self.$field.source_legality_stage().budget_per_pass()
-            }
-            assignment_context_accessors!();
-        };
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct StagedOptimizedRegisterHomesAfterSelectedLowering {
-        run: SelectedLoweringResult,
-        homes: AssignedRegisterHomes,
-        manifest: ValidatedPostAllocationOptimizationManifest,
-        custody: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    }
-
-    impl StagedOptimizedRegisterHomesAfterSelectedLowering {
-        pub fn selected(&self) -> SelectedProgramRef<'_> {
-            self.run.current()
-        }
-        pub fn liveness(&self) -> &ValidatedLiveness {
-            self.run.liveness()
-        }
-        pub fn ranges(&self) -> &ValidatedLiveRanges {
-            self.run.ranges()
-        }
-        pub fn legality(&self) -> &ValidatedAllocationLegality {
-            self.run.legality()
-        }
-        source_evidence_accessors!(run);
-        receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
-            custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-        });
-    }
-
-    pub type StagedOptimizedPostSelectedLoweringHomeCustodyReceipt =
-        PostHomeCustodyReceipt<SelectedLoweringLedger>;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum OptimizedPostSelectedLoweringHomeCustodyError {
-        Assignment(RegisterHomeError),
-        Manifest(PostAllocationOptimizationManifestError),
-        ReceiptMismatch,
-    }
-
-    stage_error_display!(
-        OptimizedPostSelectedLoweringHomeCustodyError,
-        "optimized post-selected-lowering home staging failed"
-    );
-
-    #[derive(Debug)]
-    pub(crate) struct StagedOptimizedRegisterHomesAfterPreAllocation {
-        run: PreAllocationResult,
-        homes: AssignedRegisterHomes,
-        manifest: ValidatedPostAllocationOptimizationManifest,
-        custody: StagedOptimizedPostPreAllocationHomeCustodyReceipt,
-    }
-
-    impl StagedOptimizedRegisterHomesAfterPreAllocation {
-        pub fn selected(&self) -> SelectedProgramRef<'_> {
-            self.run.current()
-        }
-        pub fn liveness(&self) -> &ValidatedLiveness {
-            self.run.liveness()
-        }
-        pub fn ranges(&self) -> &ValidatedLiveRanges {
-            self.run.ranges()
-        }
-        pub fn legality(&self) -> &ValidatedAllocationLegality {
-            self.run.legality()
-        }
-        source_evidence_accessors!(run);
-        receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
-            custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
-        });
-    }
-
-    pub type StagedOptimizedPostPreAllocationHomeCustodyReceipt =
-        PostHomeCustodyReceipt<PreAllocationLedger>;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum OptimizedPostPreAllocationHomeCustodyError {
-        Assignment(RegisterHomeError),
-        Manifest(PostAllocationOptimizationManifestError),
-        ReceiptMismatch,
-    }
-
-    stage_error_display!(
-        OptimizedPostPreAllocationHomeCustodyError,
-        "optimized post-pre-allocation home staging failed"
-    );
 }

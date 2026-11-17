@@ -109,8 +109,10 @@ fn main() {
         let mut obligations = 0;
         for _ in 0..repeats {
             let mut elaboration = input.clone();
+            let mut activity = terminal_psi_to_terminal_psi::ProofSearchActivity::default();
             let start = Instant::now();
-            let result = terminal_psi_to_terminal_psi::discharge(&mut elaboration).unwrap();
+            let result =
+                terminal_psi_to_terminal_psi::discharge(&mut elaboration, &mut activity).unwrap();
             elapsed += start.elapsed();
             obligations = 0;
             for (_, machine) in result.machines.iter() {

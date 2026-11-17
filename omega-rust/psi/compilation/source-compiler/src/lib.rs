@@ -258,7 +258,24 @@ pub(crate) mod source_parsing {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<Vec<SourceContents>, Vec<Diagnostic>> {
         observer.record_result(PsiCompilationStage::SourceParsing, || {
-            source_files_to_tokens::load_sources(frontier, filesystem)
+            let mut loaded = Vec::with_capacity(frontier.len());
+
+            for (path, scope) in frontier {
+                let source = filesystem.read_to_string(&path).map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "failed to read {}: {error}",
+                        path.display()
+                    ))]
+                })?;
+
+                loaded.push(SourceContents {
+                    path,
+                    source,
+                    scope,
+                });
+            }
+
+            Ok(loaded)
         })
     }
 
@@ -523,17 +540,19 @@ pub use source_compilation::{
 };
 
 pub use terminal_production::{
-    AcceptedTerminalSource, BuildCallSite, ConstantRead, DeclaredBoundaryRequirement,
-    PortableTerminalProgram, PreparedTerminalRoots, ProducedBuildProvider,
-    ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
-    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
-    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
-    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
-    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
-    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, ConstantRead,
+    DeclaredBoundaryRequirement, PortableTerminalProgram, PreparedTerminalRoots,
+    ProducedBuildProvider, ProducedTerminalApplication, ProducedTerminalProgram,
+    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalArtifactProductionError,
+    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape, TerminalCallingPolicySelections,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProgramRoots, TerminalSourceCompilation, TerminalSourceSupply,
+    TerminalProgramEntryContractSelection, TerminalProgramRoots, TerminalProviderSelectionInput,
+    TerminalProviderSelections, TerminalSourceCompilation, TerminalSourceSupply,
     TerminalSuppliedRequirement, UnmeasuredProduction,
 };

@@ -8,8 +8,8 @@ use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalScalarAggregateValue,
+    TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
     TerminalScalarValue,
 };
 use terminal_psi::BoundaryMachineDeclaration;
@@ -83,11 +83,11 @@ impl TerminalEffectHandler for IntegerDivisionImport {
             runtime_abi::host_integer_division(numerator, denominator).ok_or_else(|| {
                 TerminalEffectRejection::new("lldiv host unavailable or C quotient undefined")
             })?;
-        Ok(TerminalEffectResult::ScalarAggregate(
-            TerminalScalarAggregateValue {
-                structural_type: self.structural_type,
-                result_case: None,
-                fields: vec![
+        Ok(TerminalEffectResult::Aggregate(
+            TerminalAggregateValue::from_scalars(
+                self.structural_type,
+                None,
+                vec![
                     (
                         vec![Path::Field(self.fields[0])],
                         TerminalScalarValue::Integer {
@@ -103,7 +103,7 @@ impl TerminalEffectHandler for IntegerDivisionImport {
                         },
                     ),
                 ],
-            },
+            ),
         ))
     }
 }

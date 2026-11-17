@@ -5,7 +5,10 @@ name: Post-merge check
 # is active, GitHub keeps only the newest pending push, so a burst of merges
 # is verified as one batch.
 #
-# `post-merge-check` lints the workspace and runs the lowered-route tests;
+# `post-merge-check` lints the workspace, runs the lowered-route tests, and
+# reports (without failing) std portable-call differences across targets that
+# the reviewed baseline lacks and calling-plan placements that disagree with
+# clang;
 # `sample` runs one sample and one program that imports `std`, each natively
 # and in the interpreter; `tests` runs every Rust test in the workspace, only
 # when a run is started by hand with `full` set. `report` writes the verdict
@@ -64,10 +67,43 @@ jobs:
         run: bash tools/xtask/bootstrap-mbx.sh
       - name: Check production dependency boundaries
         run: mbx xtask check-boundary
+      # Observe mode: this lists rows the check would block once it enforces,
+      # and never fails the run (tools/docs/testing.md#library-cross-target-check).
+      - name: Report std cross-target differences (observe only)
+        continue-on-error: true
+        run: |
+          {
+            echo '### std cross-target differences (observe only)'
+            echo
+            echo '```'
+            mbx xtask check-portable-services --observe
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lint every workspace target
         run: mbx clippy --locked --keep-going --workspace --all-targets -- -D warnings
       - name: Check the lowered route's verdicts on fixture programs
         run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics
+      # Report-only until it has run clean on main for a while: it writes what
+      # it would block to the run summary and never fails the run. The test
+      # and its known-mismatch list live in calling-conventions'
+      # src/tests/clang_crosscheck.rs; the runner image ships clang 18.
+      - name: Compare calling plans with clang (report only)
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          if mbx test --locked -p calling-conventions --lib clang_crosscheck -- --ignored --nocapture < /dev/null 2>&1 | tee "$RUNNER_TEMP/clang_crosscheck.txt"; then
+            verdict="nothing to block"
+          else
+            verdict="would block (report only)"
+          fi
+          {
+            echo "## Calling plans against clang: $verdict"
+            echo
+            echo '```'
+            grep -E '^(linux|macos|windows)_|^  |^WOULD BLOCK|^clang cross-check' "$RUNNER_TEMP/clang_crosscheck.txt" || echo "no report; see the step log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # One sample and one `std` program, natively and in the interpreter. It
   # builds `omega` from main's restored warm build, beside the other jobs, so

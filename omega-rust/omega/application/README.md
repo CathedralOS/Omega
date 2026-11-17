@@ -204,8 +204,12 @@ Argument errors exit 64 (`EX_USAGE`) before compilation starts. `omega run`
 has its own statuses: the program's exit status; 200 when compilation or launch
 fails; 202 when compilation stopped at a named private provision
 (`Incomplete`); and 201 when the `--both` interpreter run disagrees or hits a
-runtime or artifact defect. A comparison that cannot run reports `DECLINED`
-and keeps the native status; it never reports agreement.
+runtime or artifact defect; and 204 when `--both` could not compare the two
+runs. That covers a Psi run that ran out of work, waited on the host, returned
+no process result or hit an unsupported construct, and a Psi exit status
+outside 0..=255 that a Unix host shows only as its low byte. Such a run reports
+`DECLINED`; it never reports agreement or reuses the native status. Case runs
+exit 201 if any case diverged, else 204 if any case was declined.
 
 `--engine psi` exits with the interpreted program's own status; 203 when the
 program crashes (the cause is reported, since a process cannot present the

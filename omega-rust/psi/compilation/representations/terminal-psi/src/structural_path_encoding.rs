@@ -7,35 +7,7 @@
 use crate::StructuralPathSegment;
 use semantic_vocabulary::ScalarType;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum SegmentTag {
-    Field = 1,
-    FixedIndex = 2,
-    Referent = 3,
-    FixedRange = 4,
-    RuntimeIndex = 6,
-    Case = 7,
-    RepresentationView = 8,
-    AllElements = 10,
-}
-
-impl SegmentTag {
-    /// Rejects retired tag 5 and tags belonging to enclosing path vocabularies.
-    pub const fn from_byte(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::Field),
-            2 => Some(Self::FixedIndex),
-            3 => Some(Self::Referent),
-            4 => Some(Self::FixedRange),
-            6 => Some(Self::RuntimeIndex),
-            7 => Some(Self::Case),
-            8 => Some(Self::RepresentationView),
-            10 => Some(Self::AllElements),
-            _ => None,
-        }
-    }
-}
+pub use semantic_vocabulary::structural_path_encoding::SegmentTag;
 
 /// Writes one segment without allocating or adding a path-length prefix.
 pub fn encode_structural_path_segment<Output>(

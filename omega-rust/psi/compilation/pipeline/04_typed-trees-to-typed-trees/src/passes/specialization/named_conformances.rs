@@ -91,7 +91,7 @@ pub(super) fn serve(
             .static_operand_from_type_reference(reference)
             .map_err(|reason| Stop::Unserved(Some(reason)))?;
         argument.type_reference = reference;
-        let operand = Operand::read(program, parameter.symbol, &parameter.kind, &argument)?;
+        let operand = Operand::read(program, parameter, &argument)?;
         if operand.is_open(program) {
             return Err(Stop::Unserved(Some(
                 "selected implementation still has an open argument",

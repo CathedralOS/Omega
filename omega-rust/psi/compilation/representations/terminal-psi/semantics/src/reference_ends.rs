@@ -137,6 +137,13 @@ fn validate_call_owners(
                         return Err("reference invocation has a different source operation".into());
                     }
                 }
+                DescriptorInvocationOwner::InvokeNoNormal(edge) => {
+                    if usize::try_from(ordinal).ok() != Some(body.operations.len())
+                        || !matches!(body.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge)
+                    {
+                        return Err("reference invocation has a different source terminator".into());
+                    }
+                }
                 DescriptorInvocationOwner::Cleanup {
                     edge,
                     action_ordinal,
@@ -477,7 +484,8 @@ fn machine_candidates(
                     subject: DescriptorLocation {
                         root: location.root,
                         path: location.path[..position].to_vec(),
-                    },
+                    }
+                    .into(),
                     case: *case,
                 };
                 // A possible payload is not an actual descriptor. Propose an

@@ -40,7 +40,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console + TimeHost {
     {
         main.line[main.pos] = 35;
         Console::write_line(&main.line[..]);
-        Clock::sleep(15);
+        block Clock::sleep(15);
         main.frame = main.frame + 1;
         transition { _ -> block frame_loop(main) }
     }

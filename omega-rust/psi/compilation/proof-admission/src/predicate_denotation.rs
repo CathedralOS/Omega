@@ -623,10 +623,33 @@ fn normalize(
         Proposition::Implication {
             premise,
             conclusion,
-        } => Ok(Proposition::Implication {
-            premise: Box::new(normalize(premise, budget, depth + 1)?),
-            conclusion: Box::new(normalize(conclusion, budget, depth + 1)?),
-        }),
+        } => {
+            let premise = normalize(premise, budget, depth + 1)?;
+            let conclusion = normalize(conclusion, budget, depth + 1)?;
+            // IEEE comparison kinds include their exact logical complements.
+            // Keep that predicate as the canonical leaf, including for NaN;
+            // logical negation never reverses a positive order relation.
+            if conclusion == Proposition::Falsehood
+                && let Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left,
+                    right,
+                } = premise
+            {
+                Ok(Proposition::ScalarIeeeFloatComparison {
+                    kind: kind.negated(),
+                    format,
+                    left,
+                    right,
+                })
+            } else {
+                Ok(Proposition::Implication {
+                    premise: Box::new(premise),
+                    conclusion: Box::new(conclusion),
+                })
+            }
+        }
         other => Ok(other.clone()),
     }
 }
@@ -1514,7 +1537,7 @@ mod value_equality_tests {
     }
 
     #[test]
-    fn literal_ieee_comparison_stays_the_relation() {
+    fn literal_ieee_comparison_keeps_its_predicate_without_deciding_truth() {
         use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
         // Fact validity keeps a closed IEEE relation as that relation. These
         // literals are the cases a Boolean decision would erase: +0 compared
@@ -1545,6 +1568,16 @@ mod value_equality_tests {
                 IeeeFloatValue::Binary32(0x7fc0_0001),
                 Kind::NotLessThan,
             ),
+            (
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                Kind::NotEqual,
+            ),
+            (
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                Kind::NotLessOrEqual,
+            ),
         ];
         let context = PropositionContext::default();
         for (left_bits, right_bits, kind) in relations {
@@ -1564,8 +1597,40 @@ mod value_equality_tests {
             assert_eq!(
                 converted.goal(),
                 &goal,
-                "{format:?} {kind:?} must stay a scalar IEEE comparison"
+                "{format:?} {kind:?} keeps its exact predicate"
             );
+            let negation = Proposition::Implication {
+                premise: Box::new(goal.clone()),
+                conclusion: Box::new(Proposition::Falsehood),
+            };
+            let Proposition::ScalarIeeeFloatComparison {
+                format,
+                left,
+                right,
+                ..
+            } = goal.clone()
+            else {
+                unreachable!()
+            };
+            let complement = Proposition::ScalarIeeeFloatComparison {
+                kind: kind.negated(),
+                format,
+                left,
+                right,
+            };
+            assert_eq!(
+                super::check_predicate_denotations(&context, &negation, &[], &[])
+                    .unwrap()
+                    .goal(),
+                &complement
+            );
+            let proof = ProofNode {
+                conclusion: negation.clone(),
+                rule: ProofRule::PredicateDenotation {
+                    premise: Box::new(assumption_proof(complement.clone(), 0)),
+                },
+            };
+            crate::accept_certificate(&context, &negation, &[complement], &[], &proof).unwrap();
             let truth = ProofNode {
                 conclusion: Proposition::Truth,
                 rule: ProofRule::Primitive(PrimitiveJudgment::Truth),

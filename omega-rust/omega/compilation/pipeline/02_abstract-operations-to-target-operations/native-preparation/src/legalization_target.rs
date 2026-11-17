@@ -652,6 +652,7 @@ pub(crate) mod control_flow {
                     },
                 )),
                 TargetUnitOperation::SelectImplementation { result_home, .. }
+                | TargetUnitOperation::SelectMachine { result_home, .. }
                 | TargetUnitOperation::AtomicAccess {
                     result_home: Some(result_home),
                     ..
@@ -1633,7 +1634,7 @@ pub(crate) mod control_flow {
                             foreign.boundary_entry_plan.clone(),
                             &signature,
                         )
-                        .map_err(|_| LegalizationError::custody())?
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                         .plan()
                         .call
                         .clone(),
@@ -1641,7 +1642,7 @@ pub(crate) mod control_flow {
                             calling_conventions::CallingPolicy::native_for_target(native.target),
                             &signature,
                         )
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                     };
                     psi_edge == expected_edge
                         && boundary == expected_boundary
@@ -2487,6 +2488,9 @@ pub(crate) mod element_view {
                         return Err("representation view has no matching source and target length scale");
                     };
                     match backing.extent {
+                        terminal_semantics::CollectionExtent::Parameter { .. } => {
+                            return Err("view array extent is still a rigid const input");
+                        }
                         terminal_semantics::CollectionExtent::Fixed(count) => {
                             if count.checked_mul(length_scale).is_none() {
                                 return Err("representation view length multiplication overflows");
@@ -2536,6 +2540,9 @@ pub(crate) mod element_view {
                 return Err("borrowed collection cannot supply a static inline window");
             }
             match (byte_window, backing.extent) {
+                (None, terminal_semantics::CollectionExtent::Parameter { .. }) => {
+                    return Err("view array extent is still a rigid const input");
+                }
                 (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length)) => {
                     if !(start <= end && end <= length)
                         || extent != target_operations::TargetViewExtent::Fixed(end - start)
@@ -2573,6 +2580,9 @@ pub(crate) mod element_view {
             };
             let window_start = byte_window.map_or(0, |(start, _)| start);
             let leading: u64 = match backing.extent {
+                terminal_semantics::CollectionExtent::Parameter { .. } => {
+                    return Err("an array extent is still a rigid const input");
+                }
                 terminal_semantics::CollectionExtent::LiveLength { .. } => 8,
                 terminal_semantics::CollectionExtent::Fixed(_)
                 | terminal_semantics::CollectionExtent::StoredLength => 0,
@@ -3249,7 +3259,7 @@ pub(crate) mod hosted_scalar {
                 result: None,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if declarations.next().is_some()
             || !supported
             || psi_operation != expected_operation
@@ -3340,7 +3350,7 @@ pub(crate) mod normalized_foreign {
             },
             |scalar| plan.closed_scalar(scalar),
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if required != *descriptor_input {
             return Err(LegalizationError::custody());
         }
@@ -3373,7 +3383,7 @@ pub(crate) mod normalized_foreign {
             ) {
                 private_ordinals.push(
                     usize::try_from(callback.application.native_ordinal)
-                        .map_err(|_| LegalizationError::custody())?
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                         + binding.dispatch_operand_count(),
                 );
             }
@@ -3470,7 +3480,7 @@ pub(crate) mod normalized_foreign {
                 &signature,
             ),
         }
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if declarations.next().is_some()
             || psi_operation != expected_operation
             || boundary != expected_boundary
@@ -4145,9 +4155,9 @@ pub(crate) mod unit {
                             let layout = unit
                                 .geometry()
                                 .owned_sequence(result.structural_type)
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                             let count = u64::try_from(elements.len())
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                             if count > layout.capacity {
                                 return Err(LegalizationError::custody());
                             }
@@ -4324,7 +4334,7 @@ pub(crate) mod unit {
                                     plan.geometry(),
                                     declaration,
                                 )
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                                 let [source] = structural_arguments.as_slice() else {
                                     return Err(LegalizationError::custody());
                                 };
@@ -4826,6 +4836,45 @@ pub(crate) mod unit {
                                         parameters: &callee.structural_parameters,
                                         sources: &declaration.reference_sources,
                                     },
+                                    structural_arguments,
+                                    expected_result,
+                                    *psi_operation,
+                                    custody,
+                                    plan.geometry(),
+                                )
+                                .map_err(|error| {
+                                    error.attributed(caller.machine, Some(*psi_operation))
+                                })?
+                            }
+                            (
+                                target_operations::TargetStructuralResultContract::Callable(
+                                    declaration,
+                                ),
+                                None,
+                                abstract_operations::AbstractCallTarget::Callable {
+                                    contract, ..
+                                },
+                            ) => {
+                                let contract = plan
+                                    .callables
+                                    .contract(*contract)
+                                    .ok_or(LegalizationError::custody())?;
+                                if contract.result
+                                    != terminal_psi::BoundaryMachineResult::Structural(
+                                        declaration.clone(),
+                                    )
+                                    || !contract.result.matches_operation_result(
+                                        &terminal_psi::OperationResult::Structural(
+                                            expected_result.clone(),
+                                        ),
+                                    )
+                                {
+                                    return Err(LegalizationError::custody());
+                                }
+                                reference_custody::reference_results(
+                                    caller,
+                                    None,
+                                    terminal_semantics::ReferenceCallContract::Callable(contract),
                                     structural_arguments,
                                     expected_result,
                                     *psi_operation,
@@ -5685,7 +5734,7 @@ pub(crate) mod unit {
                         lifecycle.operation,
                         structural_arguments,
                     )
-                    .map_err(|_| LegalizationError::custody())?;
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let (_, retained_result) = result_home
                     .operation_result()
                     .ok_or(LegalizationError::custody())?;
@@ -5732,7 +5781,7 @@ pub(crate) mod unit {
                     .ok_or(LegalizationError::custody())?;
                 let scalar = ScalarType::Integer(
                     semantic_vocabulary::IntegerType::address(64)
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                 );
                 if native.profile != Some(target::TargetProfile::UefiX64)
                     || psi_operation != expected_operation || boundary != expected_boundary
@@ -5784,7 +5833,7 @@ pub(crate) mod unit {
                     &plan.boundary_machines,
                     *boundary,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let [argument] = structural_arguments.as_slice() else {
                     return Err(LegalizationError::custody());
                 };
@@ -5840,6 +5889,39 @@ pub(crate) mod unit {
                             .any(|(identity, source)| identity == value && source == operand) => {}
                     _ => return Err(LegalizationError::custody()),
                 }
+            }
+            (
+                TargetUnitOperation::SelectMachine {
+                    result_home,
+                    descriptor,
+                },
+                AbstractOperation::SelectMachine {
+                    psi_operation,
+                    result,
+                    descriptor: expected_descriptor,
+                },
+            ) => {
+                let selected = plan
+                    .callables
+                    .descriptor(*descriptor)
+                    .ok_or(LegalizationError::custody())?;
+                let expected = target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: crate::legalization::scalar_graph_input::scalar_shape(
+                        result.scalar_type,
+                    )
+                    .ok_or(LegalizationError::custody())?,
+                };
+                if result.scalar_type
+                    != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                    || result_home != &expected
+                    || descriptor != expected_descriptor
+                {
+                    return Err(LegalizationError::custody());
+                }
+                sources.push((result.value, Source::Home(*result_home)));
             }
             (
                 TargetUnitOperation::SelectImplementation { result_home, table },

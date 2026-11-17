@@ -17,6 +17,11 @@
     resolution verifies that neither `build.omg` nor `omega.lock` changed
     concurrently and routes the authored entry through invocation-owned source
     inputs without live-read permission or persistent snapshot copies.
+
+    With a lock, opening source acquisitions refuses a changed compiler before
+    any Build runs, and the acquisitions hold every Build activation and
+    dependency request to the lock's exact sources. An edited or switched Build
+    therefore never runs its effects ahead of the stale-lock refusal.
 */
 
 /*
@@ -358,6 +363,16 @@ impl LocalProjectPreparation {
                 ));
             }
         }
+        if self.accepted.is_some() {
+            let compiler = super::accepted_compilation::compiler_input_identity()
+                .map_err(PrepareLocalProjectError::Locked)?;
+            for target in &self.targets {
+                if let Ok(Some(section)) = &target.accepted {
+                    super::accepted_compilation::require_current_compiler(section, compiler)
+                        .map_err(PrepareLocalProjectError::Locked)?;
+                }
+            }
+        }
         let acquisition = if self.offline {
             GitExactRevisionAcquisition::Offline
         } else {
@@ -367,7 +382,7 @@ impl LocalProjectPreparation {
             .map(|source| GitDependencyPins::new(source, &[], acquisition))
             .transpose()
             .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?;
-        Ok(crate::resolution::source::BuildSourceAcquisitions::new(
+        let mut acquisitions = crate::resolution::source::BuildSourceAcquisitions::new(
             &self.storage,
             GitResolutionOptions {
                 pins,
@@ -377,7 +392,11 @@ impl LocalProjectPreparation {
                 requested_root: self.canonical_root.clone(),
                 source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             },
-        ))
+        );
+        if let Some(source) = source {
+            acquisitions.require_locked_activations(source);
+        }
+        Ok(acquisitions)
     }
 
     pub fn complete_source_resolution(

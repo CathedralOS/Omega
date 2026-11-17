@@ -584,7 +584,7 @@ pub(crate) mod machine {
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
-    use crate::signatures::type_parameters::{lower_type_parameter, lower_type_parameters};
+    use crate::signatures::type_parameters::lower_type_parameters;
     use crate::tables::resolved_expressions;
     use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
     use arena::HandleSpan;
@@ -657,8 +657,10 @@ pub(crate) mod machine {
         } else {
             lowerer.type_reference_exposure
         };
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_contents(lowerer, machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_contents(lowerer, machine)
+            })
         })
     }
 
@@ -803,9 +805,35 @@ pub(crate) mod machine {
         let inherited =
             crate::signatures::lexical_context::enclosing_parameters(lowerer.source_trees, machine);
         if !inherited.is_empty() {
+            // These are occurrences of their enclosing declaration's binders,
+            // not new declarations. Reuse that owner's exact typed row, including
+            // its schema/lifetime payload and original selection exposure.
             let mut parameters = inherited
                 .into_iter()
-                .map(|parameter| lower_type_parameter(lowerer, parameter))
+                .map(|parameter| {
+                    let trees = &lowerer.typed_trees;
+                    let owner = trees
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(parameter.symbol)
+                        .then(|| trees.symbols.get(parameter.symbol).parent);
+                    owner
+                        .and_then(|owner| trees.machine_by_symbol(owner))
+                        .and_then(|owner| {
+                            trees
+                                .machine_type_parameters(owner)
+                                .iter()
+                                .find(|declared| declared.symbol == parameter.symbol)
+                        })
+                        .cloned()
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "an inherited static parameter lost its declaring machine's typed binder",
+                            )
+                            .with_source_span(parameter.name.source_span())
+                        })
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             parameters.extend(
                 lowerer
@@ -973,6 +1001,12 @@ pub(crate) mod machine {
                 .push_machine_contract(&mut typed_machine, contract);
         }
 
+        let bodyless_header = typed_machine.has_bodyless_signature()
+            && lowerer
+                .source_trees
+                .machine_state_handles(machine.states)
+                .len()
+                == 1;
         for (state_index, state) in lowerer
             .source_trees
             .machine_state_handles(machine.states)
@@ -987,9 +1021,29 @@ pub(crate) mod machine {
                     AuthoredDeclarationSelectionExposure::PrivateImplementation
                 }
             });
-            let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
+            let complete_header = bodyless_header && state.statement_nodes.is_empty();
+            let mut state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
                 lower_state_declaration(lowerer, state)
             })?;
+            if complete_header {
+                // A bodyless declaration has one header, not a state-local
+                // precondition. Retain its qualified-formal memberships after
+                // the authored machine rows once, with their original facts,
+                // formal symbols and source coordinates. Later readers then
+                // borrow the complete machine contract without copying it.
+                let contracts = state.contracts;
+                for ordinal in 0..contracts.len() {
+                    let contract = lowerer
+                        .typed_trees
+                        .signature_contracts
+                        .get(contracts.handle_at(ordinal as u32))
+                        .clone();
+                    lowerer
+                        .typed_trees
+                        .push_machine_contract(&mut typed_machine, contract);
+                }
+                state.contracts = HandleSpan::empty();
+            }
             lowerer
                 .typed_trees
                 .push_machine_state(&mut typed_machine, state);
@@ -1054,8 +1108,10 @@ pub(crate) mod machine {
         let exposure = lowerer
             .type_reference_exposure
             .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_implementation(lowerer, machine, typed_machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_implementation(lowerer, machine, typed_machine)
+            })
         })
     }
 
@@ -1117,11 +1173,20 @@ pub(crate) mod machine {
                 .then(|| lower_expression_handle(lowerer, source.via_expression))
                 .transpose()?
                 .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
-            lowerer
+            let handle = typed_machine.satisfies.handle_at(ordinal as u32);
+            if lowerer
                 .typed_trees
                 .machine_trait_conformances
-                .span_mut_or_empty(typed_machine.satisfies)[ordinal]
-                .via_expression = via_expression;
+                .get(handle)
+                .via_expression
+                != via_expression
+            {
+                lowerer
+                    .typed_trees
+                    .machine_trait_conformances
+                    .get_mut(handle)
+                    .via_expression = via_expression;
+            }
         }
 
         let source_states = lowerer.source_trees.machine_state_handles(machine.states);
@@ -1234,16 +1299,27 @@ pub(crate) mod machine {
         for (span, ordinal, requirement_symbol, source_span, exposure, top_level_requirement) in
             updates
         {
-            let conformances = program.machine_trait_conformances.span_mut_or_empty(span);
-            let Some(conformance) = conformances.get_mut(ordinal) else {
+            let Some(current) = program
+                .machine_trait_conformances
+                .span(span)
+                .and_then(|rows| rows.get(ordinal))
+            else {
                 return Err(Diagnostic::error(
                     "failed to settle an exact machine `satisfies` declaration",
                 ));
             };
-            conformance.requirement_symbol = requirement_symbol;
-            if top_level_requirement {
-                conformance.symbol = requirement_symbol;
+            if current.requirement_symbol != requirement_symbol
+                || (top_level_requirement && current.symbol != requirement_symbol)
+            {
+                let row = program
+                    .machine_trait_conformances
+                    .get_mut(span.handle_at(ordinal as u32));
+                row.requirement_symbol = requirement_symbol;
+                if top_level_requirement {
+                    row.symbol = requirement_symbol;
+                }
             }
+            // Selection custody still publishes when the resolved row is unchanged.
             if let Some(source_span) = source_span {
                 program
                 .record_resolved_authored_declaration_selection_once(
@@ -1261,6 +1337,87 @@ pub(crate) mod machine {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod conformance_storage_tests {
+        use super::*;
+
+        #[test]
+        fn body_completion_keeps_unchanged_conformances_shared_and_detaches_changed_rows() {
+            let mut source = resolved::SymbolResolvedTrees::default();
+            let value = source
+                .tables
+                .bodies
+                .expressions
+                .insert(resolved::expression::ExpressionNode::Boolean(true));
+            let source_rows = source
+                .tables
+                .declarations
+                .machine_trait_conformances
+                .insert_many([
+                    resolved::machine::TraitConformance::default(),
+                    resolved::machine::TraitConformance {
+                        via_expression: value,
+                        ..Default::default()
+                    },
+                ]);
+            let machine = resolved::machine::Machine {
+                storage: resolved::machine::MachineStorage {
+                    satisfies: source_rows,
+                    ..Default::default()
+                },
+                body_status: resolved::machine::MachineBodyStatus::Complete,
+                ..Default::default()
+            };
+            let mut program = typed::TypedTrees::default();
+            let rows = program.machine_trait_conformances.insert_many([
+                typed::machine::TraitConformance::default(),
+                typed::machine::TraitConformance::default(),
+            ]);
+            let predecessor = program.clone();
+            let mut typed_machine = typed::machine::Machine {
+                satisfies: rows,
+                body_status: typed::machine::MachineBodyStatus::Deferred,
+                ..Default::default()
+            };
+            let mut lowerer = Lowerer {
+                typed_trees: program,
+                source_trees: &source,
+                source_owner: SymbolHandle::invalid(),
+                type_reference_exposure: None,
+                admits_contract_policy_operators: false,
+            };
+            complete_machine_body(&mut lowerer, &machine, &mut typed_machine).unwrap();
+            assert!(std::ptr::eq(
+                predecessor.machine_trait_conformances.get(rows.start()),
+                lowerer
+                    .typed_trees
+                    .machine_trait_conformances
+                    .get(rows.start())
+            ));
+            let changed = rows.handle_at(1);
+            let via = lowerer
+                .typed_trees
+                .machine_trait_conformances
+                .get(changed)
+                .via_expression;
+            assert!(
+                !predecessor
+                    .machine_trait_conformances
+                    .get(changed)
+                    .via_expression
+                    .is_valid()
+            );
+            assert!(matches!(
+                lowerer.typed_trees.expression_table.expression(via),
+                typed::expression::ExpressionNode::Boolean(true)
+            ));
+            assert!(!std::ptr::eq(
+                predecessor.machine_trait_conformances.get(changed),
+                lowerer.typed_trees.machine_trait_conformances.get(changed)
+            ));
+        }
     }
 }
 pub(crate) mod mathematical {
@@ -1882,22 +2039,28 @@ pub(crate) mod state {
                 call_occurrences.push(occurrence);
             }
         }
-        let authored_call_selection = match call.operational_acknowledgement.origin {
-            CallOperationalAcknowledgementOrigin::Source => {
-                let [occurrence] = call_occurrences.as_slice() else {
-                    return Err(Diagnostic::error(format!(
-                        "proof-output call retains {} authored call selections; expected one",
-                        call_occurrences.len(),
-                    )));
-                };
-                Some(*occurrence)
-            }
-            CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
-        };
+        let authored_call_selection =
+            match (call.runtime_call, call.operational_acknowledgement.origin) {
+                (Some(_), _) => None,
+                (None, CallOperationalAcknowledgementOrigin::Source) => {
+                    let [occurrence] = call_occurrences.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "proof-output call retains {} authored call selections; expected one",
+                            call_occurrences.len(),
+                        )));
+                    };
+                    Some(*occurrence)
+                }
+                (None, CallOperationalAcknowledgementOrigin::CompilerSynthesized) => None,
+            };
         let (receiver_root_symbol, receiver_symbol, receiver_members) =
-            proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(|| {
-                Diagnostic::error("proof-output call receiver must be a name path")
-            })?;
+            if call.runtime_call.is_some() {
+                (SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new())
+            } else {
+                proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(
+                    || Diagnostic::error("proof-output call receiver must be a name path"),
+                )?
+            };
         let mut receiver = arena::HandleSpan::empty();
         for member in receiver_members {
             statement_table_mut(&mut lowerer.typed_trees)
@@ -1917,19 +2080,20 @@ pub(crate) mod state {
                     .copied(),
             );
         Ok(typed::statement::TableCall {
+            runtime_call: call.runtime_call,
             unresolved_name: lowerer
                 .typed_trees
                 .expression_table
                 .unresolved_name(call_handle),
-            installed_interrupt_operation: None,
-            authored_machine_application: Default::default(),
+            installed_interrupt_operation: call.installed_interrupt_operation,
+            authored_machine_application: call.authored_machine_application,
             receiver_root_symbol,
             receiver_symbol,
             target_symbol: call.target_symbol,
             receiver,
             target: call.target,
             static_machine_parameter: call.static_machine_parameter,
-            static_requirement_dispatch: None,
+            static_requirement_dispatch: call.static_requirement_dispatch,
             machine_arguments: call.machine_arguments,
             arguments,
             evidence_arguments: call.evidence_arguments,

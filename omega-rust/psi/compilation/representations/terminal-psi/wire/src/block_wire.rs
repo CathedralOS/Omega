@@ -508,7 +508,9 @@ pub(crate) mod operation_tags {
     pub(crate) const PROJECTED_RELEASE_REFERENCE: u8 = 108;
 
     pub(crate) const SELECT_IMPLEMENTATION: u8 = 109;
+    pub(crate) const SELECT_MACHINE: u8 = 138;
     pub(crate) const CALL_DYNAMIC: u8 = 110;
+    pub(crate) const CALL_MACHINE: u8 = 139;
 
     pub(crate) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;
 
@@ -548,7 +550,7 @@ pub(crate) mod operation_tags {
     pub(crate) const RELOAD_SEGMENT_DESCRIPTORS: u8 = 136;
     pub(crate) const READ_SEGMENT_SELECTOR: u8 = 137;
 
-    pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 138;
+    pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 140;
 }
 pub(crate) mod scalar_operations {
 
@@ -1197,7 +1199,7 @@ mod owned_value_tests {
             let mut writer = Writer::default();
             super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
             let bytes = writer.finish();
-            assert_eq!(bytes[0], 138);
+            assert_eq!(bytes[0], super::operation_tags::DECOMPOSE_STRUCTURAL_VALUE);
             let mut reader = Reader::new(&bytes);
             assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
             assert_eq!(reader.remaining(), 0);
@@ -1279,10 +1281,6 @@ mod unknown_tag_tests {
         Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration,
     };
 
-    const TAGS_WITHOUT_TABLE_ROWS: [u8; 19] = [
-        0, 48, 49, 51, 52, 53, 54, 55, 57, 61, 67, 71, 72, 73, 74, 76, 80, 82, 87,
-    ];
-
     fn module_with_one_operation() -> (TerminalModule, Vec<u8>, usize) {
         let machine_id = MachineId::new(1).unwrap();
         let operation = Operation {
@@ -1319,8 +1317,8 @@ mod unknown_tag_tests {
     fn an_operation_tag_without_a_table_row_rejects_the_module() {
         let (module, bytes, tag_offset) = module_with_one_operation();
         assert_eq!(decode_module(&bytes).unwrap(), module);
-        let unknown = TAGS_WITHOUT_TABLE_ROWS.into_iter().chain(138..=u8::MAX);
-        for tag in unknown {
+        let listed = crate::spec_tag_tables::listed_tags("operation-tags");
+        for tag in (0..=u8::MAX).filter(|tag| !listed.contains(tag)) {
             let mut changed = bytes.clone();
             changed[tag_offset] = tag;
             assert!(
@@ -1424,7 +1422,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     })
 }
 
-fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
+pub(crate) fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     let operation_id = reader.id("OperationId")?;
     let static_reach_binding = if reader.boolean()? {
         Some(reader.u32()?)
@@ -1499,7 +1497,7 @@ macro_rules! operation_wire {
             Ok(())
         }
 
-        fn decode_operation_kind($reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+        pub(crate) fn decode_operation_kind($reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
             Ok(match $reader.u8()? {
                 $(operation_tags::$tag => OperationKind::$variant {
                     $($field: <wire_fields::$kind as wire_fields::Field<_>>::read($reader)?),*
@@ -1721,6 +1719,17 @@ operation_wire! {
             crash_continuations: CrashRoutes,
             selected_evidence: SelectedEvidence,
         },
+        CALL_MACHINE => CallMachine {
+            callee: Id,
+            contract: Id,
+            arguments: Ids,
+            erased_arguments: ScalarTerms,
+            erased_proof_arguments: ProofTerms,
+            structural_arguments: Arguments,
+            claim_transfers: ClaimTransfers,
+            requirement_obligations: Ids,
+            crash_continuations: CrashRoutes,
+        },
         CALL_DYNAMIC => CallDynamic {
             selector: Id,
             interface: U32,
@@ -1742,6 +1751,7 @@ operation_wire! {
             requirement_obligations: Ids,
         },
         SELECT_IMPLEMENTATION => SelectImplementation { table: U32 },
+        SELECT_MACHINE => SelectMachine { descriptor: Id },
         PORT_WRITE => PortWrite { service: Id, port: U16, value: U8 },
         INTEGER_CONSTANT => IntegerConstant { value: Integer },
         BOOLEAN_CONSTANT => BooleanConstant { value: Flag },

@@ -145,7 +145,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     }
 
     machine after_frame(main: &mut Main) {
-        Clock::sleep(40);
+        block Clock::sleep(40);
         // re-guard so the increment's edge carries the frame bound (the keystone
         // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
         transition main.frame < 60 { true -> block advance(main) _ -> block finish(main) }

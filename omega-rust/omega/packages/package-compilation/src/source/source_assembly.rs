@@ -84,6 +84,7 @@ impl DeferredProductSources {
         let checkpoint = &self.checkpoint;
         checkpoint.validate_child(inputs.original())?;
         let mut storage = checkpoint.source_storage.as_ref().clone();
+        inputs.admit_source_owner(&mut storage)?;
         let loaded = storage.reselect_current_sources(catalogue)?;
         inputs.mount(&mut storage)?;
         let build_source = checkpoint
@@ -205,6 +206,7 @@ impl DeferredProductSources {
         let checkpoint = &self.checkpoint;
         checkpoint.validate_child(inputs.original())?;
         let mut storage = checkpoint.source_storage.as_ref().clone();
+        inputs.admit_source_owner(&mut storage)?;
         let loaded = storage.reselect_current_sources(catalogue)?;
         inputs.mount(&mut storage)?;
         let build_source = checkpoint
@@ -256,6 +258,7 @@ impl DeferredProductSources {
         )?;
         let mut deferred = checkpoint.clone_shared();
         deferred.rejoin_sources(&storage.sources, inputs.original(), timings, catalogue)?;
+        inputs.admit_source_owner(Arc::make_mut(&mut deferred.source_storage))?;
         let mut bindings = append_build_prelude(
             &mut storage,
             &mut imports,

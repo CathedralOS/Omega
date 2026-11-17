@@ -306,9 +306,9 @@ pub(super) fn admit(
     .map_err(fail)?;
     Ok(AdmittedInstalledInterruptCohort {
         psi: input.plan().psi,
-        entries: admitted,
-        scopes,
-        helpers,
+        entries: admitted.into(),
+        scopes: scopes.into(),
+        helpers: helpers.into(),
     })
 }
 

@@ -17,6 +17,69 @@ pub struct PreparedNativeExecution {
 }
 
 impl TerminalNativeRealizationProposal {
+    /// Choose what the program entry executes natively and settle its provider
+    /// demand. Component calls replace the local implementations they name.
+    pub fn prepare_native_execution(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        components: &[&crate::AdmittedNativeComponentCall<'_>],
+    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
+        let scope = self.execution_scope(authorization.artifact(), components)?;
+        self.prepare_native_provider_demand(authorization, scope)
+    }
+
+    /// Choose what one separately emitted callable executes natively and
+    /// settle its provider demand.
+    pub fn prepare_native_callable_execution(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        entry: terminal_psi::TargetMachineCallable,
+    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
+        let scope = self.callable_execution_scope(authorization.artifact(), entry, None)?;
+        self.prepare_native_provider_demand(authorization, scope)
+    }
+
+    /// The scalar values native compilation of the program entry reads, or
+    /// `None` when it reads none and the program states no scalar condition.
+    /// Component calls only remove local implementations from the scope, so
+    /// this demand covers the entry with or without them.
+    pub fn entry_scalar_demand(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
+        let demand = self
+            .prepare_native_execution(authorization, &[])?
+            .scalar_application_demand(self.target_profile())?;
+        Ok(Self::required(authorization, demand))
+    }
+
+    /// The scalar values native compilation of separately emitted callables
+    /// reads, or `None` when they read none and the program states no scalar
+    /// condition.
+    pub fn callable_scalar_demand(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        entries: &[terminal_psi::TargetMachineCallable],
+    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
+        let mut demand = Vec::new();
+        for &entry in entries {
+            demand.extend(
+                self.prepare_native_callable_execution(authorization, entry)?
+                    .scalar_application_demand(self.target_profile())?,
+            );
+        }
+        demand.sort_unstable();
+        demand.dedup();
+        Ok(Self::required(authorization, demand))
+    }
+
+    fn required(
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+    ) -> Option<Vec<semantic_vocabulary::ScalarApplicationId>> {
+        requires_scalar_values(authorization.artifact(), &demand).then_some(demand)
+    }
+
     pub fn execution_scope(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -281,7 +344,20 @@ impl TerminalNativeRealizationProposal {
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 direct.push(leaf.plan.clone());
                 if let backend_plan::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
-                    external_bindings.push(binding.clone()?);
+                    let binding = binding.clone()?;
+                    let mut prior = external_bindings.iter().filter(|row| {
+                        row.target_name == binding.target_name
+                            && row.requirement_identity == binding.requirement_identity
+                    });
+                    match (prior.next(), prior.next()) {
+                        (Some(previous), None) if previous == &binding => {}
+                        (None, None) => external_bindings.push(binding),
+                        _ => {
+                            return Err(vec![Diagnostic::error(
+                                "direct boundary has competing retained external bindings",
+                            )]);
+                        }
+                    }
                 }
             }
         }
@@ -381,6 +457,29 @@ impl TerminalNativeRealizationProposal {
 }
 
 impl PreparedNativeExecution {
+    /// The scalar applications this execution reads under `profile`'s admitted
+    /// layouts. The caller completes exactly these before native lowering
+    /// starts; Omega 00 refuses a completion that leaves one without a value.
+    pub fn scalar_application_demand(
+        &self,
+        profile: target::TargetProfile,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, Vec<Diagnostic>> {
+        let fail = |reason: String| diagnostics::error_in_context("native scalar demand", reason);
+        profile.admit_address_representation().map_err(fail)?;
+        let artifact = self.authorization.artifact();
+        let targets =
+            terminal_installation::terminal_target_context(artifact.view(), profile.target_name());
+        let facts = profile
+            .layout_target_facts()
+            .ok_or_else(|| fail("selected native target has no representation facts".into()))?;
+        let layouts =
+            terminal_installation::admit_target_layouts(artifact.view(), &targets, &facts)
+                .map_err(|error| fail(error.to_string()))?;
+        self.scope
+            .scalar_application_demand(artifact.semantic_module(), &layouts)
+            .map_err(fail)
+    }
+
     pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
         &self.authorization
     }
@@ -432,4 +531,18 @@ impl PreparedNativeExecution {
     ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
         &self.boundary_application_coverage
     }
+}
+
+/// Native compilation needs completed scalar values when its code reads one or
+/// the program states any scalar condition, which lowering must find discharged.
+pub fn requires_scalar_values(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    demand: &[semantic_vocabulary::ScalarApplicationId],
+) -> bool {
+    !demand.is_empty()
+        || !artifact
+            .semantic_module()
+            .scalar_applications
+            .conditions
+            .is_empty()
 }

@@ -16,14 +16,16 @@ const PLACE_TRANSPORT_BASELINE: &str = "tools/ratchets/place_transport.txt";
 const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
 
 /*
-    Stage 04 reads frozen typed tables and publishes facts it owns; it holds no
-    hidden mutable state. Every pull request scans that source tree for
-    `thread_local!` and `RefCell`. A configured root that `read_dir` cannot open
-    is reported here, because the file walk treats that failure as an empty
-    tree. :CheckingInteriorState
+    Source preparation and lowered-form checking own their mutable work explicitly.
+    Scan every surviving owner for hidden state. A configured root that cannot
+    be read is a violation rather than an empty successful scan.
+    :CheckingInteriorState
 */
-pub(super) const CHECKING_STATE_ROOTS: &[&str] =
-    &["omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src"];
+pub(super) const CHECKING_STATE_ROOTS: &[&str] = &[
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src",
+];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 
 pub(super) fn checking_interior_state_violations(root: &Path) -> Vec<String> {

@@ -29,5 +29,6 @@ pub(in crate::encoding::recovery) fn policy(
         1 => PackageReviewBoundaryCallingPolicy::SystemVAMD64,
         2 => PackageReviewBoundaryCallingPolicy::Aapcs64,
         3 => PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64,
-        4 => PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64}))
+        4 => PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64,
+        5 => PackageReviewBoundaryCallingPolicy::DarwinAapcs64}))
 }

@@ -433,6 +433,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             return Err("boundary scalar projection changes its supplied type".into());
         }
         let recipe = match closed {
+            ClosedScalarType::Callable(_) => {
+                return Err("local machine value requires an admitted boundary proxy".into());
+            }
             ClosedScalarType::Boolean => BoundaryValueRecipe::Integer { byte_size: 1 },
             ClosedScalarType::Integer(integer) if integer.bits() % 8 == 0 => {
                 BoundaryValueRecipe::Integer {
@@ -527,6 +530,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 BoundaryValueRecipe::FixedArray {
                     element: self.value(*element)?,
                     length: match length {
+                        terminal_psi::ArrayExtent::Parameter { .. } => {
+                            return Err("an array extent is still a rigid const input".into());
+                        }
                         terminal_psi::ArrayExtent::Literal(count) => *count,
                         terminal_psi::ArrayExtent::Application(application) => {
                             (self.extents)(*application).map_err(|error| error.to_string())?
@@ -730,7 +736,7 @@ mod tests {
                 id,
                 identity: TerminalIdentityIndex::ABSENT,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -841,7 +847,7 @@ mod tests {
                     id,
                     identity: self.identities.intern(name),
                     owns_linear_claim: false,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,

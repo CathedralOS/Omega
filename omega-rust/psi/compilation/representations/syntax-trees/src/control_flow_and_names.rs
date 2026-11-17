@@ -452,6 +452,7 @@ pub mod control_flow {
             compiler_storage::Record,
         )]
         pub struct TableCall {
+            pub callee: ExpressionHandle,
             pub receiver: HandleSpan<Identifier>,
             pub target: Identifier,
             pub target_is_static: bool,
@@ -585,6 +586,7 @@ pub mod control_flow {
         )]
         pub enum TransitionTargetNode {
             Named {
+                operational_acknowledgement: language_core::CallOperationalAcknowledgement,
                 path: HandleSpan<Identifier>,
                 arguments: HandleSpan<ExpressionHandle>,
                 evidence_arguments: Box<[Identifier]>,
@@ -622,6 +624,7 @@ pub mod control_flow {
                 let _argument_two = statements.append_expression_handle(argument_two);
                 let arguments = HandleSpan::from_parts(argument_one, 2);
                 let target = statements.insert_transition_target(TransitionTargetNode::Named {
+                    operational_acknowledgement: Default::default(),
                     path,
                     arguments,
                     evidence_arguments: Box::default(),
@@ -652,6 +655,32 @@ pub mod control_flow {
                 assert_eq!(path.count(), 1);
                 assert_eq!(arguments.count(), 2);
                 assert_eq!(expressions.expression_count(), 3);
+
+                let mut acknowledged = statements.transition_target(target).clone();
+                let TransitionTargetNode::Named {
+                    operational_acknowledgement,
+                    ..
+                } = &mut acknowledged
+                else {
+                    panic!("named target");
+                };
+                operational_acknowledgement.acknowledges_block = true;
+                let bytes = compiler_storage::encode(&acknowledged, Default::default()).unwrap();
+                let restored: TransitionTargetNode =
+                    compiler_storage::decode(&bytes, Default::default()).unwrap();
+                let TransitionTargetNode::Named {
+                    operational_acknowledgement,
+                    path: restored_path,
+                    arguments: restored_arguments,
+                    ..
+                } = restored
+                else {
+                    panic!("record changed the named call form");
+                };
+                assert!(operational_acknowledgement.acknowledges_block);
+                assert!(!operational_acknowledgement.acknowledges_suspend);
+                assert_eq!(restored_path, *path);
+                assert_eq!(restored_arguments, *arguments);
             }
         }
     }

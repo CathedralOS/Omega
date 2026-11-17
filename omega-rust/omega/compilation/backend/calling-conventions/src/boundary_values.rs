@@ -123,7 +123,7 @@ fn classify_boundary_aggregate(
     let mut leaves = Vec::new();
     collect_boundary_scalar_leaves(signature, root, 0, &mut leaves, 0)?;
     if let Some(members) = homogeneous_float_leaf_shape(shape, &leaves) {
-        if policy == CallingPolicy::Aapcs64
+        if policy.is_aapcs64()
             || (policy == CallingPolicy::SystemVAMD64 && members > 1 && shape.byte_size <= 16)
         {
             return Ok(ValueClass::HomogeneousFloatAggregate { members });

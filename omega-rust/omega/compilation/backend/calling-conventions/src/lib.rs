@@ -41,6 +41,8 @@ mod host_operations;
 mod plans;
 mod structural_shapes;
 pub mod terminal_layout;
+#[cfg(test)]
+mod tests;
 pub use structural_shapes::{InvalidStructuralShape, classified_boundary_shape};
 
 pub use aggregate_layout::{

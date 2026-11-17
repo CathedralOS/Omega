@@ -66,6 +66,7 @@ abstract and target realization boundaries:
 */
 
 pub use native_vocabulary::access_reference_validation as access_references;
+pub mod callable_values;
 mod candidates;
 mod current_ownership;
 mod current_value_ranges;

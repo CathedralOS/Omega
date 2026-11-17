@@ -5,7 +5,7 @@
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerType, OperationId, PlaceId, Proposition, PsiSemanticId,
-    ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, ValueId,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::values::ValueOrigin;
@@ -57,6 +57,7 @@ impl ClauseBindings for Named {
                 path: selected.to_vec(),
             }),
             ScalarType::IeeeFloat(_) => Err("a floating-point clause observation"),
+            ScalarType::Callable(_) => Err("a machine-value clause observation"),
         }
     }
 
@@ -130,11 +131,164 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    pub(in crate::lower) fn name_storage_contents(&mut self) -> Checked<()> {
-        let mut call_operations: Vec<_> = self
+    /// Named qualifications and type defaults name the same current storage
+    /// that restoration checks inspect. Inventory those clauses before sealing
+    /// snapshot identities; preparing a question supplies no proof of it.
+    pub(in crate::lower) fn name_default_contents(
+        &mut self,
+        machine: &terminal_psi::TerminalMachine,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Checked<()> {
+        use terminal_semantics::structural_qualifications::DefaultRequirements;
+
+        let (inventory, questions) = {
+            let requirements =
+                DefaultRequirements::new(types, &self.qualifications.structural, machine)
+                    .map_err(|error| self.internal(error.detail))?;
+            let mut inventory = Vec::new();
+            for required in requirements
+                .declared()
+                .map_err(|error| self.internal(error.detail))?
+            {
+                let (_, root_type) = self
+                    .roots
+                    .get(required.root)
+                    .ok_or_else(|| self.internal("a default clause has no actual storage root"))?;
+                let (selected, carrier) = terminal_semantics::canonical_static_projection(
+                    types.iter(),
+                    *root_type,
+                    &required.path,
+                )
+                .ok_or_else(|| {
+                    self.internal("a default clause has no exact canonical storage path")
+                })?;
+                if carrier.id != required.carrier {
+                    return Err(self.internal("a default clause changed its actual carrier"));
+                }
+                let clause = requirements
+                    .clause(&required)
+                    .map_err(|error| self.internal(error.detail))?;
+                inventory.push((
+                    required.root,
+                    path(&selected).map_err(|detail| self.internal(detail))?,
+                    clause,
+                ));
+            }
+            let mut questions = Vec::new();
+            for block in &machine.blocks {
+                let mut before = ProgramPoint::BlockEntry(block.id);
+                for operation in &block.operations {
+                    let count = requirements
+                        .operation(operation)
+                        .map_err(|error| self.internal(error.detail))?
+                        .len();
+                    let source = *self.sources.operations.get(operation.id).ok_or_else(|| {
+                        self.internal("a default question has no operation source")
+                    })?;
+                    for clause in 0..count {
+                        questions.push((operation.id, self.position(clause)?, before, source));
+                    }
+                    before = ProgramPoint::AfterOperation(operation.id);
+                }
+            }
+            (inventory, questions)
+        };
+        let subject = terminal_check_tables::program::self_place()
+            .ok_or_else(|| self.internal("default clause subject identity"))?;
+        for (root, selected, clause) in inventory {
+            let mut exact = self.exact_root(root)?;
+            for segment in selected {
+                exact = self.project(exact, segment)?;
+            }
+            self.name_clause_contents(&clause, &[(subject, exact)], None)?;
+        }
+        for (operation, clause, before, source) in questions {
+            self.obligation(
+                terminal_check_tables::obligations::ObligationKind::DataDomain {
+                    operation,
+                    clause,
+                },
+                before,
+                source,
+            );
+        }
+        Ok(())
+    }
+
+    /// A record formal names every scalar field at entry (`name_contents`),
+    /// but array elements only where something reads them. Inference states
+    /// a helper's condition after lowering, and a cycle copies that helper's
+    /// head into each member: `sc_verdict` reads `main.wires[4]`, and the
+    /// copied head of `sc_stop` must name what its own formal holds there.
+    /// Demand each element path read beneath one structural formal beneath
+    /// every other formal of the same type.
+    fn name_elements_beneath_formals(&mut self) -> Checked<()> {
+        let mut formals: Vec<(StructuralTypeId, PlaceId)> = self
+            .roots
+            .iter()
+            .filter(|(_, (kind, _))| {
+                matches!(
+                    kind,
+                    StructuralPlaceKind::Parameter { .. }
+                        | StructuralPlaceKind::BlockParameter { .. }
+                )
+            })
+            .map(|(root, (_, record))| (*record, root))
+            .collect();
+        formals.sort_unstable();
+        let mut elements = Vec::new();
+        for slot in 0..self.demanded_contents.len() {
+            let Some(scalar_type) = self.demanded_contents[slot] else {
+                continue;
+            };
+            let leaf = ExactPlaceId::new(slot as u64 + 1)
+                .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
+            let (root, segments) = self.lineage(leaf)?;
+            if !segments
+                .iter()
+                .any(|segment| matches!(segment, Segment::FixedIndex(_)))
+                || !segments.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        Segment::Field(_) | Segment::FixedIndex(_) | Segment::Referent
+                    )
+                })
+            {
+                continue;
+            }
+            let Some((_, record)) = self.roots.get(root) else {
+                continue;
+            };
+            elements.push((*record, root, segments, scalar_type));
+        }
+        for (record, root, segments, scalar_type) in elements {
+            let first = formals.partition_point(|(held, _)| *held < record);
+            let others: Vec<PlaceId> = formals[first..]
+                .iter()
+                .take_while(|(held, _)| *held == record)
+                .map(|(_, other)| *other)
+                .filter(|other| *other != root)
+                .collect();
+            for other in others {
+                let mut leaf = self.exact_root(other)?;
+                for segment in &segments {
+                    leaf = self.project(leaf, *segment)?;
+                }
+                self.initial_content(leaf, scalar_type)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(in crate::lower) fn name_storage_contents(
+        &mut self,
+        machine: &terminal_psi::TerminalMachine,
+    ) -> Checked<()> {
+        self.name_elements_beneath_formals()?;
+        let mut call_operations: Vec<_> = machine
             .blocks
             .iter()
-            .flat_map(|(_, block)| &block.operations)
+            .flat_map(|block| &block.operations)
             .filter(|operation| operation.kind.declared_invocation().is_some())
             .map(|operation| operation.id)
             .collect();
@@ -191,9 +345,10 @@ impl Lowering<'_> {
                 Some(StructuralPlaceKind::BlockParameter { block, position })
                     if block_observation =>
                 {
-                    let formal = self
+                    let formal = machine
                         .blocks
-                        .get(*block)
+                        .get(block.get() as usize - 1)
+                        .filter(|body| body.id == *block)
                         .and_then(|body| body.structural_parameters.get(*position as usize))
                         .filter(|formal| formal.place == root)
                         .ok_or_else(|| self.internal("a block content has no structural formal"))?;

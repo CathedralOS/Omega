@@ -64,7 +64,7 @@ Both the rule and the hand-written controls depend on step 1. Each step is a
 whole-pipeline slice (`Psi 05 -> 06 -> Native`), not a stage-only task.
 
 1. **Callable types end to end.** Parse `machine(...) -> R <clauses>` as a type
-   (`01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs`, beside the
+   (`01_tokens-to-syntax-trees/types/references.rs`, beside the
    current `dyn` branch), resolve and type it, check construction refinement
    from a named machine or named conformance member, check
    `(record.field)(args)` against the current callable contract, and lower it.

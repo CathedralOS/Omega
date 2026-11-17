@@ -24,7 +24,8 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 pub(crate) use accepted::{
-    admit_locked_issued_source_request, admit_locked_source_request, mutable_local_graph_matches,
+    admit_locked_build_activation, admit_locked_issued_source_request, admit_locked_source_request,
+    mutable_local_graph_matches,
 };
 pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
 pub(crate) use reconcile::{

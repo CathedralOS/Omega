@@ -4,6 +4,41 @@
 
 use optimization_core::{Optimization, OptimizationSelectionIdentity};
 
+/// The completed phase roots publication needs. The optimizer's action history
+/// stays with explicit replay, not the ordinary physical program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostAllocationMachinePhaseReceipt {
+    complete_selection: OptimizationSelectionIdentity,
+    phase_selections: OptimizationSelectionIdentity,
+    result: crate::PostAllocationMachineIdentity,
+}
+
+impl PostAllocationMachinePhaseReceipt {
+    pub const fn from_parts(
+        complete_selection: OptimizationSelectionIdentity,
+        phase_selections: OptimizationSelectionIdentity,
+        result: crate::PostAllocationMachineIdentity,
+    ) -> Self {
+        Self {
+            complete_selection,
+            phase_selections,
+            result,
+        }
+    }
+
+    pub const fn complete_selection(self) -> OptimizationSelectionIdentity {
+        self.complete_selection
+    }
+
+    pub const fn phase_selections(self) -> OptimizationSelectionIdentity {
+        self.phase_selections
+    }
+
+    pub const fn result(self) -> crate::PostAllocationMachineIdentity {
+        self.result
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PostAllocationMachineOptimizationCustody {
     optimization: Optimization,

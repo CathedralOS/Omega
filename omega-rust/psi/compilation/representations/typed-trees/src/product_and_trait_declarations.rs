@@ -452,12 +452,14 @@ pub mod product_operand {
                         .into(),
                 );
             }
+            let binding_declaration = program
+                .specialization_binding_declaration(specialization)
+                .map_err(str::to_owned)?;
             let application =
                 program.static_machine_application(specialization.binding_application);
-            if application.binding_declaration != specialization.template {
+            if application.binding_declaration != binding_declaration {
                 return Err(
-                    "Build helper specialization binding belongs to a different exact template"
-                        .into(),
+                    "Build helper specialization changed its exact binding declaration".into(),
                 );
             }
             let owner = program
@@ -480,8 +482,8 @@ pub mod product_operand {
                 active_expressions: Vec::new(),
             };
             let template = program
-                .machine_by_symbol(specialization.template)
-                .ok_or("Build helper lost its source template")?;
+                .machine_by_symbol(binding_declaration)
+                .ok_or("Build helper lost its source binding declaration")?;
             let operand = program
                 .specialization_source_operand(specialization)
                 .map_err(str::to_owned)?;
@@ -533,7 +535,7 @@ pub mod product_operand {
                     .insert(ProductStaticEnvironmentLifetime {
                         parameter_owner: program
                             .symbols
-                            .symbol_provenance_source_span(specialization.template)
+                            .symbol_provenance_source_span(binding_declaration)
                             .ok_or("Build helper lifetime binder lost its original declaration")?,
                         parameter_ordinal: ordinal as u32,
                         argument,
@@ -757,6 +759,9 @@ pub mod product_operand {
                 }
                 self.active_types.push(reference);
                 let value = match program.type_reference_table.type_reference(reference) {
+                    types::TypeReferenceNode::Callable { .. } => return Err(
+                        "a captured Build type needs the complete machine contract; the static operand format cannot retain it".into(),
+                    ),
                     types::TypeReferenceNode::Unit => ProductOperandType::Unit,
                     types::TypeReferenceNode::Named { symbol, name } => {
                         if !symbol.is_valid()
@@ -1000,6 +1005,7 @@ pub mod product_operand {
                             })
                             .collect::<Result<Vec<_>, String>>()?;
                         ProductExpressionKind::Record {
+                            zero_omitted_fields: literal.zero_omitted_fields,
                             name,
                             case,
                             fields: self.environment.graph.fields.insert_many(fields),
@@ -1094,6 +1100,9 @@ pub mod product_operand {
                         }
                     }
                     expr::ExpressionNode::Call(call) => {
+                        if call.runtime_call.is_some() {
+                            return Err("a runtime callable invocation must retain its checked materialized value before Product capture".into());
+                        }
                         if call.native_code_layout.is_some() {
                             return Err("an executed static layout actual must retain its materialized value before Product capture".into());
                         }
@@ -1300,13 +1309,15 @@ pub mod product_operand {
         }
     }
 
-    const PRODUCT_ROLES: [ProductOperandKind; 6] = [
+    const PRODUCT_ROLES: [ProductOperandKind; 8] = [
         ProductOperandKind::BoundarySubject,
         ProductOperandKind::Provider,
         ProductOperandKind::Requirement,
         ProductOperandKind::TestRequirement,
         ProductOperandKind::Data,
         ProductOperandKind::Representation,
+        ProductOperandKind::Formal,
+        ProductOperandKind::Field,
     ];
 
     fn product_role_position(role: ProductOperandKind) -> Option<usize> {
@@ -1323,7 +1334,7 @@ pub mod product_operand {
 
     #[derive(Default)]
     pub(crate) struct ProductDeclarationIndex {
-        roles: [Vec<ProductDeclarationName>; 6],
+        roles: [Vec<ProductDeclarationName>; 8],
         token_bound_machines: Vec<SymbolHandle>,
     }
 
@@ -1378,11 +1389,46 @@ pub mod product_operand {
         }
     }
 
-    fn product_candidates(
+    pub fn product_candidates(
         program: &TypedTrees,
         kind: ProductOperandKind,
     ) -> Vec<(SymbolHandle, bool)> {
         match kind {
+            ProductOperandKind::Formal => program
+                .traits()
+                .iter()
+                .filter(|owner| owner.is_boundary)
+                .flat_map(|owner| {
+                    program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .flat_map(move |signature| {
+                            program
+                                .state_signature_parameters(signature)
+                                .iter()
+                                .map(move |formal| (formal.symbol, owner.is_public))
+                        })
+                })
+                .collect(),
+            ProductOperandKind::Field => {
+                let mut fields = Vec::new();
+                for data in program.data_definitions() {
+                    for member in program.data_members(data) {
+                        match member {
+                            crate::data::DataMember::Field(field) => {
+                                fields.push((field.symbol, data.is_public))
+                            }
+                            crate::data::DataMember::Variant(case) => fields.extend(
+                                program
+                                    .data_payload_fields(case)
+                                    .iter()
+                                    .map(|field| (field.symbol, data.is_public)),
+                            ),
+                        }
+                    }
+                }
+                fields
+            }
             ProductOperandKind::WireCompatibilityFact => Vec::new(),
             ProductOperandKind::BoundarySubject => program
                 .traits()
@@ -2534,6 +2580,209 @@ pub mod trait_definition {
             }
 
             impl TypedTrees {
+                /// A const record retains its declared schema and original lexical binder.
+                /// Naming a requirement supplies no record-construction or refinement proof.
+                pub fn static_record_parameter_schema(
+                    &self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                ) -> Result<Option<AppliedTraitScope<'_>>, String> {
+                    if !binder.is_valid() || !self.symbols.symbols().nodes().is_valid(binder) {
+                        return Ok(None);
+                    }
+                    if self.symbols.get(binder).kind != symbols::SymbolKind::TypeParameter {
+                        return Ok(None);
+                    }
+                    if !owner.is_valid() || !self.symbols.symbols().nodes().is_valid(owner) {
+                        return Err("static record caller has no current lexical owner".into());
+                    }
+                    let declared_owner = self.symbols.get(binder).parent;
+                    if !declared_owner.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(declared_owner)
+                    {
+                        return Err("static record binder has no current declaration owner".into());
+                    }
+                    let declared = self.declaration_type_parameters(declared_owner);
+                    let mut candidates = declared
+                        .iter()
+                        .filter(|parameter| parameter.symbol == binder);
+                    let Some(parameter) = candidates.next() else {
+                        return Ok(None);
+                    };
+                    if candidates.next().is_some() {
+                        return Err("static record binder has repeated declaring rows".into());
+                    }
+                    let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                    else {
+                        return Ok(None);
+                    };
+                    let Some(schema) = self.static_record_schema(type_reference, declared_owner)
+                    else {
+                        return Ok(None);
+                    };
+                    let visible = self.declaration_type_parameters(owner);
+                    let mut occurrences = visible.iter().filter(|entry| entry.symbol == binder);
+                    if occurrences.next() != Some(parameter) || occurrences.next().is_some() {
+                        return Err(
+                            "static record binder is outside its exact retained telescope".into(),
+                        );
+                    }
+                    let mut lexical = owner;
+                    let mut visited = Vec::new();
+                    while lexical != declared_owner {
+                        if !lexical.is_valid()
+                            || !self.symbols.symbols().nodes().is_valid(lexical)
+                            || visited.contains(&lexical)
+                        {
+                            return Err(
+                                "static record binder has no actual lexical inheritance path"
+                                    .into(),
+                            );
+                        }
+                        visited.push(lexical);
+                        lexical = self.symbols.get(lexical).parent;
+                    }
+                    Ok(Some(schema))
+                }
+
+                pub fn static_record_bound_requirement<'program>(
+                    &'program self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                    target: SymbolHandle,
+                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+                    let Some(root) = self.static_record_parameter_schema(owner, binder)? else {
+                        return Ok(None);
+                    };
+                    if !target.is_valid() || !self.symbols.symbols().nodes().is_valid(target) {
+                        return Err("static record call lost its selected requirement".into());
+                    }
+                    let prepared = self.closed_requirement_application(target);
+                    let mut selected: Option<GenericBoundRequirement<'program>> = None;
+                    root.try_visit(self, &mut |scope: &AppliedTraitScope<'_>| -> Result<(), &'static str> {
+                        for signature in self.trait_machine_signatures(scope.declaration) {
+                            let matches = prepared.as_ref().map_or(signature.symbol == target, |closed| {
+                                closed.template == signature.symbol
+                                    && self.requirement_application_matches_scope(target, scope)
+                            });
+                            if !matches { continue; }
+                            let signature = if let Some(closed) = &prepared {
+                                closed.signature
+                            } else if let Some(applied) = self.applied_callable_signature(scope, signature.symbol) {
+                                applied
+                            } else if scope.keeps_declared_signatures(self) {
+                                signature
+                            } else {
+                                return Err("static record requirement has no prepared applied signature");
+                            };
+                            if let Some(known) = &selected {
+                                if known.signature.symbol != signature.symbol
+                                    || !known.application.same_application(self, scope) {
+                                    return Err("static record call has competing complete requirement applications");
+                                }
+                            } else {
+                                selected = Some(GenericBoundRequirement { signature, application: scope.clone() });
+                            }
+                        }
+                        Ok(())
+                    }).map_err(str::to_owned)?;
+                    selected.map(Some).ok_or_else(|| {
+                        "static record call selects a requirement outside its declared schema"
+                            .into()
+                    })
+                }
+
+                /// Authenticate copied receiver metadata before a visitor enters its source scope.
+                pub fn static_record_source_receiver(
+                    &self,
+                    application: crate::static_applications::StaticMachineApplicationHandle,
+                ) -> Result<Option<(SymbolHandle, SymbolHandle)>, String> {
+                    if !self
+                        .expression_table
+                        .static_machine_application_is_valid(application)
+                    {
+                        return Err("static record receiver has a stale source application".into());
+                    }
+                    let source = self.static_machine_application(application);
+                    let Some(binder) = source.source_record_receiver else {
+                        return Ok(None);
+                    };
+                    if !binder.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(binder)
+                        || !source.lexical_owner.is_valid()
+                        || !self
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(source.lexical_owner)
+                    {
+                        return Err(
+                            "static record receiver lost its current binder or caller".into()
+                        );
+                    }
+                    let owner = self
+                        .machine_by_own_or_state_symbol(source.lexical_owner)
+                        .map(|machine| machine.symbol)
+                        .ok_or("static record receiver caller has no actual machine")?;
+                    let frames = self.enclosing_invocation_frames(owner)?;
+                    for frame in frames {
+                        let mut matches = frame
+                            .bindings
+                            .iter()
+                            .filter(|binding| binding.parameter == binder);
+                        let Some(binding) = matches.next() else {
+                            continue;
+                        };
+                        if matches.next().is_some() {
+                            return Err(
+                                "static record receiver has repeated retained bindings".into()
+                            );
+                        }
+                        let crate::static_applications::StaticMachineBindingValue::Const(reference) =
+                            binding.value
+                        else {
+                            return Err(
+                                "static record receiver has another retained binder kind".into()
+                            );
+                        };
+                        let declared = self
+                            .static_record_bound_requirement(
+                                frame.declaration,
+                                binder,
+                                source.registration_operation,
+                            )?
+                            .ok_or("static record receiver has no exact declared requirement")?;
+                        let root = self
+                            .static_record_parameter_schema(frame.declaration, binder)?
+                            .ok_or("static record receiver has no exact declared schema")?;
+                        if !self.type_reference_table.contains_type_reference(reference)
+                            || !self
+                                .symbols
+                                .symbols()
+                                .nodes()
+                                .is_valid(frame.argument_owner)
+                        {
+                            return Err(
+                                "static record receiver has stale actual operand custody".into()
+                            );
+                        }
+                        let operand = self.static_operand_from_type_reference(reference)?;
+                        let actual = self
+                            .conformance_by_symbol(operand.symbol)
+                            .and_then(|value| AppliedTraitScope::from_conformance(self, value))
+                            .ok_or("static record receiver has no exact supplying record schema")?;
+                        if !root.same_application(self, &actual)
+                            || !declared.application.declaration.symbol.is_valid()
+                        {
+                            return Err(
+                                "static record receiver has a different supplying schema".into()
+                            );
+                        }
+                        return Ok(Some((binder, self.symbols.get(binder).parent)));
+                    }
+                    Err("static record receiver has no exact retained supplying application".into())
+                }
+
                 pub fn evidence_requirement_declaration(
                     &self,
                     target: SymbolHandle,
@@ -3166,12 +3415,31 @@ pub mod trait_definition {
                             .callable_substitutions
                             .span_or_empty(frame.arguments)
                         {
+                            // A retained application can be visited from the
+                            // required trait rather than either binder's author.
+                            retained.enter_lexical_scope(frame.declaration);
                             retained.declaration_description_dependency(binding.parameter);
+                            retained.leave_lexical_scope();
+
+                            // Copies retain an operand's original source scope.
+                            // The application supplier owns only operands without
+                            // a more specific retained author; target parentage
+                            // cannot supply missing lexical authority.
+                            let owner = program
+                                .type_reference_table
+                                .operand_lifetime_owner(binding.actual);
+                            let owner = if owner.is_valid() {
+                                owner
+                            } else {
+                                self.argument_owner
+                            };
+                            retained.enter_lexical_scope(owner);
                             crate::references::visit_type_reference(
                                 program,
                                 retained,
                                 binding.actual,
                             );
+                            retained.leave_lexical_scope();
                         }
                     }
                 }
@@ -3214,6 +3482,152 @@ pub mod trait_definition {
                         substitution_scope_starts: scope_starts,
                         region_scopes,
                     })
+                }
+            }
+
+            #[cfg(test)]
+            mod retained_reference_tests {
+                use super::*;
+                use crate::references::TypedReferences;
+                use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+                struct ScopedReferences {
+                    owner: SymbolHandle,
+                    outer: Vec<SymbolHandle>,
+                    descriptions: Vec<(SymbolHandle, SymbolHandle)>,
+                    names: Vec<(SymbolHandle, SymbolHandle)>,
+                }
+                impl Extend<SymbolHandle> for ScopedReferences {
+                    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                        self.names
+                            .extend(symbols.into_iter().map(|symbol| (self.owner, symbol)));
+                    }
+                }
+                impl TypedReferences for ScopedReferences {
+                    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+                        self.outer.push(self.owner);
+                        self.owner = owner;
+                    }
+                    fn leave_lexical_scope(&mut self) {
+                        self.owner = self.outer.pop().expect("paired retained scopes");
+                    }
+                    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+                        self.descriptions.push((self.owner, symbol));
+                    }
+                }
+
+                #[test]
+                fn retained_trait_bindings_keep_formal_and_actual_authors() {
+                    let mut symbols = SymbolTableBuilder::default();
+                    let observed =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Required"));
+                    let formal_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Generic"));
+                    let nested_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Nested"));
+                    let supplier =
+                        symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Supplier"));
+                    let retained_supplier = symbols.insert_root(
+                        SymbolKind::Machine,
+                        SymbolNameRef::Static("OriginalSupplier"),
+                    );
+                    let formal = symbols
+                        .insert_children(
+                            formal_owner,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Policy"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_formal = symbols
+                        .insert_children(
+                            nested_owner,
+                            [(SymbolKind::TypeParameter, SymbolNameRef::Static("Element"))],
+                        )
+                        .handle_at(0);
+                    let actual = symbols
+                        .insert_children(
+                            supplier,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Selected"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_actual = symbols
+                        .insert_children(
+                            retained_supplier,
+                            [(
+                                SymbolKind::TypeParameter,
+                                SymbolNameRef::Static("OriginalElement"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let mut program = TypedTrees {
+                        symbols: symbols.finish(),
+                        ..Default::default()
+                    };
+                    let actual_type = program.type_reference_table.insert(
+                        crate::types::TypeReferenceNode::Named {
+                            symbol: actual,
+                            name: Identifier::generated("Selected"),
+                        },
+                    );
+                    let nested_type = program.type_reference_table.insert(
+                        crate::types::TypeReferenceNode::Named {
+                            symbol: nested_actual,
+                            name: Identifier::generated("OriginalElement"),
+                        },
+                    );
+                    program
+                        .type_reference_table
+                        .retain_operand_lifetime_owner(nested_type, retained_supplier)
+                        .unwrap();
+                    let scope = TraitApplicationEnvironment {
+                        declaration: observed,
+                        argument_owner: supplier,
+                        substitutions: vec![(formal, actual_type), (nested_formal, nested_type)],
+                        scope_starts: vec![0, 1],
+                        region_scopes: vec![
+                            AppliedDeclarationRegionScope {
+                                declaration: formal_owner,
+                                lifetimes: Vec::new(),
+                            },
+                            AppliedDeclarationRegionScope {
+                                declaration: nested_owner,
+                                lifetimes: Vec::new(),
+                            },
+                        ],
+                    }
+                    .retain(&mut program)
+                    .unwrap();
+                    let mut references = ScopedReferences {
+                        owner: observed,
+                        outer: Vec::new(),
+                        descriptions: Vec::new(),
+                        names: Vec::new(),
+                    };
+                    scope.visit_references(&program, &mut references);
+                    assert!(references.descriptions.contains(&(observed, supplier)));
+                    assert!(references.descriptions.contains(&(observed, formal_owner)));
+                    assert!(references.descriptions.contains(&(observed, nested_owner)));
+                    assert!(references.descriptions.contains(&(formal_owner, formal)));
+                    assert!(
+                        references
+                            .descriptions
+                            .contains(&(nested_owner, nested_formal))
+                    );
+                    assert!(!references.descriptions.contains(&(observed, formal)));
+                    assert!(references.names.contains(&(supplier, actual)));
+                    assert!(
+                        references
+                            .names
+                            .contains(&(retained_supplier, nested_actual))
+                    );
+                    assert!(!references.names.contains(&(supplier, nested_actual)));
+                    assert_eq!(references.owner, observed);
+                    assert!(references.outer.is_empty());
                 }
             }
         }
@@ -4008,6 +4422,33 @@ pub mod trait_definition {
                 )
                 .ok_or("applied trait parent has no complete type and lifetime application")?;
                 Ok(scope.preceded_by(self))
+            }
+
+            /// Visit the complete applied inheritance graph or report its
+            /// missing relationship. Parent formation has one owner.
+            pub fn try_visit(
+                &self,
+                program: &'program TypedTrees,
+                visit: &mut impl FnMut(&Self) -> Result<(), &'static str>,
+            ) -> Result<(), &'static str> {
+                fn walk<'p>(
+                    scope: &AppliedTraitScope<'p>,
+                    program: &'p TypedTrees,
+                    active: &mut Vec<SymbolHandle>,
+                    visit: &mut impl FnMut(&AppliedTraitScope<'p>) -> Result<(), &'static str>,
+                ) -> Result<(), &'static str> {
+                    if active.contains(&scope.declaration.symbol) {
+                        return Err("applied trait traversal has an inherited declaration cycle");
+                    }
+                    active.push(scope.declaration.symbol);
+                    visit(scope)?;
+                    for parent in scope.parent_scopes(program)? {
+                        walk(&parent, program, active, visit)?;
+                    }
+                    active.pop();
+                    Ok(())
+                }
+                walk(self, program, &mut Vec::new(), visit)
             }
 
             pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {

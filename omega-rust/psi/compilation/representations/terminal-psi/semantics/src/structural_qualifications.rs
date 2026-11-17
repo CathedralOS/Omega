@@ -26,13 +26,15 @@ use language_semantics::type_identity::{
 };
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, IntegerType, MachineId, PlaceId,
-    ScalarTerm, ScalarType, StructuralCaseId, StructuralDomainId, StructuralFieldId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, EdgeId, IntegerType, MachineId,
+    PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    OperationKind, StructuralArgument, StructuralDomainDeclaration, StructuralEstablishmentRoute,
-    StructuralPathQualification, StructuralPathSegment, StructuralQualificationChange,
-    StructuralTypeShape, TargetMachineCallable, TerminalMachine, TerminalModule, Terminator,
+    Operation, OperationKind, StructuralArgument, StructuralDomainDeclaration,
+    StructuralEstablishmentRoute, StructuralPathQualification, StructuralPathSegment,
+    StructuralQualificationChange, StructuralTypeDeclaration, StructuralTypeShape,
+    TargetMachineCallable, TerminalMachine, TerminalModule, Terminator,
 };
 
 use crate::scalar_qualifications::{IssuerRoute, issuer_route_authorizes};
@@ -88,7 +90,7 @@ impl Memberships {
 struct Declared<'a> {
     machine: &'a TerminalMachine,
     /// Every root place that declares memberships, by place identity.
-    declared: Vec<(PlaceId, Memberships)>,
+    declared: Vec<(PlaceId, StructuralTypeId, Memberships)>,
 }
 
 impl<'a> Declared<'a> {
@@ -102,6 +104,7 @@ impl<'a> Declared<'a> {
         ) {
             declared.push((
                 parameter.place,
+                parameter.structural_type,
                 Memberships::of(
                     &parameter.qualifications,
                     &parameter.projected_qualifications,
@@ -111,6 +114,7 @@ impl<'a> Declared<'a> {
         if let Some(result) = machine.result.structural() {
             declared.push((
                 result.place,
+                result.structural_type,
                 Memberships::of(&result.qualifications, &result.projected_qualifications),
             ));
         }
@@ -118,27 +122,79 @@ impl<'a> Declared<'a> {
             if let Some(result) = operation.result.structural() {
                 declared.push((
                     result.place,
+                    result.structural_type,
                     Memberships::of(&result.qualifications, &result.projected_qualifications),
                 ));
             }
         }
-        declared.sort_unstable_by_key(|(place, _)| *place);
+        declared.sort_unstable_by_key(|(place, _, _)| *place);
         if declared.windows(2).any(|pair| pair[0].0 == pair[1].0) {
             return malformed(
                 Some(machine.id),
                 "a structural place declares its memberships twice",
             );
         }
-        Ok(Self { machine, declared })
+        // Additional physical roots (literal and trivial homes) have no
+        // declaration memberships. Merge sorted actual rows once, without
+        // repeated whole-machine place lookup or sparse-ID allocation.
+        let mut extra = machine
+            .structural_places
+            .iter()
+            .filter_map(|row| row.kind.produced_structural_type().map(|ty| (row.id, ty)))
+            .collect::<Vec<_>>();
+        extra.sort_unstable_by_key(|(place, _)| *place);
+        if extra.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return malformed(
+                Some(machine.id),
+                "a physical structural root is declared twice",
+            );
+        }
+        let mut merged = Vec::with_capacity(declared.len() + extra.len());
+        let mut existing = declared.into_iter().peekable();
+        let mut extra = extra.into_iter().peekable();
+        while existing.peek().is_some() || extra.peek().is_some() {
+            match (existing.peek(), extra.peek()) {
+                (Some((left, _, _)), Some((right, _))) if left == right => {
+                    let row = existing.next().expect("declared row");
+                    let physical = extra.next().expect("physical row");
+                    if row.1 != physical.1 {
+                        return malformed(
+                            Some(machine.id),
+                            "a physical root has a different declared carrier",
+                        );
+                    }
+                    merged.push(row);
+                }
+                (Some((left, _, _)), Some((right, _))) if left < right => {
+                    merged.push(existing.next().expect("declared row"));
+                }
+                (Some(_), None) => merged.push(existing.next().expect("declared row")),
+                _ => {
+                    let (place, ty) = extra.next().expect("physical row");
+                    merged.push((place, ty, Memberships::default()));
+                }
+            }
+        }
+        Ok(Self {
+            machine,
+            declared: merged,
+        })
     }
 
     /// What `place` declares. A root no declaration covers (a literal, an
     /// attachment, a trivial local) holds no membership.
     fn root(&self, place: PlaceId) -> Memberships {
         self.declared
-            .binary_search_by_key(&place, |(id, _)| *id)
-            .map(|index| self.declared[index].1.clone())
+            .binary_search_by_key(&place, |(id, _, _)| *id)
+            .map(|index| self.declared[index].2.clone())
             .unwrap_or_default()
+    }
+
+    fn row(&self, place: PlaceId) -> Option<&(PlaceId, StructuralTypeId, Memberships)> {
+        self.declared
+            .binary_search_by_key(&place, |(id, _, _)| *id)
+            .ok()
+            .map(|index| &self.declared[index])
     }
 
     fn at(&self, place: PlaceId, path: &[StructuralPathSegment]) -> Memberships {
@@ -151,6 +207,674 @@ impl<'a> Declared<'a> {
 
     fn machine(&self) -> Option<MachineId> {
         Some(self.machine.id)
+    }
+}
+
+/// One declaration-owned clause at one actual storage occurrence. This is a
+/// reconstructed query result, not additional terminal evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefaultRequirement {
+    pub root: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub carrier: StructuralTypeId,
+    origin: DefaultClause,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DefaultClause {
+    Type(usize),
+    Domain(StructuralDomainId),
+}
+
+impl DefaultRequirement {
+    /// Compare declaration-owned clauses independently of their source alias.
+    /// Consumers must separately compare resolved actual storage.
+    pub fn same_clause(&self, other: &Self) -> bool {
+        self.carrier == other.carrier && self.origin == other.origin
+    }
+}
+
+/// The default clauses of actual declared storage. Additional entry facts and
+/// the result placeholder are not storage declarations. Named memberships only
+/// select what must be proved; they never supply predicate truth.
+pub struct DefaultRequirements<'a> {
+    types: &'a [StructuralTypeDeclaration],
+    domains: &'a [StructuralDomainDeclaration],
+    machine: &'a TerminalMachine,
+    declared: Declared<'a>,
+    type_defaults: Vec<bool>,
+}
+
+impl<'a> DefaultRequirements<'a> {
+    pub fn new(
+        types: &'a [StructuralTypeDeclaration],
+        domains: &'a [StructuralDomainDeclaration],
+        machine: &'a TerminalMachine,
+    ) -> Judged<Self> {
+        let mut memo = vec![None; types.len()];
+        let mut active = vec![false; types.len()];
+        for position in 0..types.len() {
+            type_has_defaults(types, position, &mut memo, &mut active).map_err(|detail| {
+                StructuralQualificationError {
+                    machine: Some(machine.id),
+                    detail,
+                }
+            })?;
+        }
+        Ok(Self {
+            types,
+            domains,
+            machine,
+            declared: Declared::new(machine)?,
+            type_defaults: memo
+                .into_iter()
+                .map(|value| value.expect("prepared type"))
+                .collect(),
+        })
+    }
+
+    fn error(&self, detail: &'static str) -> StructuralQualificationError {
+        StructuralQualificationError {
+            machine: Some(self.machine.id),
+            detail,
+        }
+    }
+
+    fn carrier(&self, root: PlaceId, path: &[StructuralPathSegment]) -> Judged<StructuralTypeId> {
+        let ty = self
+            .declared
+            .row(root)
+            .map(|row| row.1)
+            .ok_or_else(|| self.error("a default requirement has no actual storage root"))?;
+        crate::runtime_structural_path_tip(self.types.iter(), ty, path)
+            .map(|row| row.id)
+            .ok_or_else(|| self.error("a default requirement has no structural carrier"))
+    }
+
+    fn declaration(&self, id: StructuralTypeId) -> Judged<&'a StructuralTypeDeclaration> {
+        self.types
+            .binary_search_by_key(&id, |row| row.id)
+            .ok()
+            .map(|position| &self.types[position])
+            .ok_or_else(|| self.error("a default requirement names an absent carrier"))
+    }
+
+    fn at(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        carrier: StructuralTypeId,
+    ) -> Judged<Vec<DefaultRequirement>> {
+        let mut result = Vec::new();
+        for position in 0..self.declaration(carrier)?.requires.len() {
+            result.push(DefaultRequirement {
+                root,
+                path: path.to_vec(),
+                carrier,
+                origin: DefaultClause::Type(position),
+            });
+        }
+        let memberships = self.declared.at(root, path);
+        let mut named = Vec::new();
+        for id in memberships.whole {
+            let row = self
+                .domains
+                .binary_search_by_key(&id, |row| row.id)
+                .ok()
+                .map(|position| &self.domains[position])
+                .ok_or_else(|| self.error("a default requirement names an absent domain"))?;
+            if row.carrier != carrier {
+                return Err(self.error("a named default requirement has a different carrier"));
+            }
+            let closure = row.required_domain_closure(self.domains).ok_or_else(|| {
+                self.error("a named default has incomplete membership requirements")
+            })?;
+            for domain in closure {
+                if !domain.complete_predicate_theory || domain.content_projection.is_some() {
+                    return Err(
+                        self.error("a named default has no complete storage predicate theory")
+                    );
+                }
+                if domain.predicate.is_some() || domain.byte_predicate.is_some() {
+                    if path
+                        .iter()
+                        .any(|step| matches!(step, StructuralPathSegment::Referent))
+                    {
+                        return Err(
+                            self.error("a reference display is not a lender's declared default")
+                        );
+                    }
+                    named.push(domain.id);
+                }
+            }
+        }
+        named.sort_unstable();
+        named.dedup();
+        result.extend(named.into_iter().map(|id| DefaultRequirement {
+            root,
+            path: path.to_vec(),
+            carrier,
+            origin: DefaultClause::Domain(id),
+        }));
+        Ok(result)
+    }
+
+    /// The complete declared defaults at one actual storage occurrence.
+    /// These select obligations; callers must still check that the occurrence
+    /// is initialized and outside every outstanding restoration window.
+    pub fn storage(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<Vec<DefaultRequirement>> {
+        self.at(root, path, self.carrier(root, path)?)
+    }
+
+    /// Every clause used for snapshot demand, including nested type defaults.
+    /// This inventory supplies no assumptions about those contents.
+    pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {
+        let mut result = Vec::new();
+        for (place, ty, _) in &self.declared.declared {
+            if self
+                .machine
+                .result
+                .structural()
+                .is_some_and(|r| r.place == *place)
+            {
+                continue;
+            }
+            self.walk(
+                *place,
+                &mut Vec::new(),
+                *ty,
+                false,
+                &mut Vec::new(),
+                &mut result,
+            )?;
+        }
+        Ok(result)
+    }
+
+    fn type_has_defaults(&self, carrier: StructuralTypeId) -> Judged<bool> {
+        self.types
+            .binary_search_by_key(&carrier, |row| row.id)
+            .ok()
+            .map(|position| self.type_defaults[position])
+            .ok_or_else(|| self.error("a default inventory names an absent carrier"))
+    }
+
+    fn projected_beneath(&self, root: PlaceId, path: &[StructuralPathSegment]) -> bool {
+        self.declared.row(root).is_some_and(|row| {
+            row.2
+                .projected
+                .iter()
+                .any(|qualified| qualified.path.starts_with(path))
+        })
+    }
+
+    fn walk(
+        &self,
+        root: PlaceId,
+        path: &mut Vec<StructuralPathSegment>,
+        carrier: StructuralTypeId,
+        zero: bool,
+        active: &mut Vec<StructuralTypeId>,
+        result: &mut Vec<DefaultRequirement>,
+    ) -> Judged<()> {
+        if active.contains(&carrier) {
+            return Err(self.error("recursive inline storage has no finite default inventory"));
+        }
+        active.push(carrier);
+        result.extend(self.at(root, path, carrier)?);
+        match &self.declaration(carrier)?.shape {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
+                if self.type_has_defaults(*element)? {
+                    // Nested type defaults genuinely apply to each element.
+                    for index in 0..*length {
+                        path.push(StructuralPathSegment::FixedIndex(index));
+                        self.walk(root, path, *element, zero, active, result)?;
+                        path.pop();
+                    }
+                } else if let Some(row) = self.declared.row(root) {
+                    // No default can mention a plain element. Visit only the
+                    // actual indexed qualification occurrences, never all bytes.
+                    let mut selected = Vec::new();
+                    for qualified in &row.2.projected {
+                        if !qualified.path.starts_with(path) {
+                            continue;
+                        }
+                        match qualified.path.get(path.len()) {
+                            Some(StructuralPathSegment::FixedIndex(index)) if *index < *length => {
+                                selected.push(*index)
+                            }
+                            None => {}
+                            _ => {
+                                return Err(self.error(
+                                    "a default inventory has no concrete array qualification path",
+                                ));
+                            }
+                        }
+                    }
+                    selected.sort_unstable();
+                    selected.dedup();
+                    for index in selected {
+                        path.push(StructuralPathSegment::FixedIndex(index));
+                        self.walk(root, path, *element, zero, active, result)?;
+                        path.pop();
+                    }
+                }
+            }
+            // A symbolic zero has no individual element coordinates. The
+            // zero vocabulary check permits only ungated primitive elements,
+            // so there is no nested default clause to inventory here.
+            StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                ..
+            } if zero => {}
+            StructuralTypeShape::Record { fields, .. } => {
+                self.fields(root, path, fields, zero, active, result)?;
+            }
+            StructuralTypeShape::Sum { cases } => {
+                if zero && cases.is_empty() {
+                    return Err(self.error("a zero sum declares no case"));
+                }
+                for case in cases.iter().take(if zero { 1 } else { cases.len() }) {
+                    path.push(StructuralPathSegment::Case(case.id));
+                    self.fields(root, path, &case.fields, zero, active, result)?;
+                    path.pop();
+                }
+            }
+            // References are independent storage, not inline descendants.
+            // Their display never contributes the lender's default clauses.
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. } => {}
+            _ if !zero => {}
+            _ => return Err(self.error("zero storage has no supported default inventory")),
+        }
+        active.pop();
+        Ok(())
+    }
+
+    fn fields(
+        &self,
+        root: PlaceId,
+        path: &mut Vec<StructuralPathSegment>,
+        fields: &[terminal_psi::StructuralFieldDeclaration],
+        zero: bool,
+        active: &mut Vec<StructuralTypeId>,
+        result: &mut Vec<DefaultRequirement>,
+    ) -> Judged<()> {
+        for field in fields {
+            if let terminal_psi::StructuralFieldType::Structural(nested) = field.field_type {
+                path.push(StructuralPathSegment::Field(field.identity));
+                if self.type_has_defaults(nested)? || self.projected_beneath(root, path) {
+                    self.walk(root, path, nested, zero, active, result)?;
+                }
+                path.pop();
+            }
+        }
+        Ok(())
+    }
+
+    /// The exact ordinal roster reconstructed independently by producers and
+    /// receivers: innermost owners first on stores, type clauses before named
+    /// domains at each owner, named domains sorted by canonical identity.
+    pub fn operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
+        let mut result = Vec::new();
+        let (root, mut path, strict) = match &operation.kind {
+            OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishScalarCase { .. }
+            | OperationKind::EstablishStructuralCase { .. } => {
+                let produced = operation
+                    .result
+                    .structural()
+                    .ok_or_else(|| self.error("a construction produces no storage"))?;
+                return self.at(produced.place, &[], produced.structural_type);
+            }
+            OperationKind::EstablishZeroedStructural {} => {
+                let produced = operation
+                    .result
+                    .structural()
+                    .ok_or_else(|| self.error("a zero establishment produces no storage"))?;
+                if !zero_defaults_supported(self.types, produced.structural_type, &mut Vec::new()) {
+                    return Err(self.error("zero storage has no supported default inventory"));
+                }
+                self.walk(
+                    produced.place,
+                    &mut Vec::new(),
+                    produced.structural_type,
+                    true,
+                    &mut Vec::new(),
+                    &mut result,
+                )?;
+                return Ok(result);
+            }
+            OperationKind::StructuralScalarFieldStore {
+                destination, path, ..
+            }
+            | OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field: Some(_),
+                ..
+            }
+            | OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: Some(_),
+                ..
+            } => (*destination, path.clone(), false),
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            }
+            | OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: None,
+                ..
+            } => (*destination, path.clone(), true),
+            kind if !kind.structural_arguments().is_empty() => {
+                // A callee may change an exclusively lent subplace. The
+                // formal's own domains are restored at handback; each strict
+                // containing owner owes its defaults at this call instead.
+                for argument in kind.structural_arguments() {
+                    if !matches!(
+                        argument.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    ) {
+                        continue;
+                    }
+                    let mut path = argument.path.clone();
+                    if path.pop().is_some() {
+                        result.extend(self.owners(argument.place, &path)?);
+                    }
+                }
+                return Ok(result);
+            }
+            _ => return Ok(result),
+        };
+        if strict && path.pop().is_none() {
+            return Ok(result);
+        }
+        self.owners(root, &path)
+    }
+
+    fn owners(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<Vec<DefaultRequirement>> {
+        let mut result = Vec::new();
+        for length in (0..=path.len()).rev() {
+            let path = &path[..length];
+            if matches!(path.last(), Some(StructuralPathSegment::Case(_))) {
+                continue;
+            }
+            let carrier = self.carrier(root, path)?;
+            // Scalar leaves are not containing values. Existing store owners
+            // already exclude the replaced leaf itself.
+            if matches!(
+                self.declaration(carrier)?.shape,
+                StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::AtomicCell(_)
+            ) {
+                return Err(self.error("a default store owner crosses a scalar leaf"));
+            }
+            result.extend(self.at(root, path, carrier)?);
+        }
+        Ok(result)
+    }
+
+    /// Restate one clause over the common `self` coordinate. Domain declarations
+    /// are used only as goals, never as evidence that a mutable value satisfies
+    /// its own default.
+    pub fn clause(&self, required: &DefaultRequirement) -> Judged<Proposition> {
+        let self_place = PlaceId::new(1).expect("self has a nonzero coordinate");
+        match required.origin {
+            DefaultClause::Type(position) => self
+                .declaration(required.carrier)?
+                .requires
+                .get(position)
+                .cloned()
+                .ok_or_else(|| self.error("a default type clause is absent")),
+            DefaultClause::Domain(id) => {
+                let row = self
+                    .domains
+                    .binary_search_by_key(&id, |row| row.id)
+                    .ok()
+                    .map(|position| &self.domains[position])
+                    .filter(|row| row.carrier == required.carrier)
+                    .ok_or_else(|| self.error("a default domain clause is absent"))?;
+                let mut clauses = Vec::new();
+                if let Some(predicate) = &row.predicate {
+                    let mut bindings = DefaultBindings(Rerooted {
+                        subject: predicate.subject,
+                        root: self_place,
+                        referent: false,
+                    });
+                    clauses.push(
+                        crate::substitution::clauses::substitute_clause(
+                            &predicate.proposition,
+                            &mut bindings,
+                        )
+                        .map_err(|detail| self.error(detail))?,
+                    );
+                }
+                if let Some(predicate) = row.byte_predicate {
+                    if !crate::byte_predicate_carrier(self.types.iter(), required.carrier) {
+                        return Err(self.error("a named byte default has a nonbyte carrier"));
+                    }
+                    clauses.push(Proposition::Equal(
+                        ScalarTerm::byte_sequence_predicate(predicate, self_place, Vec::new()),
+                        ScalarTerm::Boolean(true),
+                    ));
+                }
+                Ok(match clauses.len() {
+                    0 => return Err(self.error("a named default has no predicate clause")),
+                    1 => clauses.pop().expect("one predicate"),
+                    _ => Proposition::Conjunction(clauses),
+                })
+            }
+        }
+    }
+}
+
+// Validate zero's old storage vocabulary independently of demand pruning:
+// an unsupported zero cannot become supported because it owes no clauses.
+fn zero_defaults_supported(
+    types: &[StructuralTypeDeclaration],
+    carrier: StructuralTypeId,
+    active: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if active.contains(&carrier) {
+        return false;
+    }
+    let Ok(position) = types.binary_search_by_key(&carrier, |row| row.id) else {
+        return false;
+    };
+    active.push(carrier);
+    let fields = match &types[position].shape {
+        StructuralTypeShape::PrimitiveScalar(_) => {
+            active.pop();
+            return true;
+        }
+        StructuralTypeShape::AtomicCell(cell) if cell.bounds().is_none() => {
+            active.pop();
+            return true;
+        }
+        shape
+            if shape.is_shared_readable_byte_view()
+                || matches!(
+                    shape,
+                    StructuralTypeShape::ElementView {
+                        access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        ..
+                    }
+                ) =>
+        {
+            active.pop();
+            return true;
+        }
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
+            let supported = *length == 0 || zero_defaults_supported(types, *element, active);
+            active.pop();
+            return supported;
+        }
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Parameter { .. },
+        } => {
+            let supported = types
+                .binary_search_by_key(element, |row| row.id)
+                .ok()
+                .map(|position| &types[position])
+                .is_some_and(|element| {
+                    element.requires.is_empty()
+                        && element.scalar_restriction.is_none()
+                        && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
+                });
+            active.pop();
+            return supported;
+        }
+        StructuralTypeShape::Record { fields, .. } => fields.as_slice(),
+        StructuralTypeShape::Sum { cases } => {
+            let Some(first) = cases.first() else {
+                active.pop();
+                return false;
+            };
+            &first.fields
+        }
+        _ => {
+            active.pop();
+            return false;
+        }
+    };
+    let supported = fields.iter().all(|field| match &field.field_type {
+        terminal_psi::StructuralFieldType::Scalar(_)
+        | terminal_psi::StructuralFieldType::Atomic(_) => true,
+        terminal_psi::StructuralFieldType::Structural(nested) => {
+            zero_defaults_supported(types, *nested, active)
+        }
+        field => {
+            let predicates_hold = match field {
+                terminal_psi::StructuralFieldType::ByteSequence(_) => true,
+                terminal_psi::StructuralFieldType::PredicateByteSequence { predicates, .. } => {
+                    predicates.holds_for(&[])
+                }
+                _ => false,
+            };
+            predicates_hold
+                && matches!(
+                    field.byte_sequence_carrier(),
+                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    })
+                )
+        }
+    });
+    active.pop();
+    supported
+}
+
+fn type_has_defaults(
+    types: &[StructuralTypeDeclaration],
+    position: usize,
+    memo: &mut [Option<bool>],
+    active: &mut [bool],
+) -> Result<bool, &'static str> {
+    if let Some(value) = memo[position] {
+        return Ok(value);
+    }
+    if std::mem::replace(&mut active[position], true) {
+        return Err("recursive inline storage has no finite default inventory");
+    }
+    let row = &types[position];
+    let mut found = !row.requires.is_empty();
+    let mut children = Vec::new();
+    if let StructuralTypeShape::FixedArray { element, .. } = row.shape {
+        children.push(element);
+    }
+    for (_, field) in row.shape.fields_with_case() {
+        if let terminal_psi::StructuralFieldType::Structural(nested) = field.field_type {
+            children.push(nested);
+        }
+    }
+    for child in children {
+        let child = types
+            .binary_search_by_key(&child, |row| row.id)
+            .map_err(|_| "an inline default inventory names an absent carrier")?;
+        found |= type_has_defaults(types, child, memo, active)?;
+    }
+    active[position] = false;
+    memo[position] = Some(found);
+    Ok(found)
+}
+
+struct DefaultBindings(Rerooted);
+
+impl crate::substitution::clauses::ClauseBindings for DefaultBindings {
+    type Error = &'static str;
+    fn value(&mut self, id: ValueId, ty: ScalarType) -> Result<ScalarTerm, Self::Error> {
+        self.0.value(id, ty)
+    }
+    fn field(
+        &mut self,
+        version: ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if version != ContentPlaceVersion::Current {
+            return Err("a default predicate observes invocation-entry contents");
+        }
+        self.0.field(version, root, path, ty)
+    }
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        ty: IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.0.extent(root, path, ty)
+    }
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.0.byte_predicate(predicate, root, path)
+    }
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err("a default case predicate requires symbolic rebasing")
+    }
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        Ok(Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(
+                self.0.root,
+                self.0.path(root, path)?,
+            ),
+            case,
+        })
     }
 }
 
@@ -233,14 +957,8 @@ fn require_exact(
 /// Every domain a declaration names exists and names the carrier at the place
 /// it qualifies.
 fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<()> {
-    let machine = places.machine;
-    for (place, memberships) in &places.declared {
-        let Some(root) = machine.structural_place_type(*place) else {
-            return malformed(
-                places.machine(),
-                "a qualified structural place has no declared type",
-            );
-        };
+    for (_, root, memberships) in &places.declared {
+        let root = *root;
         let rows = memberships.whole.iter().map(|id| (&[][..], *id)).chain(
             memberships
                 .projected
@@ -254,12 +972,20 @@ fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<(
                     "a structural place names an absent domain",
                 );
             };
+            // Byte and content judgments check their predicates separately.
+            // Every qualification must still name a valid storage path.
+            let Some(carrier) =
+                crate::qualification_path_carrier(module.structural_types.iter(), root, path)
+            else {
+                return malformed(
+                    places.machine(),
+                    "a structural place's domain names an absent path",
+                );
+            };
             if judged_elsewhere(module, id) {
                 continue;
             }
-            let carrier =
-                crate::qualification_path_carrier(module.structural_types.iter(), root, path);
-            if carrier != Some(declared.carrier) {
+            if carrier != declared.carrier {
                 return malformed(
                     places.machine(),
                     "a structural place's domain has a different carrier",
@@ -356,6 +1082,9 @@ impl crate::substitution::clauses::ClauseBindings for Rerooted {
                 path,
                 format,
             },
+            ScalarType::Callable(_) => {
+                return Err("a structural domain predicate observes a callable field");
+            }
         })
     }
 
@@ -370,6 +1099,19 @@ impl crate::substitution::clauses::ClauseBindings for Rerooted {
             root: self.root,
             scalar_type,
         })
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.root,
+            self.path(root, path)?,
+        ))
     }
 
     fn case(
@@ -389,7 +1131,7 @@ fn validate_change(
     source: &StructuralArgument,
     destination: &Memberships,
     target: BlockId,
-) -> Judged<()> {
+) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
         return malformed(
@@ -419,10 +1161,26 @@ fn validate_change(
         );
     }
     if removed {
+        if held.iter().any(|id| {
+            !shown.contains(id)
+                && domain(module, id.0)
+                    .and_then(|row| row.access_policy.as_ref())
+                    .is_some_and(|plan| {
+                        !plan.readers.is_empty()
+                            || !plan.writers.is_empty()
+                            || !plan.observations.is_empty()
+                            || plan.reach.services().len() != 0
+                    })
+        }) {
+            return malformed(
+                machine,
+                "removing this domain would lose its memory access rules",
+            );
+        }
         if !change.establishments.is_empty() {
             return malformed(machine, "a structural erasure cannot establish a domain");
         }
-        return Ok(());
+        return Ok(None);
     }
     let declaration = places.machine.declaration.as_ref();
     let held: Vec<_> = held.iter().map(|(id, _)| *id).collect();
@@ -433,7 +1191,7 @@ fn validate_change(
                 "a structural qualification change adds an absent domain",
             );
         };
-        if declared.byte_predicate.is_some() || declared.content_projection.is_some() {
+        if declared.content_projection.is_some() {
             return malformed(
                 machine,
                 "a structural cast cannot prove a byte predicate or content projection",
@@ -443,7 +1201,9 @@ fn validate_change(
         // edge into the block the cast continues in: that block's invariant
         // states them of its parameter, as a scalar coercion's does
         // (`scalar_qualifications`).
-        if let Some(predicate) = &declared.predicate {
+        if let Some(predicate) = &declared.predicate
+            && declared.byte_predicate.is_none()
+        {
             let Ok(expected) = crate::substitution::clauses::substitute_clause(
                 &predicate.proposition,
                 &mut Rerooted {
@@ -543,10 +1303,67 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
-    Ok(())
+    let mut byte_domain = false;
+    let mut established = true;
+    for (id, referent) in &added {
+        let declared = domain(module, *id).ok_or(StructuralQualificationError {
+            machine,
+            detail: "a structural qualification change adds an absent domain",
+        })?;
+        if declared.byte_predicate.is_none() {
+            continue;
+        }
+        let root = places
+            .machine
+            .structural_place_type(change.destination)
+            .ok_or(StructuralQualificationError {
+                machine,
+                detail: "a byte qualification change has no declared destination carrier",
+            })?;
+        let path = if *referent {
+            &[StructuralPathSegment::Referent][..]
+        } else {
+            &[][..]
+        };
+        let carrier =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)
+                .ok_or(StructuralQualificationError {
+                    machine,
+                    detail: "a byte qualification change has no declared displayed carrier",
+                })?
+                .id;
+        if !crate::byte_predicate_carrier(module.structural_types.iter(), carrier) {
+            return malformed(
+                machine,
+                "a byte qualification change has a non-byte carrier",
+            );
+        }
+        let predicates = crate::byte_qualification_predicates_in(
+            module.structural_domains.iter(),
+            carrier,
+            std::slice::from_ref(id),
+        )
+        .ok_or(StructuralQualificationError {
+            machine,
+            detail: "a byte qualification change is not a complete primitive byte domain",
+        })?;
+        let mut argument = source.clone();
+        argument.path.extend_from_slice(path);
+        let supplied = crate::byte_sequence_argument_predicates(module, places.machine, &argument)
+            .ok_or(StructuralQualificationError {
+                machine,
+                detail: "a byte qualification change has no reconstructed source predicates",
+            })?;
+        byte_domain = true;
+        established &= supplied.implies(predicates);
+    }
+    Ok(byte_domain.then_some(established))
 }
 
-fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judged<()> {
+fn validate_machine(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
     validate_declared(module, &places)?;
@@ -556,6 +1373,7 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
         .filter(|change| change.machine == machine.id)
         .collect();
     let mut used = vec![false; changes.len()];
+    let mut byte_establishments = Vec::new();
     let find_block = |target| machine.blocks.iter().find(|block| block.id == target);
     for block in &machine.blocks {
         let edges = block.terminator.successor_edges();
@@ -594,14 +1412,16 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                                 "a structural qualification change names another destination",
                             );
                         }
-                        validate_change(
+                        if let Some(established) = validate_change(
                             module,
                             &places,
                             changes[index],
                             argument,
                             &expected,
                             target.id,
-                        )?;
+                        )? {
+                            byte_establishments.push((edge, established));
+                        }
                     }
                     None => require_exact(
                         &places,
@@ -733,9 +1553,18 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                         covered.push(segments);
                     }
                     if produced.projected.iter().any(|row| {
-                        !covered
-                            .iter()
-                            .any(|segments| row.path.starts_with(segments))
+                        // Other cases retain their conditional field domains
+                        // in the result type, but supply no storage in this
+                        // literal. validate_declared checked their full paths.
+                        let inactive_case = matches!(
+                            (case, row.path.first()),
+                            (Some(active), Some(StructuralPathSegment::Case(declared)))
+                                if active != *declared
+                        );
+                        !inactive_case
+                            && !covered
+                                .iter()
+                                .any(|segments| row.path.starts_with(segments))
                     }) {
                         return malformed(
                             id,
@@ -799,10 +1628,33 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                 // store delivers its domains.
                 OperationKind::EstablishStructuralLocal {} => {}
                 OperationKind::EstablishZeroedStructural {} => {
-                    if !produced.whole.is_empty()
+                    let carrier = result_type.ok_or(StructuralQualificationError {
+                        machine: id,
+                        detail: "zero provisioning has no declared result carrier",
+                    })?;
+                    let byte_projected = produced.projected.iter().filter(|row| {
+                        domain(module, row.domain)
+                            .is_some_and(|domain| domain.byte_predicate.is_some())
+                    });
+                    let byte_defaults_hold =
+                        crate::structural::zeroed_structural::zeroed_byte_qualifications_hold(
+                            module.structural_types.iter(),
+                            module.structural_domains.iter(),
+                            carrier,
+                            produced
+                                .whole
+                                .iter()
+                                .map(|domain| (&[][..], *domain))
+                                .chain(byte_projected.map(|row| (row.path.as_slice(), row.domain))),
+                        );
+                    if !byte_defaults_hold
                         || produced
                             .projected
                             .iter()
+                            .filter(|row| {
+                                domain(module, row.domain)
+                                    .is_none_or(|domain| domain.byte_predicate.is_none())
+                            })
                             .any(|row| !zero_admits(module, row))
                     {
                         return malformed(
@@ -834,7 +1686,7 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
             "a structural qualification change names no successor argument",
         );
     }
-    Ok(())
+    Ok(byte_establishments)
 }
 
 /// The path to `field` of the value at `path` beneath `root`.
@@ -1171,7 +2023,7 @@ fn machine_caller_application_matches(
                         }
                     }
                     terminal_psi::ClosedReachParameter::Const { argument: expected } => {
-                        if expected.scalar_index_identity().as_deref() != Some(argument.as_str()) {
+                        if expected.index_identity().as_deref() != Some(argument.as_str()) {
                             return Ok(false);
                         }
                     }
@@ -1557,29 +2409,731 @@ pub fn same_access_policy(
     }
 }
 
-/// The whole judgment of a module's structural memberships.
-pub fn validate(module: &TerminalModule) -> Judged<()> {
+// Access rules follow the value and its live storage. Check every possible
+// backing and carry each exact argument relationship through its callers.
+mod operation_permissions {
+    use super::*;
+    use crate::borrowed_storage::Projection;
+    use crate::descriptor_lifetimes::{
+        DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowSource, DescriptorPosition,
+    };
+    use crate::descriptor_results::{
+        DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
+        DescriptorPayloadTarget, DescriptorSourceOrigin, contents_membership_path,
+        require_unchanged_produced_payload_in, terminal_borrowed_storage_graph_from,
+        terminal_payload_contract,
+    };
+    use access_plans::AccessOperation;
+
+    // Reuse a judgment only for this function, instruction and value. The
+    // same helper can receive different storage on its separate invocations.
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    struct Subject {
+        machine: MachineId,
+        position: DescriptorPosition,
+        source: DescriptorSourceOrigin,
+    }
+    type Caller = (
+        language_semantics::reflection::CallableDescription,
+        StructuralEstablishmentRoute,
+    );
+
+    struct RuleJudgment<'a> {
+        target: &'a Subject,
+        allowed: &'a [Caller],
+        denied: StructuralQualificationError,
+        answers: std::collections::BTreeMap<(Subject, bool, bool), Option<Judged<bool>>>,
+    }
+
+    struct Permissions<'a> {
+        module: &'a TerminalModule,
+        graph: &'a [DescriptorMachine],
+        analysis: DescriptorAnalysis<'a>,
+        // One borrowed lookup serves this pass. Source declarations and
+        // blocks keep their original order in the module.
+        declarations: Vec<(&'a TerminalMachine, Vec<&'a terminal_psi::Block>)>,
+        // These rows borrow original calls. No operand vectors, descriptor
+        // queries or transitive call paths are copied into this index.
+        incoming: Vec<(
+            MachineId,
+            MachineId,
+            DescriptorPosition,
+            terminal_psi::InvocationOwner,
+            Judged<terminal_psi::ModuleInvocationInputs<'a>>,
+        )>,
+    }
+    fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
+        StructuralQualificationError {
+            machine: Some(machine),
+            detail,
+        }
+    }
+    impl<'a> Permissions<'a> {
+        fn declaration(&self, identity: MachineId) -> Judged<usize> {
+            self.declarations
+                .binary_search_by_key(&identity, |(body, _)| body.id)
+                .map_err(|_| {
+                    failure(
+                        identity,
+                        "the compiler cannot find the function performing this access",
+                    )
+                })
+        }
+        fn machine(&self, identity: MachineId) -> Judged<&'a TerminalMachine> {
+            Ok(self.declarations[self.declaration(identity)?].0)
+        }
+        fn block(&self, identity: MachineId, block: BlockId) -> Judged<&'a terminal_psi::Block> {
+            let blocks = &self.declarations[self.declaration(identity)?].1;
+            blocks
+                .binary_search_by_key(&block, |row| row.id)
+                .map(|index| blocks[index])
+                .map_err(|_| failure(identity, "memory access has no original block"))
+        }
+        fn original_call(
+            &self,
+            caller: MachineId,
+            position: DescriptorPosition,
+            owner: terminal_psi::InvocationOwner,
+        ) -> Judged<terminal_psi::ModuleInvocationInputs<'a>> {
+            let block = self.block(caller, position.0)?;
+            match owner {
+                terminal_psi::InvocationOwner::Operation(id) => block.operations
+                    .get(position.1 as usize)
+                    .filter(|operation| operation.id == id)
+                    .and_then(|operation| operation.module_invocation()),
+                terminal_psi::InvocationOwner::InvokeNoNormal(edge)
+                    if position.1 as usize == block.operations.len()
+                        && matches!(block.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge) =>
+                {
+                    block.terminator.module_invocation()
+                }
+                _ => None,
+            }.ok_or_else(|| failure(caller,
+                "memory access call has no supported original invocation"))
+        }
+        fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
+            self.graph
+                .binary_search_by_key(&identity, |row| row.id)
+                .map(|index| &self.graph[index])
+                .map_err(|_| {
+                    failure(
+                        identity,
+                        "the compiler cannot trace this value through its storage history",
+                    )
+                })
+        }
+        fn requirements(
+            &mut self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            query: &DescriptorContentsQuery,
+            requirements: &mut Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            if query
+                .steps
+                .iter()
+                .any(|step| matches!(step, DescriptorContentsStep::Element { selector: None, .. }))
+            {
+                return Err(failure(
+                    machine,
+                    "the compiler cannot identify which element this operation uses",
+                ));
+            }
+            let body = self.machine(machine)?;
+            let contract = terminal_payload_contract(body, query.root).ok_or_else(|| {
+                failure(
+                    machine,
+                    "the compiler cannot identify the access rules on this value",
+                )
+            })?;
+            query
+                .validate(&self.module.structural_types, contract.carrier)
+                .ok_or_else(|| {
+                    failure(
+                        machine,
+                        "this operation does not select a part of its declared value",
+                    )
+                })?;
+            // Reserving a home declares what a later store must deliver; it
+            // does not install that value's rules on empty storage. Exempt
+            // only a positively proved, untouched empty producer. A moved-out
+            // hole or an unknown write cannot recreate that initial state.
+            let descriptor = self.descriptor(machine)?;
+            let producer = descriptor
+                .places
+                .binary_search_by_key(&query.root, |place| place.place)
+                .ok()
+                .and_then(|index| descriptor.places[index].producer);
+            if let Some(producer) = producer {
+                let empty = self
+                    .block(machine, producer.0)?
+                    .operations
+                    .get(producer.1 as usize)
+                    .is_some_and(|operation| {
+                        matches!(operation.kind, OperationKind::EstablishStructuralLocal {})
+                    });
+                if empty
+                    && require_unchanged_produced_payload_in(
+                        &self.module.structural_types,
+                        self.graph,
+                        &mut self.analysis,
+                        machine,
+                        producer,
+                        position,
+                        &crate::descriptor_lifetimes::DescriptorLocation::whole(query.root),
+                    )
+                    .is_ok()
+                {
+                    return Ok(());
+                }
+            }
+            let selected = contents_membership_path(
+                &self.module.structural_types,
+                contract.carrier,
+                &query.steps,
+            )
+            .ok_or_else(|| {
+                failure(
+                    machine,
+                    "the compiler cannot match this access to its declared field",
+                )
+            })?;
+            let mut add = |id, prefix: &[StructuralPathSegment]| -> Judged<()> {
+                let row = domain(self.module, id)
+                    .ok_or_else(|| failure(machine, "memory access names an absent domain"))?;
+                if row.access_policy.is_none() {
+                    return Ok(());
+                }
+                let relative = if prefix.len() <= selected.len()
+                    && StructuralPathQualification::selected_suffix(
+                        prefix,
+                        &selected[..prefix.len()],
+                    )
+                    .is_some()
+                {
+                    selected[prefix.len()..].to_vec()
+                } else if StructuralPathQualification::selected_suffix(prefix, &selected).is_some()
+                {
+                    // Observing a whole value also observes its governed parts.
+                    Vec::new()
+                } else {
+                    return Ok(());
+                };
+                if relative
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+                {
+                    return Err(failure(
+                        machine,
+                        "access through a reference stored inside this value has not been checked yet",
+                    ));
+                }
+                requirements.push((id, relative));
+                Ok(())
+            };
+            for id in &contract.qualifications {
+                add(*id, &[])?;
+            }
+            for row in &contract.projected_qualifications {
+                add(row.domain, &row.path)?;
+            }
+            requirements.sort();
+            requirements.dedup();
+            Ok(())
+        }
+        fn query(
+            &self,
+            machine: MachineId,
+            origin: &DescriptorSourceOrigin,
+        ) -> Judged<DescriptorContentsQuery> {
+            match origin {
+                DescriptorSourceOrigin::IncomingSlot(location) => {
+                    Ok(DescriptorContentsQuery::from_location(location))
+                }
+                DescriptorSourceOrigin::IncomingContents { query, projection } => {
+                    let root = *self
+                        .descriptor(machine)?
+                        .place_types
+                        .get(&query.root)
+                        .ok_or_else(|| {
+                            failure(
+                                machine,
+                                "the compiler cannot identify this argument's value type",
+                            )
+                        })?;
+                    query
+                        .projected(&self.module.structural_types, root, projection)
+                        .ok_or_else(|| {
+                            failure(
+                                machine,
+                                "the compiler cannot identify which part of this argument is used",
+                            )
+                        })
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) if projection.exact
+                    && !projection.indirect
+                    && projection.window.is_none()
+                    && projection.captured_at.is_none() =>
+                {
+                    let root = *self
+                        .descriptor(machine)?
+                        .place_types
+                        .get(source)
+                        .ok_or_else(|| {
+                            failure(machine, "memory access backing has no declared carrier")
+                        })?;
+                    crate::descriptor_results::descriptor_contents_query(
+                        &self.module.structural_types,
+                        *source,
+                        root,
+                        &projection.path,
+                        None,
+                    )
+                    .ok_or_else(|| failure(machine, "memory access backing path is unresolved"))
+                }
+                _ => Err(failure(
+                    machine,
+                    "memory access backing or invocation scope is unresolved",
+                )),
+            }
+        }
+
+        fn callers(&mut self, subject: &Subject) -> Judged<Vec<Subject>> {
+            let current = self.descriptor(subject.machine)?;
+            let query = self.query(subject.machine, &subject.source)?;
+            if !matches!(
+                current.place_definition(query.root),
+                Some(DescriptorDefinition::Parameter { .. })
+            ) {
+                return Ok(Vec::new());
+            }
+            let range = self.incoming.partition_point(|row| row.0 < subject.machine)
+                ..self
+                    .incoming
+                    .partition_point(|row| row.0 <= subject.machine);
+            let mut result = Vec::new();
+            for index in range {
+                let (_, caller, position, owner, ref invocation) = self.incoming[index];
+                let invocation = invocation.as_ref().map_err(Clone::clone)?;
+                if invocation.required_contract.is_some() {
+                    return Err(failure(
+                        caller,
+                        "the compiler cannot check this helper's public call contract yet",
+                    ));
+                }
+                let actuals = self
+                    .analysis
+                    .substitute_call_source_at(caller, position, owner, &subject.source)
+                    .filter(|actuals| !actuals.is_empty())
+                    .ok_or_else(|| {
+                        failure(
+                            caller,
+                            "the compiler cannot trace every argument to the storage supplied to this helper",
+                        )
+                    })?;
+                result.extend(actuals.into_iter().map(|source| Subject {
+                    machine: caller,
+                    position,
+                    source,
+                }));
+            }
+            Ok(result)
+        }
+        fn is_entry(&self, subject: &Subject) -> Judged<bool> {
+            if self.module.entry.is_none()
+                || self.module.entry == Some(TargetMachineCallable::Machine(subject.machine))
+            {
+                return Ok(true);
+            }
+            let current = self.machine(subject.machine)?;
+            Ok(current.declaration.as_ref().is_some_and(|declaration| {
+                self.module.callback_applications.iter().any(|application| {
+                    declaration.same_identity_as(
+                        &self.module.identities,
+                        &application.body,
+                        &self.module.identities,
+                    )
+                })
+            }))
+        }
+        // Check one rule independently. Only two facts travel through each
+        // actual subject context: this occurrence was reached, and a live
+        // function on that lineage is explicitly permitted by this rule.
+        // Merging principal lists would enumerate exponentially many call
+        // strings; checking each conjunct this way does not retain them.
+        fn route(
+            &mut self,
+            subject: Subject,
+            mut granted: bool,
+            mut encountered: bool,
+            rule: &mut RuleJudgment<'_>,
+        ) -> Judged<bool> {
+            encountered |= subject == *rule.target;
+            let current = self.machine(subject.machine)?;
+            if current.selected_application.is_some() {
+                return Err(failure(
+                    subject.machine,
+                    "the compiler cannot check the selected public caller's access yet",
+                ));
+            }
+            if !granted {
+                let mut unavailable = None;
+                for caller in rule.allowed {
+                    match caller_matches_machine(self.module, subject.machine, caller) {
+                        Ok(true) => {
+                            granted = true;
+                            break;
+                        }
+                        Ok(false) => {}
+                        Err(error) => unavailable = Some(error),
+                    }
+                }
+                if !granted && let Some(error) = unavailable {
+                    return Err(error);
+                }
+            }
+            let key = (subject.clone(), granted, encountered);
+            if let Some(result) = rule.answers.get(&key) {
+                return result.clone().unwrap_or_else(|| {
+                    Err(failure(
+                        subject.machine,
+                        "recursive memory access has no completed permission judgment",
+                    ))
+                });
+            }
+            rule.answers.insert(key.clone(), None);
+            let result = (|| {
+                let callers = self.callers(&subject)?;
+                let entry = self.is_entry(&subject)? || callers.is_empty();
+                if entry && encountered && !granted {
+                    // The unauthorized instruction owns this refusal. An
+                    // outer caller ending the search is not that instruction.
+                    return Err(rule.denied.clone());
+                }
+                let mut found = entry && encountered;
+                for caller in callers {
+                    found |= self.route(caller, granted, encountered, rule)?;
+                }
+                Ok(found)
+            })();
+            rule.answers.insert(key, Some(result.clone()));
+            result
+        }
+        fn rules(
+            &mut self,
+            original: &Subject,
+            subject: &Subject,
+            operation: AccessOperation,
+            requirements: Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            let module = self.module;
+            let (read, write) = operation.reads_and_writes();
+            for (id, selected) in requirements {
+                let declaration = domain(module, id)
+                    .ok_or_else(|| failure(subject.machine, "memory access domain disappeared"))?;
+                let Some(plan) = &declaration.access_policy else {
+                    continue;
+                };
+                for (needed, rules, denied) in [
+                    (
+                        read,
+                        &plan.readers,
+                        "this function is not allowed to read this value",
+                    ),
+                    (
+                        write,
+                        &plan.writers,
+                        "this function is not allowed to write this value",
+                    ),
+                ] {
+                    if !needed {
+                        continue;
+                    }
+                    for ((_, path), allowed) in rules {
+                        let path = path.as_deref().ok_or_else(|| {
+                            failure(
+                                subject.machine,
+                                "these access rules name a field without supported runtime storage",
+                            )
+                        })?;
+                        if StructuralPathQualification::selected_suffix(path, &selected).is_none()
+                            && StructuralPathQualification::selected_suffix(&selected, path)
+                                .is_none()
+                        {
+                            continue;
+                        }
+                        let mut judgment = RuleJudgment {
+                            target: subject,
+                            allowed,
+                            denied: failure(original.machine, denied),
+                            answers: std::collections::BTreeMap::new(),
+                        };
+                        let reached = self.route(original.clone(), false, false, &mut judgment)?;
+                        if !reached {
+                            return Err(failure(
+                                subject.machine,
+                                "the compiler cannot match this access to the value supplied by its caller",
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        fn subject(
+            &mut self,
+            original: Subject,
+            operation: AccessOperation,
+            requirements: Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            // Original displayed qualifications apply to every possible
+            // backing. Further owners add independent restrictions; neither
+            // alternative intersection nor a bare formal can erase them.
+            self.rules(&original, &original, operation, requirements)?;
+            let mut pending = vec![original.clone()];
+            let mut visited = std::collections::BTreeSet::new();
+            while let Some(subject) = pending.pop() {
+                if !visited.insert(subject.clone()) {
+                    continue;
+                }
+                let query = self.query(subject.machine, &subject.source)?;
+                let mut requirements = Vec::new();
+                self.requirements(subject.machine, subject.position, &query, &mut requirements)?;
+                self.rules(&original, &subject, operation, requirements)?;
+                pending.extend(self.callers(&subject)?);
+            }
+            Ok(())
+        }
+        fn operation(
+            &mut self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            input: usize,
+        ) -> Judged<()> {
+            let (operation, source) = self
+                .analysis
+                .storage_access(machine, (position, input))
+                .ok_or_else(|| failure(machine, "memory access lost its original operand"))?;
+            let query = match source {
+                DescriptorFlowSource::Location(location) => {
+                    DescriptorContentsQuery::from_location(location)
+                }
+                DescriptorFlowSource::Contents(query) => query.clone(),
+                DescriptorFlowSource::Unavailable(_) => {
+                    return Err(failure(
+                        machine,
+                        "the compiler cannot identify the memory this operation uses",
+                    ));
+                }
+            };
+            let mut requirements = Vec::new();
+            self.requirements(machine, position, &query, &mut requirements)?;
+            let targets = self
+                .analysis
+                .payload_targets(machine, position, &query)
+                .filter(|targets| !targets.is_empty())
+                .ok_or_else(|| failure(machine, "memory access has no complete live backing"))?;
+            for target in targets {
+                let source = match target {
+                    DescriptorPayloadTarget::Incoming(query) => {
+                        DescriptorSourceOrigin::IncomingContents {
+                            query,
+                            projection: Projection::new(&[]),
+                        }
+                    }
+                    DescriptorPayloadTarget::Storage {
+                        location,
+                        completed: None,
+                    } => {
+                        let path = self
+                            .descriptor(machine)?
+                            .location_path(&self.module.structural_types, &location, None)
+                            .ok_or_else(|| {
+                                failure(machine, "memory access storage has no typed path")
+                            })?;
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                            source: location.root,
+                            projection: Projection::new(&path),
+                        })
+                    }
+                    DescriptorPayloadTarget::Storage {
+                        completed: Some(_), ..
+                    } => {
+                        return Err(failure(
+                            machine,
+                            "the compiler cannot check access to this earlier stored value yet",
+                        ));
+                    }
+                };
+                self.subject(
+                    Subject {
+                        machine,
+                        position,
+                        source,
+                    },
+                    operation,
+                    requirements.clone(),
+                )?;
+            }
+            Ok(())
+        }
+    }
+    pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
+        let has_rules = |id| {
+            domain(module, id)
+                .and_then(|row| row.access_policy.as_ref())
+                .is_some_and(|plan| !plan.readers.is_empty() || !plan.writers.is_empty())
+        };
+        let mut roots = Vec::new();
+        for machine in &module.machines {
+            let declarations = Declared::new(machine)?;
+            let governed = declarations.declared.iter().any(|(_, _, row)| {
+                row.whole.iter().any(|id| has_rules(*id))
+                    || row.projected.iter().any(|row| has_rules(row.domain))
+            }) || machine.operations().any(|operation| {
+                matches!(&operation.kind, OperationKind::EstablishByteSequenceLiteral { qualifications, .. }
+                    if qualifications.iter().any(|id| has_rules(*id)))
+            });
+            if governed {
+                roots.push(machine.id);
+            }
+        }
+        if roots.is_empty() {
+            return Ok(());
+        }
+        if matches!(module.entry, Some(TargetMachineCallable::Boundary(_))) {
+            return malformed(
+                None,
+                "the compiler cannot check access through this public entry yet",
+            );
+        }
+        let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
+            .map_err(|error| StructuralQualificationError {
+                machine: Some(error.machine()),
+                detail: error
+                    .detail()
+                    .unwrap_or("memory access storage history cannot be reconstructed"),
+            })?;
+        graph.sort_by_key(|row| row.id);
+        let mut declarations = module
+            .machines
+            .iter()
+            .filter(|body| graph.binary_search_by_key(&body.id, |row| row.id).is_ok())
+            .map(|body| {
+                let mut blocks = body.blocks.iter().collect::<Vec<_>>();
+                blocks.sort_unstable_by_key(|block| block.id);
+                if blocks.windows(2).any(|rows| rows[0].id == rows[1].id) {
+                    return Err(failure(
+                        body.id,
+                        "memory access function repeats a block identity",
+                    ));
+                }
+                Ok((body, blocks))
+            })
+            .collect::<Judged<Vec<_>>>()?;
+        declarations.sort_unstable_by_key(|(body, _)| body.id);
+        if let Some(rows) = declarations
+            .windows(2)
+            .find(|rows| rows[0].0.id == rows[1].0.id)
+        {
+            return Err(failure(
+                rows[0].0.id,
+                "memory access repeats a function identity",
+            ));
+        }
+        let mut permissions = Permissions {
+            module,
+            graph: &graph,
+            analysis: DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.structural_types,
+                &graph,
+            ),
+            declarations,
+            incoming: Vec::new(),
+        };
+        for caller in &graph {
+            for (position, call) in caller.known_invocations() {
+                if let Some(callee) = call.callee() {
+                    let invocation = permissions
+                        .original_call(caller.id, *position, call.owner)
+                        .and_then(|invocation| {
+                            if invocation.callee == callee {
+                                Ok(invocation)
+                            } else {
+                                Err(failure(
+                                    caller.id,
+                                    "memory access call has a different source target",
+                                ))
+                            }
+                        });
+                    permissions
+                        .incoming
+                        .push((callee, caller.id, *position, call.owner, invocation));
+                }
+            }
+        }
+        permissions
+            .incoming
+            .sort_by_key(|row| (row.0, row.1, row.2, row.3));
+        for identity in roots {
+            permissions
+                .analysis
+                .storage_access_frame(identity)
+                .map_err(|detail| failure(identity, detail))?
+                .ok_or_else(|| failure(identity, "a helper's memory accesses are unresolved"))?;
+        }
+        for machine in &graph {
+            let accesses = permissions
+                .analysis
+                .storage_access_frame(machine.id)
+                .map_err(|detail| failure(machine.id, detail))?
+                .ok_or_else(|| failure(machine.id, "a helper's memory accesses are unresolved"))?
+                .to_vec();
+            for (position, input) in accesses {
+                permissions.operation(machine.id, position, input)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
     for domain in &module.structural_domains {
         validate_access_policy(module, domain)?;
         // A received program can already hold a qualified input. Source
-        // formation refusal alone cannot protect its operations until memory
-        // access checks implement read, write, observation and reach rules.
+        // formation refusal alone cannot protect its operations. Caller
+        // rules are checked below; profile observations and reach still need
+        // their actual supply/lifecycle consumers.
         // Description-only plans can still be validated separately.
-        if domain.access_policy.as_ref().is_some_and(|plan| {
-            !plan.readers.is_empty()
-                || !plan.writers.is_empty()
-                || !plan.observations.is_empty()
-                || plan.reach.services().len() != 0
-        }) {
+        if domain
+            .access_policy
+            .as_ref()
+            .is_some_and(|plan| !plan.observations.is_empty() || plan.reach.services().len() != 0)
+        {
             return malformed(
                 None,
                 "memory access checks for these saved rules are not implemented yet",
             );
         }
     }
+    Ok(())
+}
+
+/// Check the exact membership transfers, domain theories and issuer routes.
+/// Byte predicate truth is a separate establishment judgment at each cast edge.
+pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
+    validate_access_policies(module)?;
     for machine in &module.machines {
         validate_machine(module, machine)?;
     }
+    operation_permissions::validate(module)?;
+    validate_change_owners(module)
+}
+
+fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     if module
         .structural_qualification_changes
         .iter()
@@ -1591,4 +3145,315 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
         );
     }
     Ok(())
+}
+
+/// Primitive byte casts use the actual incoming arguments, just as byte copies
+/// and moves do. The lowered checker reports a false result as an unestablished
+/// value; artifact ingress requires every result to be true.
+pub fn byte_qualification_change_judgments(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Judged<Vec<(EdgeId, bool)>> {
+    validate_machine(module, machine)
+}
+
+/// The complete structural membership judgment required at artifact ingress.
+pub fn validate(module: &TerminalModule) -> Judged<()> {
+    validate_access_policies(module)?;
+    for machine in &module.machines {
+        if byte_qualification_change_judgments(module, machine)?
+            .iter()
+            .any(|(_, established)| !established)
+        {
+            return malformed(
+                Some(machine.id),
+                "a byte transfer's source does not establish its primitive byte-domain qualifications",
+            );
+        }
+    }
+    operation_permissions::validate(module)?;
+    validate_change_owners(module)
+}
+
+#[cfg(test)]
+mod default_requirement_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        ByteSequencePredicate, ContractId, DomainSemanticId, IntegerSign, OperationId,
+        StructuralPlaceKind,
+    };
+    use terminal_psi::{
+        ArrayExtent, MachineContract, OperationResult, RegisterTargetApplicability,
+        StructuralAccess, StructuralDomainPredicate, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathQualification, StructuralPlaceDeclaration,
+        TerminalIdentityIndex,
+    };
+
+    fn ty(id: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            declaration_identity: TerminalIdentityIndex::ABSENT,
+            quotient_carrier: None,
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: TerminalIdentityIndex::ABSENT,
+            owns_linear_claim: false,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            shape,
+            scalar_restriction: None,
+            requires: Vec::new(),
+        }
+    }
+
+    fn types(length: u64) -> Vec<StructuralTypeDeclaration> {
+        vec![
+            ty(
+                1,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                )),
+            ),
+            ty(
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: StructuralTypeId::new(1).unwrap(),
+                    length: ArrayExtent::Literal(length),
+                },
+            ),
+        ]
+    }
+
+    fn machine() -> TerminalMachine {
+        let root = PlaceId::new(2).unwrap();
+        let mut contract = MachineContract::empty(ContractId::new(1).unwrap());
+        contract
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: root,
+                position: 0,
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            });
+        TerminalMachine {
+            assembly_target_requirement: RegisterTargetApplicability::Any,
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            ranked_scc: None,
+            structural_places: vec![StructuralPlaceDeclaration {
+                id: root,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            }],
+            call_formations: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: Vec::new(),
+            contract,
+        }
+    }
+
+    fn domain(carrier: StructuralTypeId) -> StructuralDomainDeclaration {
+        let subject = PlaceId::new(9).unwrap();
+        StructuralDomainDeclaration {
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: true,
+            predicate: Some(StructuralDomainPredicate {
+                subject,
+                proposition: Proposition::Equal(
+                    ScalarTerm::byte_sequence_predicate(
+                        ByteSequencePredicate::ValidUtf8,
+                        subject,
+                        Vec::new(),
+                    ),
+                    ScalarTerm::Boolean(true),
+                ),
+            }),
+            id: StructuralDomainId::new(1).unwrap(),
+            semantic_domain: DomainSemanticId::new(1).unwrap(),
+            identity: TerminalIdentityIndex(1),
+            carrier,
+            subject_identity: TerminalIdentityIndex::ABSENT,
+            content_projection: None,
+            byte_predicate: None,
+            establishment_routes: None,
+            access_policy: None,
+        }
+    }
+
+    fn store(path: Vec<StructuralPathSegment>) -> Operation {
+        Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination: PlaceId::new(2).unwrap(),
+                path,
+                value: ValueId::new(1).unwrap(),
+                range_obligation: None,
+            },
+        )
+    }
+
+    #[test]
+    fn named_defaults_are_rerooted_goals_not_membership_truth() {
+        let mut types = types(2);
+        types[1].requires.push(Proposition::Truth);
+        let mut machine = machine();
+        machine.structural_parameters[0]
+            .qualifications
+            .push(StructuralDomainId::new(1).unwrap());
+        let domains = vec![domain(types[1].id)];
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        let rows = defaults
+            .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(defaults.clause(&rows[0]).unwrap(), Proposition::Truth);
+        assert_eq!(
+            defaults.clause(&rows[1]).unwrap(),
+            Proposition::Equal(
+                ScalarTerm::byte_sequence_predicate(
+                    ByteSequencePredicate::ValidUtf8,
+                    PlaceId::new(1).unwrap(),
+                    Vec::new()
+                ),
+                ScalarTerm::Boolean(true),
+            )
+        );
+        assert_eq!(defaults.declared().unwrap(), rows);
+    }
+
+    #[test]
+    fn exclusive_calls_owe_the_same_owner_defaults_as_a_store() {
+        let mut types = types(2);
+        types[1].requires.push(Proposition::Truth);
+        let mut machine = machine();
+        machine.structural_parameters[0]
+            .qualifications
+            .push(StructuralDomainId::new(1).unwrap());
+        let domains = vec![domain(types[1].id)];
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        let path = vec![StructuralPathSegment::FixedIndex(0)];
+        let expected = defaults.operation(&store(path.clone())).unwrap();
+        assert_eq!(expected.len(), 2);
+        for (access, path, owes) in [
+            (StructuralAccess::MutableBorrow, path.clone(), true),
+            (StructuralAccess::WriteOnlyBorrow, path.clone(), true),
+            (StructuralAccess::SharedBorrow, path, false),
+            (StructuralAccess::MutableBorrow, Vec::new(), false),
+        ] {
+            let call = Operation::unsuspended(
+                OperationId::new(2).unwrap(),
+                OperationResult::Unit,
+                OperationKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path,
+                        access,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            );
+            let actual = defaults.operation(&call).unwrap();
+            if owes {
+                assert_eq!(actual, expected);
+            } else {
+                assert!(actual.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn additional_input_membership_is_not_a_declared_default() {
+        let types = types(2);
+        let mut machine = machine();
+        machine.structural_parameters[0]
+            .additional_input_qualifications
+            .push(StructuralPathQualification {
+                path: Vec::new(),
+                domain: StructuralDomainId::new(1).unwrap(),
+            });
+        let result_place = PlaceId::new(3).unwrap();
+        machine.result = terminal_psi::TerminalMachineResult::Structural(
+            terminal_psi::StructuralResultDeclaration {
+                place: result_place,
+                structural_type: types[1].id,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: vec![StructuralDomainId::new(1).unwrap()],
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            },
+        );
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: result_place,
+            kind: StructuralPlaceKind::Result,
+        });
+        let domains = vec![domain(types[1].id)];
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        assert!(defaults.declared().unwrap().is_empty());
+        assert!(
+            defaults
+                .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn plain_arrays_do_not_enumerate_elements_for_default_inventory() {
+        let types = types(u64::MAX);
+        let machine = machine();
+        let defaults = DefaultRequirements::new(&types, &[], &machine).unwrap();
+        assert!(defaults.declared().unwrap().is_empty());
+        assert!(
+            defaults
+                .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn reference_display_does_not_become_a_lender_default() {
+        let mut types = types(2);
+        types.push(ty(
+            3,
+            StructuralTypeShape::Reference {
+                referent: types[1].id,
+                access: StructuralAccess::MutableBorrow,
+            },
+        ));
+        let mut machine = machine();
+        machine.structural_parameters[0].structural_type = types[2].id;
+        machine.structural_parameters[0]
+            .projected_qualifications
+            .push(StructuralPathQualification {
+                path: vec![StructuralPathSegment::Referent],
+                domain: StructuralDomainId::new(1).unwrap(),
+            });
+        let domains = vec![domain(types[1].id)];
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        let refused = defaults
+            .operation(&store(vec![
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::FixedIndex(0),
+            ]))
+            .unwrap_err();
+        assert_eq!(
+            refused.detail,
+            "a reference display is not a lender's declared default"
+        );
+    }
 }

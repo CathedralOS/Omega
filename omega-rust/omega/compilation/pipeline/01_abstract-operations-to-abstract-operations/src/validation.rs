@@ -584,13 +584,11 @@ pub(crate) mod invariant_calls {
 
     pub(crate) fn unit_effect_summaries(
         unit: &PsiOptimizationUnit,
-    ) -> crate::EffectSummaryAnalysis {
+    ) -> Result<crate::EffectSummaryAnalysis, &'static str> {
         match crate::compute_analysis(unit, optimization_core::AnalysisKind::EffectSummaries) {
-            Some(crate::AnalysisProduct::EffectSummaries(analysis)) => analysis,
-            _ => crate::EffectSummaryAnalysis {
-                nodes: Vec::new(),
-                functions: Vec::new(),
-            },
+            Ok(Some(crate::AnalysisProduct::EffectSummaries(analysis))) => Ok(analysis),
+            Ok(_) => Err("the requested effect-summary analysis is unavailable"),
+            Err(reason) => Err(reason),
         }
     }
 

@@ -23,7 +23,7 @@ use terminal_psi_to_abstract_operations::{
 
 pub(crate) struct EmittedRealizationObject {
     pub object: PublishedFragmentObject,
-    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
 
 fn lower_target(
@@ -98,22 +98,20 @@ pub(crate) fn emit_realization_object(
     }
     let requirements =
         prepare_installed_callbacks(request, &target, &mut prepared_callbacks, physical_entry)?;
-    let target = target
-        .with_installed_stack_requirements(requirements)
+    let installations = pipeline::bound_installations(&target, None, requirements)
         .map_err(|reason| realization_error("installed handler stack", reason))?;
-    let borrowed_storage_layouts = target
-        .execution_plan()
-        .plan()
-        .borrowed_storage_layouts
-        .clone();
-    let projection =
-        pipeline::emit_target(target, request.observation).map_err(|error| match error {
-            BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(
-                request.optimization_selections.selections(),
-                error,
-            ),
-            BodyEmissionError::Object(diagnostics) => diagnostics,
-        })?;
+    let projection = pipeline::emit_target(
+        target,
+        installations,
+        request.observation,
+        request.retain_native_stage_inputs,
+    )
+    .map_err(|error| match error {
+        BodyEmissionError::Physical(error) => {
+            selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
+        }
+        BodyEmissionError::Object(diagnostics) => diagnostics,
+    })?;
     let private_functions = lower_callback_thunks(
         request,
         &native_callbacks,
@@ -129,7 +127,7 @@ pub(crate) fn emit_realization_object(
         },
     )?;
     Ok(EmittedRealizationObject {
+        borrowed_storage_layouts: object.object.borrowed_storage_layouts().clone(),
         object,
-        borrowed_storage_layouts,
     })
 }

@@ -6,11 +6,12 @@ use super::places::Bound;
 use super::{Lowering, Value};
 use crate::body::{Expression, ExpressionKind, Signature, Strict, ValueType};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
-use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, IdTable, MachineId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, TerminalBlockNaturalRank,
+    Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalBlockNaturalRank,
     TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalRankedScc,
 };
@@ -210,6 +211,13 @@ impl Lowering<'_> {
         }
         let components = terminal_semantics::control_graph::control_cycle_members(machine)
             .map_err(|_| self.internal("ranking has an invalid completed control graph"))?;
+        let mut operations = self.sources.operations.map(|_, _| None);
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            *operations
+                .get_mut(operation.id)
+                .ok_or_else(|| self.internal("rank producer has no operation coordinate"))? =
+                Some(operation);
+        }
         // The producer already knows each head and each transfer. Prepare
         // their associations once rather than rediscovering them per edge.
         let mut heads = self
@@ -280,7 +288,24 @@ impl Lowering<'_> {
                         .and_then(Option::as_ref)
                         .ok_or_else(|| self.internal("cyclic target has no rank"))?;
                     let successor = transferred.map_or(target_rank, |(_, _, values)| values);
-                    let comparison = if transferred.is_some() && successor != source_rank {
+                    // A helper's inferred observation and its recursive actual
+                    // may compute the same subtraction in distinct operations.
+                    // Those edges preserve rank; different SSA identities alone
+                    // cannot demand strict descent. Both kinds of claim are
+                    // still proved independently by the checker.
+                    let same = successor.len() == source_rank.len()
+                        && successor.iter().zip(source_rank).all(|(after, before)| {
+                            let mut budget = self.tables.values.len();
+                            after.integer_type == before.integer_type
+                                && same_rank_computation(
+                                    &self.tables.values,
+                                    &operations,
+                                    after.value,
+                                    before.value,
+                                    &mut budget,
+                                )
+                        });
+                    let comparison = if transferred.is_some() && !same {
                         TerminalNaturalRankComparison::Strict
                     } else {
                         TerminalNaturalRankComparison::Preserving
@@ -319,5 +344,60 @@ impl Lowering<'_> {
             machine.ranked_scc = Some(TerminalRankedScc::Natural(cycles));
         }
         Ok(())
+    }
+}
+
+/// Choose a preserving candidate only for identical immutable computations.
+/// Unrecognized producers keep the strict candidate and its proof obligation;
+/// this comparison grants no equality fact to any program.
+fn same_rank_computation(
+    values: &IdTable<ValueId, ValueRow>,
+    operations: &IdTable<OperationId, Option<&Operation>>,
+    left: ValueId,
+    right: ValueId,
+    budget: &mut usize,
+) -> bool {
+    if left == right {
+        return true;
+    }
+    let Some(remaining) = budget.checked_sub(1) else {
+        return false;
+    };
+    *budget = remaining;
+    let (Some(left), Some(right)) = (values.get(left), values.get(right)) else {
+        return false;
+    };
+    if left.scalar_type != right.scalar_type {
+        return false;
+    }
+    let (ValueOrigin::Operation(left), ValueOrigin::Operation(right)) = (left.origin, right.origin)
+    else {
+        return false;
+    };
+    let (Some(Some(left)), Some(Some(right))) = (operations.get(left), operations.get(right))
+    else {
+        return false;
+    };
+    match (&left.kind, &right.kind) {
+        (
+            OperationKind::IntegerConstant { value: left },
+            OperationKind::IntegerConstant { value: right },
+        ) => left == right,
+        (
+            OperationKind::ExactIntegerSubtract {
+                left: a, right: b, ..
+            },
+            OperationKind::ExactIntegerSubtract {
+                left: c, right: d, ..
+            },
+        )
+        | (
+            OperationKind::SaturatingIntegerSubtract { left: a, right: b },
+            OperationKind::SaturatingIntegerSubtract { left: c, right: d },
+        ) => {
+            same_rank_computation(values, operations, *a, *c, budget)
+                && same_rank_computation(values, operations, *b, *d, budget)
+        }
+        _ => false,
     }
 }

@@ -86,6 +86,7 @@ pub(crate) fn block_with(
 pub(crate) fn function_from_blocks(blocks: Vec<SelectedBlock>) -> SelectedFunction {
     SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            structural_block_parameters: Vec::new(),
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: Default::default(),

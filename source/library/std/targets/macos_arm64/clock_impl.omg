@@ -16,6 +16,7 @@ boundary trait DarwinClockWait {
     machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
     reaches
         Clock
+    blocks
     crashes none;
 }
 
@@ -27,22 +28,23 @@ public MacosArm64Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
     invokes DarwinClockWait
+    blocks
     {
         transition milliseconds > 2147483647 {
-            true -> in_parts(milliseconds)
-            _ -> at_once(milliseconds)
+            true -> block in_parts(milliseconds)
+            _ -> block at_once(milliseconds)
         }
 
         machine at_once(milliseconds: u32) {
-            DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
+            block DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
         }
 
         machine in_parts(milliseconds: u32) {
             let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
-            DarwinClockWait::poll(0, 0, third);
-            DarwinClockWait::poll(0, 0, third);
-            DarwinClockWait::poll(0, 0, third);
-            DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
+            block DarwinClockWait::poll(0, 0, third);
+            block DarwinClockWait::poll(0, 0, third);
+            block DarwinClockWait::poll(0, 0, third);
+            block DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
         }
     }
 }

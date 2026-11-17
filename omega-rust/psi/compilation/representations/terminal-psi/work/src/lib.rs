@@ -96,7 +96,9 @@ impl WorkSchedule {
             | OperationKind::CallStructuralScalar { .. }
             | terminal_psi::call_structural_pair_pattern!(..)
             | OperationKind::SelectImplementation { .. }
+            | OperationKind::SelectMachine { .. }
             | OperationKind::CallDynamic { .. }
+            | OperationKind::CallMachine { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::PrimitiveScalarRead { .. }

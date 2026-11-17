@@ -11,6 +11,7 @@ pub mod descriptor_lifetimes {
 
     pub(crate) mod arrivals {
         use super::{DescriptorLocation, DescriptorPathSegment};
+        use crate::storage::borrowed_storage::Projection;
         use semantic_vocabulary::{PlaceId, ScalarTerm, StructuralTypeId};
         use terminal_psi::StructuralAccess;
 
@@ -58,7 +59,7 @@ pub mod descriptor_lifetimes {
             pub steps: Vec<DescriptorContentsStep>,
         }
 
-        #[derive(Clone)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum DescriptorFlowSource {
             Location(DescriptorLocation),
             Contents(DescriptorContentsQuery),
@@ -99,6 +100,10 @@ pub mod descriptor_lifetimes {
             /// A weaker header starts a child borrow, not a second name for
             /// its parent's authority.
             pub source_access: StructuralAccess,
+            /// The actual descriptor and relative address captured before the
+            /// edge installs its parameter. Contents queries may erase selectors;
+            /// this projection retains their original formation coordinates.
+            pub captured_storage: Option<(DescriptorLocation, Projection)>,
         }
 
         impl DescriptorFlowBinding {
@@ -113,6 +118,7 @@ pub mod descriptor_lifetimes {
                     parameter,
                     access: parameter_access,
                     source_access: actual_access,
+                    captured_storage: None,
                 })
             }
 
@@ -2042,13 +2048,12 @@ pub(crate) mod primitive_store_memberships {
         )?;
         let mut ascii = ByteSequencePredicateSet::EMPTY;
         ascii.insert(ByteSequencePredicate::AsciiOnly);
-        let utf8 = predicates
-            .predicates()
-            .any(|p| p == ByteSequencePredicate::ValidUtf8);
         let nonzero = predicates
             .predicates()
             .any(|p| p == ByteSequencePredicate::NoNul);
-        let ascii = predicates.implies(ascii) || utf8;
+        // UTF-8 validity does not bound each octet to ASCII: a valid scalar
+        // can use several bytes whose values exceed 127.
+        let ascii = predicates.implies(ascii);
         if !ascii && !nonzero {
             return Some(scalar);
         }
@@ -2348,6 +2353,91 @@ pub(crate) mod primitive_store_memberships {
         crate::qualification_path_carrier(types, root, path)
             .and_then(|carrier| exact_domain(domains, carrier, membership))
             .is_some_and(StructuralDomainDeclaration::is_pure_predicate)
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{ScalarType, StructuralTypeId};
+        use terminal_psi::{ArrayExtent, TerminalIdentityIndex};
+
+        #[test]
+        fn valid_utf8_does_not_impose_an_ascii_byte_store_bound() {
+            let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let array = StructuralTypeId::new(2).unwrap();
+            let declaration = |id: StructuralTypeId, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id,
+                identity: TerminalIdentityIndex(id.get() as u32),
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape,
+                scalar_restriction: None,
+                requires: Vec::new(),
+            };
+            let types = [
+                declaration(
+                    scalar,
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(byte)),
+                ),
+                declaration(
+                    array,
+                    StructuralTypeShape::FixedArray {
+                        element: scalar,
+                        length: ArrayExtent::Literal(2),
+                    },
+                ),
+            ];
+            let identity = StructuralDomainId::new(1).unwrap();
+            let restriction = |predicate| {
+                let domain = StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
+                    access_policy: None,
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: identity,
+                    semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(3),
+                    carrier: array,
+                    content_projection: None,
+                    byte_predicate: Some(predicate),
+                    establishment_routes: None,
+                };
+                primitive_store_restriction(
+                    types.iter(),
+                    std::iter::once(&domain),
+                    array,
+                    &[identity],
+                    &[],
+                    &[],
+                    &[StructuralPathSegment::FixedIndex(0)],
+                )
+                .expect("the byte predicate has an exact array and element path")
+            };
+            let utf8 = [0xC3, 0xA9];
+            assert!(ByteSequencePredicate::ValidUtf8.holds_for(&utf8));
+            assert!(!ByteSequencePredicate::AsciiOnly.holds_for(&utf8));
+            assert_eq!(
+                restriction(ByteSequencePredicate::ValidUtf8),
+                None,
+                "UTF-8 alone adds no individual-octet bound to u8"
+            );
+            let Some(StructuralFieldType::BoundedInteger(ascii)) =
+                restriction(ByteSequencePredicate::AsciiOnly)
+            else {
+                panic!("ASCII must retain its individual-octet bound");
+            };
+            assert!(ascii.contains(IntegerValue::Unsigned(127)));
+            for value in utf8 {
+                assert!(byte.admits(IntegerValue::Unsigned(u128::from(value))));
+                assert!(!ascii.contains(IntegerValue::Unsigned(u128::from(value))));
+            }
+        }
     }
 }
 pub(crate) mod selected_memberships {
@@ -3358,6 +3448,39 @@ pub mod descriptor_results {
                 location_type(tip, &path, original)
             }
 
+            /// Append a checked inline projection using the selected value's
+            /// own field declarations. Unknown addresses, windows and past
+            /// captures cannot become an exact memory-access query here.
+            pub(crate) fn projected(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                root_type: StructuralTypeId,
+                projection: &Projection,
+            ) -> Option<Self> {
+                if !projection.exact
+                    || projection.indirect
+                    || projection.window.is_some()
+                    || projection.captured_at.is_some()
+                {
+                    return None;
+                }
+                if projection.path.is_empty() {
+                    self.validate(types, root_type)?;
+                    return Some(self.clone());
+                }
+                let selected =
+                    self.selected_type_using(types, root_type, |carrier, path, _| {
+                        descriptor_path(types, carrier, path)?;
+                        Some(descriptor_location_type(types, carrier, path))
+                    })??;
+                let suffix =
+                    descriptor_contents_query(types, self.root, selected, &projection.path, None)?;
+                let mut query = self.clone();
+                query.steps.extend(suffix.steps);
+                query.validate(types, root_type)?;
+                Some(query)
+            }
+
             pub fn conservative_projection(
                 &self,
                 types: &[StructuralTypeDeclaration],
@@ -3487,8 +3610,12 @@ pub mod descriptor_results {
                         let source_path = descriptor_path(types, carrier, path)?;
                         let selected = descriptor_location_type(types, carrier, path);
                         if selected.is_none()
-                            && crate::primitive_projection_type(types.iter(), carrier, &source_path)
-                                .is_none()
+                            && crate::primitive_read_projection_type(
+                                types.iter(),
+                                carrier,
+                                &source_path,
+                            )
+                            .is_none()
                         {
                             return None;
                         }
@@ -3510,7 +3637,9 @@ pub mod descriptor_results {
             DescriptorFlowSource::from_query(root, query)
         }
 
-        fn descriptor_contents_query_with(
+        /// Capture a typed storage query and its already-selected index terms.
+        /// An unknown index remains an element query rather than a fixed cell.
+        pub fn descriptor_contents_query_with(
             types: &[StructuralTypeDeclaration],
             root: PlaceId,
             root_type: StructuralTypeId,
@@ -3930,7 +4059,7 @@ pub mod descriptor_results {
                 query
                     .validate(types, contract.carrier)
                     .ok_or("reference payload has no typed source query")?;
-                let path = reference_membership_path(types, contract.carrier, &query.steps)
+                let path = contents_membership_path(types, contract.carrier, &query.steps)
                     .ok_or("reference payload has no declared membership path")?;
                 let selected =
                     crate::qualification_path_carrier(types.iter(), contract.carrier, &path)
@@ -3994,7 +4123,7 @@ pub mod descriptor_results {
             common.ok_or("reference payload has no source candidate")
         }
 
-        fn reference_membership_path(
+        pub(crate) fn contents_membership_path(
             types: &[StructuralTypeDeclaration],
             mut carrier: StructuralTypeId,
             steps: &[DescriptorContentsStep],
@@ -5660,6 +5789,8 @@ pub mod descriptor_results {
 
         #[derive(Default)]
         struct HistoryReplay {
+            // Immutable declaration classification shared by this history's cuts.
+            content_independent: Option<Vec<semantic_vocabulary::StructuralDomainId>>,
             premises: PremiseTable,
             cached: Option<CachedHistory>,
             inventory: Option<DescriptorSlotKind>,
@@ -6088,6 +6219,9 @@ pub mod descriptor_results {
             replay: &mut HistoryReplay,
             cut: PayloadMembershipCut,
         ) -> Result<PayloadMembershipContract, &'static str> {
+            let content_independent = replay.content_independent.get_or_insert_with(|| {
+                terminal_psi::StructuralDomainDeclaration::content_independent_memberships(domains)
+            });
             let mut failure = "descriptor machine is absent";
             let result = (|| {
                 let machine = descriptor?;
@@ -6188,7 +6322,36 @@ pub mod descriptor_results {
                         }
                     }
                     let mut after = before;
-                    if let Some(writes) = machine.payload_invalidations.get(&current) {
+                    if machine.known_invocation(&current).is_some() {
+                        let writes = match analysis.storage_writes(identity, current) {
+                            Ok(writes) => writes,
+                            Err(reason) => {
+                                failure = reason;
+                                return None;
+                            }
+                        };
+                        match writes {
+                            Some(writes) => {
+                                for location in writes {
+                                    if let Some(contract) = after.values.get_mut(&location.root) {
+                                        failure = "call payload write has no typed coordinate";
+                                        let path = descriptor_path(
+                                            types,
+                                            contract.carrier,
+                                            &location.path,
+                                        )?;
+                                        retire(
+                                            content_independent,
+                                            contract,
+                                            &path,
+                                            &location.path,
+                                        );
+                                    }
+                                }
+                            }
+                            None => clear(&mut after.values),
+                        }
+                    } else if let Some(writes) = machine.payload_invalidations.get(&current) {
                         for query in writes {
                             let targets = query.as_ref().and_then(|query| {
                                 analysis.payload_targets(identity, current, query)
@@ -6210,7 +6373,12 @@ pub mod descriptor_results {
                                                         contract.carrier,
                                                         &location.path,
                                                     )?;
-                                                    retire(contract, &path, &location.path);
+                                                    retire(
+                                                        content_independent,
+                                                        contract,
+                                                        &path,
+                                                        &location.path,
+                                                    );
                                                 }
                                             }
                                             DescriptorPayloadTarget::Storage {
@@ -6272,7 +6440,7 @@ pub mod descriptor_results {
                         };
                         failure = "structural store path has no typed coordinate";
                         let path = descriptor_path(types, contract.carrier, &destination.path)?;
-                        retire(contract, &path, &destination.path);
+                        retire(content_independent, contract, &path, &destination.path);
                         if !strong {
                             continue;
                         }
@@ -6826,6 +6994,7 @@ pub mod descriptor_results {
         }
 
         fn retire(
+            content_independent: &[semantic_vocabulary::StructuralDomainId],
             contract: &mut PayloadMembershipContract,
             path: &[StructuralPathSegment],
             scalar_path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
@@ -6834,10 +7003,23 @@ pub mod descriptor_results {
                 !observation.path.starts_with(scalar_path)
                     && !scalar_path.starts_with(&observation.path)
             });
-            contract.qualifications.clear();
+            let survives = |domain| content_independent.binary_search(&domain).is_ok();
+            // A write beneath an already installed restriction does not issue
+            // a new membership. Exact/ancestor replacement still retires it;
+            // only the incoming value's checked transfer can supply it again.
             contract
-                .projected_qualifications
-                .retain(|row| !crate::structural_paths_may_overlap(&row.path, path));
+                .qualifications
+                .retain(|domain| !path.is_empty() && survives(*domain));
+            contract.projected_qualifications.retain(|row| {
+                !crate::structural_paths_may_overlap(&row.path, path)
+                    || (path.len() > row.path.len()
+                        && terminal_psi::StructuralPathQualification::selected_suffix(
+                            &row.path,
+                            &path[..row.path.len()],
+                        )
+                        .is_some()
+                        && survives(row.domain))
+            });
         }
 
         fn observe_scalar(
@@ -7195,7 +7377,7 @@ pub mod descriptor_results {
                         identity: TerminalIdentityIndex(1),
                         owns_linear_claim: false,
                         no_code_affine_cleanup: true,
-                        copyable: false,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                         descriptor_cleanup: true,
                         nominal_cleanup: None,
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -7455,6 +7637,166 @@ pub mod descriptor_results {
                 );
             }
 
+            // Only contents strictly inside an existing subject may change
+            // without replacing that subject's issuer-bound membership.
+            #[test]
+            fn content_writes_keep_only_existing_content_independent_memberships() {
+                use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
+                use terminal_psi::{
+                    StructuralDomainDeclaration, StructuralDomainPredicate,
+                    StructuralPathQualification,
+                };
+                let id = |raw| StructuralDomainId::new(raw).unwrap();
+                let semantic = |raw| DomainSemanticId::new(raw).unwrap();
+                let carrier = StructuralTypeId::new(1).unwrap();
+                let domain = |raw| StructuralDomainDeclaration {
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: Some(StructuralDomainPredicate {
+                        subject: PlaceId::new(1).unwrap(),
+                        proposition: Proposition::Truth,
+                    }),
+                    id: id(raw),
+                    semantic_domain: semantic(raw),
+                    identity: Default::default(),
+                    subject_identity: Default::default(),
+                    carrier,
+                    content_projection: None,
+                    byte_predicate: None,
+                    establishment_routes: Some(Vec::new()),
+                    access_policy: None,
+                };
+                let mut predicate = domain(2);
+                predicate.predicate = Some(StructuralDomainPredicate {
+                    subject: PlaceId::new(1).unwrap(),
+                    proposition: Proposition::Falsehood,
+                });
+                let mut incomplete = domain(3);
+                incomplete.complete_predicate_theory = false;
+                let mut predicate_dependency = domain(4);
+                predicate_dependency.required_memberships = Some(vec![semantic(2)]);
+                let mut independent_dependency = domain(5);
+                independent_dependency.required_memberships = Some(vec![semantic(1)]);
+                let mut unknown = domain(6);
+                unknown.required_memberships = None;
+                let mut bytes = domain(7);
+                bytes.byte_predicate = Some(terminal_psi::ByteSequencePredicate::AsciiOnly);
+                let domains = [
+                    domain(1),
+                    predicate,
+                    incomplete,
+                    predicate_dependency,
+                    independent_dependency,
+                    unknown,
+                    bytes,
+                ];
+                let content_independent =
+                    StructuralDomainDeclaration::content_independent_memberships(&domains);
+                assert_eq!(content_independent, [id(1), id(5)]);
+                let mut malformed = domains.to_vec();
+                let mut cycle = domain(8);
+                cycle.required_memberships = Some(vec![semantic(8)]);
+                let mut missing = domain(9);
+                missing.required_memberships = Some(vec![semantic(99)]);
+                let mut missing_predicate = domain(10);
+                missing_predicate.predicate = None;
+                malformed.extend([cycle, missing, missing_predicate]);
+                assert_eq!(
+                    StructuralDomainDeclaration::content_independent_memberships(&malformed),
+                    content_independent
+                );
+                malformed.push(domain(1));
+                assert!(
+                    StructuralDomainDeclaration::content_independent_memberships(&malformed)
+                        .is_empty()
+                );
+                let mut ambiguous = domains.to_vec();
+                let mut duplicate_semantic = domain(10);
+                duplicate_semantic.semantic_domain = semantic(1);
+                ambiguous.push(duplicate_semantic);
+                assert!(
+                    StructuralDomainDeclaration::content_independent_memberships(&ambiguous)
+                        .is_empty()
+                );
+                let first = StructuralPathSegment::FixedIndex(0);
+                let second = StructuralPathSegment::FixedIndex(1);
+                let original = PayloadMembershipContract {
+                    carrier,
+                    scalar_observations: Vec::new(),
+                    scalar_requirements: Vec::new(),
+                    qualifications: (1..=7).map(id).collect(),
+                    projected_qualifications: (1..=7)
+                        .map(|raw| StructuralPathQualification {
+                            path: vec![first.clone()],
+                            domain: id(raw),
+                        })
+                        .chain([StructuralPathQualification {
+                            path: vec![second.clone()],
+                            domain: id(2),
+                        }])
+                        .collect(),
+                };
+                let mut changed = original.clone();
+                retire(
+                    &content_independent,
+                    &mut changed,
+                    std::slice::from_ref(&first),
+                    &[DescriptorPathSegment::FixedIndex(0)],
+                );
+                assert_eq!(changed.qualifications, [id(1), id(5)]);
+                assert_eq!(
+                    changed.projected_qualifications,
+                    [StructuralPathQualification {
+                        path: vec![second],
+                        domain: id(2)
+                    }],
+                    "an exact field replacement loses its tag; an unrelated sibling survives"
+                );
+                let mut nested = original.clone();
+                retire(
+                    &content_independent,
+                    &mut nested,
+                    &[first.clone(), StructuralPathSegment::FixedIndex(0)],
+                    &[
+                        DescriptorPathSegment::FixedIndex(0),
+                        DescriptorPathSegment::FixedIndex(0),
+                    ],
+                );
+                assert_eq!(nested.qualifications, [id(1), id(5)]);
+                assert_eq!(
+                    nested
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| row.domain)
+                        .collect::<Vec<_>>(),
+                    [id(1), id(5), id(2)]
+                );
+                let mut replaced = original.clone();
+                retire(&content_independent, &mut replaced, &[], &[]);
+                assert!(
+                    replaced.qualifications.is_empty()
+                        && replaced.projected_qualifications.is_empty(),
+                    "whole replacement or moved-out slot reuse cannot reissue an old tag"
+                );
+                let root = PlaceId::new(1).unwrap();
+                let mut unknown_write = PayloadContracts::from([(root, original)]);
+                clear(&mut unknown_write);
+                assert!(
+                    unknown_write.get(&root).unwrap().qualifications.is_empty(),
+                    "unknown effects retain no content-independent membership shortcut"
+                );
+                retire(
+                    &content_independent,
+                    &mut replaced,
+                    &[first],
+                    &[DescriptorPathSegment::FixedIndex(0)],
+                );
+                assert!(
+                    replaced.qualifications.is_empty(),
+                    "an unqualified new producer gains nothing"
+                );
+            }
+
             #[test]
             fn retained_payload_snapshot_survives_later_writes_retirement_and_closure() {
                 use semantic_vocabulary::{PropositionId, StructuralDomainId};
@@ -7512,7 +7854,12 @@ pub mod descriptor_results {
                     match change {
                         Change::Store => {
                             let contract = later.values.get_mut(&root).unwrap();
-                            retire(contract, &[StructuralPathSegment::FixedIndex(0)], &path);
+                            retire(
+                                &[],
+                                contract,
+                                &[StructuralPathSegment::FixedIndex(0)],
+                                &path,
+                            );
                             assert_eq!(observe_scalar(contract, &path, &value(2)), None);
                             expected.scalar_observations[0].value = Some(value(2));
                             expected.qualifications.clear();
@@ -7619,6 +7966,7 @@ pub mod descriptor_results {
                     other_branch.scalar_observations
                 );
                 retire(
+                    &[],
                     &mut contract,
                     &[StructuralPathSegment::FixedIndex(0)],
                     &path,
@@ -7850,7 +8198,7 @@ pub mod descriptor_results {
                         ScalarType::Boolean => {
                             ScalarTerm::boolean_field_path(predicate.subject, path)
                         }
-                        ScalarType::IeeeFloat(_) => continue,
+                        ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => continue,
                     };
                     equations.push(Proposition::Equal(observed, value.clone()));
                 }
@@ -8214,7 +8562,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(id.get() as u32),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -8316,7 +8664,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -9200,10 +9548,35 @@ pub mod descriptor_results {
             observation: DescriptorPosition,
             payload: &DescriptorLocation,
         ) -> Result<(), &'static str> {
+            let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+            require_unchanged_produced_payload_in(
+                types,
+                graph,
+                &mut analysis,
+                identity,
+                producer,
+                observation,
+                payload,
+            )
+        }
+
+        /// Reuse the caller's prepared storage history. A missing or changed
+        /// version is an error, including an unresolved write on any arrival.
+        pub fn require_unchanged_produced_payload_in(
+            types: &[StructuralTypeDeclaration],
+            graph: &[DescriptorMachine],
+            analysis: &mut DescriptorAnalysis<'_>,
+            identity: MachineId,
+            producer: DescriptorPosition,
+            observation: DescriptorPosition,
+            payload: &DescriptorLocation,
+        ) -> Result<(), &'static str> {
+            if !analysis.uses_source_graph(types, graph) {
+                return Err("produced storage analysis belongs to another immutable source graph");
+            }
             let machine =
                 descriptor_machine(graph, identity).ok_or("produced payload machine is absent")?;
-            let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
-            require_version(machine, &mut analysis, producer, observation, payload)
+            require_version(machine, analysis, producer, observation, payload)
         }
 
         fn require_version(
@@ -9672,7 +10045,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -10914,7 +11287,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -11051,7 +11424,11 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable,
+                    multiplicity: if copyable {
+                        terminal_psi::StructuralMultiplicity::Unrestricted
+                    } else {
+                        terminal_psi::StructuralMultiplicity::Affine
+                    },
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -11129,6 +11506,291 @@ pub mod descriptor_results {
             }
 
             #[test]
+            fn successor_diagnostics_keep_actual_operands_and_target_parameters() {
+                use crate::descriptor_results::{
+                    DescriptorGraphError, terminal_reference_graph_from,
+                };
+                use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+
+                let mut module = TerminalModule::declarations();
+                let mut body = machine(1);
+                let target = BlockId::new(2).unwrap();
+                let actual = ValueId::new(1).unwrap();
+                let edge = EdgeId::new(1).unwrap();
+                body.blocks[0].operations.push(Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Scalar(ValueDeclaration {
+                        id: actual,
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: ScalarQualificationSetId::ZERO,
+                    }),
+                    OperationKind::BooleanConstant { value: true },
+                ));
+                body.blocks[0].terminator = Terminator::Jump {
+                    edge,
+                    target,
+                    arguments: vec![actual],
+                    erased_arguments: vec![],
+                    erased_proof_arguments: vec![],
+                    structural_arguments: vec![],
+                    cleanup_actions: vec![],
+                };
+                let mut arrival = Block::plain(
+                    target,
+                    vec![],
+                    Terminator::ReturnUnit {
+                        edge: EdgeId::new(2).unwrap(),
+                        cleanup_actions: vec![],
+                    },
+                );
+                arrival.parameters.push(ValueDeclaration {
+                    id: ValueId::new(2).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                    qualifications: ScalarQualificationSetId::ZERO,
+                });
+                body.blocks.push(arrival);
+                module.machines.push(body);
+                let failure = terminal_reference_graph_from(&module, [MachineId::new(1).unwrap()])
+                    .err()
+                    .expect("a Boolean actual cannot initialize an integer parameter");
+                assert_eq!(
+                    failure.detail(),
+                    Some("descriptor arrival scalar type differs from target parameter")
+                );
+                assert!(matches!(failure, DescriptorGraphError::IncompleteMachine {
+                    successor: Some((found, destination)), ..
+                } if found == edge && destination == target));
+                let detail = failure.in_module(&module);
+                assert!(detail.contains("terminator Jump"), "{detail}");
+                assert!(
+                    detail.contains("scalar actuals [(ValueId(1), Some(Boolean))]"),
+                    "{detail}"
+                );
+                assert!(
+                    detail.contains("ValueId(2)") && detail.contains("Integer"),
+                    "{detail}"
+                );
+
+                let Terminator::Jump { arguments, .. } =
+                    &mut module.machines[0].blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                arguments.clear();
+                let failure = terminal_reference_graph_from(&module, [MachineId::new(1).unwrap()])
+                    .err()
+                    .expect("missing actuals remain refused");
+                assert_eq!(
+                    failure.detail(),
+                    Some("descriptor arrival scalar arity differs from target parameters")
+                );
+                let Terminator::Jump { arguments, .. } =
+                    &mut module.machines[0].blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                arguments.push(actual);
+                module.machines[0].blocks[1].parameters[0].scalar_type = ScalarType::Boolean;
+                assert!(
+                    terminal_reference_graph_from(&module, [MachineId::new(1).unwrap()]).is_ok()
+                );
+            }
+
+            #[test]
+            fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
+                use crate::descriptor_results::{DescriptorAnalysis, DescriptorSourceOrigin};
+                use semantic_vocabulary::{InvocationSite, ScalarType, ValueId};
+                // An ordinary borrowed object has exact storage. An owned
+                // pointer without its pointee supply must remain unknown.
+                for indirect in [false, true] {
+                    let path = if indirect {
+                        vec![StructuralPathSegment::Referent]
+                    } else {
+                        vec![]
+                    };
+                    let mut module = reference_flow_module(false);
+                    let scalar = StructuralTypeId::new(1).unwrap();
+                    module.structural_types[1].shape = StructuralTypeShape::Reference {
+                        referent: scalar,
+                        access: StructuralAccess::MutableBorrow,
+                    };
+                    module.structural_types[1].multiplicity = StructuralMultiplicity::Affine;
+                    let actual = PlaceId::new(1).unwrap();
+                    let formal = PlaceId::new(7).unwrap();
+                    let mut caller = module.machines.remove(0);
+                    caller.structural_places.truncate(1);
+                    caller.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+                    if !indirect {
+                        caller.structural_parameters[0].structural_type = scalar;
+                        caller.structural_parameters[0].multiplicity =
+                            StructuralMultiplicity::Unrestricted;
+                    }
+                    let mut helper = machine(u64::MAX);
+                    helper.contract.id = ContractId::new(2).unwrap();
+                    helper.parameter_order = caller.parameter_order.clone();
+                    helper.structural_parameters = caller.structural_parameters.clone();
+                    helper.structural_parameters[0].place = formal;
+                    if !indirect {
+                        helper.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+                    }
+                    helper.structural_places = caller.structural_places.clone();
+                    helper.structural_places[0].id = formal;
+                    helper.blocks[0].operations = vec![
+                        Operation::unsuspended(
+                            OperationId::new(1).unwrap(),
+                            OperationResult::Scalar(ValueDeclaration {
+                                id: ValueId::new(1).unwrap(),
+                                scalar_type: ScalarType::Boolean,
+                                qualifications: ScalarQualificationSetId::ZERO,
+                            }),
+                            OperationKind::BooleanConstant { value: true },
+                        ),
+                        Operation::unsuspended(
+                            OperationId::new(2).unwrap(),
+                            OperationResult::Unit,
+                            OperationKind::WriteOnlyPrimitiveStore {
+                                destination: formal,
+                                path: path.clone(),
+                                value: ValueId::new(1).unwrap(),
+                                range_obligation: None,
+                            },
+                        ),
+                    ];
+                    helper.blocks[0].terminator = Terminator::Crash {
+                        edge: EdgeId::new(1).unwrap(),
+                        cause: semantic_vocabulary::CrashCause::Trap,
+                        site_guard: vec![],
+                        frontier_lower_bound: vec![],
+                    };
+                    caller.blocks[0].operations.clear();
+                    caller.blocks[0].terminator = Terminator::InvokeNoNormal {
+                        edge: EdgeId::new(1).unwrap(),
+                        static_reach_binding: None,
+                        required_contract: None,
+                        callee: helper.id,
+                        arguments: vec![],
+                        erased_arguments: vec![],
+                        erased_proof_arguments: vec![],
+                        structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+                            actual,
+                            if indirect {
+                                StructuralAccess::Owned
+                            } else {
+                                StructuralAccess::MutableBorrow
+                            },
+                        )],
+                        claim_transfers: vec![],
+                        requirement_obligations: vec![],
+                        crash_continuations: vec![],
+                    };
+                    module.machines = vec![caller, helper];
+                    let caller = module.machines[0].id;
+                    let helper = module.machines[1].id;
+                    module.machines.reverse();
+                    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                        &module,
+                        [caller],
+                        &[],
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        graph.iter().map(|row| row.id).collect::<Vec<_>>(),
+                        [helper, caller],
+                        "a sorted sparse lookup must preserve module output order"
+                    );
+                    let body = graph.iter().find(|row| row.id == caller).unwrap();
+                    let cut = (BlockId::new(1).unwrap(), 0);
+                    let call = body
+                        .known_invocation(&cut)
+                        .expect("the exact local terminal call has an account");
+                    assert_eq!(
+                        semantic_vocabulary::InvocationSite::from(call.owner),
+                        InvocationSite::InvokeNoNormal(EdgeId::new(1).unwrap())
+                    );
+                    assert_eq!(call.callee(), Some(helper));
+                    assert!(!body.unresolved_contents_writes.contains(&cut));
+                    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
+                        &module.structural_types,
+                        &graph,
+                    );
+                    assert_eq!(
+                        analysis.storage_access_frame(caller).unwrap(),
+                        Some([].as_slice())
+                    );
+                    let accesses = analysis
+                        .storage_access_frame(helper)
+                        .unwrap()
+                        .unwrap()
+                        .to_vec();
+                    assert!(accesses.iter().any(|&input| matches!(
+                        analysis.storage_access(helper, input),
+                        Some((access_plans::AccessOperation::Write, _))
+                    )));
+                    if indirect {
+                        assert!(
+                            analysis.storage_writes(caller, cut).unwrap().is_none(),
+                            "an unprovided pointee cannot become a known-empty write"
+                        );
+                        continue;
+                    }
+                    let written = analysis.storage_writes(caller, cut).unwrap().unwrap();
+                    assert!(
+                        written
+                            .iter()
+                            .any(|row| row.root == actual && row.path.is_empty()),
+                        "a write before Trap still changes the actual referent: {written:?}"
+                    );
+                    let origin = DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source: formal,
+                        projection: Projection::new(&path),
+                    });
+                    let actuals = analysis
+                        .substitute_call_source(caller, cut, &origin)
+                        .unwrap();
+                    assert_eq!(
+                        actuals,
+                        vec![DescriptorSourceOrigin::Backing(
+                            DescriptorCallOrigin::Argument {
+                                source: actual,
+                                projection: Projection::new(&path),
+                            }
+                        )]
+                    );
+                    let mut duplicate = module.clone();
+                    duplicate.machines.push(
+                        module
+                            .machines
+                            .iter()
+                            .find(|row| row.id == helper)
+                            .unwrap()
+                            .clone(),
+                    );
+                    assert!(matches!(
+                        crate::descriptor_results::terminal_borrowed_storage_graph_from(&duplicate, [caller], &[]),
+                        Err(crate::descriptor_results::DescriptorGraphError::MissingOrAmbiguousMachine(id)) if id == helper
+                    ));
+                    assert!(terminal_borrowed_storage_graph(&duplicate).is_empty());
+                    let mut missing = module.clone();
+                    missing.machines.retain(|row| row.id != helper);
+                    let missing_graph =
+                        crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                            &missing,
+                            [caller],
+                            &[],
+                        )
+                        .unwrap();
+                    let mut unknown = DescriptorAnalysis::with_borrowed_storage_slots(
+                        &missing.structural_types,
+                        &missing_graph,
+                    );
+                    assert!(unknown.storage_access_frame(caller).unwrap().is_none());
+                    assert!(unknown.storage_writes(caller, cut).unwrap().is_none());
+                }
+            }
+
+            #[test]
             fn borrowing_a_carrier_slot_does_not_copy_its_existing_permission() {
                 use crate::descriptor_lifetimes::{
                     descriptor_entry_lifetime, descriptor_location_lifetime,
@@ -11140,7 +11802,8 @@ pub mod descriptor_results {
                     referent: reference,
                     access: StructuralAccess::SharedBorrow,
                 };
-                module.structural_types[2].copyable = true;
+                module.structural_types[2].multiplicity =
+                    terminal_psi::StructuralMultiplicity::Unrestricted;
                 let body = &mut module.machines[0];
                 let source = PlaceId::new(1).unwrap();
                 let child = PlaceId::new(2).unwrap();
@@ -11993,7 +12656,8 @@ pub mod descriptor_results {
                 // Moving the roster carries its own storage, while each
                 // ordinal must retain the distinct caller view it contains.
                 let mut moved = sequence_capture_module();
-                moved.structural_types[1].copyable = false;
+                moved.structural_types[1].multiplicity =
+                    terminal_psi::StructuralMultiplicity::Affine;
                 let body = &mut moved.machines[0];
                 body.blocks[0].operations.truncate(1);
                 body.structural_places.retain(|place| place.id.get() <= 3);
@@ -12025,7 +12689,7 @@ pub mod descriptor_results {
                 );
                 let result = replay
                     .summary(caller, 0)
-                    .and_then(|summary| summary.result)
+                    .and_then(|summary| summary.result.into_slots())
                     .unwrap();
                 assert_eq!(result.len(), 1);
                 let [
@@ -12137,7 +12801,7 @@ pub mod descriptor_results {
                 let outer = StructuralTypeId::new(4).unwrap();
                 let mut declaration = borrowed_leaf.structural_types[1].clone();
                 declaration.id = borrowed;
-                declaration.copyable = true;
+                declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
                 declaration.shape = StructuralTypeShape::ElementView {
                     element: bytes,
                     access: Some(StructuralAccess::SharedBorrow),
@@ -12241,7 +12905,7 @@ pub mod descriptor_results {
                 assert!(
                     replay
                         .summary(reader_id, 0)
-                        .and_then(|summary| summary.result)
+                        .and_then(|summary| summary.result.into_slots())
                         .is_some(),
                     "the helper can carry a view borrowed from its caller"
                 );
@@ -12345,7 +13009,7 @@ pub mod descriptor_results {
                 );
                 let result = replay
                     .summary(caller, 0)
-                    .and_then(|summary| summary.result)
+                    .and_then(|summary| summary.result.into_slots())
                     .unwrap();
                 let mut lengths = result[0]
                     .origins
@@ -12591,7 +13255,7 @@ pub mod descriptor_results {
                     .collect();
                 assert_eq!(owners.len(), 4);
                 assert!(owners.windows(2).all(|rows| rows[0] < rows[1]));
-                assert!(graph.operation_call(position).is_none());
+                assert!(graph.direct_call(position).is_none());
                 assert!(
                     graph
                         .invocation(
@@ -12666,7 +13330,7 @@ pub mod descriptor_results {
                     declaration_identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     shape,
@@ -12736,7 +13400,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     shape,
@@ -13132,7 +13796,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -13927,13 +14591,22 @@ pub mod descriptor_results {
                     &actual.path,
                 );
                 if actual.access != formal.access
-                    || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
-                        && crate::borrowed_primitive_projection_declaration(
-                            module.structural_types.iter(),
-                            root_type,
-                            &actual.path,
-                            Some(formal.structural_type),
-                        ) != Some(formal.structural_type))
+                    || (!selected.is_some_and(|selected| {
+                        selected.id == formal.structural_type
+                            || crate::calls::const_array_argument_matches(
+                                module,
+                                machine,
+                                callee,
+                                arguments,
+                                selected.id,
+                                formal.structural_type,
+                            )
+                    }) && crate::borrowed_primitive_projection_declaration(
+                        module.structural_types.iter(),
+                        root_type,
+                        &actual.path,
+                        Some(formal.structural_type),
+                    ) != Some(formal.structural_type))
                 {
                     return None;
                 }
@@ -14081,12 +14754,15 @@ pub mod descriptor_results {
         DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
         DescriptorContentsTransfer, DescriptorPayloadTarget, DescriptorStoreFlow,
         ElementPayloadMemberships, PayloadMembershipContract, descriptor_contents_query,
-        descriptor_contents_transfers, descriptor_leaf_store, descriptor_scalar_arguments,
-        element_payload_memberships, element_payload_memberships_in, entry_selector,
-        payload_memberships, reference_backing_memberships, terminal_payload_contract,
+        descriptor_contents_query_with, descriptor_contents_transfers, descriptor_leaf_store,
+        descriptor_scalar_arguments, element_payload_memberships, element_payload_memberships_in,
+        entry_selector, payload_memberships, reference_backing_memberships,
+        terminal_payload_contract,
     };
 
-    pub(crate) use contents::{descriptor_storage_use_source, inline_selected_index};
+    pub(crate) use contents::{
+        contents_membership_path, descriptor_storage_use_source, inline_selected_index,
+    };
     pub use payload_history::{
         PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
     };
@@ -14099,9 +14775,9 @@ pub mod descriptor_results {
         ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
         projected_stored_sources_in, require_completed_scalar_capture,
         require_unchanged_entry_storage, require_unchanged_observed_storage,
-        require_unchanged_produced_payload, unchanged_payload_producer,
-        unchanged_stored_projection_sources_in, unchanged_stored_scalar_sources,
-        unchanged_stored_sources,
+        require_unchanged_produced_payload, require_unchanged_produced_payload_in,
+        unchanged_payload_producer, unchanged_stored_projection_sources_in,
+        unchanged_stored_scalar_sources, unchanged_stored_sources,
     };
     pub(crate) use scalar_captures::scalar_storage_writes;
     pub use scalar_captures::{
@@ -14335,6 +15011,57 @@ pub mod descriptor_results {
                 argument_contents,
                 result: result.map(|result| DescriptorLocation::whole(result.place)),
             })
+        }
+
+        impl DescriptorMachine {
+            // A call that never returns can still read or write its arguments.
+            // Both call forms use the shared signature checks and retain the
+            // complete parameter list and supplied arguments at the pre-call cut.
+            pub(crate) fn direct_invocation(
+                &self,
+                module: &TerminalModule,
+                machines: &[&TerminalMachine],
+                slot_kind: DescriptorSlotKind,
+                invocation: terminal_psi::ModuleInvocation<'_>,
+                result: Option<&terminal_psi::StructuralOperationResult>,
+                selector: impl Fn(ValueId) -> Option<ScalarTerm>,
+            ) -> Option<DescriptorInvocation> {
+                let inputs = invocation.inputs;
+                let callee = terminal_graph_machine(machines, inputs.callee)?;
+                if callee.parameters.len() != inputs.arguments.len() {
+                    return None;
+                }
+                let owner = match invocation.site {
+                    semantic_vocabulary::InvocationSite::Operation(operation) => {
+                        DescriptorInvocationOwner::Operation(operation)
+                    }
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                        DescriptorInvocationOwner::InvokeNoNormal(edge)
+                    }
+                    _ => return None,
+                };
+                let mut call = machine_invocation(
+                    owner,
+                    &module.structural_types,
+                    slot_kind,
+                    callee,
+                    inputs.structural_arguments,
+                    result,
+                    inputs
+                        .structural_arguments
+                        .iter()
+                        .map(|actual| self.place_types.get(&actual.place).copied()),
+                )?;
+                call.scalar_arguments = descriptor_scalar_arguments(
+                    callee
+                        .parameters
+                        .iter()
+                        .map(|formal| (formal.id, formal.scalar_type)),
+                    inputs.arguments,
+                    selector,
+                );
+                Some(call)
+            }
         }
 
         pub fn public_invocation(
@@ -14955,41 +15682,50 @@ pub mod descriptor_results {
 
         pub(crate) fn adapt(
             module: &TerminalModule,
+            machines: &[&TerminalMachine],
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
         ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
-            // A failed closure must name the operation being reconstructed.
-            // Setup has no operation; keep it machine-scoped rather than
-            // attributing it to a previously visited body or instruction.
-            let mut position = None;
-            let mut detail = None;
+            // Setup failures have no operation. Reuse the same typed error
+            // as the reader advances, so a later failure keeps its real site.
+            let mut failure = super::DescriptorGraphError::IncompleteMachine {
+                machine: machine.id,
+                position: None,
+                successor: None,
+                detail: None,
+            };
             adapt_flow(
                 module,
+                machines,
                 machine,
                 slot_kind,
                 selected_calls,
                 selector_graph,
-                &mut position,
-                &mut detail,
+                &mut failure,
             )
-            .ok_or(super::DescriptorGraphError::IncompleteMachine {
-                machine: machine.id,
-                position,
-                detail,
-            })
+            .ok_or(failure)
         }
 
         fn adapt_flow(
             module: &TerminalModule,
+            machines: &[&TerminalMachine],
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
-            failure_position: &mut Option<DescriptorPosition>,
-            failure_detail: &mut Option<&'static str>,
+            failure: &mut super::DescriptorGraphError,
         ) -> Option<DescriptorMachine> {
+            let super::DescriptorGraphError::IncompleteMachine {
+                position: failure_position,
+                successor: failure_successor,
+                detail: failure_detail,
+                ..
+            } = failure
+            else {
+                return None;
+            };
             let scalar_expressions =
                 super::payload_predicates::TerminalScalarExpressions::new(machine);
             let mut scalar_formals = machine
@@ -15089,6 +15825,8 @@ pub mod descriptor_results {
                 );
                 for (index, operation) in block.operations.iter().enumerate() {
                     *failure_position = None;
+                    *failure_successor = None;
+                    *failure_detail = None;
                     let position = (block.id, u32::try_from(index).ok()?);
                     *failure_position = Some(position);
                     if let Some(postconditions) = super::scalar_contracts::terminal_postconditions(
@@ -16114,7 +16852,7 @@ pub mod descriptor_results {
                                 graph.case_constructors.insert(
                                     position,
                                     vec![DescriptorCasePredicate {
-                                        subject: DescriptorLocation::whole(result?.place),
+                                        subject: DescriptorLocation::whole(result?.place).into(),
                                         case: *result_case,
                                     }],
                                 );
@@ -16179,6 +16917,48 @@ pub mod descriptor_results {
                                     }
                                 }
                             }
+                        }
+                        OperationKind::CallMachine {
+                            contract,
+                            structural_arguments,
+                            ..
+                        } => {
+                            let contract = module.callables.contract(*contract)?;
+                            // A public callable supplies result origins and access ceilings.
+                            // Its unknown body supplies no stored-content summary. Invalidate
+                            // only writable argument paths, retaining unrelated storage.
+                            let call = public_invocation(
+                                operation.id,
+                                &module.structural_types,
+                                slot_kind,
+                                contract,
+                                Vec::new(),
+                                structural_arguments,
+                                result,
+                                &graph.place_types,
+                            )?;
+                            for actual in structural_arguments
+                                .iter()
+                                .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                            {
+                                step.definitions.extend(writable_descriptor_slots(
+                                    &module.structural_types,
+                                    &graph.place_types,
+                                    actual,
+                                    slot_kind,
+                                )?);
+                            }
+                            if matches!(
+                                call.target,
+                                DescriptorInvocationTarget::Public {
+                                    invalidates_contents: true,
+                                    ..
+                                }
+                            ) {
+                                graph.unresolved_contents_writes.insert(position);
+                                step.may_escape = true;
+                            }
+                            insert_invocation(&mut graph.calls, position, call)?;
                         }
                         OperationKind::CallDynamic {
                             selector,
@@ -16271,7 +17051,9 @@ pub mod descriptor_results {
                                 .inspect_err(|detail| *failure_detail = Some(*detail))
                                 .ok()?
                             } else {
-                                None
+                                crate::requirement_reference_result(module, callee)
+                                    .inspect_err(|detail| *failure_detail = Some(*detail))
+                                    .ok()?
                             };
                             let implemented = operation.required_contract.is_some();
                             let public_call = match &public {
@@ -16326,27 +17108,25 @@ pub mod descriptor_results {
                                 }
                                 insert_invocation(&mut graph.calls, position, call)?;
                             } else {
-                                let mut matching = module
-                                    .machines
-                                    .iter()
-                                    .filter(|machine| machine.id == callee);
-                                let callee = matching.next()?;
-                                if matching.next().is_some()
-                                    || callee.structural_parameters.len()
-                                        != structural_arguments.len()
+                                let inputs = operation.module_invocation()?;
+                                if inputs.callee != callee
+                                    || inputs.structural_arguments != structural_arguments
                                 {
                                     return None;
                                 }
-                                let call = machine_invocation(
-                                    DescriptorInvocationOwner::Operation(operation.id),
-                                    &module.structural_types,
+                                let call = graph.direct_invocation(
+                                    module,
+                                    machines,
                                     slot_kind,
-                                    callee,
-                                    structural_arguments,
+                                    terminal_psi::ModuleInvocation {
+                                        site: semantic_vocabulary::InvocationSite::Operation(
+                                            operation.id,
+                                        ),
+                                        static_reach_binding: operation.static_reach_binding,
+                                        inputs,
+                                    },
                                     result,
-                                    structural_arguments.iter().map(|actual| {
-                                        graph.place_types.get(&actual.place).copied()
-                                    }),
+                                    selector,
                                 )?;
                                 if call.arguments.iter().any(Option::is_none) {
                                     mark_opaque_call_occupancy(
@@ -16359,15 +17139,6 @@ pub mod descriptor_results {
                                         structural_arguments,
                                     )?;
                                 }
-                                let mut call = call;
-                                call.scalar_arguments = super::descriptor_scalar_arguments(
-                                    callee
-                                        .parameters
-                                        .iter()
-                                        .map(|formal| (formal.id, formal.scalar_type)),
-                                    operation.module_invocation()?.arguments,
-                                    selector,
-                                );
                                 insert_invocation(&mut graph.calls, position, call)?;
                             }
                         }
@@ -16505,129 +17276,163 @@ pub mod descriptor_results {
                     }
                 }
                 *failure_position = None;
+                *failure_successor = None;
+                *failure_detail = None;
                 let position = (block.id, u32::try_from(block.operations.len()).ok()?);
                 *failure_position = Some(position);
                 let mut step = DescriptorFlowStep::default();
-                let mut edge = |target,
+                let mut edge = |identity,
+                                target,
                                 scalar_arrival: ScalarArrival<'_>,
                                 arguments: &[StructuralArgument]|
                  -> Option<()> {
-                    let block = exactly_one(machine.blocks.iter(), |block| block.id == target)?;
-                    if arguments.len() != block.structural_parameters.len() {
-                        return None;
-                    }
-                    let scalar_bindings = match scalar_arrival {
-                        ScalarArrival::Values(arguments) => {
-                            if arguments.len() != block.parameters.len() {
-                                return None;
-                            }
-                            block
-                                .parameters
-                                .iter()
-                                .zip(arguments)
-                                .map(|(parameter, actual)| {
-                                    let value = scalar_expressions.expression(*actual)?;
-                                    (value.scalar_type() == parameter.scalar_type)
-                                        .then_some((parameter.id, value))
-                                })
-                                .collect::<Option<Vec<_>>>()?
+                    *failure_successor = Some((identity, target));
+                    let result = (|| -> Result<(), &'static str> {
+                        let block = exactly_one(machine.blocks.iter(), |block| block.id == target)
+                            .ok_or("descriptor arrival has no unique target block")?;
+                        if arguments.len() != block.structural_parameters.len() {
+                            return Err(
+                                "descriptor arrival structural arity differs from target parameters",
+                            );
                         }
-                        ScalarArrival::CasePayload {
-                            source,
-                            path,
-                            case,
-                            fields,
-                        } => {
-                            if fields.len() != block.parameters.len() {
-                                return None;
+                        let scalar_bindings = match scalar_arrival {
+                            ScalarArrival::Values(arguments) => {
+                                if arguments.len() != block.parameters.len() {
+                                    return Err(
+                                        "descriptor arrival scalar arity differs from target parameters",
+                                    );
+                                }
+                                block.parameters.iter().zip(arguments).map(|(parameter, actual)| {
+                                    let value = scalar_expressions.expression(*actual)
+                                        .ok_or("descriptor arrival scalar operand has no current typed expression")?;
+                                    if value.scalar_type() != parameter.scalar_type {
+                                        return Err("descriptor arrival scalar type differs from target parameter");
+                                    }
+                                    Ok((parameter.id, value))
+                                }).collect::<Result<Vec<_>, _>>()?
                             }
-                            let root = *graph.place_types.get(&source)?;
-                            let captured = super::scalar_contracts::case_payload_scalar_types(
-                                &module.structural_types,
-                                root,
+                            ScalarArrival::CasePayload {
+                                source,
                                 path,
                                 case,
                                 fields,
-                            )?;
-                            if captured
-                                .iter()
-                                .zip(&block.parameters)
-                                .any(|(actual, parameter)| *actual != parameter.scalar_type)
-                            {
-                                return None;
+                            } => {
+                                if fields.len() != block.parameters.len() {
+                                    return Err(
+                                        "descriptor arrival case payload arity differs from target parameters",
+                                    );
+                                }
+                                let root = *graph.place_types.get(&source).ok_or(
+                                    "descriptor arrival case payload has no declared source type",
+                                )?;
+                                let captured = super::scalar_contracts::case_payload_scalar_types(
+                                    &module.structural_types, root, path, case, fields,
+                                ).ok_or("descriptor arrival case payload fields have no exact scalar types")?;
+                                if captured
+                                    .iter()
+                                    .zip(&block.parameters)
+                                    .any(|(actual, parameter)| *actual != parameter.scalar_type)
+                                {
+                                    return Err(
+                                        "descriptor arrival case payload type differs from target parameter",
+                                    );
+                                }
+                                Vec::new()
                             }
-                            Vec::new()
-                        }
-                    };
-                    graph
-                        .payload_scalar_bindings
-                        .entry(position)
-                        .or_default()
-                        .push(scalar_bindings);
-                    let parameters = block
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| DescriptorLocation::whole(parameter.place))
-                        .collect::<Vec<_>>();
-                    let mut bindings = Vec::new();
-                    let mut definitions = Vec::new();
-                    for (argument, parameter) in arguments.iter().zip(&block.structural_parameters)
-                    {
-                        if argument.access != parameter.access {
-                            return None;
-                        }
-                        let source =
-                            if let Some(source) = location(argument.place, &argument.path, None) {
+                        };
+                        graph
+                            .payload_scalar_bindings
+                            .entry(position)
+                            .or_default()
+                            .push(scalar_bindings);
+                        let parameters = block
+                            .structural_parameters
+                            .iter()
+                            .map(|parameter| DescriptorLocation::whole(parameter.place))
+                            .collect::<Vec<_>>();
+                        let mut bindings = Vec::new();
+                        let mut definitions = Vec::new();
+                        for (argument, parameter) in
+                            arguments.iter().zip(&block.structural_parameters)
+                        {
+                            if argument.access != parameter.access {
+                                return Err(
+                                    "descriptor arrival access differs from target parameter",
+                                );
+                            }
+                            let source = if let Some(source) =
+                                location(argument.place, &argument.path, None)
+                            {
                                 DescriptorFlowSource::Location(source)
                             } else {
                                 step.may_escape = true;
                                 DescriptorFlowSource::from_query(
                                     argument.place,
                                     descriptor_contents_query(
-                                        &module.structural_types,
-                                        argument.place,
-                                        *graph.place_types.get(&argument.place)?,
-                                        &argument.path,
-                                        None,
+                                        &module.structural_types, argument.place,
+                                        *graph.place_types.get(&argument.place)
+                                            .ok_or("descriptor arrival structural source has no declared type")?,
+                                        &argument.path, None,
                                     ),
                                 )
                             };
-                        step.inputs.push((Some(source.observation()), None));
-                        if parameter.access == StructuralAccess::Owned
-                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        {
-                            definitions.push(source.observation());
+                            step.inputs.push((Some(source.observation()), None));
+                            if parameter.access == StructuralAccess::Owned
+                                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                            {
+                                definitions.push(source.observation());
+                            }
+                            let mut binding = DescriptorFlowBinding::new(
+                                source,
+                                DescriptorLocation::whole(parameter.place),
+                                argument.access,
+                                parameter.access,
+                            )
+                            .ok_or("descriptor arrival has no valid source-to-parameter binding")?;
+                            if binding.source.exact_location().is_none()
+                                && let Some(index) = argument
+                                    .path
+                                    .iter()
+                                    .position(|step| step.runtime_index().is_some())
+                            {
+                                let descriptor = location(argument.place, &argument.path[..index], None)
+                                    .ok_or("descriptor arrival indexed source has no exact descriptor prefix")?;
+                                binding.captured_storage = Some((
+                                    descriptor,
+                                    Projection::new(&argument.path[index..]).at(position),
+                                ));
+                            }
+                            binding.source_access = crate::structural_projection_authority(
+                                machine, &module.structural_types, argument,
+                            ).ok_or("descriptor arrival structural source has no exact projection authority")?;
+                            bindings.push(binding);
                         }
-                        let mut binding = DescriptorFlowBinding::new(
-                            source,
-                            DescriptorLocation::whole(parameter.place),
-                            argument.access,
-                            parameter.access,
-                        )?;
-                        binding.source_access = crate::structural_projection_authority(
-                            machine,
-                            &module.structural_types,
-                            argument,
-                        )?;
-                        bindings.push(binding);
+                        step.successors.push(DescriptorFlowEdge {
+                            edge: None,
+                            effects: Vec::new(),
+                            definitions,
+                            target: (target, 0),
+                            parameters,
+                            bindings,
+                        });
+                        Ok(())
+                    })();
+                    if let Err(detail) = result {
+                        *failure_detail = Some(detail);
+                        return None;
                     }
-                    step.successors.push(DescriptorFlowEdge {
-                        edge: None,
-                        effects: Vec::new(),
-                        definitions,
-                        target: (target, 0),
-                        parameters,
-                        bindings,
-                    });
+                    *failure_successor = None;
                     Some(())
                 };
                 match &block.terminator {
                     Terminator::Jump {
+                        edge: identity,
                         target,
                         arguments,
                         structural_arguments,
                         ..
                     } => edge(
+                        *identity,
                         *target,
                         ScalarArrival::Values(arguments),
                         structural_arguments,
@@ -16639,6 +17444,7 @@ pub mod descriptor_results {
                     } => {
                         for successor in [when_true, when_false] {
                             edge(
+                                successor.edge,
                                 successor.target,
                                 ScalarArrival::Values(&successor.arguments),
                                 &successor.structural_arguments,
@@ -16652,6 +17458,7 @@ pub mod descriptor_results {
                     } => {
                         for case in cases {
                             edge(
+                                case.edge,
                                 case.target,
                                 ScalarArrival::CasePayload {
                                     source: *source,
@@ -16665,9 +17472,17 @@ pub mod descriptor_results {
                     }
                     Terminator::ReturnStructural { source, .. } => {
                         if let Some(returns) = &mut graph.returns {
-                            if machine.structural_place_type(*source)?
-                                != machine.result.structural()?.structural_type
-                            {
+                            *failure_detail =
+                                Some("descriptor structural return source has no declared type");
+                            let actual = machine.structural_place_type(*source)?;
+                            *failure_detail = Some(
+                                "descriptor structural return has no declared structural result",
+                            );
+                            let expected = machine.result.structural()?.structural_type;
+                            if actual != expected {
+                                *failure_detail = Some(
+                                    "descriptor structural return source type differs from declared result",
+                                );
                                 return None;
                             }
                             returns.push((position, DescriptorLocation::whole(*source)));
@@ -16686,11 +17501,52 @@ pub mod descriptor_results {
                         structural_arguments,
                         ..
                     } => {
-                        graph.calls.insert(position, None);
-                        // These invocations can write before terminating.
-                        // Their absent normal result is not an empty frame;
-                        // no selected terminal-call frame is represented here.
-                        graph.unresolved_contents_writes.insert(position);
+                        let call = block
+                            .terminator
+                            .module_invocation()
+                            .filter(|inputs| inputs.required_contract.is_none())
+                            .and_then(|inputs| {
+                                graph.direct_invocation(
+                                    module,
+                                    machines,
+                                    slot_kind,
+                                    terminal_psi::ModuleInvocation {
+                                        site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
+                                            block.terminator.edge(),
+                                        ),
+                                        static_reach_binding: match block.terminator {
+                                            Terminator::InvokeNoNormal {
+                                                static_reach_binding,
+                                                ..
+                                            } => static_reach_binding,
+                                            _ => None,
+                                        },
+                                        inputs,
+                                    },
+                                    None,
+                                    selector,
+                                )
+                            });
+                        if call
+                            .as_ref()
+                            .is_none_or(|call| !call.arguments.iter().all(Option::is_some))
+                        {
+                            // An absent result never proves that a call writes
+                            // nothing. Unknown and public calls keep the same
+                            // conservative invalidation until their owner serves them.
+                            graph.unresolved_contents_writes.insert(position);
+                        }
+                        match call {
+                            Some(call) => {
+                                *failure_detail = Some(
+                                    "descriptor terminal invocation conflicts with an existing call at this site",
+                                );
+                                insert_invocation(&mut graph.calls, position, call)?;
+                            }
+                            None => {
+                                graph.calls.insert(position, None);
+                            }
+                        }
                         for argument in structural_arguments {
                             if let Some(source) = location(argument.place, &argument.path, None) {
                                 step.inputs.push((Some(source), None));
@@ -16715,8 +17571,15 @@ pub mod descriptor_results {
                                 module.machines.iter(),
                                 cleanup,
                             )
+                            .inspect_err(|reason| *failure_detail = Some(*reason))
                             .ok()?;
+                            *failure_detail = Some(
+                                "descriptor terminal cleanup subject has no declared root type",
+                            );
                             let root = *graph.place_types.get(&cleanup.subject.place)?;
+                            *failure_detail = Some(
+                                "descriptor terminal cleanup subject has no exact projected type",
+                            );
                             if crate::runtime_structural_path_tip(
                                 module.structural_types.iter(),
                                 root,
@@ -16724,12 +17587,21 @@ pub mod descriptor_results {
                             )?
                             .id != cleanup.structural_type
                             {
+                                *failure_detail = Some(
+                                    "descriptor terminal cleanup subject type differs from its declared carrier",
+                                );
                                 return None;
                             }
+                            *failure_detail =
+                                Some("descriptor terminal cleanup action ordinal is out of range");
+                            let action_ordinal = u32::try_from(action_ordinal).ok()?;
+                            *failure_detail = Some(
+                                "descriptor terminal cleanup has no exact invocation correspondence",
+                            );
                             let call = machine_invocation(
                                 DescriptorInvocationOwner::Cleanup {
                                     edge,
-                                    action_ordinal: u32::try_from(action_ordinal).ok()?,
+                                    action_ordinal,
                                 },
                                 &module.structural_types,
                                 slot_kind,
@@ -16744,6 +17616,9 @@ pub mod descriptor_results {
                             if call.arguments.iter().any(Option::is_none)
                                 || call.argument_contents.iter().any(Option::is_none)
                             {
+                                *failure_detail = Some(
+                                    "descriptor terminal cleanup has unresolved actual backing or contents",
+                                );
                                 return None;
                             }
                             step.inputs.extend(
@@ -16752,6 +17627,9 @@ pub mod descriptor_results {
                                     .flatten()
                                     .cloned()
                                     .map(|input| (Some(input), None)),
+                            );
+                            *failure_detail = Some(
+                                "descriptor terminal cleanup conflicts with an existing call at this site",
                             );
                             insert_invocation(&mut graph.calls, position, call)?;
                         }
@@ -16762,23 +17640,35 @@ pub mod descriptor_results {
                 // every binding reads the old frontier before both are killed.
                 let selected = block.terminator.successor_edges();
                 if selected.len() != step.successors.len() {
+                    *failure_detail = Some(
+                        "descriptor terminator successor count differs from reconstructed arrivals",
+                    );
                     return None;
                 }
                 for ((identity, target), edge) in selected.into_iter().zip(&mut step.successors) {
+                    *failure_successor = Some((identity, target));
                     if edge.target != (target, 0) {
+                        *failure_detail = Some(
+                            "descriptor terminator successor target differs from reconstructed arrival",
+                        );
                         return None;
                     }
                     edge.edge = Some(identity);
+                    *failure_detail =
+                        Some("descriptor terminator successor has no exact cleanup roster");
                     let (_, cleanup) = block
                         .terminator
                         .cleanup_rosters()
                         .find(|(at, _)| *at == identity)?;
                     for action in cleanup {
+                        *failure_detail =
+                            Some("descriptor terminator cleanup has no exact disposal location");
                         edge.definitions
                             .push(location(action.place(), action.path(), None)?);
                     }
                     edge.definitions.sort();
                     edge.definitions.dedup();
+                    *failure_successor = None;
                 }
                 if let Terminator::StructuralCase {
                     source,
@@ -16786,7 +17676,21 @@ pub mod descriptor_results {
                     cases,
                 } = &block.terminator
                 {
-                    let subject = location(*source, path, None)?;
+                    *failure_detail =
+                        Some("descriptor case terminator has no checked subject projection");
+                    let subject = match location(*source, path, None) {
+                        Some(location) => DescriptorFlowSource::Location(location),
+                        None => DescriptorFlowSource::Contents(
+                            super::contents::descriptor_contents_query_with(
+                                &module.structural_types,
+                                *source,
+                                *graph.place_types.get(source)?,
+                                path,
+                                None,
+                                |value| scalar_expressions.expression(value),
+                            )?,
+                        ),
+                    };
                     graph.case_successors.insert(
                         position,
                         cases
@@ -16825,6 +17729,9 @@ pub mod descriptor_results {
                             parameter.access,
                             terminal_psi::exclusive_borrow_pair_pattern!()
                         ) {
+                            *failure_detail = Some(
+                                "descriptor normal exit has no complete borrowed parameter slots",
+                            );
                             step.inputs.extend(
                                 slot_kind
                                     .slots(
@@ -16839,6 +17746,8 @@ pub mod descriptor_results {
                     }
                 }
                 if graph.flow.insert(position, step).is_some() {
+                    *failure_detail =
+                        Some("descriptor terminator repeats an existing storage-flow position");
                     return None;
                 }
             }
@@ -17475,8 +18384,15 @@ pub mod descriptor_results {
             .or_insert_with(|| Some(Vec::new()))
             .as_mut()?;
         if !calls.is_empty()
-            && (matches!(call.owner, DescriptorInvocationOwner::Operation(_))
-                || matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)))
+            && (matches!(
+                call.owner,
+                DescriptorInvocationOwner::Operation(_)
+                    | DescriptorInvocationOwner::InvokeNoNormal(_)
+            ) || matches!(
+                calls[0].owner,
+                DescriptorInvocationOwner::Operation(_)
+                    | DescriptorInvocationOwner::InvokeNoNormal(_)
+            ))
         {
             return None;
         }
@@ -17495,14 +18411,18 @@ pub mod descriptor_results {
                 .map_or(&[], Vec::as_slice)
         }
 
-        pub fn operation_call(
-            &self,
-            position: DescriptorPosition,
-        ) -> Option<&DescriptorInvocation> {
+        /// One source call, including a call with no normal return. Cleanup
+        /// actions have their own ordered owners and are queried separately.
+        pub fn direct_call(&self, position: DescriptorPosition) -> Option<&DescriptorInvocation> {
             let [call] = self.calls_at(position) else {
                 return None;
             };
-            matches!(call.owner, DescriptorInvocationOwner::Operation(_)).then_some(call)
+            matches!(
+                call.owner,
+                DescriptorInvocationOwner::Operation(_)
+                    | DescriptorInvocationOwner::InvokeNoNormal(_)
+            )
+            .then_some(call)
         }
 
         pub fn invocation(
@@ -17543,7 +18463,11 @@ pub mod descriptor_results {
                 if calls.is_empty() || !calls.windows(2).all(|rows| rows[0].owner < rows[1].owner) {
                     return None;
                 }
-                if matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)) {
+                if matches!(
+                    calls[0].owner,
+                    DescriptorInvocationOwner::Operation(_)
+                        | DescriptorInvocationOwner::InvokeNoNormal(_)
+                ) {
                     if calls.len() != 1 {
                         return None;
                     }
@@ -17579,7 +18503,7 @@ pub mod descriptor_results {
             &self,
             position: &DescriptorPosition,
         ) -> Option<&DescriptorInvocation> {
-            self.operation_call(*position)
+            self.direct_call(*position)
         }
 
         pub fn known_invocations(
@@ -17735,7 +18659,7 @@ pub mod descriptor_results {
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct DescriptorCasePredicate {
-        pub subject: DescriptorLocation,
+        pub subject: descriptor_lifetimes::DescriptorFlowSource,
         pub case: semantic_vocabulary::StructuralCaseId,
     }
 
@@ -17761,7 +18685,10 @@ pub mod descriptor_results {
             ) else {
                 return Vec::new();
             };
-            predicates.push(DescriptorCasePredicate { subject, case });
+            predicates.push(DescriptorCasePredicate {
+                subject: subject.into(),
+                case,
+            });
         }
         predicates
     }
@@ -18114,6 +19041,7 @@ pub mod descriptor_results {
         IncompleteMachine {
             machine: MachineId,
             position: Option<DescriptorPosition>,
+            successor: Option<(semantic_vocabulary::EdgeId, semantic_vocabulary::BlockId)>,
             detail: Option<&'static str>,
         },
     }
@@ -18150,6 +19078,7 @@ pub mod descriptor_results {
             Self::IncompleteMachine {
                 machine,
                 position,
+                successor: None,
                 detail: Some(detail),
             }
         }
@@ -18168,8 +19097,8 @@ pub mod descriptor_results {
             }
         }
 
-        /// Resolve only an actual operation in the failed machine. A setup or
-        /// terminator failure has no operation and remains machine-scoped.
+        /// Resolve only an actual operation in the failed machine. Terminator
+        /// failures retain their block and edge without becoming operations.
         pub fn operation(
             self,
             module: &TerminalModule,
@@ -18225,6 +19154,106 @@ pub mod descriptor_results {
                     }
                 }
             }
+            if let Self::IncompleteMachine {
+                position: Some((source, index)),
+                ..
+            } = self
+                && let Some(machine) =
+                    exactly_one(module.machines.iter(), |row| row.id == self.machine())
+                && let Some(block) = exactly_one(machine.blocks.iter(), |row| row.id == source)
+                && usize::try_from(index).ok() == Some(block.operations.len())
+            {
+                let kind = match &block.terminator {
+                    Terminator::EliminateEmpty { .. } => "EliminateEmpty",
+                    Terminator::InvokeNoNormal { .. } => "InvokeNoNormal",
+                    Terminator::ExternalCompletion { .. } => "ExternalCompletion",
+                    Terminator::Jump { .. } => "Jump",
+                    Terminator::Conditional { .. } => "Conditional",
+                    Terminator::StructuralCase { .. } => "StructuralCase",
+                    Terminator::Return { .. } => "Return",
+                    Terminator::ReturnUnit { .. } => "ReturnUnit",
+                    Terminator::ReturnStructural { .. } => "ReturnStructural",
+                    Terminator::Crash { .. } => "Crash",
+                };
+                detail.push_str(&format!("; terminator {kind}"));
+                if let Terminator::ReturnStructural { source, .. } = block.terminator {
+                    detail.push_str(&format!(
+                        "; returned source {source:?} type {:?}; declared structural result {:?}",
+                        machine.structural_place_type(source),
+                        machine.result.structural(),
+                    ));
+                }
+            }
+            if let Self::IncompleteMachine {
+                position: Some((source, _)),
+                successor: Some((identity, target)),
+                ..
+            } = self
+                && let Some(machine) =
+                    exactly_one(module.machines.iter(), |row| row.id == self.machine())
+            {
+                if let Some(block) = exactly_one(machine.blocks.iter(), |row| row.id == source) {
+                    let mut scalar_arguments = None;
+                    let structural_arguments = match &block.terminator {
+                        Terminator::Jump { edge, arguments, structural_arguments, .. }
+                            if *edge == identity => {
+                            scalar_arguments = Some(arguments.as_slice());
+                            Some(structural_arguments.as_slice())
+                        }
+                        Terminator::Conditional { when_true, when_false, .. } => {
+                            [when_true, when_false].into_iter()
+                                .find(|row| row.edge == identity)
+                                .map(|row| {
+                                    scalar_arguments = Some(row.arguments.as_slice());
+                                    row.structural_arguments.as_slice()
+                                })
+                        }
+                        Terminator::StructuralCase { source, path, cases } => {
+                            cases.iter().find(|row| row.edge == identity).map(|row| {
+                                detail.push_str(&format!(
+                                    "; case payload actuals {:?} from {source:?} via {path:?} case {:?}",
+                                    row.payload_fields, row.case,
+                                ));
+                                row.structural_arguments.as_slice()
+                            })
+                        }
+                        _ => None,
+                    };
+                    if let Some(arguments) = scalar_arguments {
+                        let types = payload_predicates::TerminalScalarExpressions::new(machine);
+                        let actual = arguments
+                            .iter()
+                            .map(|value| (*value, types.scalar_type(*value)))
+                            .collect::<Vec<_>>();
+                        detail.push_str(&format!("; scalar actuals {actual:?}"));
+                    }
+                    if let Some(arguments) = structural_arguments {
+                        let actual = arguments
+                            .iter()
+                            .map(|argument| {
+                                let root = machine.structural_place_type(argument.place);
+                                let selected = root
+                                    .and_then(|root| {
+                                        crate::runtime_structural_path_tip(
+                                            module.structural_types.iter(),
+                                            root,
+                                            &argument.path,
+                                        )
+                                    })
+                                    .map(|row| row.id);
+                                (argument, selected)
+                            })
+                            .collect::<Vec<_>>();
+                        detail.push_str(&format!("; structural actuals {actual:?}"));
+                    }
+                }
+                if let Some(target) = exactly_one(machine.blocks.iter(), |row| row.id == target) {
+                    detail.push_str(&format!(
+                        "; target scalar parameters {:?}; target structural parameters {:?}",
+                        target.parameters, target.structural_parameters,
+                    ));
+                }
+            }
             if let Some(name) = name {
                 detail.push_str("; declaration ");
                 detail.push_str(name);
@@ -18243,6 +19272,7 @@ pub mod descriptor_results {
                 Self::IncompleteMachine {
                     machine,
                     position,
+                    successor,
                     detail,
                 } => {
                     let detail =
@@ -18250,6 +19280,9 @@ pub mod descriptor_results {
                     write!(formatter, "{detail} for machine {machine:?}")?;
                     if let Some((block, index)) = position {
                         write!(formatter, " at block {block:?}, position {index}")?;
+                    }
+                    if let Some((edge, target)) = successor {
+                        write!(formatter, "; successor {edge:?} to block {target:?}")?;
                     }
                     Ok(())
                 }
@@ -18270,6 +19303,29 @@ pub mod descriptor_results {
             .collect()
     }
 
+    // Saved modules can use sparse identities. Sort declarations once;
+    // do not reserve storage up to the largest identity.
+    fn terminal_machine_roster(
+        module: &TerminalModule,
+    ) -> Result<Vec<&TerminalMachine>, DescriptorGraphError> {
+        let mut machines = module.machines.iter().collect::<Vec<_>>();
+        machines.sort_unstable_by_key(|machine| machine.id);
+        if let Some(pair) = machines.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(DescriptorGraphError::MissingOrAmbiguousMachine(pair[1].id));
+        }
+        Ok(machines)
+    }
+
+    fn terminal_graph_machine<'a>(
+        machines: &[&'a TerminalMachine],
+        identity: MachineId,
+    ) -> Option<&'a TerminalMachine> {
+        let position = machines
+            .binary_search_by_key(&identity, |machine| machine.id)
+            .ok()?;
+        Some(machines[position])
+    }
+
     // An unsupported body must not erase useful analyses of independent
     // bodies. Keep its failure in the same roster: complete-closure consumers
     // still reject it, while optional summaries retain their unknown ceiling.
@@ -18279,34 +19335,31 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
-        let mut machines = BTreeMap::new();
-        for machine in &module.machines {
-            if machines.insert(machine.id, machine).is_some() {
-                return vec![Err(DescriptorGraphError::MissingOrAmbiguousMachine(
-                    machine.id,
-                ))];
-            }
-        }
+        let machines = match terminal_machine_roster(module) {
+            Ok(machines) => machines,
+            Err(error) => return vec![Err(error)],
+        };
         let mut pending: Vec<_> = roots.into_iter().collect();
         let mut reached = BTreeMap::new();
         while let Some(identity) = pending.pop() {
             if reached.contains_key(&identity) {
                 continue;
             }
-            let Some(body) = machines.get(&identity).copied() else {
+            let Some(body) = terminal_graph_machine(&machines, identity) else {
                 reached.insert(
                     identity,
                     Err(DescriptorGraphError::MissingOrAmbiguousMachine(identity)),
                 );
                 continue;
             };
-            let graph = match terminal_flow::adapt(module, body, kind, selected_calls, None) {
-                Ok(graph) => graph,
-                Err(error) => {
-                    reached.insert(identity, Err(error));
-                    continue;
-                }
-            };
+            let graph =
+                match terminal_flow::adapt(module, &machines, body, kind, selected_calls, None) {
+                    Ok(graph) => graph,
+                    Err(error) => {
+                        reached.insert(identity, Err(error));
+                        continue;
+                    }
+                };
             for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -18335,7 +19388,7 @@ pub mod descriptor_results {
             .iter()
             .filter_map(|row| row.as_ref().ok())
             .any(|graph| {
-                machines.get(&graph.id).is_some_and(|body| {
+                terminal_graph_machine(&machines, graph.id).is_some_and(|body| {
                     body.operations().any(|operation| {
                         matches!(operation.kind, OperationKind::CallDynamic { .. })
                     })
@@ -18355,7 +19408,7 @@ pub mod descriptor_results {
         let mut rows = Vec::with_capacity(initial.len() + failures.len());
         for graph in &initial {
             let identity = graph.id;
-            let Some(body) = machines.get(&identity).copied() else {
+            let Some(body) = terminal_graph_machine(&machines, identity) else {
                 rows.push(Err(DescriptorGraphError::MissingOrAmbiguousMachine(
                     identity,
                 )));
@@ -18363,6 +19416,7 @@ pub mod descriptor_results {
             };
             rows.push(terminal_flow::adapt(
                 module,
+                &machines,
                 body,
                 kind,
                 selected_calls,
@@ -18407,10 +19461,13 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Option<Vec<DescriptorMachine>> {
+        let machines = terminal_machine_roster(module).ok()?;
         let initial = module
             .machines
             .iter()
-            .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None).ok())
+            .map(|machine| {
+                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None).ok()
+            })
             .collect::<Option<Vec<_>>>()?;
         if !module.machines.iter().any(|machine| {
             machine
@@ -18423,7 +19480,15 @@ pub mod descriptor_results {
             .machines
             .iter()
             .map(|machine| {
-                terminal_flow::adapt(module, machine, kind, selected_calls, Some(&initial)).ok()
+                terminal_flow::adapt(
+                    module,
+                    &machines,
+                    machine,
+                    kind,
+                    selected_calls,
+                    Some(&initial),
+                )
+                .ok()
             })
             .collect()
     }

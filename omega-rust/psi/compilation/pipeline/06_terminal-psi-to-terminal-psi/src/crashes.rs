@@ -41,14 +41,13 @@ the route", "Policy operators"), and an unconditional route owes nothing.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, IdTable, MachineId, ObligationId, OperationId, Proposition, ScalarType,
-    ValueId,
+    BlockId, CrashCause, IdTable, InvocationSite, MachineId, ObligationId, OperationId,
+    Proposition, ScalarType, ValueId,
 };
 use terminal_check_tables::obligations::CrashSite;
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 use terminal_psi::{
-    CrashRouteBucket, CrashRouteGuard, TargetMachineCallable, TerminalMachine, TerminalModule,
-    Terminator,
+    CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
 };
 
 use crate::refusal;
@@ -66,7 +65,7 @@ pub(crate) fn coverage_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     let guard = match site {
-        CrashSite::Block(block) => block_site(lowered, id, concerns, block, cause)?,
+        CrashSite::Block(block) => block_site(module, lowered, tables, id, concerns, block, cause)?,
         CrashSite::Operation(operation) => operation_site(
             module, lowered, tables, types, id, concerns, operation, cause,
         )?,
@@ -119,9 +118,8 @@ fn route(continuations: &[CrashRouteBucket], cause: CrashCause) -> Option<Propos
     has_cause(continuations, cause).then(|| coverage(continuations, cause))
 }
 
-/// An operation that may crash with `cause`: a call, whose guard is the
-/// callee's route, or a Trapping operation, which crashes unless its Exact
-/// primitive is defined.
+/// A trapping primitive supplies its definedness guard; other operations
+/// use their exact invocation row and public crash contract.
 #[allow(clippy::too_many_arguments)]
 fn operation_site(
     module: &TerminalModule,
@@ -137,21 +135,25 @@ fn operation_site(
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .find(|candidate| candidate.id == operation);
-    let refuse = || {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            concerns,
-            "the operation is not a call that may crash with this cause",
-        )
-    };
-    if let Some(found) = found
-        && let Some(semantics) = terminal_semantics::trapping_integer_semantics(found, types)
-            .map_err(crate::semantics_refusal(id, found.id))?
+        .find(|found| found.id == operation)
+        .ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                concerns,
+                "crash coverage names no operation in this machine",
+            )
+        })?;
+    if let Some(semantics) = terminal_semantics::trapping_integer_semantics(found, types)
+        .map_err(crate::semantics_refusal(id, found.id))?
     {
         if cause != CrashCause::Trap {
-            return Err(refuse());
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                concerns,
+                "a trapping primitive has only the Trap crash cause",
+            ));
         }
         return semantics
             .completes()
@@ -159,23 +161,53 @@ fn operation_site(
             .map(Guard::Unless)
             .map_err(crate::semantics_refusal(id, found.id));
     }
-    let inputs = found
-        .and_then(|operation| operation.declared_invocation())
-        .ok_or_else(refuse)?;
-    let guard = match inputs.callee {
-        TargetMachineCallable::Machine(_) => {
-            route(inputs.crash_continuations, cause).ok_or_else(refuse)?
-        }
-        TargetMachineCallable::Boundary(boundary) => {
-            // Interface calls keep their ceiling on the declaration. Bind it
-            // through the same scalar substitution as call requirements; an
-            // unavailable actual must not turn a possible crash into none.
-            let declaration = module.boundary_machine(boundary).ok_or_else(refuse)?;
-            let guard = route(&declaration.crash_routes, cause).ok_or_else(refuse)?;
+    call_site(
+        module,
+        lowered,
+        tables,
+        id,
+        concerns,
+        InvocationSite::Operation(operation),
+        cause,
+    )
+}
+
+/// Use the same actual invocation and public contract as call obligations.
+/// Stored routes retain their evaluated callable and exact public contract.
+#[allow(clippy::too_many_arguments)]
+fn call_site(
+    module: &TerminalModule,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    id: MachineId,
+    concerns: Construct,
+    site: InvocationSite,
+    cause: CrashCause,
+) -> Checked<Guard> {
+    let refuse = || {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            concerns,
+            "the invocation is not a call that may crash with this cause",
+        )
+    };
+    let mut rows = tables
+        .invocations
+        .iter()
+        .filter(|(_, row)| row.site == site);
+    let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
+        return Err(refuse());
+    };
+    let call = crate::call_contracts::invocation(module, lowered, tables, invocation, row)?;
+    let guard = match call.inputs.crash_continuations {
+        Some(routes) => route(routes, cause).ok_or_else(refuse)?,
+        None => {
+            let guard = route(call.contract.crash_routes, cause).ok_or_else(refuse)?;
             crate::substitute(
                 &guard,
                 &mut crate::ScalarActuals {
-                    actuals: inputs.arguments,
+                    actuals: call.inputs.arguments,
                     result: None,
                     tables,
                 },
@@ -189,7 +221,9 @@ fn operation_site(
 /// The guard of a block site: a `Crash` terminator's clauses, or a no-normal
 /// call's callee route.
 fn block_site(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
     site: BlockId,
@@ -218,12 +252,24 @@ fn block_site(
                 .map(|term| term.proposition().clone())
                 .collect(),
         )),
-        Terminator::InvokeNoNormal {
-            crash_continuations,
-            ..
-        } if has_cause(crash_continuations, cause) => {
-            Ok(Guard::Route(coverage(crash_continuations, cause)))
-        }
+        Terminator::InvokeNoNormal { edge, .. } => call_site(
+            module,
+            lowered,
+            tables,
+            id,
+            concerns,
+            InvocationSite::InvokeNoNormal(*edge),
+            cause,
+        ),
+        Terminator::ExternalCompletion { edge, .. } => call_site(
+            module,
+            lowered,
+            tables,
+            id,
+            concerns,
+            InvocationSite::ExternalCompletion(*edge),
+            cause,
+        ),
         _ => Err(refusal(
             RefusalReason::ForeignIdentity,
             id,

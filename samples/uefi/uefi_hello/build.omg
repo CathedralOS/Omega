@@ -1,6 +1,6 @@
-// The exact uefi_x86_64 invocation profile pins x86_64 + PE32+. This build is
+// The exact uefi_x86_64 invocation profile pins x86_64 + PE32+. That target is
 // freestanding, so no host boundary packages; services arrive via the entry's
-// parameters.
+// parameters. `builder.freestanding` only grants machine-owner assembly.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "uefi_hello");

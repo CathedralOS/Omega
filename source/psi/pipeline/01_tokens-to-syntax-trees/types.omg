@@ -204,10 +204,14 @@ crashes Trap
     }
 
     machine literal(parser: &mut Parser, input: &TokenStream) {
-        take_current(parser, input);
-        let row: TypeReference = type_row(parser, TypeReferenceKind::Literal,
+        let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
+        let mut row: TypeReference = type_row(parser, TypeReferenceKind::Literal,
             parser.token_start, parser.token_end, parser.token_start, parser.token_end);
-        transition { _ -> append(parser, input, row) }
+        row.literal = literal_handle;
+        transition parser.output.accepted {
+            true -> append(parser, input, row)
+            _ -> done()
+        }
     }
 
     machine name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
@@ -389,14 +393,17 @@ crashes Trap
     }
 
     machine length_literal(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
-        take_current(parser, input);
-        transition { _ -> length_row(parser, input, frame, element, TypeReferenceKind::Literal) }
+        let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
+        transition parser.output.accepted {
+            true -> length_row(parser, input, frame, element, TypeReferenceKind::Literal, literal_handle)
+            _ -> done()
+        }
     }
 
     machine length_name(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedArrayLength);
         transition parser.output.accepted {
-            true -> length_row(parser, input, frame, element, TypeReferenceKind::Named)
+            true -> length_row(parser, input, frame, element, TypeReferenceKind::Named, 0)
             _ -> done()
         }
     }
@@ -406,11 +413,13 @@ crashes Trap
         input: &TokenStream,
         frame: TypeFrame,
         element: u64 in Trapping,
-        kind: TypeReferenceKind
+        kind: TypeReferenceKind,
+        literal_handle: u64 in Trapping
     ) {
+        let mut row: TypeReference = type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end);
+        row.literal = literal_handle;
         transition parser.output.type_reference_count < 65536 {
-            true -> length_appended(parser, input, frame, element,
-                type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end))
+            true -> length_appended(parser, input, frame, element, row)
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
     }
@@ -599,6 +608,7 @@ machine type_row(
         lifetime: identifier_span(parser, 0, 0),
         first_lifetime: 0,
         lifetime_count: 0,
+        literal: 0,
         first_row: parser.output.type_reference_count as u64 in Trapping,
         source_span: parser_source_span(parser, start, end)
     }
@@ -626,6 +636,7 @@ machine with_children(
         lifetime: row.lifetime,
         first_lifetime: row.first_lifetime,
         lifetime_count: row.lifetime_count,
+        literal: row.literal,
         first_row: first_row,
         source_span: row.source_span
     }
@@ -648,6 +659,7 @@ machine with_access(row: TypeReference, access: ReferenceAccess) -> TypeReferenc
         lifetime: row.lifetime,
         first_lifetime: row.first_lifetime,
         lifetime_count: row.lifetime_count,
+        literal: row.literal,
         first_row: row.first_row,
         source_span: row.source_span
     }
@@ -674,6 +686,7 @@ machine with_arguments(
         lifetime: row.lifetime,
         first_lifetime: row.first_lifetime,
         lifetime_count: row.lifetime_count,
+        literal: row.literal,
         first_row: row.first_row,
         source_span: row.source_span
     }
@@ -702,6 +715,7 @@ machine with_domain(
         lifetime: row.lifetime,
         first_lifetime: row.first_lifetime,
         lifetime_count: row.lifetime_count,
+        literal: row.literal,
         first_row: row.first_row,
         source_span: source_span
     }
@@ -972,6 +986,7 @@ machine with_lifetime(row: TypeReference, has_lifetime: bool, lifetime: Identifi
         lifetime: lifetime,
         first_lifetime: row.first_lifetime,
         lifetime_count: row.lifetime_count,
+        literal: row.literal,
         first_row: row.first_row,
         source_span: row.source_span
     }
@@ -994,6 +1009,7 @@ machine with_lifetimes(row: TypeReference, first_lifetime: u64 in Trapping, life
         lifetime: row.lifetime,
         first_lifetime: first_lifetime,
         lifetime_count: lifetime_count,
+        literal: row.literal,
         first_row: row.first_row,
         source_span: row.source_span
     }

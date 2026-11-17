@@ -25,6 +25,9 @@ pub(super) fn judged_typed_result(
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],

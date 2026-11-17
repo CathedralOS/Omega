@@ -62,7 +62,7 @@ pub(crate) mod runtime_rematerialization {
                 return Err(RuntimeRematerializationError::UnsupportedValue);
             };
             let scalar_payload = match victim.scalar_type {
-                ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
+                ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
                 ScalarType::Integer(integer) => {
                     !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
                 }
@@ -3615,7 +3615,7 @@ pub(crate) mod runtime_spill {
             _ => return Err(RuntimeSpillError::UnsupportedValue),
         };
         let scalar_payload = match victim.scalar_type {
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
+            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
             ScalarType::Integer(integer) => matches!(integer.bits(), Some(8 | 16 | 32 | 64)),
         };
         if !scalar_payload
@@ -4933,7 +4933,7 @@ pub(crate) mod runtime_split {
                 return Err(RuntimeSplitError::UnsupportedValue);
             };
             let scalar_payload = match victim.scalar_type {
-                ScalarType::Boolean => true,
+                ScalarType::Callable(_) | ScalarType::Boolean => true,
                 ScalarType::IeeeFloat(_) => false,
                 ScalarType::Integer(integer) => {
                     !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))

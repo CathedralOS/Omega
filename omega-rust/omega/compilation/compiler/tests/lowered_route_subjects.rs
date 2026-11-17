@@ -249,6 +249,12 @@ fn route_verdict(
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
             supplies: &[],
         },
@@ -618,6 +624,12 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             subjects: &[Some(another)],
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
             bindings: &frontier.bindings,
             supplies: &[],
         },
@@ -655,6 +667,12 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 subjects: &[Some(another)],
                 purpose: source::DependencyScope::Product,
                 selected: &[selected],
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
                 supplies: &[],
             },
@@ -701,6 +719,9 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let bound = judge(elaborate(
         typed,
         Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
@@ -904,8 +925,14 @@ fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdic
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )
@@ -1046,6 +1073,36 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
         matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
         if refusal.detail.contains("a boundary conformer is callable only through its provider slot")),
         "{verdict:?}"
+    );
+
+    // The map owns the boundary contract. Its private helper stays an
+    // ordinary callable; the wrapper must still forward the right argument.
+    let through_helper = |argument: &str| {
+        format!(
+            "public boundary trait Probe {{
+                machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
+             }}
+             public SuppliedProbe satisfies Probe {{
+                machine probe(value: u8) -> u8 {{ helper({argument}) }}
+             }}
+             machine helper(value: u8) -> u8 ensures result == value {{ value }}"
+        )
+    };
+    let helper_valid = judged_parts("boundary_subject_helper_valid", &through_helper("value"));
+    assert!(!helper_valid.is_empty());
+    assert!(
+        helper_valid
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{helper_valid:?}"
+    );
+    let helper_invalid = judged_parts(
+        "boundary_subject_helper_wrong_argument",
+        &through_helper("0u8"),
+    );
+    assert!(
+        helper_invalid.contains(&Verdict::Rejected),
+        "{helper_invalid:?}"
     );
 }
 

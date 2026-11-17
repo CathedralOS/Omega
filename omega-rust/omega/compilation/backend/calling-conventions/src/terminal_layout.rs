@@ -700,6 +700,9 @@ fn resolve_structural_shape(
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let length = match length {
+                    terminal_psi::ArrayExtent::Parameter { .. } => {
+                        return Err(TerminalLayoutError::UnclosedArrayExtent(structural_type));
+                    }
                     terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                     terminal_psi::ArrayExtent::Application(application) => {
                         extent(structural_type, *application)?
@@ -864,6 +867,10 @@ fn scalar_field_shape(
         StructuralFieldType::RefinedScalar(refinement) => {
             scalar_field_shape(&StructuralFieldType::Scalar(refinement.carrier()), owner)
         }
+        StructuralFieldType::Scalar(scalar @ ScalarType::Callable(_)) => scalar_shape(*scalar),
+        StructuralFieldType::Atomic(ScalarType::Callable(_)) => {
+            Err(TerminalLayoutError::UnknownStructuralType(owner))
+        }
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
@@ -934,6 +941,7 @@ pub fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, TerminalLayoutErro
     let closed = ClosedScalarType::try_from(scalar)
         .map_err(|_| TerminalLayoutError::UnclosedScalarType(scalar))?;
     Ok(match closed {
+        ClosedScalarType::Callable(_) => ValueShape::integer(8, 8),
         ClosedScalarType::Boolean => ValueShape::integer(1, 1),
         ClosedScalarType::Integer(integer) => ValueShape::standalone_integer(integer),
         ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
@@ -1025,7 +1033,7 @@ mod owned_sequence_tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,

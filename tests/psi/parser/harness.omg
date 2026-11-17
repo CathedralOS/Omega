@@ -391,6 +391,7 @@ machine write_parse_observation(
             ParseDiagnosticCode::InvalidCarrierCastEntry -> parse_diagnostic(parser_harness, output, 205)
             ParseDiagnosticCode::ExpectedCastDomain -> parse_diagnostic(parser_harness, output, 206)
             ParseDiagnosticCode::UnsupportedCastEntries -> parse_diagnostic(parser_harness, output, 207)
+            ParseDiagnosticCode::IntegerLiteralCapacityExceeded -> parse_diagnostic(parser_harness, output, 208)
         }
     }
 

@@ -3448,7 +3448,7 @@ pub(crate) mod record_input {
                         .blocks
                         .iter()
                         .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
+                        .flat_map(|block| block.structural_parameters.iter()),
                 ),
         )
     }
@@ -3570,7 +3570,7 @@ pub(crate) mod record_input {
                     .blocks
                     .iter()
                     .filter(move |block| block.id != source.entry_block)
-                    .flat_map(|block| &block.structural_parameters),
+                    .flat_map(|block| block.structural_parameters.iter()),
             )
             .filter(move |parameter| parameter.place == place)
     }
@@ -4095,12 +4095,7 @@ pub(crate) mod reference_input {
             }
         } else {
             match storage {
-                Some(storage)
-                    if matches!(
-                        source.path.last(),
-                        Some(StructuralPathSegment::FixedRange { .. })
-                    ) =>
-                {
+                Some(storage) if storage.stored_scalar.is_none() => {
                     terminal_semantics::reference_storage_region_source_compatible(
                         declarations.iter(),
                         root,
@@ -4383,7 +4378,11 @@ pub(crate) mod reference_input {
                 identity: TerminalIdentityIndex(identity),
                 owns_linear_claim: identity == 1,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: if identity == 1 {
+                    terminal_psi::StructuralMultiplicity::Linear
+                } else {
+                    terminal_psi::StructuralMultiplicity::Affine
+                },
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,

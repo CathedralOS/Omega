@@ -43,6 +43,7 @@ pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.private_inputs.is_empty() {
@@ -63,13 +64,14 @@ pub(crate) fn infer(
             &mut loop_inputs,
             unreached,
             inhabitation,
+            activity,
         )?;
     }
     for (callee, arrivals) in loop_inputs.iter() {
         if !arrivals.is_empty() {
             let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
             if predicate != Proposition::Truth {
-                scope.require(callee, predicate, &sites)?;
+                scope.require(callee, predicate, &sites, activity)?;
             }
         }
     }
@@ -97,7 +99,7 @@ pub(crate) fn infer(
             if !arrivals.is_empty() {
                 let predicate = canonical(joins::connective(arrivals, false), id)?;
                 if predicate != Proposition::Truth {
-                    scope.require(id, predicate, &sites)?;
+                    scope.require(id, predicate, &sites, activity)?;
                 }
             }
         }
@@ -109,6 +111,7 @@ pub(crate) fn infer(
             &mut incoming,
             unreached,
             inhabitation,
+            activity,
         )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
@@ -130,6 +133,7 @@ fn describe_calls(
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let original =
@@ -161,7 +165,7 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let references = prepared.references(&elaboration.module.structural_types);
+    let mut references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -170,7 +174,7 @@ fn describe_calls(
         &prepared.graph,
         &tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let declared = joins::prepare(
         lowered,
@@ -180,6 +184,8 @@ fn describe_calls(
         &prepared.context,
         &elaboration.module.scalar_block_invariants,
         &storage,
+        &mut references,
+        activity,
     )?;
 
     let mut decided = (0..tables.obligations.len())
@@ -201,13 +207,16 @@ fn describe_calls(
         },
         &mut tables,
         &mut decided,
+        activity,
+        &mut references,
     )?;
     for &(edge, callee) in edges {
         let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
         let target = terminal_machine(&elaboration.module.machines, callee, id)?;
         let point = ProgramPoint::Edge(edge);
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
-        let fields = storage.at_join(
+        let mut fields = storage.at_join(
+            &mut references,
             &tables,
             &target.structural_parameters,
             structural,
@@ -220,6 +229,7 @@ fn describe_calls(
             .iter()
             .zip(actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .chain(fields.observations().field_crossings())
             .collect::<Vec<_>>();
         let predicate = describe(
             &known,
@@ -232,6 +242,7 @@ fn describe_calls(
                 known: &known,
                 context: &prepared.context,
                 fields: fields.observations(),
+                equal: None,
             },
         );
         incoming
@@ -260,17 +271,22 @@ fn describe_calls(
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .collect();
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
-        let fields = storage.at_call(
+        let mut fields = storage.at_call(
+            &mut references,
             &tables,
             &call.actuals,
             &target.structural_parameters,
             call.site,
             Construct::Invocation(site.invocation),
         )?;
+        // Record fields cross like scalar formals, so a field the caller
+        // overwrote keeps its name beside the field its value was read from.
+        let mut described = crossing.clone();
+        described.extend(fields.observations().field_crossings());
         let predicate = describe(
             &known,
             &prepared.context,
-            &crossing,
+            &described,
             &mut InputBindings {
                 actuals: &actuals,
                 target,
@@ -278,6 +294,7 @@ fn describe_calls(
                 known: &known,
                 context: &prepared.context,
                 fields: fields.observations(),
+                equal: None,
             },
         );
         // What the caller derives of an integer actual without holding it
@@ -293,6 +310,7 @@ fn describe_calls(
             site.before,
             &crossing,
             &beyond,
+            activity,
         )?;
         // What the helper learns of such a formal describes an operation
         // the integer rules do not reach, in the caller.
@@ -626,6 +644,7 @@ fn derived(
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
     beyond: &[ValueId],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
@@ -644,7 +663,8 @@ fn derived(
             }
         }
     }
-    let mut prover = crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values);
+    let mut prover =
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -726,12 +746,29 @@ pub(crate) fn describe(
 ) -> Proposition {
     let mut parts = Vec::new();
     let mut computation_names = Vec::new();
+    let mut aliases = Vec::new();
     let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
+        // Callable identity and selection have no mathematical equality.
+        // Its declared type crosses independently of inferred predicates.
+        if matches!(name.scalar_type(), ScalarType::Callable(_)) {
+            continue;
+        }
         let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
         if let Ok(term) = crate::bound(&definition, &mut *bindings)
             && *name != term
         {
+            // The receiving name holds a value the description names
+            // elsewhere, for example a field the caller overwrote with
+            // another field's value. Facts are restated under it below.
+            if matches!(
+                term,
+                ScalarTerm::Value { .. }
+                    | ScalarTerm::IntegerField { .. }
+                    | ScalarTerm::BooleanField { .. }
+            ) {
+                aliases.push((term.clone(), name.clone()));
+            }
             parts.push(Proposition::Equal(name.clone(), term));
         }
         if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
@@ -748,7 +785,99 @@ pub(crate) fn describe(
             substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
-    joins::connective(parts, true)
+    // The receiver checks against these facts directly; it does not search
+    // through the equality above. State each fact again with the other name
+    // in place of the one the description chose.
+    for (from, to) in &aliases {
+        let mut renamed = RenamedTerm {
+            from,
+            to,
+            inner: &mut *bindings,
+        };
+        for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+            parts.push(joins::project(&fact.proposition, &mut |atom| {
+                substitute_clause_with_computation_names(atom, &mut renamed, &computation_names)
+                    .ok()
+            }));
+        }
+    }
+    // A restated fact can itself be a conjunction. Terminal's canonical
+    // encoding refuses one nested in another, so join its operands here.
+    let mut flat = Vec::with_capacity(parts.len());
+    while let Some(part) = parts.pop() {
+        match part {
+            Proposition::Conjunction(nested) => parts.extend(nested),
+            // Restating a fact under the other name of the same value can
+            // produce `x == x`; it says nothing.
+            Proposition::Equal(left, right) if left == right => {}
+            Proposition::IntegerMathEqual(left, right) if left == right => {}
+            other => flat.push(other),
+        }
+    }
+    joins::connective(flat, true)
+}
+
+/// Bindings that resolve like `inner`, except that the one term `from` reads
+/// as `to`. Both name the same value at the arrival being described.
+struct RenamedTerm<'s> {
+    from: &'s ScalarTerm,
+    to: &'s ScalarTerm,
+    inner: &'s mut dyn Bindings<Error = Unbound>,
+}
+
+impl RenamedTerm<'_> {
+    fn rename(&self, term: ScalarTerm) -> ScalarTerm {
+        if term == *self.from {
+            self.to.clone()
+        } else {
+            term
+        }
+    }
+}
+
+impl Bindings for RenamedTerm<'_> {
+    type Error = Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.inner.validate_float_meaning_source(source)
+    }
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.value(value, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn field(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.field(version, root, path, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.extent(root, path, scalar_type)
+    }
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.byte_predicate(predicate, root, path)
+    }
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        self.inner.case(root, path, case)
+    }
 }
 
 fn flatten<'a>(
@@ -772,11 +901,15 @@ struct InputBindings<'s, 'a> {
     known: &'s crate::known::Known,
     context: &'s semantic_vocabulary::PropositionContext,
     fields: crate::places::CallObservations<'s, 'a>,
+    /// The caller's value equalities, gathered on the first value that does
+    /// not bind directly.
+    equal: Option<Vec<(ValueId, ValueId)>>,
 }
 
-impl Bindings for InputBindings<'_, '_> {
-    type Error = Unbound;
-    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+impl InputBindings<'_, '_> {
+    /// `value` as a callee formal or as the field of a structural input it
+    /// was read from.
+    fn direct(&mut self, value: ValueId, scalar_type: ScalarType) -> Option<ScalarTerm> {
         self.actuals
             .iter()
             .position(|actual| *actual == value)
@@ -794,9 +927,64 @@ impl Bindings for InputBindings<'_, '_> {
                         )
                     })
             })
-            .ok_or(Unbound::Unproved(
-                "a caller value is not read from an actual input",
-            ))
+    }
+}
+
+impl Bindings for InputBindings<'_, '_> {
+    type Error = Unbound;
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        if let Some(term) = self.direct(value, scalar_type) {
+            return Ok(term);
+        }
+        // A fact may name a value the arrival cannot see while an equal one
+        // is read from what it passes on. In a call cycle the head of
+        // `render_loop` reads `main.i` from its own block formal, and the
+        // guard in `mark` reads the same unchanged field from `mark`'s: the
+        // guard's bound is stated over the first read and only the second
+        // is an input of the edge to `render_bump`. Follow the caller's own
+        // value equalities to a value the edge does pass. Describing an
+        // arrival is inference: every arrival still proves the result.
+        // Both directions of each equality, sorted, so a value's equals are
+        // one contiguous run.
+        let equal = self.equal.get_or_insert_with(|| {
+            let mut pairs = Vec::new();
+            for &index in &self.known.equations {
+                if let Some(Proposition::Equal(
+                    ScalarTerm::Value { id: left, .. },
+                    ScalarTerm::Value { id: right, .. },
+                )) = self.known.facts.get(index).map(|fact| &fact.proposition)
+                    && left != right
+                {
+                    pairs.push((*left, *right));
+                    pairs.push((*right, *left));
+                }
+            }
+            pairs.sort_unstable();
+            pairs.dedup();
+            pairs
+        });
+        let mut seen = vec![value];
+        let mut next = 0;
+        while let Some(&here) = seen.get(next) {
+            next += 1;
+            let first = equal.partition_point(|(from, _)| *from < here);
+            for &(from, other) in &equal[first..] {
+                if from != here {
+                    break;
+                }
+                if !seen.contains(&other) {
+                    seen.push(other);
+                }
+            }
+        }
+        for other in seen.into_iter().skip(1) {
+            if let Some(term) = self.direct(other, scalar_type) {
+                return Ok(term);
+            }
+        }
+        Err(Unbound::Unproved(
+            "a caller value is not read from an actual input",
+        ))
     }
     fn field(
         &mut self,
@@ -905,6 +1093,56 @@ fn canonical_parts(
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     keyed.dedup_by(|left, right| left.0 == right.0);
     let mut parts: Vec<_> = keyed.into_iter().map(|(_, part)| part).collect();
+    // Projecting a guard can leave both possible values of a Boolean in a
+    // connective. Settle that pair before passing the clause to proof search.
+    let mut boolean_values: Vec<_> = parts
+        .iter()
+        .filter_map(|part| match part {
+            Proposition::Equal(ScalarTerm::Boolean(value), term)
+            | Proposition::Equal(term, ScalarTerm::Boolean(value))
+                if term.scalar_type() == ScalarType::Boolean =>
+            {
+                Some((term, *value))
+            }
+            _ => None,
+        })
+        .collect();
+    boolean_values.sort_unstable();
+    if boolean_values
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Ok(zero);
+    }
+    if !conjunction && parts.len() > 1 {
+        // A caller's entry condition can reach the same helper by several
+        // paths. State their common facts once so checking any arrival need
+        // only distinguish what changed between those paths.
+        let mut common: std::collections::BTreeSet<_> = conjuncts(&parts[0]).iter().collect();
+        for part in &parts[1..] {
+            if common.is_empty() {
+                break;
+            }
+            let here: std::collections::BTreeSet<_> = conjuncts(part).iter().collect();
+            common.retain(|fact| here.contains(fact));
+        }
+        if !common.is_empty() {
+            let distinct = parts
+                .iter()
+                .map(|part| {
+                    let conditions = conjuncts(part)
+                        .iter()
+                        .filter(|fact| !common.contains(fact))
+                        .cloned()
+                        .collect();
+                    canonical_parts(conditions, true, id)
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            let mut required: Vec<_> = common.into_iter().cloned().collect();
+            required.push(canonical_parts(distinct, false, id)?);
+            return canonical_parts(required, true, id);
+        }
+    }
     Ok(match parts.len() {
         0 if conjunction => Proposition::Truth,
         0 => Proposition::Falsehood,
@@ -914,22 +1152,79 @@ fn canonical_parts(
     })
 }
 
+fn conjuncts(proposition: &Proposition) -> &[Proposition] {
+    match proposition {
+        Proposition::Conjunction(parts) => parts,
+        other => std::slice::from_ref(other),
+    }
+}
+
 /// Add the inferred predicate to the contract and mint its obligation at
 /// every real call. Existing clauses retain their obligation identities when
 /// canonical ordering moves their positions.
+/// The part of an inferred condition whose arithmetic forms in the callee's
+/// contract. Nobody wrote the condition, so a conjunct that cannot form (a
+/// product like `pi == e * 26` that arrived without the bound on `e` that
+/// keeps it total) is not the program's error: leave it out. Keeping fewer
+/// conjuncts only gives the body fewer premises, and every arrival still
+/// proves what is kept. Conjuncts are retried while any joins, so a bound
+/// that sorts after the term it protects still admits that term.
+fn formed(
+    elaboration: &Elaboration,
+    callee: MachineId,
+    predicate: Proposition,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Option<Proposition>> {
+    let contract = &terminal_machine(&elaboration.module.machines, callee, callee)?.contract;
+    // A defect in the module itself is still reported, never left out.
+    let forms = |clause: &Proposition, activity: &mut crate::ProofSearchActivity| {
+        let mut proposed = contract.clone();
+        proposed.requires.push(clause.clone());
+        match crate::formation::contract(&elaboration.module, callee, &proposed, activity) {
+            Ok(_) => Ok(true),
+            Err(refusal) if refusal.reason == RefusalReason::ForeignIdentity => Err(refusal),
+            Err(_) => Ok(false),
+        }
+    };
+    if forms(&predicate, activity)? {
+        return Ok(Some(predicate));
+    }
+    let mut pending = conjuncts(&predicate).to_vec();
+    let mut kept = Vec::new();
+    loop {
+        let mut joined = false;
+        let mut waiting = Vec::with_capacity(pending.len());
+        for part in pending {
+            let mut trial = kept.clone();
+            trial.push(part.clone());
+            if forms(&joins::connective(trial, true), activity)? {
+                kept.push(part);
+                joined = true;
+            } else {
+                waiting.push(part);
+            }
+        }
+        pending = waiting;
+        if !joined || pending.is_empty() {
+            break;
+        }
+    }
+    let predicate = joins::connective(kept, true);
+    Ok((predicate != Proposition::Truth).then_some(predicate))
+}
+
 pub(super) fn require(
     elaboration: &mut Elaboration,
     callee: MachineId,
     predicate: Proposition,
     sites: &CallSites,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     // An inferred condition becomes a premise for later callers in this
     // pass. Its arithmetic must form before publishing that new contract.
-    let mut proposed = terminal_machine(&elaboration.module.machines, callee, callee)?
-        .contract
-        .clone();
-    proposed.requires.push(predicate.clone());
-    crate::formation::contract(&elaboration.module, callee, &proposed)?;
+    let Some(predicate) = formed(elaboration, callee, predicate, activity)? else {
+        return Ok(());
+    };
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -1264,6 +1559,8 @@ pub(super) fn require(
             .zip(&block.structural_parameters)
             .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
             .collect();
+        // A clause may itself be an inferred conjunction; the published
+        // invariant must be Terminal's canonical flat, ordered form.
         let predicate = joins::connective(
             clauses
                 .iter()
@@ -1278,12 +1575,15 @@ pub(super) fn require(
                 .collect(),
             true,
         );
+        let predicate = canonical(predicate, callee)?;
         if let Ok(index) = invariants
             .binary_search_by_key(&(head.caller, head.block), |row| (row.machine, row.header))
         {
             let invariant = &mut invariants[index];
-            invariant.predicate =
-                joins::connective(vec![invariant.predicate.clone(), predicate], true);
+            invariant.predicate = canonical(
+                joins::connective(vec![invariant.predicate.clone(), predicate], true),
+                callee,
+            )?;
         } else {
             added.push(terminal_psi::ScalarBlockInvariant {
                 machine: head.caller,

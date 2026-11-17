@@ -103,7 +103,7 @@ crashes Trap
             TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> borrow(parser, input)
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_group(parser, input)
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_array(parser, input)
-            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> literal(parser, input, ExpressionKind::Integer)
+            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> integer(parser, input)
             TokenKind::Float { has_exponent, empty_exponent, has_suffix, .. } -> literal(parser, input, ExpressionKind::Float)
             TokenKind::StringLiteral -> literal(parser, input, ExpressionKind::String)
             TokenKind::Keyword { keyword: KeywordKind::True, .. } -> boolean(parser, input, true)
@@ -282,6 +282,18 @@ crashes Trap
 
     machine literal(parser: &mut Parser, input: &TokenStream, kind: ExpressionKind) {
         take_current(parser, input);
+        transition { _ -> literal_node(parser, input, kind, 0) }
+    }
+
+    machine integer(parser: &mut Parser, input: &TokenStream) {
+        let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
+        transition parser.output.accepted {
+            true -> literal_node(parser, input, ExpressionKind::Integer, literal_handle)
+            _ -> done()
+        }
+    }
+
+    machine literal_node(parser: &mut Parser, input: &TokenStream, kind: ExpressionKind, literal_handle: u64 in Trapping) {
         let node: Expression = Expression {
             kind: kind,
             operator: OperatorKind::None,
@@ -293,6 +305,7 @@ crashes Trap
             name: identifier_span(parser, parser.token_start, parser.token_end),
             type_reference: 0,
             first_row: 0,
+            literal: literal_handle,
             source_span: parser_source_span(parser, parser.token_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -315,6 +328,7 @@ crashes Trap
             name: identifier_span(parser, parser.token_start, parser.token_end),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, parser.token_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -378,6 +392,7 @@ crashes Trap
             name: identifier_span(parser, parser.path_start, parser.token_end),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, parser.path_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -400,6 +415,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, parser.path_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -590,6 +606,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -756,6 +773,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -802,6 +820,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -849,6 +868,7 @@ crashes Trap
             name: identifier_span(parser, parser.name_start, parser.name_end),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, base_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -911,6 +931,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: parser.type_result,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.type_end)
         };
         emit_expression(parser, input, node);
@@ -990,6 +1011,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -1094,6 +1116,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1182,6 +1205,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1337,6 +1361,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, base_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1400,6 +1425,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1463,6 +1489,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, path_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1571,6 +1598,7 @@ crashes Trap
             name: node.name,
             type_reference: node.type_reference,
             first_row: first_row,
+            literal: 0,
             source_span: node.source_span
         };
         parser.output.expression_count = parser.output.expression_count + 1;
@@ -1768,6 +1796,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, pending.start, operand_expression.source_span.span.end)
         };
         emit_expression(parser, input, node);
@@ -1789,6 +1818,7 @@ crashes Trap
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: parser_source_span(parser, left_expression.source_span.span.start,
                 right_expression.source_span.span.end)
         };

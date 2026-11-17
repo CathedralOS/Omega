@@ -23,11 +23,11 @@ skip the question by matching the record out of a qualified type with `_`.
 Shape metadata (`data_type`) stays open: "Type/field metadata and already
 established proof facts are not new runtime reads".
 
-Who may read or write a governed value is stated by its policy's plan
-(`wiki/spec/resources/access.md`), and no pass evaluates a plan. A domain
-with a policy therefore admits no reader or writer this checker can name,
-and the use is refused by name. A domain with no policy restricts neither
-axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
+The Build evaluates the policy's plan before this reader forms an operation
+(`wiki/spec/resources/access.md`). An unevaluated plan cannot justify the
+operation, so its use is refused. A complete plan stays with the value through
+lowering; the canonical judgment checks its rules against the actual memory and
+invocation. A domain with no policy restricts neither axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
 adds no restriction on that axis").
 */
 
@@ -35,7 +35,7 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::body::{Expression, ExpressionKind, StorageShape, ValueType};
+use crate::body::{Expression, StorageShape, ValueType};
 use crate::{Unserved, refuse};
 
 /// What a site does to the contents of a value.
@@ -43,6 +43,8 @@ use crate::{Unserved, refuse};
 pub(super) enum Access {
     /// Reads inside it: a field, an element, a payload, its case.
     Read,
+    /// Selects storage for a shared loan without copying its contents.
+    Borrow,
     /// Stores a complete value of the same type over it.
     Replace,
     /// Changes part of it: a store into a field or an element, or an
@@ -50,9 +52,9 @@ pub(super) enum Access {
     Write,
 }
 
-/// A record whose contents the site holding it may look inside: either the
-/// machine being read was authorized for the access it does, or the record
-/// is a carrier being constructed. Only this module makes one.
+/// A record whose operation can reach canonical access checking, or a fresh
+/// carrier being constructed. Only this module makes one; the complete plan
+/// remains attached for the storage/caller judgment before execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Opened(StructuralTypeId);
 
@@ -80,41 +82,24 @@ impl Program<'_> {
         value_type: ValueType,
         access: Access,
     ) -> Checked<()> {
-        self.authorized_in(id, value_type, access, false)
-    }
-
-    /// `authorized`, where `in_owner` says the value is a field of a data
-    /// value, whose clauses its domain joins.
-    fn authorized_in(
-        &self,
-        id: MachineId,
-        value_type: ValueType,
-        access: Access,
-        in_owner: bool,
-    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
-            // A checked plan has no reader or writer rules, so it restricts
-            // neither; a plan nobody has run cannot be shown to permit this.
+            // Only a complete selected plan can reach operation checking.
+            // Its canonical field/caller rules remain attached to the value
+            // and are checked against actual storage before execution.
             if definition.access_unjudged() {
                 return unserved(match access {
-                    Access::Read => "read inside a value governed by an access policy",
+                    Access::Read | Access::Borrow => {
+                        "read inside a value governed by an access policy"
+                    }
                     Access::Replace => "replacement of a value governed by an access policy",
                     Access::Write => "write inside a value governed by an access policy",
                 });
             }
-            // dependent_values.md, "Invariant windows": a write that is not
-            // known to preserve the domain "opens a window on the place",
-            // closed by proving the predicates again. A window is kept for
-            // the clauses of a data type, which a field's domain joins
-            // (`predicates`); a data value that carries the domain itself
-            // has no such owner, so a partial write under it would leave a
-            // value its type no longer describes. A complete value of the
-            // same type brings its own membership.
-            if access == Access::Write && !in_owner && has_predicates(definition) {
-                return unserved("write inside a value whose domain has predicates");
-            }
+            // Pure predicates restrict validity, independently of access.
+            // Canonical default requirements keep their restoration windows
+            // on the actual storage, including standalone qualified roots.
         }
         Ok(())
     }
@@ -135,19 +120,14 @@ impl Program<'_> {
         Ok(Some(Opened(record)))
     }
 
-    /// `opened` for the value a place expression reads, which may be a
-    /// field of a data value whose clauses its domain joins.
+    /// Authorize the actual value a place expression projects through.
     pub(super) fn opened_place(
         &self,
         id: MachineId,
         base: &Expression,
         access: Access,
     ) -> Checked<Option<Opened>> {
-        let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
-            return Ok(None);
-        };
-        self.authorized_in(id, value_type, access, in_data_owner(base))?;
-        Ok(Some(Opened(record)))
+        self.opened(id, base.result, access)
     }
 
     /// Authorizes a partial write through `place`, a slot or a path of
@@ -161,7 +141,7 @@ impl Program<'_> {
             |capture| captures.resolve(capture),
             |_, base| {
                 if let Some(value_type) = base.result {
-                    self.authorized_in(id, value_type, Access::Write, in_data_owner(base))?;
+                    self.authorized(id, value_type, Access::Write)?;
                 }
                 Ok(())
             },
@@ -204,8 +184,16 @@ impl Program<'_> {
                     element,
                     qualification,
                     ..
+                }
+                | StorageShape::ElementView {
+                    element,
+                    qualification,
+                    ..
                 } => pending.push(self.storage_value_type(id, *element, *qualification)?),
-                StorageShape::PrimitiveScalar { .. } => {}
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    ..
+                })
+                | StorageShape::PrimitiveScalar { .. } => {}
                 _ => {
                     return Err(refuse(
                         id,
@@ -226,11 +214,15 @@ impl Program<'_> {
     /// value only after its default-domain obligations hold", and "Gating
     /// propagates through containment; a zero-valid first sum case can
     /// represent emptiness without constructing a gated payload." A domain
-    /// with neither predicates nor an issuer restriction owes nothing
-    /// (domains.md: "adds no predicate or issuer obligation"), so zero is a
-    /// member; any other domain makes the type gated, and a gated value is
-    /// constructed with every field supplied.
-    pub(super) fn zero_established(&self, id: MachineId, value_type: ValueType) -> Checked<()> {
+    /// declared on a constructed field owes its predicates through the owning
+    /// data type. Issuance is separate: zero construction must be authorized by
+    /// the same exact route as an explicit domain addition.
+    pub(super) fn zero_established(
+        &mut self,
+        id: MachineId,
+        value_type: ValueType,
+        source: crate::SourceOrigin,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         // Each type with whether it is a field of a record in the value.
         let mut pending = vec![(value_type, false)];
@@ -241,15 +233,10 @@ impl Program<'_> {
                 // zero satisfies them and keeps the window when it does not.
                 // A zeroed local that is itself the qualified scalar has no
                 // such owner.
-                let free = {
-                    let definition = self.domain_theory(id, domain)?;
-                    (contained || !has_predicates(definition))
-                        && definition.issuance()
-                            == typed_trees::domain::DomainIssuance::Unrestricted
-                };
-                if !free {
+                if !contained && has_predicates(self.domain_theory(id, domain)?) {
                     return unserved("zero-established value in a domain that must be established");
                 }
+                self.issue(id, domain, source)?;
             }
             let ValueType::Record(record, _, _) = value_type else {
                 continue;
@@ -268,7 +255,7 @@ impl Program<'_> {
                     cases
                         .first()
                         .into_iter()
-                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
+                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, true))),
                 ),
                 StorageShape::FixedArray {
                     element,
@@ -306,13 +293,4 @@ impl Program<'_> {
 pub(crate) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
     definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
-}
-
-/// Whether `place` is a field of a data value. A field's domain joins the
-/// clauses of the data type that declares the field (`predicates`), whose
-/// invariant window a partial write opens and the checker closes by proving
-/// them again (dependent_values.md, "Invariant windows"), so the write leaves
-/// no value its type no longer describes.
-fn in_data_owner(place: &Expression) -> bool {
-    matches!(place.kind, ExpressionKind::Field { .. })
 }

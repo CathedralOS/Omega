@@ -6,7 +6,7 @@ version.workspace = true
 
 [lib]
 name = "tokens_to_syntax_trees"
-path = "src/lib.rs"
+path = "parser.rs"
 
 [dependencies]
 diagnostics = { path = "../../../foundation/diagnostics" }
@@ -21,3 +21,8 @@ tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+
+[[bench]]
+name = "parser_timing"
+path = "benchmarks/parser_timing.rs"
+harness = false

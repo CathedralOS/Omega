@@ -153,6 +153,8 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
     let mut unjudged = typed_trees_to_terminal_psi::elaborate_for(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[],
             subjects: &[None],
@@ -166,7 +168,9 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
     .expect("the actual source produces fresh receiving input");
     crate::owned_cleanup::materialize(&mut unjudged).unwrap();
     let mut baseline = unjudged.clone();
-    let verified = crate::discharge(&mut baseline).expect("fresh untampered input must discharge");
+    let mut activity = crate::ProofSearchActivity::default();
+    let verified = crate::discharge(&mut baseline, &mut activity)
+        .expect("fresh untampered input must discharge");
     for machine in verified.machines.values() {
         assert!(machine.verdicts.values().all(Result::is_ok), "{verified:?}");
         assert!(
@@ -222,7 +226,8 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
                 };
             }
         }
-        let refused = crate::discharge(&mut changed)
+        let mut activity = crate::ProofSearchActivity::default();
+        let refused = crate::discharge(&mut changed, &mut activity)
             .expect_err("receiving must not repair generated call proofs");
         assert_eq!(
             refused.reason,

@@ -8,12 +8,11 @@ admitted compilation outputs without granting `InstalledCode` authority.
 */
 
 use component_description::component_description::StackDemandFacts;
+use provider_admission::provider_admission::AdmittedNativeCallableAuthority;
 use std::path::PathBuf;
 use std::sync::Arc;
 use task_plans::SameStackProviderPlanCommitment;
-use terminal_psi_to_abstract_operations::{
-    AdmittedNativeComponentCall, provider_admission::AdmittedNativeCallableAuthority,
-};
+use verified_optimization_input::AdmittedNativeComponentCall;
 
 pub struct NativeComponentProduct {
     image: image_emission::ComponentSharedImage,

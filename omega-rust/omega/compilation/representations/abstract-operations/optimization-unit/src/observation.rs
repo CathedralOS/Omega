@@ -348,6 +348,7 @@ fn operation_observations(
     };
     match operation {
         O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

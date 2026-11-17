@@ -1,6 +1,6 @@
 // Interpret macOS CoreGraphics `_CGAffineTransformMake` (`AffineTransformImport`)
 // as a shared six-double C word-record admission returning a materialized
-// `TerminalScalarAggregateValue`.
+// `TerminalAggregateValue`.
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
@@ -8,8 +8,8 @@ use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType};
 use target::{ForeignLocatorCandidate, TargetProfile};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalScalarAggregateValue,
+    TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
     TerminalScalarValue,
 };
 use terminal_psi::BoundaryMachineDeclaration;
@@ -87,12 +87,11 @@ impl TerminalEffectHandler for AffineTransformImport {
         let actual = runtime_abi::host_affine_transform(components)
             .ok_or_else(|| TerminalEffectRejection::new("CoreGraphics C host is unavailable"))?;
         let values = [actual.a, actual.b, actual.c, actual.d, actual.tx, actual.ty];
-        Ok(TerminalEffectResult::ScalarAggregate(
-            TerminalScalarAggregateValue {
-                structural_type: self.structural_type,
-                result_case: None,
-                fields: self
-                    .fields
+        Ok(TerminalEffectResult::Aggregate(
+            TerminalAggregateValue::from_scalars(
+                self.structural_type,
+                None,
+                self.fields
                     .into_iter()
                     .zip(values)
                     .map(|(field, value)| {
@@ -106,7 +105,7 @@ impl TerminalEffectHandler for AffineTransformImport {
                         )
                     })
                     .collect(),
-            },
+            ),
         ))
     }
 }

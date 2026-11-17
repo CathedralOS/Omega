@@ -60,6 +60,7 @@ pub use optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     capture_runtime_borrowed_storage_layouts, lower_optimized_to_target_operations,
 };
+
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
     use semantic_vocabulary::{PlaceId, ValueId};
@@ -238,6 +239,7 @@ pub(crate) mod function {
         profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         borrowed_reference_sources: super::control_flow::references::BorrowedSources,
         stored_reference_effects: super::control_flow::references::StoredEffectCatalog,
         scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
@@ -269,6 +271,7 @@ pub(crate) mod function {
             profile,
             functions,
             dynamic_dispatch,
+            callables,
             borrowed_reference_sources,
             stored_reference_effects,
             structural_types,
@@ -299,78 +302,10 @@ pub(crate) mod optimized {
         lowering_facts: AdmittedLoweringFacts,
         current_program: Arc<TargetOperationPlan>,
         prepared: legalized_operations::PreparedExecutionPlan,
-        installed_stack_requirements:
-            Vec<installation_evidence::InstalledInterruptStackRequirement>,
-        installed_entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
         pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
     }
 
     impl ValidatedOptimizedTargetOperations {
-        pub fn with_installed_entry_execution(
-            mut self,
-            execution: provider_admission::AdmittedInstalledEntryExecution,
-        ) -> Result<Self, &'static str> {
-            let entry = execution.entry().entry();
-            if self.installed_entry_execution.is_some()
-                || entry.psi() != self.current_program.psi
-                || entry.target() != self.current_program.target
-                || entry.machine() != self.current_program.entry
-            {
-                return Err("installed execution differs from the current private object");
-            }
-            self.installed_entry_execution = Some(execution);
-            Ok(self)
-        }
-
-        pub fn installed_entry_execution(
-            &self,
-        ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-            self.installed_entry_execution.as_ref()
-        }
-
-        pub fn with_installed_stack_requirements(
-            mut self,
-            mut requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
-        ) -> Result<Self, &'static str> {
-            let cohort = self.lowering_facts.installed_interrupts();
-            let mut entries: Vec<_> = cohort
-                .entries()
-                .iter()
-                .map(|entry| (entry.operation, entry.placement_index))
-                .collect();
-            entries.sort_unstable();
-            requirements.sort_unstable_by_key(|row| (row.operation, row.placement_index));
-            if entries.windows(2).any(|pair| pair[0] == pair[1])
-                || requirements.windows(2).any(|pair| {
-                    (pair[0].operation, pair[0].placement_index)
-                        == (pair[1].operation, pair[1].placement_index)
-                })
-            {
-                return Err("installed stack requirement or admitted placement is duplicated");
-            }
-            for requirement in &requirements {
-                if requirement.psi != self.current_program.psi
-                    || requirement.target != self.current_program.target
-                    || requirement.required_bytes().is_none()
-                    || requirement.alignment == 0
-                    || !requirement.alignment.is_power_of_two()
-                    || entries
-                        .binary_search(&(requirement.operation, requirement.placement_index))
-                        .is_err()
-                {
-                    return Err("installed stack requirement has no matching admitted entry");
-                }
-            }
-            self.installed_stack_requirements = requirements;
-            Ok(self)
-        }
-
-        pub fn installed_stack_requirements(
-            &self,
-        ) -> &[installation_evidence::InstalledInterruptStackRequirement] {
-            &self.installed_stack_requirements
-        }
-
         pub const fn optimized(&self) -> &OptimizedAbstractProgram {
             &self.optimized
         }
@@ -464,8 +399,6 @@ pub(crate) mod optimized {
             lowering_facts,
             current_program: Arc::new(program),
             prepared,
-            installed_stack_requirements: Vec::new(),
-            installed_entry_execution: None,
             provider_installation: installation.map(Box::new),
         })
     }
@@ -491,6 +424,25 @@ pub(crate) mod optimized {
             lowering_facts.module(),
         )
         .ok_or_else(custody)?;
+        let callable_roots =
+            lowering_facts
+                .callable_invocation_roots(program)
+                .map_err(|reason| {
+                    LoweringError::Preparation(Box::new(
+                        native_preparation::TargetOperationAuditError::CallableInvocationRoots {
+                            reason,
+                        },
+                    ))
+                })?;
+        let callable_invocations = native_preparation::PreparedCallableInvocations::new(
+            unit,
+            &callable_roots,
+        )
+        .map_err(|reason| {
+            LoweringError::Preparation(Box::new(
+                native_preparation::TargetOperationAuditError::CallableValueProvenance { reason },
+            ))
+        })?;
         native_preparation::prepare_execution_plan(
             program,
             native_preparation::PreparationEvidence {
@@ -500,8 +452,10 @@ pub(crate) mod optimized {
                 ownership_frontier_facts: &unit.ownership_frontier_facts,
             },
             boundary_origins(lowering_facts),
+            &callable_invocations,
             lowering_facts.installed_interrupts(),
             &types,
+            optimized.pre_physical_manifest().identity,
         )
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }
@@ -513,7 +467,7 @@ pub(crate) mod optimized {
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,
-    ) -> Result<Vec<runtime_abi::NativeBorrowedStorageLayout>, LoweringError> {
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, LoweringError> {
         require_lowering_context(optimized, lowering_facts, target)?;
         let plan = optimized.plan();
         let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
@@ -521,7 +475,13 @@ pub(crate) mod optimized {
             lowering_facts,
         )
         .map_err(LoweringError::NonDenseStructuralTypes)?;
-        Ok(super::borrowed_storage::capture(plan, &types))
+        runtime_abi::NativeBorrowedStorageLayouts::seal(super::borrowed_storage::capture(
+            plan, &types,
+        ))
+        .map_err(|error| LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: error.reason,
+        })
     }
 
     fn require_lowering_context(

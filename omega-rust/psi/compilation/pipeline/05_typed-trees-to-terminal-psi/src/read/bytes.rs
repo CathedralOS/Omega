@@ -177,9 +177,9 @@ pub(super) fn mutable_byte_formal_identity(
 /// The type beneath the domains displayed on a view's referent, and those
 /// domains in written order.
 ///
-/// Served: a declared domain whose one `requires` is a primitive byte
-/// predicate of `self` and that holds of the empty view (`valid_utf8`,
-/// `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
+/// Served: a declared domain whose one `requires` selects a genuine Core
+/// byte observer of an explicit shared whole view of `self`, and that holds
+/// of the empty view (`valid_utf8`, `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
 /// shows, which the lowered form carries as the field's predicates
 /// (`StructuralFieldType::PredicateByteSequence`) and the checker judges
 /// from the bytes each store supplies (byte_views.md: "Primitive byte
@@ -324,25 +324,32 @@ impl Program<'_> {
         machine: MachineId,
         row: semantic_vocabulary::StructuralTypeId,
     ) -> [Option<TypeReferenceHandle>; 2] {
-        let count = semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid"),
-        );
         let reference = self
             .record_sources
             .get(row)
             .and_then(|source| source.application.as_ref())
             .map(|application| application.reference);
-        let count_reference = self.typed.type_reference_table.named_references().find_map(
-            |(reference, symbol, _)| {
+        [reference, self.collection_count_operand_type(machine)]
+    }
+
+    pub(super) fn collection_count_operand_type(
+        &self,
+        machine: MachineId,
+    ) -> Option<TypeReferenceHandle> {
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.typed
+            .type_reference_table
+            .named_references()
+            .find_map(|(reference, symbol, _)| {
                 self.typed
                     .symbols
                     .builtin_type_atom(symbol)
                     .is_some_and(|atom| super::types::atom_type(atom, machine) == Ok(count))
                     .then_some(reference)
-            },
-        );
-        [reference, count_reference]
+            })
     }
 
     pub(super) fn collection_range_selection(
@@ -616,11 +623,103 @@ impl Program<'_> {
                 row.shape,
                 StorageShape::ByteSequence(_)
                     | StorageShape::ElementView {
-                        access: Some(StructuralAccess::SharedBorrow),
+                        access: Some(
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ),
                         ..
                     }
             )
         })
+    }
+
+    /// An incoming mutable view lends backing for the call. Keeping it in an
+    /// aggregate requires an owned child descriptor, not a move out of the
+    /// formal's storage. Establish that ordinary reborrow at any value use.
+    pub(super) fn retain_view_input(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        value: Expression,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
+        let (
+            ExpressionKind::Slot(slot),
+            Some(ValueType::Record(actual, qualification, regions)),
+            Some(ValueType::Record(wanted, wanted_qualification, _)),
+        ) = (&value.kind, value.result, expected)
+        else {
+            return Ok(value);
+        };
+        if slots.get(*slot).and_then(|slot| slot.borrowed)
+            != Some(language_core::ReferenceAccess::Mutable)
+            || qualification != wanted_qualification
+        {
+            return Ok(value);
+        }
+        let element = match (
+            &self.data_type(machine, actual)?.shape,
+            &self.data_type(machine, wanted)?.shape,
+        ) {
+            (
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::MutableBorrow),
+                }),
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            ) => {
+                let element = self.byte_view_element_type(machine, wanted)?;
+                let value_type = self.value_type(machine, element)?;
+                self.collection_element_storage(machine, element, value_type)?
+                    .0
+            }
+            (
+                StorageShape::ElementView {
+                    element: actual,
+                    qualification: actual_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                StorageShape::ElementView {
+                    element: wanted,
+                    qualification: wanted_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+            ) if actual == wanted && actual_q == wanted_q => *actual,
+            _ => return Ok(value),
+        };
+        let source = value.source;
+        Ok(Expression {
+            call_context: None,
+            result: Some(ValueType::Record(wanted, qualification, regions)),
+            kind: ExpressionKind::CollectionView {
+                base: Box::new(value),
+                access: language_core::ReferenceAccess::Mutable,
+                element,
+            },
+            source,
+        })
+    }
+
+    /// Storage rows erase regions and retain their first source occurrence.
+    /// Re-read that occurrence in its own declaration, never in a later user's
+    /// scope: a field's named lifetime belongs to its data declaration.
+    pub(super) fn byte_view_element_type(
+        &self,
+        machine: MachineId,
+        row: StructuralTypeId,
+    ) -> Checked<TypeReferenceHandle> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let source = self
+            .record_sources
+            .get(row)
+            .ok_or_else(|| unavailable("byte view without its source owner"))?;
+        let physical = source
+            .application
+            .as_ref()
+            .ok_or_else(|| unavailable("byte view without its source element"))?;
+        source_byte_view(self.typed, physical.reference, source.region_owner, machine)?
+            .map(|source| source.element_type)
+            .ok_or_else(|| unavailable("byte view without its retained source type"))
     }
 
     pub(super) fn view_type(
@@ -655,30 +754,18 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
-        // A view in a domain is served where the checker judges what it
-        // holds: a data field, whose every store it judges from the bytes
-        // supplied; a formal, whose domain's predicates every call owes as
-        // entry requirements (`formal_value_type`); and the cast that makes a
-        // value for either (`QualifiedViews`). A local or result of such a
-        // type would owe its predicates at moves that nothing judges yet.
+        // Keep the domains on the actual view type in every placement.
+        // Signature clauses and checked establishments owe their predicates;
+        // reading this type supplies no proof of those predicates.
         let mut qualification = Qualification::NONE;
-        if !domains.is_empty() {
-            if !self.qualified_views {
-                return Err(refuse(
+        for domain in domains {
+            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+                refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Type("byte view in a domain outside a data field"),
-                ));
-            }
-            for domain in domains {
-                qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type("byte view in more than four domains"),
-                    )
-                })?;
-            }
+                    Unserved::Type("byte view in more than four domains"),
+                )
+            })?;
         }
 
         let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
@@ -709,11 +796,15 @@ impl Program<'_> {
             (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
         });
         if let Some(row) = row {
+            self.retain_byte_domains(machine, row, qualification)?;
             return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: carrier.is_shared_readable_view(),
+            multiplicity: if carrier.is_shared_readable_view() {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             cleanup: None,
             identity,
             shape: StorageShape::ByteSequence(carrier),
@@ -730,7 +821,51 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
         });
+        self.retain_byte_domains(machine, row, qualification)?;
         Ok(typed_view(row))
+    }
+
+    pub(super) fn retain_byte_domains(
+        &mut self,
+        machine: MachineId,
+        carrier: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Checked<()> {
+        for source in qualification.domains.members() {
+            let (_, predicate) = typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(machine, source)?,
+            )
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte qualification lost its complete primitive declaration"),
+                )
+            })?;
+            let row = crate::body::SourceByteDomain {
+                source,
+                carrier,
+                predicate,
+            };
+            if let Some(known) = self
+                .byte_domains
+                .iter()
+                .find(|known| known.source == source && known.carrier == carrier)
+            {
+                if *known != row {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("one byte domain has conflicting primitive meanings"),
+                    ));
+                }
+            } else {
+                self.byte_domains.push(row);
+            }
+            self.admitted_declarations.include(source.declaration);
+        }
+        Ok(())
     }
 
     pub(super) fn byte_literal(
@@ -796,8 +931,7 @@ impl Program<'_> {
             return row;
         }
         let row = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             // This text labels the structural type; it names no declaration.
             // Exact literal contents and origin belong to its producer below.
@@ -816,7 +950,7 @@ impl Program<'_> {
         row
     }
 
-    /// The primitive byte predicates of a field's type: one for each domain
+    /// The primitive byte predicates of a value's type: one for each domain
     /// a byte view in a domain carries (`byte_view_domains` admitted only
     /// those), none for every other type.
     pub(super) fn view_predicates(
@@ -824,7 +958,7 @@ impl Program<'_> {
         machine: MachineId,
         value_type: ValueType,
     ) -> Checked<ByteSequencePredicateSet> {
-        let mut predicates = ByteSequencePredicateSet::EMPTY;
+        let predicates = ByteSequencePredicateSet::EMPTY;
         let ValueType::Record(row, qualification, _) = value_type else {
             return Ok(predicates);
         };
@@ -834,8 +968,33 @@ impl Program<'_> {
         ) {
             return Ok(predicates);
         }
+        self.byte_qualification_predicates(machine, qualification)
+    }
+
+    /// Pure byte predicates named by exact domain applications. The caller
+    /// owns the byte carrier's shape; this query supplies no value proof.
+    pub(super) fn byte_qualification_predicates(
+        &self,
+        machine: MachineId,
+        qualification: Qualification,
+    ) -> Checked<ByteSequencePredicateSet> {
+        if qualification.policy.is_some() {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("arithmetic policy on byte storage"),
+            ));
+        }
+        let mut predicates = ByteSequencePredicateSet::EMPTY;
         for domain in qualification.domains.members() {
-            self.domain_theory(machine, domain)?;
+            let theory = self.domain_theory(machine, domain)?;
+            if theory.access_policy.is_some() {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte predicate conversion needs governed domain evidence"),
+                ));
+            }
             let predicate =
                 typed_trees::byte_predicates::domain_byte_predicate(self.typed, domain.declaration)
                     .ok_or_else(|| {

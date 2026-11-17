@@ -1,8 +1,8 @@
 # Chapter 10: Compile-time proofs
 
-When the compiler cannot work out a fact by itself, you prove it. A proof is
-an ordinary machine: `requires` is what it assumes and `ensures` is what
-follows.
+A proof is an ordinary machine: `requires` supplies assumptions and `ensures`
+states what follows. Routine facts have a required automatic baseline; harder
+facts may need a helper or cited evidence.
 
 ```omega
 machine distinct_indices(i: u64, j: u64)
@@ -12,12 +12,35 @@ ensures i != j
 }
 ```
 
-The body is empty because the conclusion follows directly. Change the
-conclusion to `i == j` and it is rejected.
+The conclusion follows directly. Changing it to `i == j` breaks the promise.
+
+## Required automatic reasoning
+
+The proof floor includes integer order reasoning, range propagation and bounded
+case splitting. For example:
+
+```omega
+machine get(items: &[u8], index: u64, limit: u64) -> u8
+requires index < limit
+requires limit <= items.len
+{
+    items[index]
+}
+```
+
+The requirements establish `index < items.len`. No lemma or extra search budget
+is needed for that implication. A conforming checker that fails this required
+reasoning needs repair; a source workaround is not a language requirement.
+
+The specified `--floor-only` mode identifies obligations relying on automation
+beyond the floor. [Required automatic discharge](../spec/proofs/contracts.md#required-automatic-discharge)
+defines the exact rules. `REQUIRED-AUTOMATIC-DISCHARGE` in
+[TASKS.md](../../TASKS.md) owns delivery; this chapter states the contract, not
+a claim that its implementation is complete.
 
 ## Using a proof
 
-Call it. The caller shows the `requires` and then knows the `ensures`:
+Call it. The caller establishes the requirements and then may use the guarantees:
 
 ```omega
 machine successor_bound(index: u64, length: u64)
@@ -35,12 +58,13 @@ ensures result <= length
 }
 ```
 
-A call like this compiles to nothing. It only adds a fact. Break a hard proof
-into small helpers like these, each one a step the compiler can follow.
+A fact-only invocation emits no runtime call. This helper states a fact already
+within the floor; harder proofs can be split into smaller helpers. A separately
+compiled consumer uses published guarantees, not private implementation facts.
 
 ## Proof by recursion
 
-A proof may call itself on something smaller, which is induction:
+A proof can call itself on something smaller, which is induction:
 
 ```omega
 machine countdown(n: u32) -> u32
@@ -54,21 +78,22 @@ ensures result == 0
 }
 ```
 
-`terminates by n` says what shrinks. Unlike runtime code, a proof may recurse
-anywhere, not only as its last action.
+`terminates by n` states what shrinks. Proof and compile-time use may admit ranked
+non-tail recursion, unlike runtime execution. Each recursive proof use still
+owes its progress and invocation requirements.
 
 ## Mathematical numbers
 
-Contracts use the same arithmetic as code, including its overflow rules. To
-talk about the true mathematical value of a machine integer, `embed` it:
+Contracts use the same arithmetic as code, including overflow rules. `embed`
+projects a machine integer to its mathematical value:
 
 ```omega
 requires
     embed(left) + embed(right) <= embed(integer::max<i32>())
 ```
 
-`Nat` and `Int` are unbounded. Subtraction on `Nat` still has to stay
-non-negative:
+`Nat` and `Int` are mathematical integers. Subtraction on `Nat` still has to stay
+nonnegative:
 
 ```omega
 machine remaining(total: Nat, used: Nat) -> Nat
@@ -80,7 +105,7 @@ requires used <= total
 
 ## Referring to the value on entry
 
-`old(place)` is the value a place had when the machine was entered:
+`old(place)` is the value a place held when the machine was entered:
 
 ```omega
 machine increment(value: &mut u32)
@@ -91,12 +116,11 @@ ensures value == old(value) + 1
 }
 ```
 
-It exists only in contracts and copies nothing at run time.
+It exists only in contracts and copies nothing at runtime.
 
 ## Keep evidence without runtime storage
 
-A field marked `[erased]` holds a proof alongside data and takes no space in
-the compiled program:
+An `[erased]` field carries evidence without runtime storage:
 
 ```omega
 data Certified<T> {
@@ -105,50 +129,55 @@ data Certified<T> {
 }
 ```
 
-Building a `Certified<T>` requires the evidence. Runtime code cannot branch on
-it, because it is not there at run time.
+Constructing the value requires the evidence. Runtime code cannot branch on the
+erased field. `Valid<T>` here denotes the library's evidence type.
 
 ## Equality and identity
 
-`==` is the type's comparison operation. `core::Identity<T>(a, b)` says the two
-are the same value, which is what lets one be substituted for the other in a
-proof:
+`==` selects a comparison operation. `core::Identity<T>(a, b)` states that two
+subjects are the same value, permitting substitution. For an in-scope carrier
+`T` and operation `add`, a law can state:
 
 ```omega
 machine add_comm(a: T, b: T)
 ensures core::Identity<T>(add(a, b), add(b, a));
 ```
 
-They differ for floats: `0.0 == -0.0` is true but the two are not identical,
-and a NaN is identical to itself but not `==` to itself.
+Equality and identity differ for floats: `0.0 == -0.0` is true although the
+values are not identical, and a NaN is identical to itself but not `==` to itself.
 
 ## When a proof fails
 
-1. Check that the statement is true.
-2. Check that what it depends on is in scope and was not invalidated by a
-   write.
-3. Split out a smaller helper and prove that first.
+First read the failure category. Unsupported source is an implementation gap,
+not a proof that the program is invalid. A missing required floor discharge is
+a checker defect. Beyond the floor, an unestablished goal may need a premise,
+a branch or a lemma. Exhausted optional search proves neither the goal nor its
+negation.
 
-There are four ways a fact can come to be accepted, and they are not
-interchangeable:
+For an unestablished goal, check the statement and available premises, including
+whether a write changed the storage the fact describes. Split out a smaller
+helper when useful. A counterexample to the available premises does not by
+itself establish a reachable execution of the whole program.
 
-| Route | What you get |
+These routes are distinct:
+
+| Route | Meaning |
 | --- | --- |
-| Checked proof | A fact that follows from its premises. |
-| Evaluation | The result of running a terminating computation at compile time. |
-| Deferral | A warning and a waiver at one site. Not reusable, and not allowed in a release. |
-| Boundary admission | A claim about foreign code that the consumer chose to trust. |
+| Checked proof | The statement follows from its exact premises. |
+| Admitted evaluation | A checked computation produces a value under its evaluation contract. |
+| Deferral | The proof contract describes a site-local development waiver, not a reusable fact or package-release acceptance. It is not an automatic response to failed search. |
+| Boundary admission | The consumer accepts a named external claim as an assumption; this does not prove the provider obeys it. |
 
-Do not reach for an assumption to get past a failed proof or a borrow error.
-Fix the program, the contract or the proof.
-[Chapter 19](chapter_19_capabilities_effects_boundaries.md) explains where
-trusted claims legitimately come from.
+[Proof admission](../spec/proofs/contracts.md#axioms-and-receiving-policy)
+owns the deferral and trust rules. Do not use an assumption to bypass a failed
+proof or borrow check. Repair the program, contract, proof or checker.
+[Chapter 19](chapter_19_capabilities_effects_boundaries.md) explains legitimate
+trust boundaries.
 
 ## Further
 
-Mathematical libraries go beyond this chapter: predicates with no executable
-test, existence claims, and quotients such as the real numbers built from
-Cauchy sequences. See
-[mathematical bindings](../spec/proofs/mathematical_bindings.md) and
-[quotients](../spec/proofs/quotients.md). The complete rules for everything
-here are in [proof contracts](../spec/proofs/contracts.md).
+Mathematical libraries include predicates without executable tests, existence
+claims and quotients such as real numbers built from Cauchy sequences. See
+[mathematical bindings](../spec/proofs/mathematical_bindings.md),
+[quotients](../spec/proofs/quotients.md) and the complete
+[proof contracts](../spec/proofs/contracts.md).

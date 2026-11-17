@@ -997,7 +997,7 @@ machine Main::main(main: &mut Main) reaches
         transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
     machine pace(main: &mut Main, window: Window) {
-        Clock::sleep(16);
+        block Clock::sleep(16);
         transition main.frame >= 0 && main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
     }
     machine advance(main: &mut Main, window: Window) {

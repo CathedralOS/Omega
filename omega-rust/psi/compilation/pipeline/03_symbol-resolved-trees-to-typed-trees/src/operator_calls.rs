@@ -342,6 +342,7 @@ pub(crate) fn prepare_site(
     let (machine_arguments, application, result_type) =
         retain_application(program, &selected, caller, &label, result_type, span)?;
     *program.expression_table.expression_mut(handle) = ExpressionNode::Call(TableCallExpression {
+        runtime_call: None,
         authored_call_selection: Some(*occurrence),
         authored_call_binding: None,
         authored_machine_application: application,

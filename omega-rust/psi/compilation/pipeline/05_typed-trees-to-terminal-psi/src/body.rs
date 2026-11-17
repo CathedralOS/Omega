@@ -23,6 +23,7 @@ use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
 
 use crate::SourceOrigin;
+pub use terminal_check_tables::contracts::{Ceiling, CrashCeiling};
 
 /// The type of a formal, local, result or expression: a carrier (a builtin
 /// scalar, a record type by its dense identity in the module's record table,
@@ -123,6 +124,16 @@ pub struct DomainInstance {
 pub struct DomainSet {
     len: u8,
     members: [(u32, u32, u32); Self::CAPACITY],
+}
+
+/// A primitive byte domain actually used on this descriptor carrier. The
+/// reader has checked the complete declaration; lowering retains its identity
+/// and predicate beside every place and callable header that carries it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceByteDomain {
+    pub source: DomainInstance,
+    pub carrier: StructuralTypeId,
+    pub predicate: semantic_vocabulary::ByteSequencePredicate,
 }
 
 impl DomainSet {
@@ -308,8 +319,8 @@ impl ValueType {
     }
 }
 
-/// One plain record type: its fields in declaration order and its authored
-/// copy permission. Plain owned records remain affine even with scalar fields.
+/// One structural type with its fields and declared multiplicity. Plain owned
+/// records remain affine even with scalar fields; contained claims stay separate.
 /// A field is named by its position here and by its `StructuralFieldId`,
 /// both fixed once by the reader from the field's symbol.
 ///
@@ -325,9 +336,8 @@ impl ValueType {
 /// shape; its identity remains the type the reader actually resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
-    /// Actual source linear custody, including owned nested claims.
-    pub owns_linear_claim: bool,
-    pub copyable: bool,
+    /// The source declaration's multiplicity, independent of contained claims.
+    pub multiplicity: terminal_psi::StructuralMultiplicity,
     pub cleanup: Option<RecordCleanup>,
     pub identity: String,
     pub shape: StorageShape,
@@ -416,7 +426,23 @@ impl StorageShape {
     }
 }
 
+pub(crate) fn source_multiplicity(
+    value: language_semantics::Multiplicity,
+) -> terminal_psi::StructuralMultiplicity {
+    match value {
+        language_semantics::Multiplicity::Unrestricted => {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        }
+        language_semantics::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+        language_semantics::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
+    }
+}
+
 impl RecordType {
+    pub fn is_copyable(&self) -> bool {
+        self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+    }
+
     pub fn fields(&self) -> &[RecordField] {
         match &self.shape {
             StorageShape::Record(fields) => fields,
@@ -544,14 +570,7 @@ pub(crate) struct Signatures<'a> {
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_aliases:
         Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
-    pub boundaries: &'a IdTable<BoundaryMachineId, Signature>,
-    /// How an invocation of each boundary requirement ends when it does not
-    /// crash. The canonical process-exit requirement "produces no normal
-    /// result or continuation" (`wiki/spec/language/process_exit.md`);
-    /// every other requirement returns. It is the leaf fact of
-    /// `Outcome::completes_normally`: whether a machine with a body returns
-    /// is derived from the calls of that body, so a machine has no row.
-    pub completions: &'a IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,
+    pub boundaries: &'a crate::boundaries::BoundaryNamespace,
 }
 
 impl<'a> Signatures<'a> {
@@ -597,13 +616,13 @@ impl<'a> Signatures<'a> {
         boundary: BoundaryMachineId,
         caller: MachineId,
     ) -> terminal_check_tables::Checked<semantic_vocabulary::BoundaryCompletion> {
-        terminal_check_tables::row(
-            self.completions,
-            boundary,
-            caller,
-            terminal_check_tables::Construct::Machine,
-        )
-        .copied()
+        self.boundaries.completion(boundary).ok_or_else(|| {
+            crate::refuse(
+                caller,
+                terminal_check_tables::Construct::Machine,
+                crate::Unserved::Call("boundary has no retained completion contract"),
+            )
+        })
     }
 
     pub fn get(
@@ -618,12 +637,15 @@ impl<'a> Signatures<'a> {
                 caller,
                 terminal_check_tables::Construct::Machine,
             ),
-            TargetMachineCallable::Boundary(boundary) => terminal_check_tables::row(
-                self.boundaries,
-                boundary,
-                caller,
-                terminal_check_tables::Construct::Machine,
-            ),
+            TargetMachineCallable::Boundary(boundary) => {
+                self.boundaries.signature(boundary).ok_or_else(|| {
+                    crate::refuse(
+                        caller,
+                        terminal_check_tables::Construct::Machine,
+                        crate::Unserved::Call("boundary has no exact retained signature"),
+                    )
+                })
+            }
         }
     }
 }
@@ -687,6 +709,24 @@ impl Signature {
         self.erased.binary_search(&position).is_ok()
     }
 
+    pub(crate) fn runtime_parameter_position(&self, source: usize) -> Option<usize> {
+        self.parameters.get(source)?;
+        if self.is_erased(source) {
+            return None;
+        }
+        Some(
+            (0..source)
+                .filter(|position| !self.is_erased(*position))
+                .count(),
+        )
+    }
+
+    pub(crate) fn source_parameter_position(&self, runtime: usize) -> Option<usize> {
+        (0..self.parameters.len())
+            .filter(|position| !self.is_erased(*position))
+            .nth(runtime)
+    }
+
     /// The reference the formal at `position` is passed by, if it is one.
     pub fn borrowed(&self, position: usize) -> Option<&Borrowed> {
         self.borrowed
@@ -748,19 +788,16 @@ pub fn formal_values(
     formals: impl Iterator<Item = (ValueType, bool, bool)> + Clone,
     result: Option<ValueType>,
 ) -> Vec<Option<ValueId>> {
-    formal_value_ids(
-        formals.map(|(value_type, erased, borrowed)| FormalValueShape {
-            declared: value_type.declared().is_some(),
-            erased,
-            borrowed,
+    terminal_check_tables::contracts::formal_value_ids(
+        formals.map(|(value_type, erased, borrowed)| {
+            (value_type.declared().is_some(), erased, borrowed)
         }),
         result.and_then(ValueType::declared).is_some(),
     )
 }
 
-/// Signature preparation needs the actual input identities before reading a
-/// carrier whose width names one of them. These are declaration shapes only:
-/// reading the full type still happens once, and must agree with this roster.
+/// Declaration shapes permit numbering inputs before their dependent carrier
+/// widths are read. Full signature preparation must agree with this roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FormalValueShape {
     pub declared: bool,
@@ -772,47 +809,10 @@ pub(crate) fn formal_value_ids(
     formals: impl Iterator<Item = FormalValueShape> + Clone,
     result: bool,
 ) -> Vec<Option<ValueId>> {
-    let relevant = formals
-        .clone()
-        .filter(|shape| shape.declared && !shape.erased && !shape.borrowed)
-        .count() as u64;
-    let (mut next_relevant, mut next_erased) = (0, relevant + u64::from(result));
-    formals
-        .map(|shape| {
-            if shape.borrowed || !shape.declared {
-                return None;
-            }
-            let next = if shape.erased {
-                &mut next_erased
-            } else {
-                &mut next_relevant
-            };
-            *next += 1;
-            ValueId::new(*next)
-        })
-        .collect()
-}
-
-/// What a header says on one ceiling axis: service reach (`reaches`) or
-/// synchronous entry (`invokes`). Both are a set of service identities that
-/// bounds what the machine's calls contribute, published to callers, so one
-/// type, one derivation (`outcome`) and one judgment serve both.
-/// `wiki/spec/language/effects.md`: "A present clause is an upper bound, not
-/// an assertion of exact equality and not an additive contribution", and
-/// "Omission requests inference and is distinct from an explicit empty
-/// clause."
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Ceiling {
-    /// No clause on a declaration whose row is derived: a checked body
-    /// publishes what its calls contribute (`outcome`). A boundary
-    /// requirement must not omit `reaches`; a requirement that omits
-    /// `invokes` is not this case (see `Axis::Entries`).
-    Inferred,
-    /// The written row, strictly increasing. For reach, the services the
-    /// clause names "and their boundary parents"; empty is `reaches none`.
-    /// For entries, the requirement identities the clause names, with no
-    /// parent closure.
-    Authored(Vec<semantic_vocabulary::ServiceId>),
+    terminal_check_tables::contracts::formal_value_ids(
+        formals.map(|shape| (shape.declared, shape.erased, shape.borrowed)),
+        result,
+    )
 }
 
 /// The two ceiling axes a header may bound.
@@ -832,35 +832,37 @@ impl Axis {
 }
 
 impl Signature {
+    pub(crate) fn static_signature(&self) -> terminal_check_tables::contracts::StaticSignature {
+        use terminal_check_tables::contracts::{StaticBorrowed, StaticSignature, StaticValueType};
+        let carrier = |value| match value {
+            ValueType::Scalar(scalar, _) => StaticValueType::Scalar(scalar),
+            ValueType::Record(record, _, _) => StaticValueType::Record(record),
+            ValueType::Rigid(rigid) => StaticValueType::Rigid(rigid),
+        };
+        StaticSignature {
+            parameters: self.parameters.iter().copied().map(carrier).collect(),
+            erased: self.erased.clone(),
+            borrowed: self
+                .borrowed
+                .iter()
+                .map(|borrowed| StaticBorrowed {
+                    position: borrowed.position,
+                    access: borrowed.access,
+                })
+                .collect(),
+            result: self.result.map(carrier),
+            requires: self.requires.clone(),
+            ensures: self.ensures.clone(),
+            crashes: self.crashes.clone(),
+        }
+    }
+
     pub fn ceiling(&self, axis: Axis) -> &Ceiling {
         match axis {
             Axis::Reach => &self.reaches,
             Axis::Entries => &self.invokes,
         }
     }
-}
-
-/// What the machine's header says about crashing.
-/// `wiki/spec/language/effects.md`: "On a public checked body omitted
-/// `crashes` means no crash route, exactly as `crashes none`. Private checked
-/// bodies may omit any of the three to request inference."
-#[derive(Debug, Clone, PartialEq)]
-pub enum CrashCeiling {
-    /// The authored routes, canonical (one bucket per cause, causes and
-    /// alternatives strictly increasing, `Truth` alone when present), over the
-    /// formals. Empty is "no crash route".
-    Authored(Vec<CrashRouteBucket>),
-    /// A private body with no `crashes` clause: its published routes are
-    /// derived from its body (`outcome`).
-    Inferred,
-    /// The header wrote `crashes none`, read from the typed trees'
-    /// `Machine::declares_no_crash_route`, not from the absence of a clause.
-    /// effects.md: "An explicit empty value, `reaches none`, `crashes none`,
-    /// `suspends false` or `blocks false`, promises the empty value and
-    /// rejects any body or selection that violates it." It publishes no
-    /// route, and a body that structure can reach a crash from is refused
-    /// (`outcome`), never given an inferred route.
-    DeclaredNone,
 }
 
 /// A machine body: slot types (formals first, then locals in binding order)
@@ -1037,6 +1039,15 @@ pub enum ExpressionKind {
     /// Exact IEEE representation after one rounding at the landing boundary.
     Float(semantic_vocabulary::IeeeFloatValue),
     Boolean(bool),
+    /// Ordinary zero construction, with the same establishment and custody
+    /// checks as zero-initialized locals. No source expression is evaluated.
+    Zero,
+    /// A stored exact selection. Construction keeps code and its required
+    /// contract; it evaluates no arguments and invokes no body.
+    MachineValue {
+        contract: semantic_vocabulary::CallableContractId,
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+    },
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
     /// The selected builtin observation, after evaluating its actual base.
@@ -1045,6 +1056,12 @@ pub enum ExpressionKind {
     CollectionMeasure {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
+    },
+    /// Observe the current bytes through the already formed shared loan.
+    /// The Boolean result is tied to that exact view, not its whole backing.
+    ByteSequencePredicate {
+        base: Box<Expression>,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
     },
     /// A checked scalar computed in its selected target scope.
     ScalarApplication {
@@ -1066,22 +1083,12 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
-    /// An explicit borrow of a whole closed array, as a byte descriptor or
-    /// a typed element view. The descriptor borrows
-    /// the selected backing; its formation owns a separate loan occurrence.
-    ArrayView {
+    /// A view of the captured collection, preserving its elements or presenting
+    /// their complete representation. Formation borrows that exact backing and
+    /// owns a separate loan occurrence.
+    CollectionView {
         base: Box<Expression>,
         access: language_core::ReferenceAccess,
-        element: StructuralTypeId,
-    },
-    /// `view as &[T]`: the complete captured window of an existing shared
-    /// view, presented as `element`s. The result keeps the source view's
-    /// backing and loan; the checker judges that `element` exactly tiles
-    /// the source's element and that the converted count fits `u64`
-    /// (byte_views.md, "Collection view establishment",
-    /// `WholeRepresentation`).
-    RepresentationView {
-        base: Box<Expression>,
         element: StructuralTypeId,
     },
     Array {
@@ -1217,29 +1224,44 @@ pub enum ExpressionKind {
     /// Cross the existing reference descriptor into its original backing.
     /// This neither moves the referent nor drops the descriptor's loan.
     Referent(Box<Expression>),
-    /// A direct call: all arguments left to right, then the invocation.
-    ///
-    /// `designated` is set on a call of the toolchain's Build selection
-    /// protocol (`Build::bind(builder, slot, entry)` as typing spells it):
-    /// the declarations the call names beside its ordinary arguments.
-    /// scoped_execution.md, "Selecting product declarations without
-    /// executing them": "No product receiver, function body, initializer,
-    /// or provider is executed." So it is no operand: the call computes
-    /// with its arguments alone, and lowering records which emitted
-    /// operation the reference stands beside (`MachineSources::designated`)
-    /// so the Build host can receive it.
+    /// Evaluate the selected callable first, then arguments in authored order.
     Call {
-        callee: TargetMachineCallable,
+        callee: CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
-        source_call: Option<(
-            MachineId,
-            typed_trees::expression::ExpressionHandle,
-            typed_trees::statement::StatementHandle,
-        )>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },
+}
+
+/// The code operand remains separate from every explicit argument. A selected
+/// value is authenticated against its retained public contract, never replaced
+/// by one named body for checking or execution.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CallTarget {
+    Machine(MachineId),
+    Selected {
+        callable: Box<Expression>,
+        contract: semantic_vocabulary::CallableContractId,
+    },
+    Boundary {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    },
+}
+
+impl CallTarget {
+    pub fn operand(&self) -> Option<&Expression> {
+        match self {
+            Self::Selected { callable, .. } => Some(callable),
+            Self::Machine(_) | Self::Boundary { .. } => None,
+        }
+    }
+}
+
+impl From<MachineId> for CallTarget {
+    fn from(machine: MachineId) -> Self {
+        Self::Machine(machine)
+    }
 }
 
 pub use crate::publication::DesignatedOperands;

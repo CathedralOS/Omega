@@ -24,7 +24,7 @@ kept by the owner's invariant windows, with nothing added here.
 the domain being defined" (domains.md, "Operands"), so it is read at the
 plain carrier.
 
-On a data carrier (`domain Player::Alive requires self.health > 0`) the
+On a nominal data carrier (`domain Player::Alive requires self.health > 0`) the
 clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
 windows like any other. A formal or result states the same predicates in its
@@ -50,7 +50,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
 
 use super::authority::has_predicates;
-use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
+use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{Qualification, ValueType};
 use crate::{ClauseText, Unserved, refuse};
@@ -58,6 +58,8 @@ use crate::{ClauseText, Unserved, refuse};
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
 struct Predicate {
+    instance: crate::body::DomainInstance,
+    owner: SymbolHandle,
     subject: SymbolHandle,
     expression: ExpressionHandle,
     /// The declaring domain's name.
@@ -65,6 +67,137 @@ struct Predicate {
 }
 
 impl Program<'_> {
+    /// An authored runtime membership states the selected domain's predicates
+    /// of the actual value. It supplies a normal contract goal or premise;
+    /// selecting the declaration itself supplies no membership evidence.
+    pub(super) fn runtime_membership_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        membership: &typed_trees::domain::ProofMembershipFact,
+    ) -> Checked<Option<(Proposition, ClauseText)>> {
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let typed = self.typed;
+        let domain = crate::body::DomainInstance {
+            declaration: membership.domain_symbol,
+            identity: membership.semantic_domain,
+        };
+        if !domain.declaration.is_valid() || !domain.identity.is_valid() {
+            return Err(unavailable(
+                "runtime membership without its exact domain application",
+            ));
+        }
+        let definition = self.domain_theory(id, domain)?;
+        let supplied = typed
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments);
+        let retained = typed
+            .domain_arguments_for_instance(domain.declaration, domain.identity)
+            .ok_or_else(|| unavailable("runtime membership without retained index arguments"))?;
+        if supplied.len() != retained.len()
+            || supplied.iter().zip(retained).any(|(a, b)| {
+                let actual = typed.package_qualified_type_identity(*a);
+                let expected = typed.package_qualified_type_identity(*b);
+                !actual.is_valid() || !expected.is_valid() || actual != expected
+            })
+        {
+            return Err(unavailable(
+                "runtime membership changes its domain index arguments",
+            ));
+        }
+        if let Some(occurrence) = membership.authored_domain_selection {
+            let selected = typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .and_then(|selection| selection.target().as_resolved().copied())
+                .map(|selected| selected.selected_symbol());
+            if selected != Some(domain.declaration) {
+                return Err(unavailable(
+                    "runtime membership changes its authored domain declaration",
+                ));
+            }
+        }
+        // Predicate expansion alone cannot establish an issuer's nominal
+        // qualification or governed access. Keep those requests unavailable
+        // until ordinary contracts can carry that membership evidence.
+        if !matches!(
+            definition.issuance(),
+            typed_trees::domain::DomainIssuance::Unrestricted
+        ) || definition.access_policy.is_some()
+            || !has_predicates(definition)
+        {
+            return Err(unavailable(
+                "runtime membership needs nominal or governed domain evidence",
+            ));
+        }
+        let qualification = Qualification {
+            policy: None,
+            domains: crate::body::DomainSet::EMPTY
+                .with(domain)
+                .ok_or_else(|| unavailable("runtime membership domain roster"))?,
+        };
+        let at = crate::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let clauses =
+            if let Some((root, path, actual)) = self.projected(id, scope, membership.value)? {
+                let plain = actual
+                    .qualified(Qualification::NONE)
+                    .ok_or_else(|| unavailable("runtime membership of a rigid storage value"))?;
+                // The ordinary type owner checks the exact carrier, generic
+                // eligibility and remaining domain requirements before reading
+                // its predicates; equal fields or names cannot substitute it.
+                self.declared_domain(id, domain, plain, definition.target_type, at)?;
+                let subject = plain
+                    .qualified(qualification)
+                    .ok_or_else(|| unavailable("runtime membership storage qualification"))?;
+                self.storage_predicates(id, scope, subject, root, &path)?
+            } else {
+                let (subject, actual) = self.term(id, scope, membership.value, None)?;
+                let plain = actual
+                    .qualified(Qualification::NONE)
+                    .ok_or_else(|| unavailable("runtime membership of a rigid scalar"))?;
+                self.declared_domain(id, domain, plain, definition.target_type, at)?;
+                self.of_value(id, scope, qualification, &subject)?
+            };
+        let mut clauses = clauses
+            .into_iter()
+            .map(|(clause, _)| clause)
+            .collect::<Vec<_>>();
+        if clauses.is_empty() {
+            return Err(unavailable(
+                "runtime membership has no served predicate clauses",
+            ));
+        }
+        let proposition = if clauses.len() == 1 {
+            clauses.pop().expect("one predicate clause")
+        } else {
+            Proposition::Conjunction(crate::canonical::clauses(
+                clauses,
+                crate::canonical::Repeated::Merge,
+                id,
+            )?)
+        };
+        let mut text = self.clause_text(scope.slots, membership.value);
+        text.push_text(" in ");
+        let name = typed
+            .domain_path_members(membership.domain)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        text.push_text(&name);
+        if !supplied.is_empty() {
+            text.push_text("<");
+            for (position, argument) in supplied.iter().enumerate() {
+                if position != 0 {
+                    text.push_text(", ");
+                }
+                text.push_text(&typed.normalized_type_identity_text(*argument));
+            }
+            text.push_text(">");
+        }
+        Ok(Some((proposition, text)))
+    }
+
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
     /// nothing (`requires true`) is left out.
@@ -85,6 +218,8 @@ impl Program<'_> {
                 let expression = self.fact(id, fact)?;
                 if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
+                        instance: domain,
+                        owner: definition.symbol,
                         subject: definition.subject_symbol,
                         expression,
                         domain: definition.name.as_str().to_owned(),
@@ -117,10 +252,14 @@ impl Program<'_> {
             bound.push((predicate.subject, subject.clone()));
             let scope = ClauseScope {
                 bound: &bound,
+                owner: predicate.owner,
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -290,6 +429,12 @@ impl Program<'_> {
                 policy: None,
                 domains,
             };
+            // Successful clause translation completes a predicate theory,
+            // including clauses that simplify to true. Unsupported semantic
+            // definitions must not become complete from a missing proposition.
+            self.declared_domains[slot].complete_predicate_theory = self
+                .domain_theory(id, instance)?
+                .has_complete_predicate_theory();
             self.declared_domains[slot].predicate = match carrier {
                 ValueType::Scalar(scalar, _) => {
                     let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;
@@ -346,9 +491,6 @@ impl Program<'_> {
             subject: None,
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
         };
         let subject = ScalarTerm::Value {
             id: subject,
@@ -405,9 +547,6 @@ impl Program<'_> {
             subject: None,
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
         };
         let clauses = self
             .storage_predicates(id, &scope, value_type, root, &[])?
@@ -436,9 +575,8 @@ impl Program<'_> {
             .join(" and "))
     }
 
-    /// Reads the predicates of a subject's domain declaration as a cast
-    /// would state them, so a declaration no type names is still refused
-    /// when the route cannot read it.
+    /// Read domain clauses while their source types and declarations can still
+    /// be retained. Publication consumes these clauses after discovery closes.
     pub(super) fn declared_predicates(
         &mut self,
         id: MachineId,
@@ -447,14 +585,28 @@ impl Program<'_> {
         if !has_predicates(definition) {
             return Ok(());
         }
-        // `domain [u8]::Utf8 requires valid_utf8(self)`: a primitive byte
-        // predicate of a byte slice is decided by a view's bytes, where a
-        // field of the domain is stored (`read::bytes`), not stated as a
-        // clause.
-        if typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
-            .is_some()
+        // A slice domain has a logical, unsized subject. Authenticate its
+        // complete primitive clause without materializing that subject as
+        // executable storage. Its explicit shared range still owes the
+        // ordinary operator selection on the actual declared slice type.
+        if let Some((expression, _)) =
+            typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
         {
-            return Ok(());
+            let (_, argument) =
+                typed_trees::byte_predicates::byte_predicate_call(self.typed, expression)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("primitive byte domain lost its observer call"),
+                        )
+                    })?;
+            return self.complete_byte_observation_range(
+                id,
+                definition.symbol,
+                argument,
+                Some(definition.target_type),
+            );
         }
         let carrier = self.value_type(id, definition.target_type)?;
         let domain = crate::body::DomainInstance {
@@ -519,6 +671,47 @@ impl Program<'_> {
         };
         let mut clauses = Vec::with_capacity(predicates.len());
         for predicate in predicates {
+            if let Some((expression, _)) = typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(id, predicate.instance)?,
+            ) && expression == predicate.expression
+            {
+                let ValueType::Record(carrier, _, _) = plain else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain on non-byte storage"),
+                    ));
+                };
+                if !self.is_readable_byte_view(id, carrier)? {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain without its readable descriptor"),
+                    ));
+                }
+                let domains = crate::body::DomainSet::EMPTY
+                    .with(predicate.instance)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("primitive byte domain identity"),
+                        )
+                    })?;
+                // Retain the exact descriptor membership and its theory.
+                // The ordinary clause reader below also states the canonical
+                // byte predicate at this storage root, so every call and
+                // return must prove it from the actual source.
+                self.retain_byte_domains(
+                    id,
+                    carrier,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                )?;
+            }
             if !predicate.subject.is_valid() {
                 return Err(refuse(
                     id,
@@ -527,6 +720,7 @@ impl Program<'_> {
                 ));
             }
             let scope = ClauseScope {
+                owner: predicate.owner,
                 result: ResultTerm::Absent("result in a domain predicate"),
                 subject: Some(DataSubject {
                     value_type: plain,
@@ -538,7 +732,10 @@ impl Program<'_> {
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -553,18 +750,29 @@ impl Program<'_> {
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
-        // A byte view's domains are its primitive byte predicates, which
-        // the lowered form carries on the field's own type
-        // (`StructuralFieldType::PredicateByteSequence`) and the checker
-        // judges at every store from the bytes supplied, not as a clause of
-        // the owner (`byte_view_domains`).
-        if let ValueType::Record(row, _, _) = value_type
-            && matches!(
-                self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(_)
-            )
+        // The encoded PredicateByteSequence field type already owns proof
+        // of its primitive predicates at every store. Authenticate each full
+        // domain theory before avoiding a duplicate enclosing-record clause;
+        // ordinary or extra-theory domains keep the full clause path.
+        if let ValueType::Record(carrier, qualification, _) = value_type
+            && self.is_readable_byte_view(id, carrier)?
         {
-            return Ok(Vec::new());
+            let mut primitive = true;
+            for instance in qualification.domains.members() {
+                if typed_trees::byte_predicates::byte_slice_domain_predicate(
+                    self.typed,
+                    self.domain_theory(id, instance)?,
+                )
+                .is_none()
+                {
+                    primitive = false;
+                    break;
+                }
+            }
+            if primitive {
+                self.retain_byte_domains(id, carrier, qualification)?;
+                return Ok(Vec::new());
+            }
         }
         let Some(root) = crate::body::self_place() else {
             return Err(refuse(
@@ -581,9 +789,6 @@ impl Program<'_> {
             result: ResultTerm::Absent("result in a domain predicate"),
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
             subject: None,
         };
         Ok(self

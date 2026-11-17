@@ -70,8 +70,16 @@ domain-entry accounting, legacy target-family contracts, projected or dynamic
 call binding, and callable transition normalization. Typing does not create
 empty facts or reuse an old checker verdict.
 
-Source activation (`SeededTypingBase::activate_sources`) narrows a kept
-typing to the program in the selected sources. It reads no verdict: the
+Assignments retain their exact target and value. One declared-place query reads
+the state's unique binding and its selected fields or elements, so literals and
+named machine values retain the actual constructor application. An unresolved
+literal destination stays intact and records an unserved request on its owning
+declaration. The lowered reader independently reconstructs the destination,
+checks write authority and proves the replacement's obligations; constructor
+type metadata is not an assignment judgment.
+
+Source activation (`SeededTypingBase::activate_sources`) narrows a retained
+typing to the program written in the selected sources. It reads no verdict: the
 typed representation's own
 [declaration projection](../../representations/typed-trees/src/declaration_projection.rs)
 keeps the selected files' declarations and the declarations the compiler derived

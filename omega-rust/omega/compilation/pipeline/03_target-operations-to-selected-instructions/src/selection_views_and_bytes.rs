@@ -1850,6 +1850,7 @@ pub(crate) mod element_establishment {
                     return Err(invalid());
                 }
                 let length = match element_count {
+                    terminal_semantics::CollectionExtent::Parameter { .. } => return Err(invalid()),
                     terminal_semantics::CollectionExtent::Fixed(length) => {
                         constant(builder, row, 8, length)?
                     }

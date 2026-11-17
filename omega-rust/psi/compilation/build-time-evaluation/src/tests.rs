@@ -86,6 +86,169 @@ fn a_declared_constant_nobody_reads_requests_no_evaluation() {
 }
 
 #[test]
+fn callable_signatures_do_not_hide_pending_extent_work() {
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::{
+        TypedTrees,
+        callable_values::RuntimeCallableContract,
+        data::{DataDefinition, DataField, DataMember},
+        expression::ExpressionNode,
+        signature::{StateParameter, StateSignature},
+        types::{FixedArrayLength, TypeReferenceNode},
+    };
+
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = symbols.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([
+            (SymbolKind::Data, SymbolNameRef::Static("Holder")),
+            (SymbolKind::CallableContract, SymbolNameRef::Static("Outer")),
+            (SymbolKind::CallableContract, SymbolNameRef::Static("Inner")),
+        ]),
+    );
+    let owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+    let outer_owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+    let inner_owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 2);
+    let field = symbols
+        .insert_children(
+            owner,
+            [(SymbolKind::Field, SymbolNameRef::Static("callback"))],
+        )
+        .start();
+    let parameter = symbols
+        .insert_children(
+            outer_owner,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("callback"))],
+        )
+        .start();
+    let mut typed = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: declarations.handle_at(BuiltinTypeAtom::U8.ordinal() as u32),
+        name: "u8".into(),
+    });
+    let expression = typed.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(2),
+    ));
+    let extent = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::ConstExpression(expression));
+    let array = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: byte,
+            length: FixedArrayLength::Expression(extent),
+        });
+    let inner = typed
+        .runtime_callable_contracts
+        .insert(RuntimeCallableContract {
+            signature: StateSignature {
+                symbol: inner_owner,
+                return_type: array,
+                ..Default::default()
+            },
+            lexical_owner: owner,
+            ..Default::default()
+        });
+    let inner_type = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Callable { contract: inner });
+    let parameters = typed.state_parameters.insert_many([StateParameter {
+        symbol: parameter,
+        name: "callback".into(),
+        type_reference: inner_type,
+        ..Default::default()
+    }]);
+    let outer = typed
+        .runtime_callable_contracts
+        .insert(RuntimeCallableContract {
+            signature: StateSignature {
+                symbol: outer_owner,
+                parameters,
+                return_type: byte,
+                ..Default::default()
+            },
+            lexical_owner: owner,
+            ..Default::default()
+        });
+    let outer_type = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Callable { contract: outer });
+    let members = typed
+        .data_members
+        .insert_many([DataMember::Field(DataField {
+            symbol: field,
+            name: "callback".into(),
+            type_reference: outer_type,
+            ..Default::default()
+        })]);
+    typed.push_data_definition(DataDefinition {
+        symbol: owner,
+        name: "Holder".into(),
+        members,
+        ..Default::default()
+    });
+    let (_, pending) = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax_trees::SyntaxTrees::new(source::SourceId(17)),
+        source_context: BuildTimeSources::default(),
+    })
+    .unwrap()
+    .into_syntax_and_pre_check();
+    let before = typed.clone();
+    let errors = pending
+        .activate_sources(&typed)
+        .err()
+        .expect("unrecorded nested array-length work cannot leave the frontier");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("computed extent")
+                || error.message.contains("type written as an expression")),
+        "{errors:?}"
+    );
+    assert!(typed == before);
+
+    let mut deferred = typed.clone();
+    pending
+        .clone()
+        .evaluate(&mut deferred)
+        .expect("the declaration must retain its unevaluated requests");
+    // The pending return type belongs to the inner callable's signature.
+    let requests: Vec<_> = deferred
+        .deferred_refusals_of(inner_owner)
+        .map(|row| row.request)
+        .collect();
+    assert!(
+        requests.contains(&typed_trees::deferred_refusals::DeferredRequest::ArrayExtentEvaluation)
+    );
+    assert!(
+        requests
+            .contains(&typed_trees::deferred_refusals::DeferredRequest::TypeExpressionEvaluation)
+    );
+    assert!(pending.activate_sources(&deferred).is_ok());
+
+    let closed_array = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: byte,
+            length: FixedArrayLength::Literal(2),
+        });
+    typed
+        .runtime_callable_contracts
+        .get_mut(inner)
+        .signature
+        .return_type = closed_array;
+    pending
+        .evaluate(&mut typed)
+        .expect("a nested signature with literal array length needs no evaluation");
+}
+
+#[test]
 fn orphan_result_rows_do_not_make_a_source_frontier_empty() {
     let mut closure = typed_trees::TypedTrees::default();
     closure
@@ -122,21 +285,43 @@ fn orphan_result_rows_do_not_make_a_source_frontier_empty() {
 
 #[test]
 fn ordinary_contract_sources_reach_typed_preparation_without_being_evaluated() {
-    // These existing fixtures include an allowed branch computation and one
-    // whose arithmetic promise is unproved. Preparation retains each source;
-    // only the later checker judges its body.
+    // These retained controls include an allowed branch computation and one
+    // whose subtraction is unproved. Inline text keeps the test independent of
+    // the retired fixture tree. Preparation retains both for the later checker.
     for (path, text) in [
         (
             "tests/fixtures/pass/contracts/consistent_branches_quiet_exit/main.omg",
-            include_str!(
-                "../../../../../tests/fixtures/pass/contracts/consistent_branches_quiet_exit/main.omg"
-            ),
+            r#"// Both branches can run under `count >= 10`, so neither is reported and each
+// subtraction is proved from its own branch's facts.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 10u64)
+        false -> (count - 50u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick(12) == 2 && pick(80) == 30 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#,
         ),
         (
             "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction/main.omg",
-            include_str!(
-                "../../../../../tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction/main.omg"
-            ),
+            r#"// `count >= 10` and `count < 50` are consistent: failing to prove
+// `count >= 100` on that branch is not evidence the branch is impossible.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 100u64)
+        false -> (count - 10u64)
+    }
+}
+machine main() {}
+"#,
         ),
     ] {
         let mut sources = source::SourceMap::from_files(Vec::new());
@@ -851,6 +1036,9 @@ impl RequestedConstants for crate::PreCheckEvaluation {
         crate::evaluate_constant_initializers(
             program,
             terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[subject],
@@ -1435,6 +1623,9 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
     let accepted = terminal_production::AcceptedTerminalSource::judge(
         std::sync::Arc::new(source),
         terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[main],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1522,6 +1713,9 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         assert!(recorded.accounting.receipts().is_empty());
         let main = program.realized_machine_named("main").unwrap().symbol;
         let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[main],
             subjects: &[],
@@ -1654,6 +1848,9 @@ fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
     let error = crate::evaluate_constant_initializers(
         &mut program,
         terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1707,6 +1904,9 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
     let error = crate::evaluate_constant_initializers(
         &mut program,
         terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1831,6 +2031,8 @@ fn evaluate_const_arguments_of(
     let result = crate::evaluate_const_arguments(
         &mut program,
         terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -2083,6 +2285,8 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
                 .unwrap();
             let entry = program.realized_machine_named(root).unwrap().symbol;
             let request = terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],

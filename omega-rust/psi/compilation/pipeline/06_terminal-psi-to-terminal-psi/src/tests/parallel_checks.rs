@@ -1,4 +1,5 @@
 use super::*;
+use crate::ProofSearchActivity;
 use execution_admission::ExecutionBudget;
 
 fn cohort(valid: bool) -> typed_trees_to_terminal_psi::Elaboration {
@@ -34,7 +35,8 @@ fn parallel_checks_preserve_inference_proofs_and_refused_obligations() {
             let budget = ExecutionBudget::with_workers(workers).unwrap();
             budget.run(|| {
                 let mut elaboration = input.clone();
-                let result = discharge(&mut elaboration).unwrap();
+                let mut activity = ProofSearchActivity::default();
+                let result = discharge(&mut elaboration, &mut activity).unwrap();
                 let mut refused = 0;
                 for (machine, checked) in result.machines.iter() {
                     for (obligation, verdict) in checked.verdicts.iter() {
@@ -69,7 +71,8 @@ fn parallel_checks_preserve_inference_proofs_and_refused_obligations() {
 #[test]
 fn parallel_checks_select_the_lowest_structurally_failing_machine() {
     let mut settled = cohort(true);
-    discharge(&mut settled).unwrap();
+    let mut activity = ProofSearchActivity::default();
+    discharge(&mut settled, &mut activity).unwrap();
     let mut input = settled;
     // Both machines fail before proof search. Higher identities may finish
     // first, but cannot replace the refusal the sequential walk selected.
@@ -83,7 +86,10 @@ fn parallel_checks_select_the_lowest_structurally_failing_machine() {
     for workers in [1, 2, 4, 8] {
         let budget = ExecutionBudget::with_workers(workers).unwrap();
         for _ in 0..4 {
-            let error = budget.run(|| discharge(&mut input.clone())).unwrap_err();
+            let mut activity = ProofSearchActivity::default();
+            let error = budget
+                .run(|| discharge(&mut input.clone(), &mut activity))
+                .unwrap_err();
             assert_eq!(error.machine, id(2));
             assert_eq!(error.detail, "knowledge rows already present");
         }

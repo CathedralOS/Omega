@@ -102,7 +102,7 @@ pub(crate) mod content_wire {
         }
     }
 
-    struct ContentPlaceDeclaration;
+    pub(crate) struct ContentPlaceDeclaration;
     impl Field<StructuralPlaceDeclaration> for ContentPlaceDeclaration {
         fn write(
             writer: &mut Writer,
@@ -993,7 +993,10 @@ pub(crate) mod mathematical_certificate_wire {
         Ok(())
     }
 
-    fn decode_term(reader: &mut Reader<'_>, handles: &[TermHandle]) -> Result<Term, CodecError> {
+    pub(crate) fn decode_term(
+        reader: &mut Reader<'_>,
+        handles: &[TermHandle],
+    ) -> Result<Term, CodecError> {
         let child = |reader: &mut Reader<'_>| -> Result<TermHandle, CodecError> {
             let index = usize::try_from(reader.u32()?).map_err(|_| {
                 CodecError::MalformedMathematicalCertificate("term child index too large")
@@ -1158,7 +1161,7 @@ pub(crate) mod mathematical_certificate_wire {
         })
     }
 
-    fn decode_sort(reader: &mut Reader<'_>) -> Result<Sort, CodecError> {
+    pub(crate) fn decode_sort(reader: &mut Reader<'_>) -> Result<Sort, CodecError> {
         Ok(match reader.u8()? {
             1 => Sort::Type(decode_level(reader)?),
             2 => Sort::Strict(decode_level(reader)?),
@@ -1168,7 +1171,7 @@ pub(crate) mod mathematical_certificate_wire {
 
     /// Reads a prefix-order level with an explicit stack of unfinished
     /// constructors, so nesting is bounded only by the bytes present.
-    fn decode_level(reader: &mut Reader<'_>) -> Result<Level, CodecError> {
+    pub(crate) fn decode_level(reader: &mut Reader<'_>) -> Result<Level, CodecError> {
         enum Frame {
             Successor,
             MaximumLeft,
@@ -1329,7 +1332,7 @@ pub(crate) mod proof_declaration_wire {
         }
     }
 
-    struct BinderArgument;
+    pub(crate) struct BinderArgument;
     impl Field<PropositionBinderArgumentIdentity> for BinderArgument {
         fn write(
             writer: &mut Writer,
@@ -3387,6 +3390,10 @@ pub(crate) mod scalar_wire {
                 writer.u8(3);
                 encode_ieee_float_format(writer, format);
             }
+            ScalarType::Callable(contract) => {
+                writer.u8(4);
+                writer.u64(contract.get());
+            }
         }
         Ok(())
     }
@@ -3443,6 +3450,10 @@ pub(crate) mod scalar_wire {
             1 => ScalarType::Boolean,
             2 => ScalarType::Integer(decode_integer_type(reader)?),
             3 => ScalarType::IeeeFloat(decode_ieee_float_format(reader)?),
+            4 => ScalarType::Callable(
+                semantic_vocabulary::CallableContractId::new(reader.u64()?)
+                    .ok_or(CodecError::ZeroIdentity("CallableContractId"))?,
+            ),
             tag => return Err(CodecError::InvalidTag("ScalarType", tag)),
         })
     }

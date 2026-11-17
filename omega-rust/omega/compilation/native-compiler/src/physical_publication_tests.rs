@@ -10,7 +10,7 @@ use boundary_applications::{
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{
@@ -32,6 +32,7 @@ fn authorize_fixture(
 
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+    retain_native_stage_inputs: bool,
     inspect_target: impl FnOnce(
         &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     ),
@@ -64,15 +65,21 @@ fn emit_body<'execution>(
         }
     });
     inspect_target(&target);
-    let projection =
-        crate::pipeline::emit_target(target, &observation).unwrap_or_else(|error| match error {
-            crate::pipeline::BodyEmissionError::Physical(error) => {
-                panic!("constant emission: {error}")
-            }
-            crate::pipeline::BodyEmissionError::Object(errors) => {
-                panic!("constant object: {errors:?}")
-            }
-        });
+    let installations = crate::pipeline::bound_installations(&target, None, Vec::new()).unwrap();
+    let projection = crate::pipeline::emit_target(
+        target,
+        installations,
+        &observation,
+        retain_native_stage_inputs,
+    )
+    .unwrap_or_else(|error| match error {
+        crate::pipeline::BodyEmissionError::Physical(error) => {
+            panic!("constant emission: {error}")
+        }
+        crate::pipeline::BodyEmissionError::Object(errors) => {
+            panic!("constant object: {errors:?}")
+        }
+    });
     (projection, admitted.providers)
 }
 
@@ -148,14 +155,22 @@ fn check_published_plan(
 
     let optimized = target.optimized();
     let verify = |prepared: &PreparedExecutionPlan| {
+        let callable_roots = target
+            .lowering_facts()
+            .callable_invocation_roots(target.working_program_for_validation())
+            .unwrap();
         native_preparation::verify_execution_plan(
             prepared,
-            target.working_program_for_validation(),
-            optimized.plan(),
-            optimized.unit(),
-            target.boundary_origins(),
-            target.lowering_facts().installed_interrupts(),
-            target.lowering_facts().closed_module(),
+            native_preparation::ExecutionPlanReplayInputs {
+                target: target.working_program_for_validation(),
+                abstract_plan: optimized.plan(),
+                unit: optimized.unit(),
+                origins: target.boundary_origins(),
+                installed_interrupts: target.lowering_facts().installed_interrupts(),
+                closed_module: target.lowering_facts().closed_module(),
+                callable_roots: &callable_roots,
+                pre_physical: optimized.pre_physical_manifest().identity,
+            },
         )
     };
     let published = target.execution_plan();
@@ -163,9 +178,26 @@ fn check_published_plan(
 
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
-    let installations = crate::pipeline::bound_installations(target);
+    let authority = crate::pipeline::bound_installations(target, None, Vec::new()).unwrap();
+    let installations = authority.facts().as_ref().clone();
     let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
+    assert_eq!(
+        selected.plan().contracts.borrowed_storage_layouts,
+        published.plan().borrowed_storage_layouts
+    );
+    assert!(
+        std::ptr::eq(
+            selected
+                .plan()
+                .contracts
+                .execution()
+                .unwrap()
+                .callable_invocations(),
+            published.callable_invocations(),
+        ),
+        "selection shares preparation's actual query rows"
+    );
     assert!(
         selected
             .plan()
@@ -175,7 +207,99 @@ fn check_published_plan(
         "the entry was selected"
     );
 
-    let reseal = |plan| PreparedExecutionPlan::seal(plan, published.receipt().validator());
+    let reseal = |plan| {
+        PreparedExecutionPlan::seal(plan, published.receipt().validator())
+            .expect("the proposed plan still carries its prepared execution facts")
+    };
+    let mut missing_context = published.plan().clone();
+    missing_context.execution = None;
+    assert_eq!(
+        PreparedExecutionPlan::seal(missing_context, published.receipt().validator()).unwrap_err(),
+        "execution plan has no prepared callable facts"
+    );
+    let original_facts = published.execution_facts();
+    let mut changed_reach = original_facts.callable_invocations().clone();
+    let foreign_machine = MachineId::new(4096).unwrap();
+    assert!(
+        changed_reach
+            .reached_machines
+            .iter()
+            .all(|machine| *machine < foreign_machine)
+    );
+    changed_reach.reached_machines.push(foreign_machine);
+    let mut foreign_roots = original_facts.roots();
+    foreign_roots.pre_physical =
+        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+            b"foreign prephysical root",
+        );
+    for facts in [
+        target_operations::NativeExecutionFacts::seal(
+            original_facts.roots(),
+            Arc::new(changed_reach),
+            original_facts.entry_callable_invocations().to_vec(),
+        )
+        .unwrap(),
+        target_operations::NativeExecutionFacts::seal(
+            foreign_roots,
+            Arc::new(original_facts.callable_invocations().clone()),
+            original_facts.entry_callable_invocations().to_vec(),
+        )
+        .unwrap(),
+    ] {
+        let mut changed = published.plan().clone();
+        changed.execution = Some(facts);
+        let changed = reseal(changed);
+        assert!(changed.is_intact());
+        assert_ne!(changed.receipt().identity(), published.receipt().identity());
+        assert!(
+            matches!(
+                verify(&changed),
+                Err(PublishedPlanMismatch {
+                    machine: None,
+                    part: "prepared callable invocation facts differ from their source",
+                })
+            ),
+            "resealed query output and preparation roots need independent correspondence"
+        );
+    }
+    let mut changed_abi = published.plan().clone();
+    std::sync::Arc::make_mut(&mut changed_abi.function_abis)
+        .first_mut()
+        .expect("the prepared program has function ABI rows")
+        .machine = MachineId::new(4096).unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_abi)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "function ABI rows differ from the target's",
+            })
+        ),
+        "a coherently resealed foreign function ABI is refused by correspondence"
+    );
+    let mut changed_geometry = published.plan().clone();
+    changed_geometry.borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+            runtime_abi::NativeBorrowedStorageLayout::new(
+                StructuralTypeId::new(4096).unwrap(),
+                8,
+                8,
+                [],
+                [],
+                [],
+            ),
+        ])
+        .unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_geometry)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "borrowed storage geometry differs from the target's",
+            })
+        ),
+        "a coherently resealed foreign geometry roster is refused"
+    );
     let entry_function = |plan: &mut legalized_operations::LegalizedOperationPlan| {
         plan.scalar_functions
             .iter()
@@ -279,7 +403,7 @@ fn check_published_plan(
     let foreign = terminal_psi_to_abstract_operations::provider_admission::bind_installations(
         &foreign_cohort,
         None,
-        &[],
+        Vec::new(),
     );
     let error = select_instructions_for_plan(published, &foreign, &environment)
         .expect_err("a foreign interrupt cohort is refused");
@@ -472,11 +596,20 @@ fn checked_value_plan() -> effects::provider_plan::ProviderPlan {
 
 #[test]
 fn physical_publication_rejoins_emitted_object_and_receiver() {
-    check_publication(false);
-    check_publication(true);
+    for through_boundary in [false, true] {
+        let ordinary = check_publication(through_boundary, false);
+        let audited = check_publication(through_boundary, true);
+        assert_eq!(
+            ordinary, audited,
+            "retaining originals changes no artifact identity"
+        );
+    }
 }
 
-fn check_publication(through_boundary: bool) {
+fn check_publication(
+    through_boundary: bool,
+    retain_native_stage_inputs: bool,
+) -> native_artifact::NativeArtifactIdentity {
     use terminal_psi_to_abstract_operations::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
@@ -534,7 +667,57 @@ fn check_publication(through_boundary: bool) {
         &admission,
     )
     .expect("canonical constant admits without provider authority");
-    let (projection, providers) = emit_body(admitted, |target| {
+    let runtime_input = admitted.input.optimization_input().runtime_input();
+    assert!(std::ptr::eq(
+        runtime_input.module(),
+        artifact.semantic_module()
+    ));
+    assert!(std::ptr::eq(
+        runtime_input.boundary_machines(),
+        admitted.input.plan().boundary_machines.as_slice(),
+    ));
+    let runtime_host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(
+        admitted
+            .providers
+            .installation
+            .as_ref()
+            .map(|installation| installation.terminal_selection()),
+        Vec::new(),
+        runtime_input,
+        &selected,
+        &[],
+        native_artifact::NativeBindingRuntimeInputs {
+            bindings: &Default::default(),
+            calling: &[],
+        },
+    )
+    .expect("runtime capture borrows the same admitted boundary roster");
+    let capture_runtime = |artifact: &CanonicalTerminalArtifact, profile| {
+        native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
+            artifact.view(),
+            runtime_input,
+            bootstrap_entry,
+            profile,
+            runtime_host.clone(),
+        )
+    };
+    let runtime = capture_runtime(&artifact, profile).expect("exact runtime input is admitted");
+    assert_eq!(runtime.identity(), artifact.view().identity());
+    assert_eq!(runtime.entry(), bootstrap_entry);
+    assert_eq!(runtime.target(), profile);
+    assert_eq!(
+        capture_runtime(&artifact, target::TargetProfile::LinuxX64).unwrap_err(),
+        "runtime capture names another native artifact or target",
+    );
+    assert_eq!(
+        capture_runtime(&constant_artifact(!through_boundary), profile).unwrap_err(),
+        if runtime_host.installation().is_some() {
+            "callable runtime provisions name another artifact or absent entry"
+        } else {
+            "runtime capture names another native artifact or target"
+        },
+    );
+    let (projection, providers) = emit_body(admitted, retain_native_stage_inputs, |target| {
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {
             reject_changed_entry_literal(target, bootstrap_entry);
@@ -560,8 +743,22 @@ fn check_publication(through_boundary: bool) {
         },
     )
     .expect("publish actual emitted object");
-    image_emission::verify_retained_target_operations(&published.object)
-        .expect("independent target audit accepts the emitted object's retained source");
+    let target_audit = image_emission::verify_retained_target_operations(&published.object);
+    let audit = image_emission::verify_retained_fixed_frame(&published.object);
+    if retain_native_stage_inputs {
+        target_audit.expect("independent target audit accepts the retained stage 02 output");
+        audit.expect("explicitly retained originals admit the fixed-frame correspondence audit");
+    } else {
+        let error = target_audit.expect_err("default publication retains no stage 02 output");
+        assert!(
+            error
+                .to_string()
+                .contains("requires retained target operations"),
+            "{error}"
+        );
+        let error = audit.expect_err("default publication retains no original allocation graph");
+        assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
+    }
     let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
         profile.native_target(),
         artifact,
@@ -586,10 +783,12 @@ fn check_publication(through_boundary: bool) {
     native
         .validate()
         .expect("independent receiver replays emitted code");
+    let identity = native.identity();
     let mut parts = native.into_parts();
     parts.physical_evidence = None;
     assert!(
         native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
         "receiver must reject stripped complete physical evidence"
     );
+    identity
 }

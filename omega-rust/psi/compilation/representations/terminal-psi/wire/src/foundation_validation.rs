@@ -270,6 +270,105 @@ pub(crate) mod call_foundations {
         Ok(())
     }
 
+    pub(crate) fn validate_call_machine(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<(), CodecError> {
+        let OperationKind::CallMachine {
+            callee,
+            contract,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            ..
+        } = &operation.kind
+        else {
+            unreachable!("dispatched validate_call_machine")
+        };
+        let contract = module.callables.contract(*contract).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "machine call names an absent callable contract",
+            ),
+        )?;
+        let declaration = |value| {
+            let mut declarations = machine
+                .parameters
+                .iter()
+                .copied()
+                .chain(machine.block_parameters().copied())
+                .chain(
+                    machine
+                        .operations()
+                        .filter_map(|operation| operation.result.scalar()),
+                )
+                .filter(|declaration| declaration.id == value);
+            let declaration = declarations.next();
+            if declarations.next().is_some() {
+                None
+            } else {
+                declaration
+            }
+        };
+        if declaration(*callee).map(|value| value.scalar_type)
+            != Some(semantic_vocabulary::ScalarType::Callable(contract.id))
+        {
+            return malformed("machine call operand has no exact callable carrier declaration");
+        }
+        if !contract.result.matches_operation_result(&operation.result)
+            || arguments.len() != contract.scalar_parameters.len()
+            || erased_arguments.len() != contract.proof.erased_scalar_formals.len()
+            || erased_proof_arguments.len() != contract.proof.erased_proof_formals.len()
+            || structural_arguments.len() != contract.structural_parameters.len()
+            || requirement_obligations.len() != contract.proof.requires.len()
+        {
+            return malformed("machine call disagrees with its retained contract shape");
+        }
+        for (actual, formal) in arguments.iter().zip(&contract.scalar_parameters) {
+            if declaration(*actual).map(|value| value.scalar_type) != Some(formal.scalar_type) {
+                return malformed("machine call argument has no exact scalar carrier declaration");
+            }
+        }
+        for (actual, formal) in erased_arguments
+            .iter()
+            .zip(&contract.proof.erased_scalar_formals)
+        {
+            if actual.scalar_type() != formal.scalar_type {
+                return malformed("machine call erased argument changes its carrier");
+            }
+        }
+        if requirement_obligations
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != requirement_obligations.len()
+        {
+            return malformed("machine call repeats an entry obligation identity");
+        }
+        for transfer in claim_transfers {
+            if !contract.entry_claim_paths.iter().any(|path| {
+                path.argument_index == transfer.argument_index && path.path == transfer.path
+            }) {
+                return malformed("machine call claim transfer changes the retained owned path");
+            }
+        }
+        if let Some(result) = operation.result.structural() {
+            validate_structural_call_result_declaration(module, machine, operation, result)?;
+            validate_result_claim_shape(module, result, std::iter::empty())?;
+        }
+        validate_call_tail(
+            module,
+            machine,
+            structural_arguments,
+            &contract.structural_parameters,
+            claim_transfers,
+        )
+    }
+
     pub(crate) fn validate_call_dynamic(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -555,7 +654,7 @@ pub(crate) mod call_foundations {
             && module
                 .evidence_contract_lanes
                 .iter()
-                .all(|lane| lane.machine != callee.id)
+                .all(|lane| lane.owner != terminal_psi::EvidenceCallableOwner::Machine(callee.id))
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty()
@@ -707,6 +806,9 @@ pub(crate) mod call_foundations {
                 terminal_semantics::ResultClaimCatalogError::ReturnPathMismatch => {
                     "structural callee return disagrees with the caller's result claims"
                 }
+                terminal_semantics::ResultClaimCatalogError::TypedFrontierMismatch => {
+                    "structural call result omits or replaces its typed claim frontier"
+                }
             })
         })?;
         let caller_result_claims = actual_result
@@ -714,17 +816,22 @@ pub(crate) mod call_foundations {
             .iter()
             .map(|binding| binding.claim)
             .collect::<BTreeSet<_>>();
+        let declaration = module
+            .structural_type(actual_result.structural_type)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "structural call result type is absent",
+            ))?;
         let whole_root_claim =
             matches!(actual_result.claims.as_slice(), [binding] if binding.path.is_empty());
         if caller_result_claims.len() != actual_result.claims.len()
-            || match actual_result.multiplicity {
-                StructuralMultiplicity::Linear => !whole_root_claim,
-                StructuralMultiplicity::Affine => actual_result
+            || (declaration.owns_linear_claim && !whole_root_claim)
+            || (!declaration.owns_linear_claim
+                && actual_result
                     .claims
                     .iter()
-                    .any(|binding| binding.path.is_empty()),
-                StructuralMultiplicity::Unrestricted => !actual_result.claims.is_empty(),
-            }
+                    .any(|binding| binding.path.is_empty()))
+            || (actual_result.multiplicity == StructuralMultiplicity::Unrestricted
+                && !actual_result.claims.is_empty())
         {
             return malformed("structural call result claims disagree with its multiplicity");
         }
@@ -1342,7 +1449,7 @@ pub(crate) mod call_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -1699,6 +1806,37 @@ pub(crate) mod declaration_foundations {
                 }
                 validate_telescope(module, &storage.telescope)?;
             }
+            for row in &module.service_schemas {
+                module
+                    .service_schema(row.declaration, row.application)
+                    .map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "invalid canonical service schema",
+                        )
+                    })?;
+            }
+            for row in &module.program_entry_contracts {
+                if row.target.is_empty() {
+                    return malformed("entry contract has an empty target");
+                }
+                module.program_entry_contract(&row.target).map_err(|_| {
+                    CodecError::MalformedStructuralFoundation(
+                        "invalid canonical program entry contract",
+                    )
+                })?;
+            }
+            for row in &module.provider_selections {
+                if row.target.is_empty() {
+                    return malformed("selected provider has an empty target");
+                }
+                module
+                    .provider_selection(&row.target, row.schema_declaration, row.schema_application)
+                    .map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "invalid canonical provider selection",
+                        )
+                    })?;
+            }
             for request in &module.calling_policy_requests {
                 match &request.declaration {
                     Ok(identity)
@@ -1881,7 +2019,7 @@ pub(crate) mod declaration_foundations {
                         identity,
                         quotient_carrier: None,
                         owns_linear_claim: false,
-                        copyable: true,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
                         nominal_cleanup: None,
@@ -3004,7 +3142,7 @@ mod empty_elimination_foundations {
                     observed.path.push(match segment {
                         StructuralPathSegment::Case(case) => {
                             if !analysis.case_is_established(machine.id, position, &DescriptorCasePredicate {
-                                subject: observed.clone(),
+                                subject: observed.clone().into(),
                                 case: *case,
                             }) {
                                 return malformed("empty elimination has no current selected case at its source path");
@@ -3048,7 +3186,7 @@ mod empty_elimination_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -3298,7 +3436,7 @@ pub(crate) mod machine_foundations {
         validate_structural_path,
     };
     use crate::codec_error::{CodecError, malformed};
-    use crate::sections::semantic_module::structural_result_wire;
+    use crate::semantic_module::structural_result_wire;
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::Block;
     use terminal_psi::{
@@ -3745,7 +3883,7 @@ pub(crate) mod machine_foundations {
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -4914,7 +5052,7 @@ pub(crate) mod scalar_applications {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::sections::semantic_module::entry_tests::{identity_table, unit_machine};
+        use crate::semantic_module::entry_tests::{identity_table, unit_machine};
         use semantic_vocabulary::MachineId;
         use terminal_psi::{
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
@@ -5691,6 +5829,11 @@ pub(crate) mod scalar_observations {
                         ..
                     }
                     | OperationKind::CallDynamic {
+                        erased_arguments,
+                        crash_continuations,
+                        ..
+                    }
+                    | OperationKind::CallMachine {
                         erased_arguments,
                         crash_continuations,
                         ..
@@ -7694,7 +7837,8 @@ pub(crate) mod storage_foundations {
                 &contract.qualifications,
                 &contract.projected_qualifications,
                 result,
-            )
+            )?;
+            validate_byte_transfer_qualifications(module, machine, operation)
         }
 
         fn validate_transfer_domain_additions(
@@ -7735,6 +7879,19 @@ pub(crate) mod storage_foundations {
                 }
             }
             Ok(())
+        }
+
+        fn validate_byte_transfer_qualifications(
+            module: &TerminalModule,
+            machine: &TerminalMachine,
+            operation: &Operation,
+        ) -> Result<(), CodecError> {
+            match terminal_semantics::byte_transfer_qualifications_hold(module, machine, operation)
+            {
+                Ok(None | Some(true)) => Ok(()),
+                Ok(Some(false)) => malformed("value transfer does not establish its byte domains"),
+                Err(reason) => malformed(reason),
+            }
         }
 
         pub(crate) fn validate_structural_leaf_copy(
@@ -7866,7 +8023,7 @@ pub(crate) mod storage_foundations {
                     }
                 })?;
             }
-            Ok(())
+            validate_byte_transfer_qualifications(module, machine, operation)
         }
 
         fn trace_payload_producer_chain(machine: &TerminalMachine, failing: &Operation) {
@@ -8924,7 +9081,7 @@ pub(crate) mod storage_foundations {
                     shape,
                     quotient_carrier: None,
                     owns_linear_claim: false,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
@@ -9093,7 +9250,9 @@ pub(crate) mod structural_type_foundations {
     use crate::codec_error::{CodecError, malformed};
     use semantic_vocabulary::AuthoredFieldStorage;
     use semantic_vocabulary::StructuralTypeId;
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
+    use terminal_psi::{
+        StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, TerminalModule,
+    };
     use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
 
     macro_rules! extent {
@@ -9156,8 +9315,10 @@ pub(crate) mod structural_type_foundations {
     ) -> Result<(), CodecError> {
         terminal_semantics::validate_inline_carriers(module.structural_types, declaration)
             .map_err(|error| CodecError::MalformedStructuralFoundation(error.reason))?;
-        if declaration.copyable && declaration.owns_linear_claim {
-            return malformed("a copyable type cannot own a conserved linear claim");
+        if declaration.owns_linear_claim
+            && declaration.multiplicity != StructuralMultiplicity::Linear
+        {
+            return malformed("an intrinsic claim requires declared linear multiplicity");
         }
         if let Some(restriction) = &declaration.scalar_restriction {
             let StructuralTypeShape::PrimitiveScalar(carrier) = declaration.shape else {
@@ -9580,7 +9741,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9633,7 +9794,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9649,7 +9810,7 @@ pub(crate) mod structural_type_foundations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -9770,7 +9931,7 @@ pub(crate) mod target_layouts {
             };
             if matches!(storage, StructuralRecordStorage::TargetLayout(_))
                 || record.owns_linear_claim != schema.owns_linear_claim
-                || record.copyable != schema.copyable
+                || record.multiplicity != schema.multiplicity
             {
                 return malformed("layout schema differs from the semantic custody shape");
             }
@@ -11063,7 +11224,7 @@ use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalIdentityIndex;
 
 use self::call_foundations::{
-    validate_boundary_call, validate_call_dynamic, validate_call_structural,
+    validate_boundary_call, validate_call_dynamic, validate_call_machine, validate_call_structural,
     validate_call_structural_scalar, validate_call_unit, validate_port_write,
     validate_register_access,
 };
@@ -11152,6 +11313,198 @@ pub(crate) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
                 .operations()
                 .filter_map(|operation| operation.result.scalar_ref()),
         )
+}
+
+fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecError> {
+    use terminal_psi::{BoundaryMachineResult, StructuralTypeShape};
+    let check = |scalar| {
+        module
+            .callables
+            .validate_scalar_type(scalar)
+            .map_err(CodecError::MalformedStructuralFoundation)
+    };
+    let boundary_result = |result: &BoundaryMachineResult| {
+        if let BoundaryMachineResult::Scalar(result) = result {
+            check(result.scalar_type)?;
+        }
+        Ok::<(), CodecError>(())
+    };
+    let field = |field: &terminal_psi::StructuralFieldDeclaration| {
+        if let Some(scalar) = field
+            .field_type
+            .scalar_type()
+            .or_else(|| field.field_type.atomic_scalar_type())
+        {
+            check(scalar)?;
+        }
+        if let Some(stored) = field
+            .storage
+            .as_ref()
+            .and_then(|storage| storage.stored_scalar())
+        {
+            check(stored)?;
+        }
+        Ok::<(), CodecError>(())
+    };
+    for declaration in &module.structural_types {
+        if let Some(restriction) = &declaration.scalar_restriction
+            && let Some(scalar) = restriction
+                .scalar_type()
+                .or_else(|| restriction.atomic_scalar_type())
+        {
+            check(scalar)?;
+        }
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => check(*scalar)?,
+            StructuralTypeShape::Record { fields, .. } => {
+                for value in fields {
+                    field(value)?;
+                }
+            }
+            StructuralTypeShape::Sum { cases } => {
+                for value in cases.iter().flat_map(|case| &case.fields) {
+                    field(value)?;
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for value in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
+                    field(value)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    for machine in &module.machines {
+        for value in values(machine)
+            .chain(machine.result.scalar_ref())
+            .chain(&machine.contract.erased_scalar_formals)
+            .chain(
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.erased_scalar_formals),
+            )
+        {
+            check(value.scalar_type)?;
+        }
+    }
+    for contract in &module.declaration_contracts {
+        for formal in contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .chain(contract.result.scalar_ref())
+        {
+            check(formal.scalar_type)?;
+        }
+    }
+    for boundary in &module.boundary_machines {
+        for scalar in &boundary.scalar_parameters {
+            check(*scalar)?;
+        }
+        boundary_result(&boundary.result)?;
+    }
+    for slot in module
+        .dynamic_dispatch
+        .interfaces
+        .iter()
+        .flat_map(|interface| &interface.slots)
+    {
+        for scalar in &slot.scalar_parameters {
+            check(*scalar)?;
+        }
+        boundary_result(&slot.result)?;
+    }
+    for (ordinal, contract) in module.callables.contracts.iter().enumerate() {
+        if usize::try_from(contract.id.get() - 1).ok() != Some(ordinal)
+            || module
+                .identities
+                .text(contract.identity)
+                .is_none_or(str::is_empty)
+        {
+            return malformed(
+                "callable contract catalog has a stale coordinate or missing identity",
+            );
+        }
+        for value in contract
+            .scalar_parameters
+            .iter()
+            .chain(&contract.proof.erased_scalar_formals)
+            .chain(contract.proof_result.scalar_ref())
+        {
+            check(value.scalar_type)?;
+        }
+        boundary_result(&contract.result)?;
+    }
+    for (ordinal, row) in module.callables.machine_envelopes.iter().enumerate() {
+        if let Some(row) = row
+            && (usize::try_from(row.machine.get() - 1).ok() != Some(ordinal)
+                || module
+                    .machine(row.machine)
+                    .is_none_or(|machine| machine.declaration.is_none()))
+        {
+            return malformed("named callable envelope has no exact checked machine declaration");
+        }
+    }
+    let boundaries: std::collections::BTreeMap<_, _> = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary))
+        .collect();
+    for (ordinal, row) in module.callables.boundary_envelopes.iter().enumerate() {
+        let Some(row) = row else {
+            continue;
+        };
+        if usize::try_from(row.boundary.get() - 1).ok() != Some(ordinal) {
+            return malformed("boundary callable envelope has a stale catalog coordinate");
+        }
+        let Some(boundary) = boundaries.get(&row.boundary) else {
+            return malformed("boundary callable envelope has no exact boundary declaration");
+        };
+        let Some(declaration) = boundary.declaration.as_ref() else {
+            return malformed("boundary callable envelope has no checked source declaration");
+        };
+        let entries: Vec<_> = row
+            .envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service),
+                terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+            })
+            .collect();
+        let unconditional_termination = matches!(
+            &row.envelope.termination,
+            terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty()
+        );
+        if row.envelope.service_reach != boundary.published_service_ceiling
+            || entries != boundary.published_synchronous_entries
+            || row.envelope.suspends != declaration.source.published_may_suspend
+            || row.envelope.blocks != declaration.source.published_may_block
+            || unconditional_termination != boundary.unconditional_termination
+        {
+            return malformed("boundary callable envelope differs from its checked publication");
+        }
+    }
+    for boundary in boundaries.values() {
+        if boundary.declaration.is_some()
+            && module.callables.boundary_envelope(boundary.id).is_none()
+        {
+            return malformed("checked boundary declaration has no complete callable envelope");
+        }
+    }
+    for domain in &module.scalar_qualifications.domains {
+        check(domain.carrier)?;
+    }
+    for application in module.scalar_applications.declarations() {
+        if let Some(scalar) = application.scalar_type() {
+            check(scalar)?;
+        }
+    }
+    Ok(())
 }
 
 // Declaration identities keep the same full reference walk wherever the
@@ -11428,6 +11781,11 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
 }
 
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    validate_callable_scalar_types(module)?;
+    terminal_semantics::calls::callable_refinement::validate_descriptor_refinement_evidence(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_callable_contracts(module)?;
     terminal_semantics::nominal_cleanup::validate_selections(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
@@ -11474,15 +11832,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    let mut placed_coordinates = BTreeSet::new();
     for row in &module.access_view_inputs {
-        if !placed_coordinates.insert((
-            row.machine,
-            row.source_state_identity,
-            row.runtime_position,
-        )) {
-            return malformed("access-view inputs repeat one structural formal");
-        }
         access_view_input_parameter(module, row).map_err(CodecError::AccessViewInput)?;
     }
     validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
@@ -11599,6 +11949,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     storage_graph
         .validate_acyclic()
         .map_err(storage_graph_error)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(&module.structural_types)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
             validate_dynamic_reference_regions(module.structural_types.iter(), slot)
@@ -11885,6 +12237,12 @@ fn validate_reference_origin_path(
                         "storage interpretation cannot replace descriptor or atomic storage authority",
                     );
                 }
+                if let Some(scalar) = stored_scalar {
+                    module
+                        .callables
+                        .validate_scalar_type(*scalar)
+                        .map_err(CodecError::MalformedStructuralFoundation)?;
+                }
                 let Some(view) = representation_view_declaration(
                     module.structural_types.iter(),
                     *view,
@@ -12060,6 +12418,22 @@ fn validate_operation_foundation(
     previous: Option<&Operation>,
     scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
+    if let OperationKind::SelectMachine { descriptor } = operation.kind {
+        let selected = module.callables.descriptor(descriptor).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "machine selection has no retained descriptor",
+            ),
+        )?;
+        if operation.result.scalar().map(|result| result.scalar_type)
+            != Some(semantic_vocabulary::ScalarType::Callable(selected.contract))
+            || module.callables.contract(selected.contract).is_none()
+            || module.machine(selected.machine).is_none()
+        {
+            return malformed(
+                "machine selection changes its retained callable contract or named body",
+            );
+        }
+    }
     if operation.required_contract.is_some() && operation.module_invocation().is_none() {
         return malformed(
             "public requirement contract is attached to an operation that is not a module call",
@@ -12309,6 +12683,7 @@ fn validate_operation_foundation(
         }
         OperationKind::CallUnit { .. } => validate_call_unit(module, operation)?,
         OperationKind::CallDynamic { .. } => validate_call_dynamic(module, machine, operation)?,
+        OperationKind::CallMachine { .. } => validate_call_machine(module, machine, operation)?,
         OperationKind::CallStructuralScalar { .. } => {
             validate_call_structural_scalar(module, operation)?
         }
@@ -12953,7 +13328,9 @@ fn validate_structural_type_graph(
 ) -> Result<(), CodecError> {
     terminal_semantics::storage::type_graph::StorageTypeGraph::new(declarations)
         .and_then(|graph| graph.validate_acyclic())
-        .map_err(storage_graph_error)
+        .map_err(storage_graph_error)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(declarations)
+        .map_err(CodecError::MalformedStructuralFoundation)
 }
 
 #[test]
@@ -12967,7 +13344,7 @@ fn shared_storage_graph_preserves_codec_cycle_rejection() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         descriptor_cleanup: false,
         nominal_cleanup: None,
         scalar_restriction: None,

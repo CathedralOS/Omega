@@ -37,21 +37,27 @@ the dividend is nonnegative and the divisor positive
 (`quotient_at_most_dividend`): an order step between two values, also a
 provisional rule. A divisor fixed by a literal is a value with a literal
 definition here, so `value / 2 <= value` is this step.
+
+An exact remainder by a nonzero literal divisor (excluding signed `-1`) is
+zero when its dividend expands over exact add, subtract, multiply, widen and
+exact cast into a polynomial whose every coefficient is divisible by the
+divisor (`multiple_remainder_bound`), another provisional rule
+(`AcceptedProofRule::IntegerMultipleRemainder`).
 */
 
 use std::cmp::Ordering;
 
 use proof_admission::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerCastChainWitness,
-    PrimitiveJudgment, ProofRule, check_integer_affine_witness,
-    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
-    integer_affine_wrapping_evidence, map_integer_affine_bound,
+    PrimitiveJudgment, ProofRule, check_integer_affine_bound_conversion,
+    check_integer_affine_witness, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness, integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType,
 };
 
-use super::{Bound, Direction, ProofNode, Prover, Unproven, node};
+use super::{Bound, Direction, ProofNode, Prover, Unproven, node, primitive};
 
 /// The operand an endpoint chain can root at and the one it must land, for
 /// each operation the chain replays with exactly one step. A shift's root is
@@ -658,5 +664,173 @@ impl Prover<'_> {
             }
         }
         best
+    }
+
+    /// Zero bound on an exact remainder whose dividend is an exact polynomial
+    /// multiple of its literal divisor (`AcceptedProofRule::IntegerMultipleRemainder`).
+    pub(super) fn multiple_remainder_bound(
+        &mut self,
+        target: &ScalarTerm,
+        remainder_axiom: Option<usize>,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (scalar_type, dividend, divisor, upper_axiom) = match remainder_axiom {
+            Some(index) => match self.axioms.get(index)? {
+                Proposition::Equal(
+                    lhs,
+                    ScalarTerm::ExactIntegerRemainder {
+                        scalar_type,
+                        left,
+                        right,
+                    },
+                ) if lhs == target => (*scalar_type, left.as_ref(), right.as_ref(), index),
+                _ => return None,
+            },
+            None => match target {
+                ScalarTerm::ExactIntegerRemainder {
+                    scalar_type,
+                    left,
+                    right,
+                } => (*scalar_type, left.as_ref(), right.as_ref(), usize::MAX),
+                _ => return None,
+            },
+        };
+        let mut seen = vec![false; self.axioms.len()];
+        let mut definition_axioms = Vec::new();
+        if let Some(index) = remainder_axiom {
+            seen[index] = true;
+            definition_axioms.push(index);
+        }
+        if let ScalarTerm::Value { .. } = divisor
+            && let Some(index) = self.find_axiom_before(divisor, upper_axiom)
+            && matches!(
+                self.axioms.get(index),
+                Some(Proposition::Equal(_, ScalarTerm::Integer { .. }))
+            )
+            && !std::mem::replace(&mut seen[index], true)
+        {
+            definition_axioms.push(index);
+        }
+        let mut pending = vec![(dividend, upper_axiom)];
+        while let Some((term, limit)) = pending.pop() {
+            match term {
+                ScalarTerm::Value { .. } => {
+                    let Some(index) = self.find_axiom_before(term, limit) else {
+                        continue;
+                    };
+                    let Some(Proposition::Equal(_, rhs)) = self.axioms.get(index) else {
+                        continue;
+                    };
+                    let expandable = matches!(
+                        rhs,
+                        ScalarTerm::Value { .. }
+                            | ScalarTerm::Integer { .. }
+                            | ScalarTerm::IntegerWiden { .. }
+                            | ScalarTerm::IntegerExactCast { .. }
+                            | ScalarTerm::ExactIntegerAdd { .. }
+                            | ScalarTerm::ExactIntegerSubtract { .. }
+                            | ScalarTerm::ExactIntegerMultiply { .. }
+                    );
+                    if expandable && !std::mem::replace(&mut seen[index], true) {
+                        definition_axioms.push(index);
+                        pending.push((rhs, index));
+                    }
+                }
+                ScalarTerm::IntegerWiden { operand, .. }
+                | ScalarTerm::IntegerExactCast { operand, .. } => {
+                    pending.push((operand, limit));
+                }
+                ScalarTerm::ExactIntegerAdd { left, right, .. }
+                | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+                | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
+                    pending.push((left, limit));
+                    pending.push((right, limit));
+                }
+                _ => {}
+            }
+        }
+        definition_axioms.sort_unstable();
+        let literal_axioms = vec![None; definition_axioms.len()];
+        let witness = IntegerAffineWitness {
+            root: target.clone(),
+            target: target.clone(),
+            definition_axioms,
+            literal_axioms,
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let required = form.multiple_remainder_bounds()?.to_vec();
+        let root_bound = match required.as_slice() {
+            [] => primitive(Proposition::Truth, PrimitiveJudgment::Truth),
+            [single] => self.prove(single).ok()?,
+            many => {
+                let parts = many
+                    .iter()
+                    .map(|part| self.prove(part))
+                    .collect::<Result<Vec<_>, _>>()
+                    .ok()?;
+                node(
+                    Proposition::Conjunction(many.to_vec()),
+                    ProofRule::ConjunctionIntroduction(parts),
+                )
+            }
+        };
+        let zero_literal = scalar_type.zero();
+        let zero = ScalarTerm::integer(scalar_type, zero_literal).ok()?;
+        let conclusion = match direction {
+            Direction::Upper => Proposition::LessOrEqual(target.clone(), zero),
+            Direction::Lower => Proposition::LessOrEqual(zero, target.clone()),
+        };
+        check_integer_affine_bound_conversion(&form, &root_bound.conclusion, &conclusion).ok()?;
+        Some(Bound {
+            literal: zero_literal,
+            proof: node(
+                conclusion,
+                ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(root_bound),
+                    witness,
+                },
+            ),
+        })
+    }
+
+    pub(super) fn multiple_remainder(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let (remainder, zero, direction) = match goal {
+            Proposition::LessOrEqual(
+                remainder @ ScalarTerm::ExactIntegerRemainder { .. },
+                zero,
+            ) => (remainder, zero, Direction::Upper),
+            Proposition::LessOrEqual(
+                zero,
+                remainder @ ScalarTerm::ExactIntegerRemainder { .. },
+            ) => (remainder, zero, Direction::Lower),
+            _ => return None,
+        };
+        let integer = remainder.scalar_type().as_integer()?;
+        let expected_zero = ScalarTerm::integer(integer, integer.zero()).ok()?;
+        if zero != &expected_zero {
+            return None;
+        }
+        self.multiple_remainder_bound(remainder, None, direction)
+            .map(|bound| bound.proof)
+    }
+
+    fn find_axiom_before(&self, subject: &ScalarTerm, upper: usize) -> Option<usize> {
+        if let ScalarTerm::Value { id, .. } = subject
+            && let Some(Some(equation)) = self.definitions.get(*id)
+            && let Some(index) = self.facts[self.equations[*equation]].axiom
+            && index < upper
+            && matches!(self.axioms.get(index), Some(Proposition::Equal(lhs, _)) if lhs == subject)
+        {
+            return Some(index);
+        }
+        let end = upper.min(self.axioms.len());
+        self.axioms[..end]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(lhs, _) if lhs == subject => Some(index),
+                _ => None,
+            })
     }
 }

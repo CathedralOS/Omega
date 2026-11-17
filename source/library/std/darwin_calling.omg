@@ -192,7 +192,7 @@ requires stack <= 256
 public machine darwin_arm64_entry() -> BoundaryEntryPlan
 {
     let mut plan: BoundaryEntryPlan;
-    plan.call.convention = CallingConvention::Aapcs64;
+    plan.call.convention = CallingConvention::DarwinAapcs64;
     plan.call.stack_alignment = 16;
     plan.call.entry_control = EntryControl::CallReturn;
     plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };

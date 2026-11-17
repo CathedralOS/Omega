@@ -12,6 +12,21 @@ public data NumericBase [copy] {
     case Hexadecimal;
 }
 
+// The fixed-integer carrier an integer literal's suffix names. `None` is no
+// suffix; `Unknown` is a suffix that names no carrier, which typing rejects.
+public data IntegerSuffix [copy] {
+    case None;
+    case U8;
+    case U16;
+    case U32;
+    case U64;
+    case I8;
+    case I16;
+    case I32;
+    case I64;
+    case Unknown;
+}
+
 public data KeywordKind [copy] {
     case As;
     case CallingConvention;
@@ -106,10 +121,17 @@ public data Token [copy] {
 // not an exposed integer tag. Identifier remains the zero/default case.
 public data TokenKind [copy] {
     case Identifier;
+    // The lexer decodes an integer literal once: `magnitude` is its digits'
+    // value and `exact` whether that value fit in 64 bits; when it did not,
+    // `magnitude` is meaningless. Later stages read these instead of
+    // scanning the literal's bytes again.
     case Integer(
         base: NumericBase,
         empty_digits: bool,
-        has_suffix: bool
+        has_suffix: bool,
+        magnitude: u64 in Wrapping,
+        exact: bool,
+        suffix: IntegerSuffix
     );
     case Float(
         has_exponent: bool,

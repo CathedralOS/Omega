@@ -27,6 +27,7 @@ pub struct BuildProductQuery {
     pub occurrence: source::SourceSpan,
     pub path: Vec<u8>,
     pub slot: Option<Vec<u8>>,
+    pub selecting_machine: Option<source::SourceSpan>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,8 @@ pub enum BuildProductDescription {
     Entry(DescribedProductEntry),
     Schema(DescribedProductSchema),
     Provider(DescribedProductProvider),
+    Parameter(semantic_vocabulary::ParameterDescription),
+    Field(semantic_vocabulary::FieldInfoDescription),
 }
 
 pub(super) struct PendingQuery {
@@ -60,6 +63,7 @@ impl QueryArguments<'_> {
             && request.occurrence == call.occurrence
             && request.path == self.path
             && request.slot.as_deref() == self.slot
+            && request.selecting_machine == call.selecting_machine
     }
 }
 
@@ -115,6 +119,12 @@ impl TerminalBuildBindingHost {
             ) | (
                 TerminalBuildQueryOperation::Provider,
                 BuildProductDescription::Provider(_)
+            ) | (
+                TerminalBuildQueryOperation::Parameter,
+                BuildProductDescription::Parameter(_)
+            ) | (
+                TerminalBuildQueryOperation::Field,
+                BuildProductDescription::Field(_)
             )
         );
         if !role_matches {
@@ -126,6 +136,26 @@ impl TerminalBuildBindingHost {
             }
             BuildProductDescription::Schema(schema) => Some(schema.canonical_path.len()),
             BuildProductDescription::Provider(provider) => Some(provider.canonical_path.len()),
+            BuildProductDescription::Parameter(value) => [
+                value.requirement_identity.len(),
+                value.requirement_application.len(),
+                value.parameter_identity.len(),
+                value.qualified_type.len(),
+                value.source_revision.len(),
+            ]
+            .into_iter()
+            .try_fold(0usize, usize::checked_add),
+            BuildProductDescription::Field(value) => [
+                value.member_identity.len(),
+                value.case_identity.len(),
+                value.owner_identity.len(),
+                value.owner_application.len(),
+                value.name.len(),
+                value.qualified_type.len(),
+                value.source_revision.len(),
+            ]
+            .into_iter()
+            .try_fold(0usize, usize::checked_add),
         }
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or("Product description payload size overflowed")?;
@@ -150,7 +180,7 @@ impl TerminalBuildBindingHost {
         ) {
             return Ok(true);
         }
-        let request = self.query_arguments(call.action, effect)?;
+        let request = self.query_arguments(call, effect)?;
         let mut state = lock_state(&self.state).map_err(TerminalEffectRejection::new)?;
         if let Some(pending) = &state.query {
             if !request.matches(call, &pending.request) {
@@ -188,6 +218,7 @@ impl TerminalBuildBindingHost {
                 occurrence: call.occurrence,
                 path: copy(request.path)?,
                 slot: request.slot.map(copy).transpose()?,
+                selecting_machine: call.selecting_machine,
             }),
             answer: None,
             _request_storage: storage,
@@ -208,7 +239,7 @@ impl TerminalBuildBindingHost {
             return self.inspect_description(call.action, effect);
         }
         let refuse = TerminalEffectRejection::new;
-        let request = self.query_arguments(call.action, effect)?;
+        let request = self.query_arguments(call, effect)?;
         let TerminalEffect::BoundaryCall {
             result: terminal_psi::BoundaryMachineResult::Structural(result),
             ..
@@ -231,6 +262,12 @@ impl TerminalBuildBindingHost {
         let description = pending
             .answer
             .ok_or_else(|| refuse("Product query has no admitted answer"))?;
+        if matches!(
+            call.action,
+            TerminalBuildQueryOperation::Parameter | TerminalBuildQueryOperation::Field
+        ) {
+            return description_contents(call, result.structural_type, description);
+        }
         let identity = u64::MAX
             .checked_sub(
                 u64::try_from(state.descriptions.len())
@@ -253,7 +290,7 @@ impl TerminalBuildBindingHost {
 
     fn query_arguments<'effect>(
         &self,
-        action: TerminalBuildQueryOperation,
+        call: &'effect TerminalBuildQueryCall,
         effect: &'effect TerminalEffect,
     ) -> Result<QueryArguments<'effect>, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
@@ -266,6 +303,47 @@ impl TerminalBuildBindingHost {
         else {
             return Err(refuse("not a Product query effect"));
         };
+        if matches!(
+            call.action,
+            TerminalBuildQueryOperation::Parameter | TerminalBuildQueryOperation::Field
+        ) {
+            let selected = call
+                .request
+                .as_ref()
+                .ok_or_else(|| refuse("declaration query has no compiler-selected operand"))?;
+            selected
+                .validate_shape()
+                .map_err(TerminalEffectRejection::new)?;
+            let expected = if call.action == TerminalBuildQueryOperation::Parameter {
+                language_semantics::declaration_selection::BuildOperation::ParameterDescription
+            } else {
+                language_semantics::declaration_selection::BuildOperation::FieldDescription
+            };
+            if selected.operation != expected
+                || call.selecting_machine.is_none()
+                || call.result_shape.is_none()
+                || !arguments.is_empty()
+                || !structural_arguments.is_empty()
+                || !byte_sequence_arguments.is_empty()
+            {
+                return Err(refuse(
+                    "declaration query changed its selected role or argument roster",
+                ));
+            }
+            let [operand] = selected.operands.as_ref() else {
+                return Err(refuse("declaration query has no exact operand"));
+            };
+            return Ok(QueryArguments {
+                path: operand.path.as_bytes(),
+                slot: None,
+            });
+        }
+        if call.request.is_some() || call.selecting_machine.is_some() || call.result_shape.is_some()
+        {
+            return Err(refuse(
+                "value query carries another operation's designated operands",
+            ));
+        }
         if !arguments.is_empty()
             || structural_arguments.first() != self.product_facet.as_ref()
             || self.product_facet.is_none()
@@ -275,9 +353,12 @@ impl TerminalBuildBindingHost {
                 "product selection requires the compiler-issued Build.product facet",
             ));
         }
-        let arity = match action {
+        let arity = match call.action {
             TerminalBuildQueryOperation::Entry => 3,
             TerminalBuildQueryOperation::Schema | TerminalBuildQueryOperation::Provider => 2,
+            TerminalBuildQueryOperation::Parameter | TerminalBuildQueryOperation::Field => {
+                unreachable!("designated queries returned above")
+            }
             TerminalBuildQueryOperation::SchemaPath | TerminalBuildQueryOperation::ProviderPath => {
                 return Err(refuse("description inspection is not a source query"));
             }
@@ -354,4 +435,103 @@ impl TerminalBuildBindingHost {
         .map(TerminalEffectResult::ByteSequence)
         .map_err(|error| TerminalEffectRejection::new(format!("description path storage: {error}")))
     }
+}
+
+fn description_contents(
+    call: &TerminalBuildQueryCall,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    answer: BuildProductDescription,
+) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment as Path, IntegerType, IntegerValue, ScalarType,
+    };
+    use source_compiler::TerminalBuildValueShape;
+    use terminal_interpreter::{
+        TerminalAggregateValue, TerminalBoundaryStorageValue, TerminalScalarValue,
+        TerminalStorageContents,
+    };
+    let refuse = TerminalEffectRejection::new;
+    let bytes = |value: Vec<u8>| TerminalStorageContents::Bytes(Arc::from(value));
+    let word = |value: u64| TerminalStorageContents::Scalar {
+        value: TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is a supported carrier"),
+            value: IntegerValue::Unsigned(u128::from(value)),
+        },
+        stored_scalar: ScalarType::Integer(
+            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is a supported carrier"),
+        ),
+    };
+    let boolean = |value: bool| TerminalStorageContents::Scalar {
+        value: TerminalScalarValue::Boolean(value),
+        stored_scalar: ScalarType::Boolean,
+    };
+    let values = match answer {
+        BuildProductDescription::Parameter(value) => vec![
+            ("requirement_identity", bytes(value.requirement_identity)),
+            (
+                "requirement_application",
+                bytes(value.requirement_application),
+            ),
+            ("parameter_identity", bytes(value.parameter_identity)),
+            ("qualified_type", bytes(value.qualified_type)),
+            ("declaration_position", word(value.declaration_position)),
+            ("source_revision", bytes(value.source_revision)),
+        ],
+        BuildProductDescription::Field(value) => vec![
+            ("member_identity", bytes(value.member_identity)),
+            ("case_identity", bytes(value.case_identity)),
+            ("owner_identity", bytes(value.owner_identity)),
+            ("owner_application", bytes(value.owner_application)),
+            ("name", bytes(value.name)),
+            ("qualified_type", bytes(value.qualified_type)),
+            ("declaration_position", word(value.declaration_position)),
+            ("has_stable_number", boolean(value.has_stable_number)),
+            ("is_erased", boolean(value.is_erased)),
+            ("stable_number", word(value.stable_number)),
+            ("source_revision", bytes(value.source_revision)),
+        ],
+        _ => return Err(refuse("record query received another description role")),
+    };
+    let Some(TerminalBuildValueShape::Record { fields }) = call.result_shape.as_deref() else {
+        return Err(refuse("declaration query lost its checked record shape"));
+    };
+    if fields.len() != values.len() {
+        return Err(refuse("declaration query has another result field roster"));
+    }
+    let mut contents = Vec::with_capacity(fields.len());
+    let mut used = vec![false; values.len()];
+    for field in fields {
+        let mut matching = values
+            .iter()
+            .enumerate()
+            .filter(|(_, (name, _))| *name == field.name);
+        let (index, (_, value)) = matching
+            .next()
+            .ok_or_else(|| refuse("declaration query has an unknown result field"))?;
+        if matching.next().is_some() || std::mem::replace(&mut used[index], true) {
+            return Err(refuse("declaration query repeats a result field"));
+        }
+        let matches = match (field.shape.as_ref(), value) {
+            (TerminalBuildValueShape::Bytes, TerminalStorageContents::Bytes(_)) => true,
+            (
+                TerminalBuildValueShape::Scalar(expected),
+                TerminalStorageContents::Scalar { stored_scalar, .. },
+            ) => expected == stored_scalar,
+            _ => false,
+        };
+        if !matches {
+            return Err(refuse("declaration query changed its result field type"));
+        }
+        contents.push(TerminalBoundaryStorageValue {
+            path: vec![Path::Field(field.id)],
+            contents: value.clone(),
+        });
+    }
+    Ok(TerminalEffectResult::Aggregate(TerminalAggregateValue {
+        structural_type,
+        result_case: None,
+        fields: contents,
+    }))
 }

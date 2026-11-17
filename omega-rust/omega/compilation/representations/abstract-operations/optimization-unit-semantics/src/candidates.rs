@@ -2544,6 +2544,7 @@ pub(crate) mod dead_scalar_elimination {
                 }
                 O::StorageAddress { .. }
                 | O::SelectImplementation { .. }
+                | O::SelectMachine { .. }
                 | O::EstablishPrimitiveLocal { .. }
                 | O::PrimitiveLocalStore { .. }
                 | abstract_operations::primitive_storage_observation_pattern!(..)
@@ -9606,7 +9607,9 @@ use semantics::{classify, evaluate as evaluate_semantics};
             scalar_value_definition(function, value).and_then(|definition| {
                 match definition.scalar_type {
                     ScalarType::Integer(integer) => Some(integer),
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
+                        None
+                    }
                 }
             })
         }
@@ -10411,6 +10414,7 @@ mod value_operand_rewrites {
             | O::GlobalDescriptorTable { .. }
             | O::PortWrite { .. }
             | O::SelectImplementation { .. }
+            | O::SelectMachine { .. }
             | abstract_operations::constant_value_triple_pattern!(..)
             | O::StorageAddress { .. }
             | abstract_operations::primitive_storage_observation_pattern!(..)

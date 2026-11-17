@@ -139,9 +139,11 @@ The requested root source entry, scoped Build execution, generated-source custod
 ordinary trust settlement, and requested compiler observations remain intact.
 Reporting uses the retained checked root; it does not run Build again.
 
-Checking without a lock is allowed but creates no accepted state or
-native-compiler authority. Malformed and older locks are rejected, not treated
-as missing. Full-package discovery and bound review happen only in an explicit
+Checking and native compilation without a lock are allowed, including
+`omega run`, but create no accepted state and supply no accepted bindings,
+restricted-build grants or root terminal permissions
+(`admit_accepted_contexts` passes no terminal permissions when there is no
+lock). Malformed and older locks are rejected, not treated as missing. Full-package discovery and bound review happen only in an explicit
 review, acceptance or update operation.
 
 Candidate checking runs the scoped build evaluator, so it has side effects:

@@ -15,9 +15,10 @@
 //!   `reflect::callable(..)` queries produce, matched on declaration,
 //!   callable application and source revision together, so a route names
 //!   exactly one declaration of this program;
-//! - field observation demands, reader or writer rules and required reach
-//!   have no consumer yet, so a plan with any of them is left unjudged
-//!   rather than recorded without them.
+//! - reader and writer rules stay attached for the canonical operation
+//!   checks against the actual function and borrowed storage;
+//! - field observation demands and required reach remain unjudged until
+//!   the backing and lifecycle checks can establish them.
 //!
 //! A plan this pass cannot judge is recorded as
 //! `AccessPlanJudgment::Unjudged` with the reason: every use that needs the
@@ -195,16 +196,8 @@ fn evaluate_domain(
         super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
-    for (name, rows) in [
-        ("field_count", normalized.observations.len()),
-        ("reader_count", normalized.readers.len()),
-        ("writer_count", normalized.writers.len()),
-    ] {
-        if rows != 0 {
-            return Err(format!(
-                "no product route yet: an access plan with a nonzero `{name}`"
-            ));
-        }
+    if !normalized.observations.is_empty() {
+        return Err("no product route yet: an access plan with a nonzero `field_count`".into());
     }
     if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());

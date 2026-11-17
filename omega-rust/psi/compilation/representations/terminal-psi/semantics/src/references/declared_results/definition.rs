@@ -242,7 +242,7 @@ impl TypeIdentityPackageOwnerVisitor for DeclaredTypeWalk<'_> {
         if self.metadata_depth == 0
             && matches!(
                 form,
-                TypeForm::Nominal | TypeForm::Named | TypeForm::Generic | TypeForm::DynamicTrait
+                TypeForm::Nominal | TypeForm::Named | TypeForm::Generic
             )
         {
             let tip = crate::runtime_structural_path_tip(
@@ -284,7 +284,7 @@ impl TypeIdentityPackageOwnerVisitor for DeclaredTypeWalk<'_> {
         if self
             .stack
             .iter()
-            .any(|(form, _)| matches!(form, TypeForm::Generic | TypeForm::DynamicTrait))
+            .any(|(form, _)| matches!(form, TypeForm::Generic))
         {
             return Err(TypeIdentityVisitError::Unadmitted(
                 Unadmitted::ApplicationScope,
@@ -337,7 +337,7 @@ mod tests {
             shape,
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             nominal_cleanup: None,

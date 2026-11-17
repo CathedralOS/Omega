@@ -38,11 +38,13 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::RepresentationView { .. }
+            | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
+            | ExpressionKind::Zero
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. }

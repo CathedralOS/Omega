@@ -15,6 +15,10 @@ pub use provider_admission::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    Publication {
+        machine: MachineId,
+        reason: String,
+    },
     /// The target operations lowered, but the execution plan could not be
     /// prepared from them: a required fact, type or installation is missing.
     Preparation(Box<native_preparation::TargetOperationAuditError>),

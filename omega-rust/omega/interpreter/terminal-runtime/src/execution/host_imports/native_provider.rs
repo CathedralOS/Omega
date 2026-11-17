@@ -853,9 +853,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
                 };
                 Ok(TerminalEffectResult::Scalar(value))
             }
-            ResultCodec::Record(codec) => Ok(TerminalEffectResult::ScalarAggregate(
-                codec.aggregate(&returned)?,
-            )),
+            ResultCodec::Record(codec) => {
+                Ok(TerminalEffectResult::Aggregate(codec.aggregate(&returned)?))
+            }
             ResultCodec::Reference { referent, access } => Ok(
                 TerminalEffectResult::CapturedReference(self.references.returned_reference(
                     &self.native,

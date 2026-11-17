@@ -10,7 +10,7 @@ terminates by (index, bytes.len) -> Nat::BoundedDistance
 }
 
 machine count(index: u32, limit: u32) -> u32
-terminates by (index, limit)
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     transition index < 4096 && index < limit {
         true -> count(index + 1, limit)

@@ -1,0 +1,59 @@
+{
+  "manifestVersion": 3,
+  "name": "Omega",
+  "namespace": "Omega",
+  "files": [
+    "components/Button/README.md",
+    "components/CodeBlock/README.md",
+    "components/PlaceGrid/README.md",
+    "components/Status/README.md",
+    "components/Tile/README.md",
+    "components/bundle.css",
+    "components/bundle.js",
+    "components/index.d.ts",
+    "fonts/OmegaSerif-Light.woff2",
+    "fonts/OmegaSerif-Medium.woff2",
+    "fonts/OmegaSerif-Regular.woff2",
+    "tokens.css"
+  ],
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18",
+      "global": "React"
+    },
+    {
+      "name": "react-dom",
+      "version": "18",
+      "global": "ReactDOM"
+    }
+  ],
+  "components": [
+    {
+      "name": "Button",
+      "group": "Actions",
+      "summary": "A button for one action, in three weights that follow the Psi and Omega shape rule."
+    },
+    {
+      "name": "Status",
+      "group": "Status",
+      "summary": "One result, shown as an arch-topped pip with a word beside it: checked, trap or open."
+    },
+    {
+      "name": "Tile",
+      "group": "Layout",
+      "summary": "A square-cornered block that holds one idea, drawn in outline for target-neutral things and solid for realized ones."
+    },
+    {
+      "name": "CodeBlock",
+      "group": "Content",
+      "summary": "Code or a command on surface, under an ink rule across the top, set in code."
+    },
+    {
+      "name": "PlaceGrid",
+      "group": "Evidence",
+      "summary": "One fact across the nine places, as a 3×3 grid of results in place order, with a count beneath it."
+    }
+  ],
+  "assetGroups": []
+}

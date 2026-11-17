@@ -486,6 +486,11 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         .unwrap();
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let callable_invocations = crate::PreparedCallableInvocations::new(
+        &unit,
+        &terminal_semantics::callable_values::CallableInvocationRoots::new(),
+    )
+    .unwrap();
     let evidence = crate::PreparationEvidence {
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
@@ -502,8 +507,12 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &target,
         evidence,
         origins,
+        &callable_invocations,
         &interrupts,
         fixture_types(),
+        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+            b"standalone native-preparation fixture",
+        ),
     )
     .unwrap();
     // The selector-free helper has a representable operand. Only separately
@@ -534,8 +543,12 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &target,
         evidence,
         origins,
+        &callable_invocations,
         &interrupts,
         fixture_types(),
+        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+            b"standalone native-preparation fixture",
+        ),
     )
     .expect_err("operand geometry cannot invent an admitted helper association");
     assert!(
@@ -1850,7 +1863,7 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         field.field_type = StructuralFieldType::Scalar(scalar);
         let path = vec![StructuralPathSegment::Field(field.identity)];
         let mut element = reference_type(1, names.intern("Element"), ty(1));
-        element.copyable = true;
+        element.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
         element.shape = StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![sibling, field],
@@ -1941,6 +1954,9 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
                     )),
                     ScalarType::IeeeFloat(format) => {
                         read!(TargetScalarExpression::IeeeFloatElementViewRead, format)
+                    }
+                    ScalarType::Callable(_) => {
+                        unreachable!("the test inputs contain only numbers and booleans")
                     }
                 };
                 TargetUnitOperation::ScalarDefinition {
@@ -3286,7 +3302,7 @@ fn sum_inside_record() -> String {
         id: ty(2),
         identity: names.intern("Outer"),
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -3695,6 +3711,17 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let callable_program =
+        optimization_unit_semantics::callable_values::optimized_callable_values(&unit)
+            .unwrap_or_else(|reason| panic!("{name}: callable projection {reason}"));
+    assert!(
+        callable_program
+            .bodies
+            .iter()
+            .all(|(_, body)| body.invocations.is_empty()),
+        "{name}: the sum-layout fixture has no call occurrences"
+    );
+    let callable_roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
     let prepared = crate::legalization::legalize_target_operations(
         &target,
         plan,
@@ -3705,6 +3732,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             target_context: None,
             module: &module,
         },
+        &callable_roots,
         &interrupts,
         fixture_types(),
     )
@@ -3717,7 +3745,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         &provider_admission::installed_interrupt_helpers::bind_installations(
             &interrupts,
             None,
-            &[],
+            Vec::new(),
         ),
         &environment,
     )
@@ -3870,6 +3898,7 @@ fn plan(
         structural_types: types.into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        callables: Default::default(),
         dynamic_dispatch: Default::default(),
         identities: names.build(),
         functions: vec![function],
@@ -3989,6 +4018,7 @@ fn target_plan(
         })
         .collect();
     TargetOperationPlan {
+        publication: crate::capture_source_publication(plan).unwrap(),
         psi: plan.psi,
         target: HOST(),
         profile: None,
@@ -4021,7 +4051,7 @@ fn target_plan(
             },
         }],
         native_callback_arguments: Vec::new(),
-        borrowed_storage_layouts: Vec::new(),
+        borrowed_storage_layouts: Default::default(),
     }
 }
 
@@ -4156,7 +4186,7 @@ fn sum_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4192,7 +4222,7 @@ fn reference_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4343,6 +4373,132 @@ fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type()
     );
 }
 
+#[test]
+fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
+    use semantic_vocabulary::{BoundaryMachineId, QualifiedScalarType, ScalarQualificationSetId};
+    use target_operations::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
+        IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain, NearestIeeeFloatArithmeticRealization,
+        TargetUnitScalarHomeRequirement,
+    };
+    use terminal_psi::{
+        BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+        NominalDeclarationIdentity,
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let identity = names.intern("untrusted qualified numeric declaration");
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let declaration = BoundaryMachineDeclaration {
+        id: boundary,
+        declaration: None,
+        numeric_intrinsic: None,
+        role: BoundaryDeclarationRole::Callable,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+        unconditional_termination: true,
+        identity,
+        owner: NominalDeclarationIdentity::new(identity),
+        attachment: None,
+        parameter_order: vec![],
+        scalar_parameters: vec![],
+        crash_routes: vec![],
+        structural_parameters: vec![],
+        result: BoundaryMachineResult::Scalar(QualifiedScalarType {
+            scalar_type: scalar,
+            qualifications: ScalarQualificationSetId::new(1),
+        }),
+        result_reference_regions: vec![],
+        result_lifetimes: Some(vec![]),
+        requires: vec![],
+        normal_qualifications: vec![],
+        scalar_domain_requirements: vec![],
+        scalar_requires: vec![],
+        scalar_ensures: vec![],
+        reference_outputs: vec![],
+        program_local_root_introductions: vec![],
+        content_guarantees: vec![],
+        fixed_service_reach: vec![],
+        service_reach_is_installation_bound: false,
+        owning_service: None,
+        published_service_ceiling: vec![],
+        published_synchronous_entries: vec![],
+    };
+    let plan = plan(
+        names,
+        vec![],
+        function_with_body(
+            vec![],
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: vec![],
+                }],
+            )],
+        ),
+    );
+    let mut target = target_plan(&plan, vec![block(1, vec![], return_unit(1))]);
+    // An unrelated qualified foreign declaration is not a numeric demand.
+    crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+        &target,
+        std::slice::from_ref(&declaration),
+        None,
+    )
+    .unwrap();
+    let realization = NearestIeeeFloatArithmeticRealization {
+        operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::I32,
+            domain: IeeeFloatToIntegerDomain::Saturating,
+        },
+        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
+        x86_scalar_fma: None,
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(target_operations::TargetInstruction {
+            source: None,
+            kind: TargetUnitOperation::NearestIeeeFloatArithmetic {
+                psi_operation: op(1),
+                boundary,
+                execution: BoundaryExecutionBinding::CompilerBuiltin(
+                    CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: realization.operation,
+                        format: realization.format,
+                    },
+                ),
+                realization,
+                result_home: TargetUnitScalarHomeRequirement {
+                    defining_operation: op(1),
+                    source_value: ValueId::new(1).unwrap(),
+                    scalar_type: scalar,
+                    shape: crate::legalization::scalar_graph_input::scalar_shape(scalar).unwrap(),
+                },
+                arguments: vec![],
+            },
+        });
+    assert!(
+        crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+            &target,
+            std::slice::from_ref(&declaration),
+            None
+        )
+        .is_err()
+    );
+    let module = TerminalModule {
+        boundary_machines: vec![declaration.clone()],
+        ..TerminalModule::declarations()
+    };
+    assert!(
+        crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+            &target,
+            std::slice::from_ref(&declaration),
+            Some(&module)
+        )
+        .is_err()
+    );
+}
+
 /// The types the fixtures' module retains: every integer width these
 /// hand-built plans use, closed the way preparation closes an accepted
 /// module's types.
@@ -4385,7 +4541,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,

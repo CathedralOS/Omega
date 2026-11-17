@@ -46,5 +46,6 @@ pub(crate) const fn calling_policy_tag(policy: PackageReviewBoundaryCallingPolic
         PackageReviewBoundaryCallingPolicy::Aapcs64 => 2,
         PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64 => 3,
         PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64 => 4,
+        PackageReviewBoundaryCallingPolicy::DarwinAapcs64 => 5,
     }
 }

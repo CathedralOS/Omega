@@ -181,7 +181,7 @@ machine Main::main(main: &mut Main) reaches
         transition main.copied == 64 { true -> pace(main, window) _ -> bad(main, window) }
     }
     machine pace(main: &mut Main, window: Window) {
-        Clock::sleep(25);
+        block Clock::sleep(25);
         transition { _ -> pump_init(main, window) }
     }
     // --- pump: drain queued messages so the titlebar responds (drag, X) ---

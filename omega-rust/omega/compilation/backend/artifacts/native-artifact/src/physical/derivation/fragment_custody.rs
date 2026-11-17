@@ -52,7 +52,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         return Err("owned module cleanup cannot carry normalized foreign fragment custody");
     }
     let plan = publication.relocation_free_object();
-    let selected = publication.selected_plan();
+    let selected = publication.physical_program();
     let mut functions = selected
         .functions
         .iter()
@@ -649,6 +649,7 @@ fn fragment_scalar_result_normalization_kind(
         return Some(Kind::CopyI64);
     }
     match scalar_type {
+        ScalarType::Callable(_) => None,
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(Kind::Float32ToBits),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(Kind::Float64ToBits),
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),

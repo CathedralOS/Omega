@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+bound-installations = { path = "../backend/runtime/bound-installations" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 task-plans = { path = "../backend/runtime/task-plans" }
 component-description = { path = "../backend/artifacts/component-description" }
@@ -12,6 +13,7 @@ effects = { path = "../backend/plans/effects" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
 abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
 target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
+selected-instruction-analyses = { path = "../representations/selected-instructions/analyses" }
 selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
 selected-instructions-to-register-homes = { path = "../pipeline/05_selected-instructions-to-register-homes" }
 register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
@@ -25,6 +27,8 @@ boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 image-emission = { path = "../backend/images/image-emission" }
 machine-code = { path = "../representations/machine-code" }
+post-allocation-machine = { path = "../representations/post-allocation-machine" }
+register-homes = { path = "../representations/register-homes" }
 machine-emission = { path = "../backend/machine-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
@@ -34,10 +38,10 @@ target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 
 [dev-dependencies]
-bound-installations = { path = "../backend/runtime/bound-installations" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 native-preparation = { path = "../pipeline/02_abstract-operations-to-target-operations/native-preparation" }

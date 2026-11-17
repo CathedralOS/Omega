@@ -289,37 +289,14 @@ impl PreparedInstalledInterruptHelpers {
 pub fn bind_installations(
     cohort: &AdmittedInstalledInterruptCohort,
     entry_execution: Option<&crate::AdmittedInstalledEntryExecution>,
-    stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
+    stack_requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
 ) -> bound_installations::BoundInstallations {
     use bound_installations as bound;
     let prepared = PreparedHelperCohort::new(cohort);
     let installations = cohort
         .scopes()
         .iter()
-        .map(|scope| bound::BoundInterruptInstallation {
-            operation: scope.operation(),
-            arguments: scope.arguments().clone(),
-            table_type: scope.table_type(),
-            acknowledgement_application: scope.acknowledgement_application(),
-            fatal_entries: scope
-                .fatal_entries()
-                .iter()
-                .map(|fatal| bound::BoundFatalInterruptEntry {
-                    application: fatal.application(),
-                    gate_byte_offset: fatal.gate_byte_offset(),
-                    machine: fatal.machine(),
-                })
-                .collect(),
-            context_anchor: scope.context_anchor().map(|anchor| {
-                bound::BoundInterruptContextAnchor {
-                    application: anchor.application(),
-                    function: anchor.function(),
-                    gate_byte_offset: anchor.gate_byte_offset(),
-                    table_bytes: anchor.table_bytes(),
-                }
-            }),
-            completion: scope.completion(),
-        })
+        .map(|scope| std::sync::Arc::clone(scope.shared_facts()))
         .collect();
     let entries = cohort
         .entries()
@@ -337,12 +314,7 @@ pub fn bind_installations(
                         .cloned()
                 },
             ),
-            callback: bound::BoundCallbackEntry {
-                psi: entry.entry().psi(),
-                target: entry.entry().target(),
-                machine: entry.entry().machine(),
-                inbound: entry.entry().inbound().clone(),
-            },
+            callback: std::sync::Arc::clone(entry.entry().shared_contract()),
         })
         .collect();
     let helpers = prepared
@@ -367,6 +339,6 @@ pub fn bind_installations(
                 machine: callback.machine(),
             }
         }),
-        stack_requirements: stack_requirements.to_vec(),
+        stack_requirements,
     }
 }

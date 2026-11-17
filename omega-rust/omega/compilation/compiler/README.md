@@ -34,12 +34,11 @@ callbacks go into one shared list of Terminal entries.
 The crate-internal `produce_products` goes from checked source and selected
 targets to Terminal Psi when needed, then to the requested outputs. It is not
 a public way to compile an existing Terminal artifact; that source-free route is
-[`native_compiler::prepare`](../native-compiler/src/preparation.rs), then
-scalar completion, then
-[`native_compiler::compile`](../native-compiler/src/compile.rs). Preparation
-keeps the Terminal artifact and explicit realization inputs; compilation
-consumes that work once its scalars are complete. Neither calls an interpreter
-or reopens source.
+`build_settings::scalar_completion::complete_native`, which evaluates the
+scalar values the native code reads, then one call to
+[`native_compiler::compile`](../native-compiler/src/compile.rs) with those
+values in its request. Native compilation never calls an interpreter or
+reopens source.
 
 `cargo run -p compiler --example terminal_sharing` compiles two native targets
 this way and checks real production counts and shared storage; it runs no

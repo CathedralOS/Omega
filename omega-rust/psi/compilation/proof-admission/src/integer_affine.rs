@@ -374,6 +374,9 @@ mod bound_mapping {
         root_bound: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), IntegerAffineBoundConversionError> {
+        if let Some(required) = form.multiple_remainder_bounds() {
+            return super::remainder::check_multiple_bound(form, required, root_bound, conclusion);
+        }
         let expected = map_integer_affine_bound(form, root_bound);
         if expected
             .as_ref()
@@ -417,6 +420,7 @@ mod bound_mapping {
         Remainder,
         RemainderWithinDividend,
         QuotientAtMostDividend,
+        MultipleRemainder,
         CorrelatedAdd,
         CorrelatedSubtract,
         CorrelatedMultiply,
@@ -436,6 +440,7 @@ mod bound_mapping {
             [CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }] => {
                 BoundRoute::QuotientAtMostDividend
             }
+            [CheckedIntegerEndpointStep::MultipleRemainder { .. }] => BoundRoute::MultipleRemainder,
             [CheckedIntegerEndpointStep::CorrelatedAdd { .. }] => BoundRoute::CorrelatedAdd,
             [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
             | [CheckedIntegerEndpointStep::CorrelatedSubtractUpper]
@@ -553,9 +558,6 @@ mod bound_mapping {
                 CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
                     Some(if current_is_lower { 0 } else { *mask })
                 }
-                CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
-                    Some(if current_is_lower { 0 } else { *upper })
-                }
                 CheckedIntegerEndpointStep::BitwiseOrLiteralImage(literal) => {
                     Some(if current_is_lower {
                         mapped
@@ -563,16 +565,6 @@ mod bound_mapping {
                         -1
                     } else {
                         bitwise_or_image_maximum(mapped, *literal)
-                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
-                    })
-                }
-                CheckedIntegerEndpointStep::BitwiseOrBoundedImage { upper, .. } => {
-                    Some(if current_is_lower {
-                        mapped
-                    } else if mapped < 0 {
-                        -1
-                    } else {
-                        bitwise_or_image_maximum(mapped, *upper)
                             .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
                     })
                 }
@@ -605,6 +597,7 @@ mod bound_mapping {
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
                 | CheckedIntegerEndpointStep::RemainderWithinDividend { .. }
                 | CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }
+                | CheckedIntegerEndpointStep::MultipleRemainder { .. }
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                     return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
@@ -631,6 +624,9 @@ mod bound_mapping {
             }
             BoundRoute::QuotientAtMostDividend => {
                 return super::remainder::map_quotient_relation(form, root_bound);
+            }
+            BoundRoute::MultipleRemainder => {
+                return super::remainder::map_multiple_bound(form, root_bound);
             }
             BoundRoute::CorrelatedAdd => return map_correlated_add_bound(form, root_bound),
             BoundRoute::CorrelatedSubtract => {
@@ -1631,10 +1627,12 @@ mod remainder {
     use super::{
         CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitnessError,
     };
+    use crate::integer_rules::closed_integer::big_integer_literal;
     use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, fixed_integer_term};
+    use numerics::bignum::BigInt;
     use semantic_vocabulary::{
-        IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-        ScalarTerm, ScalarType,
+        IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType,
+        IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
     };
     use terminal_psi::IntegerAffineWitness;
 
@@ -1937,6 +1935,479 @@ mod remainder {
             ))
         } else {
             Err(mismatch)
+        }
+    }
+
+    type VariableKey = (bool, Option<u16>, u64);
+    type Polynomial = Vec<(Vec<VariableKey>, BigInt)>;
+
+    const MAXIMUM_MULTIPLE_DEPTH: usize = 32;
+    const MAXIMUM_MULTIPLE_NODES: usize = 64;
+    const MAXIMUM_MULTIPLE_MONOMIALS: usize = 64;
+
+    fn normalize_polynomial(mut terms: Polynomial) -> Option<Polynomial> {
+        terms.sort_by(|left, right| left.0.cmp(&right.0));
+        let mut combined: Polynomial = Vec::with_capacity(terms.len());
+        for (monomial, coefficient) in terms {
+            if coefficient.is_zero() {
+                continue;
+            }
+            if let Some((previous, total)) = combined.last_mut()
+                && *previous == monomial
+            {
+                *total = total.add(&coefficient);
+                if total.is_zero() {
+                    combined.pop();
+                }
+            } else {
+                combined.push((monomial, coefficient));
+            }
+        }
+        (combined.len() <= MAXIMUM_MULTIPLE_MONOMIALS).then_some(combined)
+    }
+
+    fn combine_polynomials(
+        left: Polynomial,
+        right: Polynomial,
+        subtract: bool,
+    ) -> Option<Polynomial> {
+        let mut terms = left;
+        terms.reserve(right.len());
+        for (monomial, coefficient) in right {
+            let signed = if subtract {
+                BigInt::zero().sub(&coefficient)
+            } else {
+                coefficient
+            };
+            terms.push((monomial, signed));
+        }
+        normalize_polynomial(terms)
+    }
+
+    fn multiply_polynomials(left: &Polynomial, right: &Polynomial) -> Option<Polynomial> {
+        if left.is_empty() || right.is_empty() {
+            return Some(Vec::new());
+        }
+        if left.len().saturating_mul(right.len()) > MAXIMUM_MULTIPLE_MONOMIALS * 4 {
+            return None;
+        }
+        let mut terms = Vec::with_capacity(left.len() * right.len());
+        for (left_vars, left_coeff) in left {
+            for (right_vars, right_coeff) in right {
+                let mut vars = Vec::with_capacity(left_vars.len() + right_vars.len());
+                vars.extend_from_slice(left_vars);
+                vars.extend_from_slice(right_vars);
+                vars.sort_unstable();
+                terms.push((vars, left_coeff.mul(right_coeff)));
+            }
+        }
+        normalize_polynomial(terms)
+    }
+
+    fn push_carrier_bounds(
+        required: &mut Vec<Proposition>,
+        carrier: IntegerType,
+        term: &IntegerMathTerm,
+    ) -> Option<()> {
+        let minimum = carrier.minimum_value()?;
+        let maximum = carrier.maximum_value()?;
+        for bound in [
+            Proposition::IntegerMathLessOrEqual(IntegerMathTerm::literal(minimum), term.clone()),
+            Proposition::IntegerMathLessOrEqual(term.clone(), IntegerMathTerm::literal(maximum)),
+        ] {
+            if !required.contains(&bound) {
+                required.push(bound);
+            }
+        }
+        Some(())
+    }
+
+    /// The integer-multiple remainder form: for an exact remainder by a
+    /// nonzero literal divisor (excluding signed `-1`), when the dividend
+    /// expands over exact add, subtract, multiply, widen and exact cast into a
+    /// polynomial whose every coefficient is divisible by the divisor, the
+    /// remainder is zero (`0 <= target` and `target <= 0`).
+    ///
+    /// Provisional (`AcceptedProofRule::IntegerMultipleRemainder`): the kernel
+    /// trusts this statement; the mathematical core does not derive it.
+    /// Operations cited through `definition_axioms` already completed in the
+    /// carrier; inline partial operations inside `dividend` owe their exact
+    /// destination-carrier bounds in `root_bound`.
+    pub(super) fn check_multiple_witness(
+        context: &PropositionContext,
+        semantic_axioms: &[Proposition],
+        witness: &IntegerAffineWitness,
+    ) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
+        if witness.root != witness.target {
+            return Ok(None);
+        }
+        let (scalar_type, dividend, divisor, upper_axiom, mark_last) = match &witness.target {
+            ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => (
+                *scalar_type,
+                left.as_ref(),
+                right.as_ref(),
+                usize::MAX,
+                false,
+            ),
+            ScalarTerm::Value { .. } => {
+                let Some(&last_index) = witness.definition_axioms.last() else {
+                    return Ok(None);
+                };
+                let Some(Proposition::Equal(
+                    result,
+                    ScalarTerm::ExactIntegerRemainder {
+                        scalar_type,
+                        left,
+                        right,
+                    },
+                )) = semantic_axioms.get(last_index)
+                else {
+                    return Ok(None);
+                };
+                if result != &witness.target {
+                    return Ok(None);
+                }
+                if result == left.as_ref() || result == right.as_ref() {
+                    return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(
+                        last_index,
+                    ));
+                }
+                (
+                    *scalar_type,
+                    left.as_ref(),
+                    right.as_ref(),
+                    last_index,
+                    true,
+                )
+            }
+            _ => return Ok(None),
+        };
+        if scalar_type.carrier() != IntegerCarrier::Fixed || scalar_type.is_address() {
+            return Ok(None);
+        }
+        if witness.literal_axioms.len() != witness.definition_axioms.len() {
+            return Err(IntegerAffineWitnessError::LiteralAxiomCountMismatch);
+        }
+        if let Some((slot, _)) = witness
+            .literal_axioms
+            .iter()
+            .enumerate()
+            .find(|(_, landing)| landing.is_some())
+        {
+            return Err(IntegerAffineWitnessError::UnusedLiteralAxiom(
+                witness.definition_axioms[slot],
+            ));
+        }
+        if witness
+            .definition_axioms
+            .windows(2)
+            .any(|indices| indices[0] >= indices[1])
+        {
+            return Err(IntegerAffineWitnessError::NonCanonicalDefinitionOrder);
+        }
+        let mut definitions: Vec<(usize, &ScalarTerm, &ScalarTerm)> =
+            Vec::with_capacity(witness.definition_axioms.len());
+        for &index in &witness.definition_axioms {
+            let proposition = semantic_axioms
+                .get(index)
+                .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
+            context
+                .validate(proposition)
+                .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+            let Proposition::Equal(left, right) = proposition else {
+                return Err(IntegerAffineWitnessError::DefinitionNotEquality(index));
+            };
+            if !matches!(left, ScalarTerm::Value { .. }) || left == right {
+                return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(index));
+            }
+            definitions.push((index, left, right));
+        }
+        let carrier = ScalarType::Integer(scalar_type);
+        if [(&witness.target), dividend, divisor]
+            .into_iter()
+            .any(|term| term.scalar_type() != carrier)
+        {
+            return Err(IntegerAffineWitnessError::TargetTypeMismatch);
+        }
+        context
+            .validate(&Proposition::Equal(
+                witness.target.clone(),
+                witness.target.clone(),
+            ))
+            .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+
+        let mut used = vec![false; definitions.len()];
+        if mark_last && let Some(last) = used.last_mut() {
+            *last = true;
+        }
+        let divisor_value = match divisor {
+            ScalarTerm::Integer {
+                scalar_type: actual,
+                value,
+            } if *actual == scalar_type => *value,
+            ScalarTerm::Value { .. } => {
+                let Some((
+                    slot,
+                    (
+                        _,
+                        _,
+                        ScalarTerm::Integer {
+                            scalar_type: actual,
+                            value,
+                        },
+                    ),
+                )) = definitions
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (index, left, _))| *index < upper_axiom && *left == divisor)
+                else {
+                    return Ok(None);
+                };
+                if *actual != scalar_type {
+                    return Err(IntegerAffineWitnessError::TargetTypeMismatch);
+                }
+                used[slot] = true;
+                *value
+            }
+            _ => return Ok(None),
+        };
+        let divisor_big =
+            big_integer_literal(IntegerMathLiteral::from_integer_value(divisor_value));
+        if divisor_big.is_zero() {
+            return Err(IntegerAffineWitnessError::ZeroDivisionLiteral);
+        }
+        if scalar_type.sign() == IntegerSign::Signed
+            && divisor_big.is_negative()
+            && divisor_big.magnitude_words() == [1]
+        {
+            return Ok(None);
+        }
+
+        struct Walk<'a> {
+            definitions: &'a [(usize, &'a ScalarTerm, &'a ScalarTerm)],
+            used: &'a mut [bool],
+            required_bounds: Vec<Proposition>,
+            nodes: usize,
+        }
+
+        impl Walk<'_> {
+            fn fixed_non_address(carrier: IntegerType) -> bool {
+                carrier.carrier() == IntegerCarrier::Fixed && !carrier.is_address()
+            }
+
+            fn expand(
+                &mut self,
+                term: &ScalarTerm,
+                authenticated: bool,
+                upper_axiom: usize,
+                depth: usize,
+            ) -> Option<(IntegerMathTerm, Polynomial)> {
+                self.nodes = self.nodes.checked_add(1)?;
+                if self.nodes > MAXIMUM_MULTIPLE_NODES || depth > MAXIMUM_MULTIPLE_DEPTH {
+                    return None;
+                }
+                match term {
+                    ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(ty),
+                    } if Self::fixed_non_address(*ty) => {
+                        if let Some((slot, &(index, _, rhs))) = self
+                            .definitions
+                            .iter()
+                            .enumerate()
+                            .find(|(_, (index, left, _))| *index < upper_axiom && *left == term)
+                        {
+                            self.used[slot] = true;
+                            return self.expand(rhs, true, index, depth + 1);
+                        }
+                        let key = (ty.sign() == IntegerSign::Signed, ty.bits(), id.get());
+                        Some((
+                            IntegerMathTerm::MathValue {
+                                source_type: *ty,
+                                value: *id,
+                            },
+                            vec![(vec![key], BigInt::from_u64(1))],
+                        ))
+                    }
+                    ScalarTerm::Integer {
+                        scalar_type: ty,
+                        value,
+                    } if Self::fixed_non_address(*ty) => {
+                        let constant =
+                            big_integer_literal(IntegerMathLiteral::from_integer_value(*value));
+                        let poly = if constant.is_zero() {
+                            Vec::new()
+                        } else {
+                            vec![(Vec::new(), constant)]
+                        };
+                        Some((IntegerMathTerm::literal(*value), poly))
+                    }
+                    ScalarTerm::IntegerWiden {
+                        source_type,
+                        target_type,
+                        operand,
+                    } if Self::fixed_non_address(*source_type)
+                        && Self::fixed_non_address(*target_type)
+                        && source_type != target_type
+                        && source_type.can_widen_to(*target_type)
+                        && operand.scalar_type() == ScalarType::Integer(*source_type) =>
+                    {
+                        self.expand(operand, false, upper_axiom, depth + 1)
+                    }
+                    ScalarTerm::IntegerExactCast {
+                        source_type,
+                        target_type,
+                        operand,
+                    } if Self::fixed_non_address(*source_type)
+                        && Self::fixed_non_address(*target_type)
+                        && source_type.minimum_value().is_some()
+                        && target_type.minimum_value().is_some()
+                        && source_type != target_type
+                        && source_type.can_exact_cast_to(*target_type)
+                        && !source_type.can_widen_to(*target_type)
+                        && operand.scalar_type() == ScalarType::Integer(*source_type) =>
+                    {
+                        let (math, poly) = self.expand(operand, false, upper_axiom, depth + 1)?;
+                        if !authenticated {
+                            push_carrier_bounds(&mut self.required_bounds, *target_type, &math)?;
+                        }
+                        Some((math, poly))
+                    }
+                    ScalarTerm::ExactIntegerAdd {
+                        scalar_type: ty,
+                        left,
+                        right,
+                    }
+                    | ScalarTerm::ExactIntegerSubtract {
+                        scalar_type: ty,
+                        left,
+                        right,
+                    }
+                    | ScalarTerm::ExactIntegerMultiply {
+                        scalar_type: ty,
+                        left,
+                        right,
+                    } if Self::fixed_non_address(*ty)
+                        && ty.minimum_value().is_some()
+                        && left.scalar_type() == ScalarType::Integer(*ty)
+                        && right.scalar_type() == ScalarType::Integer(*ty) =>
+                    {
+                        let (left_math, left_poly) =
+                            self.expand(left, false, upper_axiom, depth + 1)?;
+                        let (right_math, right_poly) =
+                            self.expand(right, false, upper_axiom, depth + 1)?;
+                        let (math, poly) = match term {
+                            ScalarTerm::ExactIntegerAdd { .. } => (
+                                IntegerMathTerm::Add(Box::new(left_math), Box::new(right_math)),
+                                combine_polynomials(left_poly, right_poly, false)?,
+                            ),
+                            ScalarTerm::ExactIntegerSubtract { .. } => (
+                                IntegerMathTerm::Subtract(
+                                    Box::new(left_math),
+                                    Box::new(right_math),
+                                ),
+                                combine_polynomials(left_poly, right_poly, true)?,
+                            ),
+                            ScalarTerm::ExactIntegerMultiply { .. } => (
+                                IntegerMathTerm::Multiply(
+                                    Box::new(left_math),
+                                    Box::new(right_math),
+                                ),
+                                multiply_polynomials(&left_poly, &right_poly)?,
+                            ),
+                            _ => unreachable!(),
+                        };
+                        if !authenticated {
+                            push_carrier_bounds(&mut self.required_bounds, *ty, &math)?;
+                        }
+                        Some((math, poly))
+                    }
+                    _ => None,
+                }
+            }
+        }
+
+        let mut walk = Walk {
+            definitions: &definitions,
+            used: &mut used,
+            required_bounds: Vec::new(),
+            nodes: 0,
+        };
+        let Some((_, poly)) = walk.expand(dividend, false, upper_axiom, 0) else {
+            return Ok(None);
+        };
+        let required_bounds = walk.required_bounds;
+        if let Some(slot) = used.iter().position(|used| !*used) {
+            return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(
+                witness.definition_axioms[slot],
+            ));
+        }
+        let divisible = poly.iter().all(|(_, coefficient)| {
+            coefficient
+                .div_rem(&divisor_big)
+                .is_some_and(|(_, remainder)| remainder.is_zero())
+        });
+        if !divisible {
+            return Ok(None);
+        }
+        Ok(Some(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: scalar_type,
+            coefficient: 0,
+            offset: 0,
+            endpoint_steps: vec![CheckedIntegerEndpointStep::MultipleRemainder { required_bounds }],
+        }))
+    }
+
+    fn check_multiple_premise(
+        required: &[Proposition],
+        root_bound: &Proposition,
+    ) -> Result<(), IntegerAffineBoundConversionError> {
+        let matches = match required {
+            [] => *root_bound == Proposition::Truth,
+            [single] => root_bound == single,
+            many => {
+                matches!(root_bound, Proposition::Conjunction(parts) if parts.as_slice() == many)
+            }
+        };
+        matches
+            .then_some(())
+            .ok_or(IntegerAffineBoundConversionError::RootBoundMismatch)
+    }
+
+    pub(super) fn map_multiple_bound(
+        form: &CheckedIntegerAffineForm,
+        root_bound: &Proposition,
+    ) -> Result<Proposition, IntegerAffineBoundConversionError> {
+        let Some(required) = form.multiple_remainder_bounds() else {
+            return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
+        };
+        check_multiple_premise(required, root_bound)?;
+        let zero = fixed_integer_term(form.integer_type(), 0)
+            .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+        Ok(Proposition::LessOrEqual(form.target().clone(), zero))
+    }
+
+    pub(super) fn check_multiple_bound(
+        form: &CheckedIntegerAffineForm,
+        required: &[Proposition],
+        root_bound: &Proposition,
+        conclusion: &Proposition,
+    ) -> Result<(), IntegerAffineBoundConversionError> {
+        check_multiple_premise(required, root_bound)?;
+        let zero = fixed_integer_term(form.integer_type(), 0)
+            .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+        if conclusion == &Proposition::LessOrEqual(form.target().clone(), zero.clone())
+            || conclusion == &Proposition::LessOrEqual(zero, form.target().clone())
+        {
+            Ok(())
+        } else {
+            Err(IntegerAffineBoundConversionError::ConclusionMismatch)
         }
     }
 
@@ -2340,14 +2811,16 @@ mod truth_bounds {
                     maximum = *mask;
                     saw_total_image = true;
                 }
-                CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
-                    minimum = 0;
-                    maximum = *upper;
-                    saw_total_image = true;
-                }
-                CheckedIntegerEndpointStep::BitwiseOrLiteralImage(_)
-                | CheckedIntegerEndpointStep::BitwiseOrBoundedImage { .. } => {
+                CheckedIntegerEndpointStep::BitwiseOrLiteralImage(_) => {
                     return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
+                }
+                CheckedIntegerEndpointStep::MultipleRemainder { required_bounds } => {
+                    if !required_bounds.is_empty() {
+                        return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
+                    }
+                    minimum = 0;
+                    maximum = 0;
+                    saw_total_image = true;
                 }
                 CheckedIntegerEndpointStep::WrappingAdd { .. }
                 | CheckedIntegerEndpointStep::WrappingAddBackward { .. }
@@ -2553,7 +3026,6 @@ mod witness_checking {
             coefficient: i128,
             offset: i128,
             landed: Option<&LandedInteger>,
-            prior_axioms: &[Proposition],
         ) -> Option<
             Result<
                 (ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep),
@@ -2669,31 +3141,16 @@ mod witness_checking {
                     } else {
                         left
                     };
-                    if let Some((mask, used_landing)) =
-                        signed_literal(sibling, integer_type, landed)
-                    {
-                        if mask < 0 {
-                            return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
-                        }
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            used_landing,
-                            CheckedIntegerEndpointStep::BitwiseAndMask(mask),
-                        )
-                    } else {
-                        let (mask, upper) =
-                            bounded_bitwise_sibling(sibling, integer_type, prior_axioms)?;
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            false,
-                            CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
-                                mask: mask.clone(),
-                                upper,
-                            },
-                        )
+                    let (mask, used_landing) = signed_literal(sibling, integer_type, landed)?;
+                    if mask < 0 {
+                        return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
                     }
+                    (
+                        Some(coefficient),
+                        Some(offset),
+                        used_landing,
+                        CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+                    )
                 }
                 ScalarTerm::IntegerBitwiseOr {
                     scalar_type,
@@ -2707,31 +3164,17 @@ mod witness_checking {
                     } else {
                         left
                     };
-                    if let Some((sibling, used_landing)) =
-                        signed_literal(sibling_operand, integer_type, landed)
-                    {
-                        if sibling < 0 {
-                            return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
-                        }
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            used_landing,
-                            CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
-                        )
-                    } else {
-                        let (operand, upper) =
-                            bounded_bitwise_sibling(sibling_operand, integer_type, prior_axioms)?;
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            false,
-                            CheckedIntegerEndpointStep::BitwiseOrBoundedImage {
-                                operand: operand.clone(),
-                                upper,
-                            },
-                        )
+                    let (sibling, used_landing) =
+                        signed_literal(sibling_operand, integer_type, landed)?;
+                    if sibling < 0 {
+                        return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
                     }
+                    (
+                        Some(coefficient),
+                        Some(offset),
+                        used_landing,
+                        CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
+                    )
                 }
                 ScalarTerm::WrappingIntegerAdd {
                     scalar_type,
@@ -2788,52 +3231,6 @@ mod witness_checking {
                 )),
                 _ => Err(IntegerAffineWitnessError::CoefficientOverflow),
             })
-        }
-
-        fn bounded_bitwise_sibling<'a>(
-            operand: &'a ScalarTerm,
-            integer_type: IntegerType,
-            prior_axioms: &'a [Proposition],
-        ) -> Option<(&'a ScalarTerm, i128)> {
-            let mut masks = vec![operand];
-            for proposition in prior_axioms {
-                let Proposition::Equal(left, right) = proposition else {
-                    continue;
-                };
-                if left == operand {
-                    masks.push(right);
-                } else if right == operand {
-                    masks.push(left);
-                }
-            }
-            for mask in masks {
-                let Some(upper) = prior_axioms.iter().find_map(|proposition| {
-                    let Proposition::LessOrEqual(left, right) = proposition else {
-                        return None;
-                    };
-                    if left != mask {
-                        return None;
-                    }
-                    let upper =
-                        fixed_integer_as_i128(right, integer_type).filter(|upper| *upper >= 0)?;
-                    Some(upper)
-                }) else {
-                    continue;
-                };
-                let nonnegative = matches!(
-                    mask.scalar_type(),
-                    ScalarType::Integer(kind) if kind.sign() == IntegerSign::Unsigned
-                ) || prior_axioms.iter().any(|proposition| {
-                    let Proposition::LessOrEqual(left, right) = proposition else {
-                        return false;
-                    };
-                    right == mask && fixed_integer_as_i128(left, integer_type) == Some(0)
-                });
-                if nonnegative {
-                    return Some((mask, upper));
-                }
-            }
-            None
         }
 
         pub(super) fn apply_shift_definition(
@@ -3083,15 +3480,7 @@ mod witness_checking {
             literal: i128,
         },
         BitwiseAndMask(i128),
-        BitwiseAndBoundedMask {
-            mask: ScalarTerm,
-            upper: i128,
-        },
         BitwiseOrLiteralImage(i128),
-        BitwiseOrBoundedImage {
-            operand: ScalarTerm,
-            upper: i128,
-        },
         CorrelatedAdd {
             endpoint: ScalarTerm,
         },
@@ -3108,6 +3497,11 @@ mod witness_checking {
         /// (`remainder::check_dividend_witness`).
         QuotientAtMostDividend {
             divisor: ScalarTerm,
+        },
+        /// An exact remainder of a polynomial multiple of its literal divisor
+        /// (`remainder::check_multiple_witness`).
+        MultipleRemainder {
+            required_bounds: Vec<Proposition>,
         },
         CorrelatedMultiplyMinimum,
         CorrelatedMultiplyMaximum,
@@ -3169,6 +3563,22 @@ mod witness_checking {
                 [CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }]
             )
         }
+
+        /// Whether this is the provisional integer-multiple remainder form.
+        pub(crate) fn is_multiple_remainder(&self) -> bool {
+            self.multiple_remainder_bounds().is_some()
+        }
+
+        /// The exact-operation bounds required before concluding zero
+        /// remainder on an integer-multiple dividend, if this form is one.
+        pub fn multiple_remainder_bounds(&self) -> Option<&[Proposition]> {
+            match self.endpoint_steps.as_slice() {
+                [CheckedIntegerEndpointStep::MultipleRemainder { required_bounds }] => {
+                    Some(required_bounds.as_slice())
+                }
+                _ => None,
+            }
+        }
     }
 
     fn identity_ring_target(target: &ScalarTerm, root: &ScalarTerm) -> Option<IntegerType> {
@@ -3225,6 +3635,11 @@ mod witness_checking {
         }
         if let Some(form) =
             super::remainder::check_dividend_witness(context, semantic_axioms, witness)?
+        {
+            return Ok(form);
+        }
+        if let Some(form) =
+            super::remainder::check_multiple_witness(context, semantic_axioms, witness)?
         {
             return Ok(form);
         }
@@ -3367,7 +3782,6 @@ mod witness_checking {
                         coefficient,
                         offset,
                         landed.as_ref(),
-                        &semantic_axioms[..index],
                     )
                 }),
                 both_orientations(left, right, |first, second| {

@@ -8,7 +8,7 @@ overflow, or you say what should happen when it does.
 
 ```omega
 let machine_value: i32 = 3i32;
-let proof_value: Nat = 3nat;
+let proof_value: Nat = 3;
 let machine_float: f64 = 3.0f64;
 ```
 

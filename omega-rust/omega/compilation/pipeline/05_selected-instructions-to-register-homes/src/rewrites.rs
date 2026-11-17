@@ -147,8 +147,7 @@ pub(crate) mod rematerialization {
             } = pressure;
             let manifest = project_post_allocation_optimization_manifest(
                 prefix_custody.source().manifest(),
-                None,
-                None,
+                source.record(),
                 &[
                     PostAllocationSelectedTransformation::PressureRematerialization(
                         rematerialization.receipt().identity(),
@@ -277,6 +276,9 @@ pub(crate) mod rematerialization {
 
     impl StagedOptimizedActiveResidentRematerialization {
         admitted_stage_accessors!(const pub, source);
+        pub const fn history(&self) -> &selected_instruction_analyses::SelectedOptimizationRecord {
+            self.source.record()
+        }
         receipt_accessor_rows!(borrow StagedOptimizedActiveResidentRematerialization {
             rematerialization: &ValidatedPressureRematerialization,
             liveness: &ValidatedLiveness,
@@ -1093,7 +1095,7 @@ pub(crate) mod fixed_occurrences {
         register: &VirtualRegister,
     ) -> Result<(), FixedOccurrencesError> {
         let payload = match register.scalar_type {
-            ScalarType::Boolean => true,
+            ScalarType::Callable(_) | ScalarType::Boolean => true,
             ScalarType::Integer(integer) => {
                 matches!(integer.bits(), Some(8 | 16 | 32 | 64))
             }

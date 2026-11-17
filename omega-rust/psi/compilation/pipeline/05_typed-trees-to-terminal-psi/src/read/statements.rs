@@ -15,7 +15,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::StructuralAccess;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{TableAssignment, TableLocalData};
+use typed_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 use super::authority::Access;
 use super::references::reference_access_violation;
@@ -24,6 +24,30 @@ use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
+    pub(super) fn call_statement_at(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: StatementHandle,
+    ) -> Checked<crate::body::Expression> {
+        let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("call occurrence does not name a call statement"),
+            ));
+        };
+        if call.runtime_call.is_none() {
+            self.bound_target(id, call.target_symbol)?;
+        }
+        let source = self.authored_node(
+            id,
+            typed_trees::SourceNode::Statement(handle),
+            call.source_span,
+        )?;
+        self.call_statement(id, slots, call, source)
+    }
+
     pub(super) fn assignment(
         &mut self,
         id: MachineId,
@@ -96,7 +120,7 @@ impl Program<'_> {
                     )?;
                     self.authorized(id, referent, Access::Replace)?;
                     let value = self.expression(id, slots, assignment.value, Some(referent))?;
-                    if !self.agrees(value.result, referent) {
+                    if !self.agrees(value.result, Some(referent)) {
                         return Err(assigned(self, &value, referent));
                     }
                     return Ok(Statement::Store {
@@ -130,14 +154,21 @@ impl Program<'_> {
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
-                if !self.agrees(value.result, value_type) {
+                if !self.agrees(value.result, Some(value_type)) {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
-                // A borrowed formal already names the caller's storage.
-                // Replace there through the same captured-place store as a
-                // field; only an owned value binding may acquire a new root.
-                Ok(if slots[slot].homed || slots[slot].borrowed.is_some() {
+                // A record local, a homed scalar and a borrowed formal all
+                // name storage that loans may still observe. Replace there
+                // through the same captured-place store as a field
+                // (structural_access.md: "Root, field, and indexed
+                // destinations do not change construction semantics"), so
+                // the checker sees the write. Only an unhomed scalar takes a
+                // new SSA binding.
+                let stored = slots[slot].homed
+                    || slots[slot].borrowed.is_some()
+                    || matches!(value_type, ValueType::Record(..));
+                Ok(if stored {
                     Statement::Store {
                         destination: crate::Expression {
                             call_context: None,
@@ -228,7 +259,7 @@ impl Program<'_> {
                 }
                 self.written_through(id, storage)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
-                if !self.agrees(value.result, stored) {
+                if !self.agrees(value.result, Some(stored)) {
                     return Err(assigned(self, &value, stored));
                 }
                 self.authorized(id, stored, Access::Replace)?;
@@ -238,7 +269,8 @@ impl Program<'_> {
                     source,
                 })
             }
-            ExpressionNode::TypeExpression(_)
+            ExpressionNode::MachineValue(_)
+            | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
@@ -374,7 +406,15 @@ impl Program<'_> {
                 return unserved("uninitialized local without a declared type");
             }
             let value_type = self.local_type(id, local.type_reference)?;
-            self.zero_established(id, value_type)?;
+            let source = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(local.symbol)
+                .map_or(
+                    SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                    SourceOrigin::of,
+                );
+            self.zero_established(id, value_type, source)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
@@ -411,7 +451,7 @@ impl Program<'_> {
                 Statement::Declare {
                     slot: slots.len(),
                     home,
-                    source: SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                    source,
                 },
             ));
         }
@@ -428,7 +468,9 @@ impl Program<'_> {
         } else {
             self.expression(id, slots, local.initial_value, declared)?
         };
-        crate::operational::boundary(&mut value);
+        if !local.is_operand_capture {
+            crate::operational::boundary(&mut value);
+        }
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,
@@ -451,7 +493,7 @@ impl Program<'_> {
         // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
         // Wrapping local, which only a cast does.
         if let Some(declared) = declared
-            && !self.agrees(Some(value_type), declared)
+            && !self.agrees(Some(value_type), Some(declared))
         {
             return Err(self.mistyped(
                 id,

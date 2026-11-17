@@ -1160,6 +1160,14 @@ mod statement_nodes {
                 Ok(hoisted)
             }
             StatementNode::Call(call) => {
+                let callee = call
+                    .callee
+                    .is_valid()
+                    .then(|| {
+                        lower_private_expression_into_table(lowerer, syntax_trees, call.callee)
+                    })
+                    .transpose()?
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
                 let arguments = lower_statement_expressions(lowerer, syntax_trees, call.arguments)?;
                 let mut hoisted = Vec::new();
@@ -1177,6 +1185,7 @@ mod statement_nodes {
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(syntax_trees, &call.target),
                     storage: CallStorage {
+                        callee,
                         target_is_static: call.target_is_static,
                         unresolved_name: Default::default(),
                         receiver_root_symbol: SymbolHandle::invalid(),
@@ -1519,6 +1528,7 @@ mod statement_nodes {
         };
         let source_span = call.target.source_span();
         let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+            callee: call.callee,
             target_is_static: call.target_is_static,
             authored_call_binding: None,
             receiver,
@@ -1664,6 +1674,7 @@ mod statement_nodes {
     ) -> Result<TransitionTarget, Diagnostic> {
         match syntax_trees.statements.transition_target(target) {
             TransitionTargetNode::Named {
+                operational_acknowledgement,
                 path,
                 arguments,
                 evidence_arguments,
@@ -1690,7 +1701,7 @@ mod statement_nodes {
                     symbol: SymbolHandle::invalid(),
                     storage: NamedTransitionTargetStorage {
                         unresolved_name: Default::default(),
-                        operational_acknowledgement: Default::default(),
+                        operational_acknowledgement: *operational_acknowledgement,
                         path: lower_statement_path_members(lowerer, syntax_trees, *path),
                         arguments,
                         evidence_arguments: lower_names(syntax_trees, evidence_arguments)

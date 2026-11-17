@@ -57,12 +57,21 @@ pub(super) fn source_sequence_view(
             if super::bytes::source_byte_view(typed, reference, lexical_owner, machine)?.is_some() {
                 return Ok(None);
             }
-            if *access != language_core::ReferenceAccess::Shared {
-                return Err(fail(
-                    "mutable typed sequence requires its actual exclusive backing and loan",
-                ));
-            }
-            (*referee, Some(terminal_psi::StructuralAccess::SharedBorrow))
+            // A declared view type describes access; it does not create a
+            // permission. Mutable formation and every transfer must still
+            // establish their actual exclusive backing through ordinary loans.
+            let access = match access {
+                language_core::ReferenceAccess::Shared => {
+                    terminal_psi::StructuralAccess::SharedBorrow
+                }
+                language_core::ReferenceAccess::Mutable => {
+                    terminal_psi::StructuralAccess::MutableBorrow
+                }
+                language_core::ReferenceAccess::WriteOnly => {
+                    return Err(fail("write-only typed sequence"));
+                }
+            };
+            (*referee, Some(access))
         }
         _ => return Ok(None),
     };
@@ -103,17 +112,18 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
-    /// The element of a plain closed byte array. This recognizes its storage,
-    /// not a conversion to a view; only an explicit range forms that loan.
+    /// The exact element storage of a closed byte array. Whole-value domains
+    /// stay on its source expression and do not change this storage geometry;
+    /// only an explicit range forms a descriptor loan.
     pub(super) fn byte_array_element(&self, actual: Option<ValueType>) -> Option<StructuralTypeId> {
-        let Some(ValueType::Record(actual, Qualification::NONE, _)) = actual else {
+        let Some(ValueType::Record(actual, _, _)) = actual else {
             return None;
         };
         let actual = self.records.get(actual)?;
         let StorageShape::FixedArray {
             element,
             qualification: Qualification::NONE,
-            length: ArrayExtent::Literal(_),
+            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
         } = actual.shape
         else {
             return None;
@@ -125,9 +135,9 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    /// The element of a closed fixed array whose element storage and
-    /// qualification are exactly the typed view's. `WholeCollection`
-    /// establishment preserves identical element types directly
+    /// The element of fixed storage or an existing readable view with the
+    /// identical element and qualification. Reborrowing a view preserves its
+    /// own extent and backing; `WholeCollection` keeps fixed-array types
     /// (byte_views.md, "Collection view establishment"); this reader admits
     /// no layout-equal substitute, so a different element row is refused.
     fn typed_array_element(
@@ -140,13 +150,22 @@ impl Program<'_> {
             return None;
         };
         let actual = self.records.get(actual)?;
-        let StorageShape::FixedArray {
-            element: stored,
-            qualification: stored_qualification,
-            length: ArrayExtent::Literal(_),
-        } = actual.shape
-        else {
-            return None;
+        let (stored, stored_qualification) = match actual.shape {
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
+            }
+            | StorageShape::ElementView {
+                element,
+                qualification,
+                access:
+                    Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
+            } => (element, qualification),
+            _ => return None,
         };
         (actual.requires.is_empty() && stored == element && stored_qualification == qualification)
             .then_some(element)
@@ -155,7 +174,7 @@ impl Program<'_> {
     /// Borrow a range of a closed array using the backing's shape. A `u8`
     /// destination forms a byte descriptor; an `&[T]` destination forms the
     /// typed element view of the same backing. Both are the one
-    /// `ArrayView` formation, which Terminal Psi establishes as a
+    /// `CollectionView` formation, which Terminal Psi establishes as a
     /// `WholeCollection` element view whose length is the array's exact
     /// extent. A partial range retains that backing through the descriptor's
     /// checked subslice operation.
@@ -173,18 +192,32 @@ impl Program<'_> {
 
         let unavailable =
             |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(borrow) = self.typed.expression_table.borrow_expression(argument) else {
-            return Ok(None);
-        };
-        let Some(indexed) = self.typed.expression_table.indexed_node(borrow.target) else {
+        // expressions.md, "Borrowed range access": "a bare range
+        // `items[start..end]` forms a shared view when received as a
+        // reference". So a bare range lends exactly what `&items[start..end]`
+        // lends. A bare range of a byte view keeps its byte subslice reading.
+        let (target, written_access, bare) =
+            match self.typed.expression_table.borrow_expression(argument) {
+                Some(borrow) => (borrow.target, borrow.access, false),
+                None => (argument, ReferenceAccess::Shared, true),
+            };
+        let Some(indexed) = self.typed.expression_table.indexed_node(target) else {
             return Ok(None);
         };
         let Some(range) = self.typed.expression_table.range_node(indexed.index) else {
             return Ok(None);
         };
-        let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
+        let ValueType::Record(mut view, expected_qualification, _) = expected else {
             return Ok(None);
         };
+        if bare
+            && !matches!(
+                self.data_type(machine, view)?.shape,
+                StorageShape::ElementView { .. }
+            )
+        {
+            return Ok(None);
+        }
         // Formation owns a stored descriptor with the written loan. Only the
         // callee's direct formal carries its access separately from its shape.
         if formal_access == Some(ReferenceAccess::Mutable)
@@ -226,7 +259,7 @@ impl Program<'_> {
             } => (access, Some((element, qualification))),
             _ => return Ok(None),
         };
-        let requested = match borrow.access {
+        let requested = match written_access {
             ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
             ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
             ReferenceAccess::WriteOnly => {
@@ -288,18 +321,82 @@ impl Program<'_> {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
         let byte_view = typed_element.is_none() && self.is_readable_byte_view(machine, backing)?;
+        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
+        // A plain destination cannot erase a governed or non-byte source's
+        // requirements. Validate actual backing qualifications independently
+        // of which predicates the destination requests.
+        let source_predicates = if backing_type.qualification() != Qualification::NONE {
+            if typed_element.is_some()
+                || !(byte_view || self.byte_array_element(base.result).is_some())
+            {
+                return Err(unavailable(
+                    "qualified range backing is not served byte storage",
+                ));
+            }
+            self.byte_qualification_predicates(machine, backing_type.qualification())?
+        } else {
+            semantic_vocabulary::ByteSequencePredicateSet::EMPTY
+        };
+        if expected_qualification != Qualification::NONE {
+            if typed_element.is_some() || requested != StructuralAccess::SharedBorrow {
+                return Err(unavailable(
+                    "qualified range without a shared byte descriptor",
+                ));
+            }
+            let retained = if partial {
+                source_predicates.subslice()
+            } else {
+                source_predicates
+            };
+            let required = self.byte_qualification_predicates(machine, expected_qualification)?;
+            if !retained.implies(required) {
+                return Err(unavailable(
+                    "range domains not preserved by its actual byte backing",
+                ));
+            }
+        }
+        // Establish the plain descriptor first, then prove its requested
+        // presentation through the ordinary qualification edge. A result
+        // annotation alone cannot establish predicates of the selected bytes.
+        let present = |reader: &mut Self, expression: Expression| -> Checked<Expression> {
+            let Some(ValueType::Record(row, Qualification::NONE, regions)) = expression.result
+            else {
+                return Err(unavailable("range lost its actual descriptor"));
+            };
+            if expected_qualification == Qualification::NONE {
+                return Ok(expression);
+            }
+            let result = ValueType::Record(row, expected_qualification, regions);
+            let (clauses, stated) =
+                reader.record_cast_predicates(machine, expected_qualification, result)?;
+            let kind = if clauses.is_empty() {
+                ExpressionKind::Requalify(Box::new(expression))
+            } else {
+                ExpressionKind::Establish {
+                    operand: Box::new(expression),
+                    clauses,
+                    stated: terminal_check_tables::program::CastCondition::DomainMembership(stated),
+                }
+            };
+            Ok(Expression {
+                call_context: None,
+                kind,
+                result: Some(result),
+                source,
+            })
+        };
         // A shared descriptor can snapshot its unrestricted value. A child
         // of an exclusive descriptor instead keeps a persistent payload loan,
         // including when that child only observes the bytes.
         if byte_view
             && requested == StructuralAccess::SharedBorrow
             && self.observes_only(machine, base.result)?
-            && self.data_type(machine, backing)?.copyable
+            && self.data_type(machine, backing)?.is_copyable()
         {
             self.authorized(machine, backing_type, Access::Read)?;
-            return self
-                .byte_subslice(machine, slots, base, range, borrow.target, source)
-                .map(Some);
+            let value = self.byte_subslice(machine, slots, base, range, target, source)?;
+            self.complete_formed_operator(machine, target, &value)?;
+            return present(self, value).map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
@@ -307,27 +404,11 @@ impl Program<'_> {
         // own length like any other subslice (byte_views.md, "Source
         // correspondence"). A writable window also needs to keep its
         // exclusive descriptor live through the subslice.
-        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
         let element = match typed_element {
             None if byte_view => {
-                if backing_type.qualification() != Qualification::NONE {
-                    return Err(unavailable("a borrowed range retains qualified backing"));
-                }
-                let retained = self
-                    .record_sources
-                    .get(backing)
-                    .and_then(|source| source.application.as_ref())
-                    .map(|source| source.reference)
-                    .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let declared = super::bytes::source_byte_view(
-                    self.typed,
-                    retained,
-                    self.lifetime_owner,
-                    machine,
-                )?
-                .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let value = self.value_type(machine, declared.element_type)?;
-                self.storage_type(machine, declared.element_type, value)?
+                let element = self.byte_view_element_type(machine, backing)?;
+                let value = self.value_type(machine, element)?;
+                self.storage_type(machine, element, value)?
             }
             None => self
                 .byte_array_element(base.result)
@@ -338,13 +419,13 @@ impl Program<'_> {
                     unavailable("typed array view without a closed array of its exact element")
                 })?,
         };
-        self.collection_range_selection(machine, borrow.target, backing)?;
-        let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
+        self.collection_range_selection(machine, target, backing)?;
+        let crossed = self.reference_place_access(machine, slots, &base, written_access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
         if !byte_view
             && !crossed
-            && borrow.access == ReferenceAccess::Mutable
+            && written_access == ReferenceAccess::Mutable
             && (slots[slot].borrowed == Some(ReferenceAccess::Shared)
                 || slots[slot].borrowed.is_none() && !slots[slot].assignable)
         {
@@ -355,21 +436,23 @@ impl Program<'_> {
         self.authorized(
             machine,
             backing_type,
-            if borrow.access == ReferenceAccess::Mutable {
+            if written_access == ReferenceAccess::Mutable {
                 Access::Write
             } else {
                 Access::Read
             },
         )?;
-        if borrow.access == ReferenceAccess::Mutable {
+        if written_access == ReferenceAccess::Mutable {
             self.written_through(machine, &base)?;
         }
         let mut regions = self.storage_loan_regions(machine, slots, &base)?;
         if typed_element.is_some() {
-            // A typed view prefixes its backing loan's region to the regions
-            // its elements hold, which the array value carries (`sequence_type`).
+            // Reborrowing replaces the view's outer loan. Only the element
+            // regions survive from its existing descriptor.
+            let elements =
+                self.collection_element_regions(machine, backing, backing_type.regions())?;
             let mut tuple = self.region_tuple(regions).to_vec();
-            tuple.extend_from_slice(self.region_tuple(backing_type.regions()));
+            tuple.extend_from_slice(self.region_tuple(elements));
             regions = self.intern_regions(tuple);
         }
         // Lend the actual collection before evaluating endpoints. A mutable
@@ -377,20 +460,113 @@ impl Program<'_> {
         // storage and leave a restoration debt there.
         let whole = Expression {
             call_context: None,
-            kind: ExpressionKind::ArrayView {
+            kind: ExpressionKind::CollectionView {
                 base: Box::new(base),
-                access: borrow.access,
+                access: written_access,
                 element,
             },
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
-        if partial {
-            return self
-                .collection_window(machine, slots, whole, range, source)
-                .map(Some);
+        // The original range operator belongs to its actual backing.
+        self.complete_formed_operator(machine, target, &whole)?;
+        let formed = if partial {
+            self.collection_window(machine, slots, whole, range, source)?
+        } else {
+            whole
+        };
+        present(self, formed).map(Some)
+    }
+
+    /// A collection recast borrows the same captured window. Its destination
+    /// supplies only presentation; geometry, total validity and count fit are
+    /// judged on the resulting representation-view operation.
+    pub(super) fn collection_recast(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        cast: &typed_trees::expression::TableCastExpression,
+        reference: TypeReferenceHandle,
+        target: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::ReferenceAccess;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        if cast.form.recast_access() != Some(ReferenceAccess::Shared) {
+            return Err(unavailable(
+                "exclusive storage view without establishment and handback evidence",
+            ));
         }
-        Ok(Some(whole))
+        if cast.semantic_domain_symbol.is_valid()
+            || !cast.semantic_domain.is_empty()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            return Err(unavailable("storage view that also changes a domain"));
+        }
+        let ValueType::Record(view, Qualification::NONE, _) = target else {
+            return Err(unavailable(
+                "collection recast without a plain view destination",
+            ));
+        };
+        let element = match self.data_type(machine, view)?.shape {
+            StorageShape::ElementView {
+                element,
+                qualification: Qualification::NONE,
+                access: Some(StructuralAccess::SharedBorrow),
+            } => element,
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }) => {
+                let byte = super::bytes::source_byte_view(
+                    self.typed,
+                    reference,
+                    self.lifetime_owner,
+                    machine,
+                )?
+                .ok_or_else(|| unavailable("collection recast lost its byte element"))?;
+                let value = self.value_type(machine, byte.element_type)?;
+                self.storage_type(machine, byte.element_type, value)?
+            }
+            _ => {
+                return Err(unavailable(
+                    "collection recast without a shared destination",
+                ));
+            }
+        };
+        let base = self.expression(machine, slots, cast.value, None)?;
+        let Some(viewed @ ValueType::Record(backing, Qualification::NONE, _)) = base.result else {
+            return Err(unavailable(
+                "collection recast without plain collection backing",
+            ));
+        };
+        if !self.is_borrowed_view(viewed)
+            || !matches!(
+                self.data_type(machine, backing)?.shape,
+                StorageShape::ElementView {
+                    qualification: Qualification::NONE,
+                    access: Some(StructuralAccess::SharedBorrow),
+                    ..
+                }
+            )
+        {
+            return Err(unavailable(
+                "collection recast without a shared collection descriptor",
+            ));
+        }
+        self.representation_read_authorized(machine, &base)?;
+        let regions = self.loan_regions(machine, slots, &base)?;
+        Ok(Expression {
+            kind: ExpressionKind::CollectionView {
+                base: Box::new(base),
+                access: ReferenceAccess::Shared,
+                element,
+            },
+            result: Some(ValueType::Record(view, Qualification::NONE, regions)),
+            call_context: None,
+            source,
+        })
     }
 
     pub(super) fn array_literal(
@@ -431,7 +607,7 @@ impl Program<'_> {
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
-            if !self.agrees(element.result, declared) {
+            if !self.agrees(element.result, Some(declared)) {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
@@ -456,6 +632,7 @@ impl Program<'_> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
         access: Access,
+        element_read: ElementRead,
     ) -> Checked<Expression> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         // A range preserves the backing region of its operand. Context can
@@ -485,16 +662,41 @@ impl Program<'_> {
             }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
-        let (element, qualification, extent) = self.array_element(machine, array)?;
-        let stored_length = matches!(extent, CollectionExtent::StoredLength);
-        if stored_length && access != Access::Read {
+        // A range of a shared typed view (`&[T]`) is the same window as a
+        // byte range: it keeps the view's backing region, and lowering checks
+        // `start <= end <= len` against the view's own length. A mutable view
+        // would need its exclusive loan kept live through the window, which
+        // this read path does not establish, so it stays refused.
+        if let typed_trees::expression::ExpressionNode::Range(range) =
+            self.node(machine, indexed.index)?
+        {
+            if matches!(
+                self.data_type(machine, array.record())?.shape,
+                StorageShape::ElementView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    ..
+                }
+            ) {
+                self.collection_range_selection(machine, handle, array.record())?;
+                return self.collection_window(machine, slots, base, range, source);
+            }
             return Err(refuse(
                 machine,
                 Construct::Machine,
-                Unserved::Typing("sequence index needs its current length and bounds judgment"),
+                Unserved::Expression("range of a collection that is not a shared view"),
             ));
         }
-        if stored_length && !self.data_type(machine, element)?.copyable {
+        let (element, qualification, extent) = self.array_element(machine, array)?;
+        let stored_length = matches!(extent, CollectionExtent::StoredLength);
+        // Reading a whole slice element copies it out of the view, so the
+        // element type must be copyable. A field projection reads only the
+        // selected field; the lowering copies that field from the element's
+        // place and still refuses an owned extraction from borrowed storage.
+        if stored_length
+            && access == Access::Read
+            && element_read == ElementRead::Whole
+            && !self.data_type(machine, element)?.is_copyable()
+        {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -579,6 +781,18 @@ impl Program<'_> {
                 qualification,
                 length: ArrayExtent::Literal(length),
             } => Ok((*element, *qualification, CollectionExtent::Fixed(*length))),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Parameter { owner, value },
+            } => Ok((
+                *element,
+                *qualification,
+                CollectionExtent::Parameter {
+                    owner: *owner,
+                    value: *value,
+                },
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -658,9 +872,9 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: self.typed.stored_value_multiplicity(reference)
-                == language_semantics::Multiplicity::Unrestricted,
+            multiplicity: crate::body::source_multiplicity(
+                self.typed.stored_value_multiplicity(reference),
+            ),
             cleanup: None,
             identity,
             shape,
@@ -678,35 +892,61 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
         element: TypeReferenceHandle,
-        _extent: &FixedArrayLength,
+        extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
         use typed_trees::constant_recipes::DeclaredArrayExtent;
 
         let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-        let length = match self.typed.declared_array_extent(reference) {
-            Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
-            Some(DeclaredArrayExtent::Recipe(recipe)) => {
-                let recipe = self.typed.constant_recipes.get(recipe);
-                let contexts = self
-                    .typed
-                    .constant_expression_contexts
-                    .span_or_empty(recipe.contexts);
-                let [context] = contexts else {
-                    return Err(unserved(
-                        "array extent has no unique retained evaluation context",
-                    ));
-                };
-                ArrayExtent::Application(
-                    self.scalar_evaluation(
-                        machine,
-                        context.evaluation_entry,
-                        context.evaluation_expression,
-                        context.result_type,
-                    )?
-                    .0,
-                )
+        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent {
+            let key = (symbol.arena_index(), symbol.generation());
+            let position = self
+                .const_scope
+                .binary_search_by_key(&key, |binding| {
+                    (binding.symbol.arena_index(), binding.symbol.generation())
+                })
+                .map_err(|_| unserved("array extent without an owned const input"))?;
+            let binding = self.const_scope[position];
+            let Some(integer) = binding.scalar_type.as_integer() else {
+                return Err(unserved("array extent const input is not an integer"));
+            };
+            if integer.is_address()
+                || integer.sign() != IntegerSign::Unsigned
+                || integer.bits().is_none_or(|bits| bits > 64)
+            {
+                return Err(unserved(
+                    "array extent const input needs an unsigned carrier of at most 64 bits",
+                ));
             }
-            None => return Err(unserved("unresolved array extent")),
+            ArrayExtent::Parameter {
+                owner: binding.owner,
+                value: binding.value,
+            }
+        } else {
+            match self.typed.declared_array_extent(reference) {
+                Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
+                Some(DeclaredArrayExtent::Recipe(recipe)) => {
+                    let recipe = self.typed.constant_recipes.get(recipe);
+                    let contexts = self
+                        .typed
+                        .constant_expression_contexts
+                        .span_or_empty(recipe.contexts);
+                    let [context] = contexts else {
+                        return Err(unserved(
+                            "array extent has no unique retained evaluation context",
+                        ));
+                    };
+                    ArrayExtent::Application(
+                        self.scalar_evaluation(
+                            machine,
+                            context.evaluation_entry,
+                            context.evaluation_expression,
+                            context.result_type,
+                        )?
+                        .0,
+                    )
+                }
+                None => return Err(unserved("unresolved array extent")),
+            }
         };
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;
@@ -718,12 +958,11 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let copyable = self.data_type(machine, element)?.copyable;
-        let owns_linear_claim = self.data_type(machine, element)?.owns_linear_claim;
+        let multiplicity =
+            crate::body::source_multiplicity(self.typed.stored_value_multiplicity(reference));
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim,
-            copyable,
+            multiplicity,
             cleanup: None,
             identity,
             shape,
@@ -736,7 +975,7 @@ impl Program<'_> {
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
     }
 
-    fn collection_element_storage(
+    pub(super) fn collection_element_storage(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,
@@ -758,7 +997,11 @@ impl Program<'_> {
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
         let (scalar_type, policy) = match value {
-            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+            ValueType::Scalar(scalar, qualification)
+                if qualification.domains.is_empty()
+                    || self.type_purpose
+                        == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
                 (scalar, qualification.policy)
             }
             ValueType::Scalar(..) => {
@@ -769,6 +1012,12 @@ impl Program<'_> {
                 ));
             }
             ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
+            ValueType::Record(id, _, _)
+                if self.type_purpose
+                    == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
+                return Ok(id);
+            }
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,
@@ -792,8 +1041,7 @@ impl Program<'_> {
         }
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
             shape: StorageShape::PrimitiveScalar {
@@ -935,4 +1183,12 @@ mod sequence_source_tests {
             "an unrelated retained source cannot relabel the row"
         );
     }
+}
+
+/// How a read uses the element an index selects: as a whole value, or only
+/// as the place a field projection reads from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ElementRead {
+    Whole,
+    Projected,
 }

@@ -442,3 +442,31 @@ fn a_callees_scalar_equality_preserves_the_enclosing_mathematical_input_relation
     let (elaboration, result) = run(vec![caller(sum(embedded(1), integer(99))), callee()]);
     assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
 }
+
+#[test]
+fn mathematical_order_guarantees_preserve_bounds_across_exact_sign_conversion() {
+    const SOURCE: &str = r#"
+public machine narrow_exact(value: i64) -> u64
+requires value >= 0i64
+ensures embed(result) <= embed(value) && embed(value) <= embed(result)
+{ value as u64 }
+
+machine encode_ticks(seconds: i64) -> u64
+requires seconds > -11644473600i64 && seconds <= 1833029933770i64
+{
+    let shifted: i64 = seconds + 11644473600i64;
+    narrow_exact(shifted) * 10000000u64
+}
+machine build_entry() { let t: u64 = encode_ticks(0i64); }
+"#;
+    let verdict = super::build_purpose::judge_build(SOURCE).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let overflow = SOURCE.replace("1833029933770i64", "1833029933771i64");
+    let verdict = super::build_purpose::judge_build(&overflow).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
+        "{verdict:?}"
+    );
+}

@@ -39,21 +39,29 @@ pub(crate) fn exact_declared_field(
 pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
-) -> Option<arena::RootRows<'_, StateParameter>> {
+) -> Result<Option<arena::RootRows<'_, StateParameter>>, Diagnostic> {
+    if !program.symbols.symbols().nodes().is_valid(target) {
+        return Ok(None);
+    }
+    if let Some(application) = program.closed_requirement_application(target) {
+        return Ok(Some(
+            program.state_signature_parameters(application.signature),
+        ));
+    }
     if let Some(state) = program.state_by_symbol(target) {
-        return Some(program.state_parameters(state));
+        return Ok(Some(program.state_parameters(state)));
     }
     if let Some(machine) = program.machine_by_symbol(target) {
-        return program
+        return Ok(program
             .machine_states(machine)
             .first()
-            .map(|state| program.state_parameters(state));
+            .map(|state| program.state_parameters(state)));
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target) {
-        return Some(program.state_signature_parameters(signature));
+        return Ok(Some(program.state_signature_parameters(signature)));
     }
     if let Some(operator) = program.operator_definition_by_symbol(target) {
-        return Some(program.operator_parameters(operator));
+        return Ok(Some(program.operator_parameters(operator)));
     }
     let mut signatures = program
         .traits()
@@ -63,9 +71,15 @@ pub(crate) fn call_target_parameters(
     if let Some(signature) = signatures.next()
         && signatures.next().is_none()
     {
-        return Some(program.state_signature_parameters(signature));
+        return Ok(Some(program.state_signature_parameters(signature)));
     }
-    None
+    if let Some(signature) = program
+        .evidence_requirement_declaration(target)
+        .map_err(Diagnostic::error)?
+    {
+        return Ok(Some(program.state_signature_parameters(signature)));
+    }
+    Ok(None)
 }
 
 pub(crate) fn selected_construction_field_type(
@@ -471,7 +485,18 @@ fn declared_field_type(
     let field = fields
         .next()
         .ok_or_else(|| crate::unavailable_judgment("assignment field declaration"))?;
-    if fields.next().is_some() || (selected.is_valid() && selected != field.symbol) {
+    if fields.next().is_some() {
+        return Err(crate::unavailable_judgment("assignment field identity"));
+    }
+    if selected != SymbolHandle::invalid()
+        && (!program.symbols.symbols().nodes().is_valid(selected)
+            || program
+                .data_constructor_field(carrier, data.symbol, selected)
+                .is_none_or(|applied| applied.symbol != field.symbol))
+    {
+        // A template field and its actual applied field have different binder
+        // coordinates. Only the canonical declaration/application mapping may
+        // connect them; a same-spelled foreign field cannot supply this type.
         return Err(crate::unavailable_judgment("assignment field identity"));
     }
     collection_field_type(program, carrier, field.symbol)
@@ -560,6 +585,198 @@ enum CallReceiver {
     Value,
 }
 
+/// Read a value's retained type in the exact formal scope. This operation
+/// projects declarations and applied data views; it supplies no call verdict.
+pub(crate) fn scoped_expression_type_reference(
+    program: &TypedTrees,
+    parameters: arena::RootRows<'_, StateParameter>,
+    result: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    state_scope: Option<&typed_trees::state::State>,
+) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
+    fn visit(
+        program: &TypedTrees,
+        parameters: arena::RootRows<'_, StateParameter>,
+        result: TypeReferenceHandle,
+        expression: ExpressionHandle,
+        state_scope: Option<&typed_trees::state::State>,
+        active: &mut Vec<ExpressionHandle>,
+    ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
+        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
+        {
+            return Err(crate::unavailable_judgment(
+                "stale or cyclic value type query",
+            ));
+        }
+        if let Some(reference) = program
+            .declared_callable_expression_type_reference(expression)
+            .map_err(Diagnostic::error)?
+        {
+            return Ok(Some(reference));
+        }
+        active.push(expression);
+        let reference = match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if program.expression_table.names_reserved_result(expression) {
+                    result.is_valid().then_some(result)
+                } else if let Some(state) = state_scope
+                    && path.resolved_symbol().is_some_and(|symbol| {
+                        program.symbols.symbols().nodes().is_valid(symbol)
+                            && matches!(
+                                program.symbols.get(symbol).kind,
+                                SymbolKind::Parameter | SymbolKind::Local
+                            )
+                    })
+                {
+                    Some(declared_place_type(program, state, expression)?)
+                } else if let Some(parameter) = parameters.iter().find(|parameter| {
+                    parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
+                }) {
+                    Some(parameter.type_reference)
+                } else if path.resolved_symbol().is_some_and(|symbol| {
+                    program.symbols.symbols().nodes().is_valid(symbol)
+                        && matches!(
+                            program.symbols.get(symbol).kind,
+                            SymbolKind::Parameter | SymbolKind::Local
+                        )
+                }) {
+                    None
+                } else {
+                    program.first_named_value_declared_type(path.symbol, path.head_symbol)
+                }
+            }
+            ExpressionNode::Member(member) => {
+                let Some(receiver) = visit(
+                    program,
+                    parameters,
+                    result,
+                    member.receiver,
+                    state_scope,
+                    active,
+                )?
+                else {
+                    active.pop();
+                    return Ok(None);
+                };
+                let receiver = program.type_reference_table.peeled_type_reference(receiver);
+                program
+                    .closed_data_definition(receiver)
+                    .and_then(|definition| {
+                        program
+                            .data_constructor_field(
+                                receiver,
+                                definition.symbol,
+                                member.selection.field_symbol(),
+                            )
+                            .map(|field| field.type_reference)
+                    })
+            }
+            ExpressionNode::Indexed(indexed) => {
+                if matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) {
+                    None
+                } else {
+                    match visit(
+                        program,
+                        parameters,
+                        result,
+                        indexed.collection,
+                        state_scope,
+                        active,
+                    )? {
+                        Some(collection) => Some(collection_element_type(program, collection)?),
+                        None => None,
+                    }
+                }
+            }
+            ExpressionNode::Cast(cast) => Some(cast.target_type),
+            ExpressionNode::SavedSubject(saved) => match program.saved_value_source(saved) {
+                Some(value) => visit(program, parameters, result, value, state_scope, active)?,
+                None => return Err(crate::unavailable_judgment("saved value source type")),
+            },
+            ExpressionNode::Atomic(atomic) => visit(
+                program,
+                parameters,
+                result,
+                atomic.value,
+                state_scope,
+                active,
+            )?,
+            ExpressionNode::Borrow(borrow) => visit(
+                program,
+                parameters,
+                result,
+                borrow.target,
+                state_scope,
+                active,
+            )?,
+            ExpressionNode::Match(dispatch) => {
+                let arms = program.expression_table.match_arms(dispatch.arms);
+                let mut joined = None;
+                for arm in arms {
+                    let Some(candidate) =
+                        visit(program, parameters, result, arm.value, state_scope, active)?
+                    else {
+                        active.pop();
+                        return Ok(None);
+                    };
+                    if joined.is_some_and(|previous| {
+                        program.normalized_type_identity(previous)
+                            != program.normalized_type_identity(candidate)
+                    }) {
+                        return Err(crate::unavailable_judgment(
+                            "incompatible value type at match join",
+                        ));
+                    }
+                    joined = Some(candidate);
+                }
+                joined
+            }
+            ExpressionNode::Call(call) => {
+                if let Some(state) = program.state_by_symbol(call.target_symbol) {
+                    Some(state.return_type)
+                } else if let Some(machine) = program.machine_by_symbol(call.target_symbol) {
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .map(|state| state.return_type)
+                } else if let Some(operator) =
+                    program.operator_definition_by_symbol(call.target_symbol)
+                {
+                    Some(operator.return_type)
+                } else {
+                    program
+                        .trait_machine_signature(call.target_symbol)
+                        .map(|(_, signature)| signature.return_type)
+                }
+            }
+            _ => None,
+        };
+        active.pop();
+        if let Some(reference) = reference
+            && reference.is_valid()
+            && !program
+                .type_reference_table
+                .contains_type_reference(reference)
+        {
+            return Err(crate::unavailable_judgment(
+                "value type with stale source custody",
+            ));
+        }
+        Ok(reference)
+    }
+    visit(
+        program,
+        parameters,
+        result,
+        expression,
+        state_scope,
+        &mut Vec::new(),
+    )
+}
+
 /// The declarations a call may name directly.
 struct DeclaredCallTargets<'program> {
     program: &'program TypedTrees,
@@ -591,6 +808,20 @@ impl<'program> DeclaredCallTargets<'program> {
         // not become facts merely because preparation can identify the target.
         if !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
             return false;
+        }
+        if let Some(receiver) = receiver
+            && receiver.is_valid()
+            && program.symbols.symbols().nodes().is_valid(receiver)
+            && matches!(
+                program.static_record_bound_requirement(
+                    program.symbols.get(receiver).parent,
+                    receiver,
+                    symbol,
+                ),
+                Ok(Some(_))
+            )
+        {
+            return true;
         }
         if program.machine_by_own_or_state_symbol(symbol).is_some()
             || program.operator_definition_by_symbol(symbol).is_some()
@@ -654,14 +885,43 @@ impl<'program> DeclaredCallTargets<'program> {
         matches!(
             self.program.named_conformance_member(namespace, target),
             Ok(Some(_))
-        )
+        ) || (namespace.is_valid()
+            && self.program.symbols.symbols().nodes().is_valid(namespace)
+            && matches!(
+                self.program.static_record_bound_requirement(
+                    self.program.symbols.get(namespace).parent,
+                    namespace,
+                    target,
+                ),
+                Ok(Some(_))
+            ))
     }
 
     fn named_expression_call(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
         matches!(
             self.program.named_conformance_call_member(call),
             Ok(Some(_))
-        )
+        ) || self
+            .program
+            .expression_table
+            .name_path_node(call.receiver)
+            .is_some_and(|receiver| {
+                receiver.symbol.is_valid()
+                    && self
+                        .program
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(receiver.symbol)
+                    && matches!(
+                        self.program.static_record_bound_requirement(
+                            self.program.symbols.get(receiver.symbol).parent,
+                            receiver.symbol,
+                            call.target_symbol,
+                        ),
+                        Ok(Some(_))
+                    )
+            })
     }
 
     /// What a call typing did not bind still asks of a later pass, or `None`
@@ -712,10 +972,32 @@ pub(crate) fn defer_unbound_calls(
     // Each row retains resolution's scoped outcome until its owner is known.
     let mut in_declarations = Vec::new();
     let mut closed_selections = Vec::new();
+    let mut byte_domain_clauses;
     let rows: Vec<(SymbolHandle, DeferredRequest, source::SourceSpan)>;
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
+        // These clauses already have the compiler's primitive byte meaning.
+        // Keep every other unbound call for its ordinary declaration reader.
+        byte_domain_clauses = program
+            .domain_definitions()
+            .iter()
+            .filter_map(|domain| {
+                let predicate = typed_trees::byte_predicates::primitive_byte_slice_domain(
+                    program,
+                    domain.symbol,
+                )?;
+                match program.proof_facts.span_or_empty(domain.facts).as_array() {
+                    Some([typed_trees::domain::ProofFact::Expression(expression)]) => {
+                        Some((*expression, predicate))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        byte_domain_clauses
+            .sort_unstable_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+        byte_domain_clauses.dedup();
         for (handle, expression) in program.expression_table.expression_entries() {
             if let ExpressionNode::Name(path) = expression {
                 if !path.symbol.is_valid()
@@ -734,6 +1016,21 @@ pub(crate) fn defer_unbound_calls(
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
+            if byte_domain_clauses
+                .binary_search_by_key(
+                    &(handle.arena_index(), handle.generation()),
+                    |(handle, _)| (handle.arena_index(), handle.generation()),
+                )
+                .is_ok()
+            {
+                continue;
+            }
+            if call.runtime_call.is_some() {
+                program
+                    .declared_callable_expression_type_reference(handle)
+                    .map_err(Diagnostic::error)?;
+                continue;
+            }
             // `size_of<T>()` and `align_of<T>()` name no declaration by
             // construction: typing recognized the compiler-known query and
             // retained its operand, and Terminal Psi production reads that
@@ -781,6 +1078,29 @@ pub(crate) fn defer_unbound_calls(
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(call) = statement.as_call() {
+                        if let Some(binding) = call.runtime_call {
+                            program
+                                .declared_callable_contract(binding.contract)
+                                .map_err(Diagnostic::error)?;
+                            if !program.expression_table.expression_is_valid(binding.callee)
+                                || call.target_symbol.is_valid()
+                                || call.receiver_symbol.is_valid()
+                                || call.receiver_root_symbol.is_valid()
+                                || !program
+                                    .statement_table
+                                    .name_path_members(call.receiver)
+                                    .is_empty()
+                                || call.static_machine_parameter.is_valid()
+                                || call.static_requirement_dispatch.is_some()
+                                || call.authored_machine_application.is_valid()
+                                || !call.machine_arguments.is_empty()
+                            {
+                                return Err(crate::unavailable_judgment(
+                                    "conflicting runtime statement-call metadata",
+                                ));
+                            }
+                            continue;
+                        }
                         let receiver = if program
                             .statement_table
                             .name_path_members(call.receiver)
@@ -855,18 +1175,6 @@ pub(crate) fn defer_unbound_calls(
                     .filter(|owner| owner.is_valid())
                 {
                     owned = true;
-                    // This exact fact selects the byte predicate even though
-                    // lexical lookup found no ordinary callable for its name.
-                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
-                        && program
-                            .domain_definition(owner)
-                            .and_then(|domain| {
-                                typed_trees::byte_predicates::byte_domain_predicate(program, domain)
-                            })
-                            .is_some_and(|(predicate, _)| predicate == handle)
-                    {
-                        continue;
-                    }
                     in_declarations.push((owner, request, source_span, bare));
                 }
                 if !owned {
@@ -893,6 +1201,9 @@ pub(crate) fn defer_unbound_calls(
                 (declaration, request, source_span)
             })
             .collect();
+    }
+    for (expression, predicate) in byte_domain_clauses {
+        complete_byte_domain_selection(program, expression, predicate)?;
     }
     if !closed_selections.is_empty() {
         use typed_trees::{
@@ -941,6 +1252,64 @@ pub(crate) fn defer_unbound_calls(
     for (declaration, request, source_span) in rows {
         program.record_deferred_refusal(declaration, request, source_span);
     }
+    Ok(())
+}
+
+/// Complete the source occurrence only after its exact domain clause has
+/// acquired a primitive byte meaning. The ledger is output of that formation,
+/// never the reason an unresolved call is treated as a primitive.
+fn complete_byte_domain_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    predicate: typed_trees::byte_predicates::ByteSequencePredicate,
+) -> Result<(), Diagnostic> {
+    use typed_trees::AuthoredDeclarationSelectionKind as Kind;
+    let span = program.expression_table.source_span(expression);
+    let fail = |reason: &str| {
+        Diagnostic::error(format!(
+            "primitive byte-domain call {expression:?}: {reason}"
+        ))
+        .with_source_span(span)
+    };
+    let call = program
+        .expression_table
+        .call_node(expression)
+        .ok_or_else(|| fail("lost its formed call"))?;
+    let mut occurrence = None;
+    for attached in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let row = program
+            .authored_declaration_selections()
+            .get(attached)
+            .ok_or_else(|| fail("lost its attached authored occurrence"))?;
+        if row.kind() != Kind::Call {
+            continue;
+        }
+        if occurrence
+            .replace(attached)
+            .is_some_and(|previous| previous != attached)
+        {
+            return Err(fail("retains multiple authored Call occurrences"));
+        }
+    }
+    if call.authored_call_selection != occurrence {
+        return Err(fail("does not retain its own attached Call occurrence"));
+    }
+    // The primitive meaning belongs to the authenticated declaration, not an
+    // unbound spelling. The ordinary resolved Call row remains its custody;
+    // rewriting it to a synthetic intrinsic would erase the actual selection.
+    let Some((actual, _)) = typed_trees::byte_predicates::byte_predicate_call(program, expression)
+    else {
+        return Err(fail("changes its selected primitive or declaration"));
+    };
+    if actual != predicate {
+        return Err(fail("changes its selected primitive or declaration"));
+    }
+    // byte_predicate_call checked this exact occurrence's Resolved declaration
+    // against the sealed Core schema. Unknown or late-bound rows cannot acquire
+    // primitive meaning here; ordinary selection must complete them first.
     Ok(())
 }
 
@@ -1702,11 +2071,370 @@ mod tests {
             .collect())
     }
 
+    #[test]
+    fn applied_projection_accepts_only_its_original_or_actual_field() {
+        let program = crate::qualified_operator_home_tests::checked(&[(
+            "main.omg",
+            r#"
+            data Buffer<T> { storage: [T; 4]; }
+            data Foreign { storage: [u8; 4]; }
+            machine bytes(buffer: &Buffer<u8>) -> u8 { buffer.storage[0u64] }
+        "#,
+        )])
+        .unwrap();
+        let declaration = program
+            .machines()
+            .iter()
+            .find(|row| row.name.as_str() == "bytes")
+            .unwrap();
+        let state = program.machine_states(declaration).first().unwrap();
+        let reference = program.state_parameters(state)[0].type_reference;
+        let carrier = program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        let applied = program.closed_data_field_definition(carrier).unwrap();
+        let field = |data| {
+            program
+                .data_members(data)
+                .iter()
+                .filter_map(typed_trees::data::DataMember::as_field)
+                .next()
+                .unwrap()
+        };
+        let actual = field(applied);
+        let template = program
+            .data_definitions()
+            .iter()
+            .find(|row| row.name.as_str() == "Buffer" && row.generic_instance.is_none())
+            .unwrap();
+        let original = field(template);
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } = program
+            .type_reference_table
+            .type_reference(actual.type_reference)
+        else {
+            panic!("the actual generic field has a closed array carrier");
+        };
+        assert_eq!(
+            program.primitive_type_reference(*element_type),
+            Some(PrimitiveType::U8)
+        );
+        assert_eq!(*length, typed_trees::types::FixedArrayLength::Literal(4));
+        for selected in [original.symbol, actual.symbol, SymbolHandle::invalid()] {
+            assert_eq!(
+                declared_field_type(&program, reference, "storage", selected).unwrap(),
+                actual.type_reference
+            );
+        }
+        let foreign = program
+            .data_definitions()
+            .iter()
+            .find(|row| row.name.as_str() == "Foreign")
+            .unwrap();
+        for selected in [
+            field(foreign).symbol,
+            SymbolHandle::from_parts(1, 0),
+            SymbolHandle::from_parts(0, 1),
+            SymbolHandle::from_parts(actual.symbol.arena_index(), actual.symbol.generation() + 1),
+        ] {
+            assert!(
+                declared_field_type(&program, reference, "storage", selected).is_err(),
+                "an unrelated or malformed field cannot supply the applied projection"
+            );
+        }
+    }
+
+    #[test]
+    fn primitive_byte_domain_calls_keep_their_exact_builtin_meaning() {
+        use typed_trees::byte_predicates::{ByteSequencePredicate, primitive_byte_slice_domain};
+        use typed_trees::domain::ProofFact;
+        use typed_trees::expression::TableCallExpression;
+
+        fn typed(text: &str, core: bool) -> TypedTrees {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add_with_metadata(
+                    "package/main.omg".into(),
+                    text.to_owned(),
+                    "package".into(),
+                    None,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let mut syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut bindings = Vec::new();
+            if core {
+                let text = include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/byte_observation.omg"
+                ));
+                let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../../../../source/library/core");
+                let declaration = sources
+                    .add_with_metadata(
+                        root.join("byte_observation.omg"),
+                        text.to_owned(),
+                        root,
+                        None,
+                        source::SourceOrigin::Toolchain,
+                    )
+                    .source_id;
+                let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+                tokens_to_syntax_trees::parse(&mut syntax, declaration, &tokens).unwrap();
+                bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    source,
+                    declaration,
+                    "omega::language::core::byte_observation",
+                    3,
+                ));
+            }
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(std::sync::Arc::new(sources));
+            request.top_level_bindings = bindings;
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+            crate::lower_symbol_resolved_trees(&resolved).unwrap()
+        }
+
+        fn call_mut(
+            program: &mut TypedTrees,
+            expression: ExpressionHandle,
+        ) -> &mut TableCallExpression {
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression)
+            else {
+                panic!("the domain retains its actual call")
+            };
+            call
+        }
+
+        let program = typed(
+            "use omega::language::core::byte_observation;\npublic domain [u8]::Path requires byte_observation::no_nul(&self[..]);\ndomain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);",
+            true,
+        );
+        let domain = &program.domain_definitions()[0];
+        let symbol = domain.symbol;
+        let Some([ProofFact::Expression(expression)]) =
+            program.proof_facts.span_or_empty(domain.facts).as_array()
+        else {
+            panic!("one authored predicate")
+        };
+        let expression = *expression;
+        assert_eq!(
+            primitive_byte_slice_domain(&program, symbol),
+            Some(ByteSequencePredicate::NoNul)
+        );
+        let original = program
+            .expression_table
+            .call_node(expression)
+            .unwrap()
+            .clone();
+        let occurrence = original
+            .authored_call_selection
+            .expect("actual authored Call");
+        let selected = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .unwrap()
+            .target();
+        assert!(matches!(
+            selected,
+            typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+        ));
+        assert!(deferred(&program).unwrap().is_empty());
+        let completed = program.clone();
+        complete_byte_domain_selection(&completed, expression, ByteSequencePredicate::NoNul)
+            .unwrap();
+        assert_eq!(
+            completed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap()
+                .target(),
+            selected,
+            "a genuine declaration keeps its ordinary resolved custody"
+        );
+        assert!(
+            complete_byte_domain_selection(
+                &completed,
+                expression,
+                ByteSequencePredicate::AsciiOnly
+            )
+            .is_err(),
+            "the authenticated no-nul observation cannot become ASCII"
+        );
+
+        let other_domain = &program.domain_definitions()[1];
+        let Some([ProofFact::Expression(other_expression)]) = program
+            .proof_facts
+            .span_or_empty(other_domain.facts)
+            .as_array()
+        else {
+            panic!("one sibling predicate")
+        };
+        let other = program
+            .expression_table
+            .call_node(*other_expression)
+            .unwrap();
+        let mut wrong = program.clone();
+        call_mut(&mut wrong, expression).target_symbol = other.target_symbol;
+        assert_eq!(primitive_byte_slice_domain(&wrong, symbol), None);
+        assert!(
+            complete_byte_domain_selection(&wrong, expression, ByteSequencePredicate::NoNul)
+                .is_err()
+        );
+        for attached in [None, other.authored_call_selection] {
+            let mut wrong = program.clone();
+            call_mut(&mut wrong, expression).authored_call_selection = attached;
+            assert!(
+                complete_byte_domain_selection(&wrong, expression, ByteSequencePredicate::NoNul)
+                    .unwrap_err()
+                    .message
+                    .contains("own attached Call occurrence")
+            );
+        }
+
+        for (index, generation) in [(0, 1), (1, 0)] {
+            for (case, malformed) in [
+                TableCallExpression {
+                    target_symbol: SymbolHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    receiver: ExpressionHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    build_selection: arena::Handle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    authored_machine_application: arena::Handle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    exact_coercion_target: TypeReferenceHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    requirement_application: TypeReferenceHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+                TableCallExpression {
+                    static_machine_parameter: SymbolHandle::from_parts(index, generation),
+                    ..original.clone()
+                },
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let mut wrong = program.clone();
+                *call_mut(&mut wrong, expression) = malformed;
+                assert_eq!(
+                    primitive_byte_slice_domain(&wrong, symbol),
+                    None,
+                    "present malformed metadata is not exact absence: handle=({index},{generation}), field={case}"
+                );
+                assert!(
+                    complete_byte_domain_selection(
+                        &wrong,
+                        expression,
+                        ByteSequencePredicate::NoNul
+                    )
+                    .is_err()
+                );
+            }
+        }
+        let mut computed = program.clone();
+        let callee = computed
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        call_mut(&mut computed, expression).runtime_call =
+            Some(typed_trees::callable_values::RuntimeCallBinding {
+                callee,
+                contract: Default::default(),
+            });
+        assert_eq!(primitive_byte_slice_domain(&computed, symbol), None);
+        assert!(
+            complete_byte_domain_selection(&computed, expression, ByteSequencePredicate::NoNul)
+                .is_err()
+        );
+
+        let mut malformed = program.clone();
+        call_mut(&mut malformed, expression).arguments = Default::default();
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        assert!(
+            complete_byte_domain_selection(&malformed, expression, ByteSequencePredicate::NoNul)
+                .is_err()
+        );
+        let mut malformed = program.clone();
+        call_mut(&mut malformed, expression).machine_arguments =
+            Box::new([typed_trees::expression::StaticMachineArgument {
+                type_reference: domain.target_type,
+                ..Default::default()
+            }]);
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        let mut malformed = program.clone();
+        let (_, argument) =
+            typed_trees::byte_predicates::byte_predicate_call(&program, expression).unwrap();
+        let arguments =
+            malformed
+                .expression_table
+                .insert_expression_handles([ExpressionHandle::from_parts(
+                    argument.arena_index(),
+                    argument.generation() + 1,
+                )]);
+        call_mut(&mut malformed, expression).arguments = arguments;
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        let mut wrong_carrier = program.clone();
+        let slice = wrong_carrier.type_reference_table.insert(
+            program
+                .type_reference_table
+                .type_reference(domain.target_type)
+                .clone(),
+        );
+        wrong_carrier.type_reference_table.substitute_node(
+            domain.target_type,
+            TypeReferenceNode::Reference {
+                referee: slice,
+                access: language_core::ReferenceAccess::WriteOnly,
+                lifetime: None,
+            },
+        );
+        assert_eq!(primitive_byte_slice_domain(&wrong_carrier, symbol), None);
+
+        let bare = typed("domain [u8]::Path requires no_nul(self);", false);
+        let bare_domain = bare.domain_definitions()[0].symbol;
+        assert_eq!(
+            primitive_byte_slice_domain(&bare, bare_domain),
+            None,
+            "an undeclared spelling has no primitive privilege"
+        );
+        assert_eq!(
+            deferred(&bare).unwrap(),
+            vec![(bare_domain, DeferredRequest::UndeclaredCallName)]
+        );
+        let ordinary = typed(
+            "machine no_nul(value: &[u8]) -> bool { true }\ndomain [u8]::Path requires no_nul(&self[..]);",
+            false,
+        );
+        let ordinary_domain = ordinary.domain_definitions()[0].symbol;
+        assert_eq!(
+            primitive_byte_slice_domain(&ordinary, ordinary_domain),
+            None,
+            "a same-spelled ordinary body does not become a Core observation"
+        );
+        assert!(deferred(&ordinary).unwrap().is_empty());
+    }
+
     fn call(
         receiver: ExpressionHandle,
         target_symbol: SymbolHandle,
     ) -> typed_trees::expression::TableCallExpression {
         typed_trees::expression::TableCallExpression {
+            runtime_call: None,
             authored_call_selection: None,
             authored_call_binding: None,
             build_selection: Default::default(),
@@ -1919,6 +2647,10 @@ mod tests {
             .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
             .unwrap();
         let targets = DeclaredCallTargets::new(&program);
+        assert!(
+            call_target_parameters(&program, embed).unwrap().is_none(),
+            "a builtin has no authored parameter telescope to substitute"
+        );
         // A mathematical definition is applied by name, bare or qualified by
         // a module, and only where the program declares it.
         assert!(targets.declares(identity, None));
@@ -1986,12 +2718,18 @@ mod tests {
         );
         let requirement = members.handle_at(0);
         let missing = members.handle_at(1);
-        let receiver_value = symbols
-            .insert_children(
-                caller,
-                [(SymbolKind::Local, symbols::SymbolNameRef::Static("value"))],
-            )
-            .handle_at(0);
+        let receivers = symbols.insert_children(
+            caller,
+            [
+                (SymbolKind::Local, symbols::SymbolNameRef::Static("value")),
+                (
+                    SymbolKind::TypeParameter,
+                    symbols::SymbolNameRef::Static("Selected"),
+                ),
+            ],
+        );
+        let receiver_value = receivers.handle_at(0);
+        let record_receiver = receivers.handle_at(1);
         let mut program = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
@@ -2008,6 +2746,36 @@ mod tests {
             machines: signatures,
             ..Default::default()
         });
+        let record_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: owner,
+                name: typed_trees::name::Identifier::generated("Api"),
+            });
+        let parameters =
+            program
+                .data_type_parameters
+                .insert_many([typed_trees::data::TypeParameter {
+                    symbol: record_receiver,
+                    name: typed_trees::name::Identifier::generated("Selected"),
+                    kind: typed_trees::data::TypeParameterKind::Const {
+                        type_reference: record_type,
+                    },
+                    ..Default::default()
+                }]);
+        program.push_machine(typed_trees::machine::Machine {
+            symbol: caller,
+            type_parameters: parameters,
+            ..Default::default()
+        });
+        assert!(
+            DeclaredCallTargets::new(&program).declares(requirement, Some(record_receiver)),
+            "the exact Const schema member is not unsupported runtime receiver dispatch"
+        );
+        assert!(
+            !DeclaredCallTargets::new(&program).declares(missing, Some(record_receiver)),
+            "an absent member does not acquire the schema's authority"
+        );
         let receiver = program
             .expression_table
             .insert(ExpressionNode::Name(TableNamePath::new(
@@ -2024,6 +2792,13 @@ mod tests {
             Vec::new(),
             "the retained requirement is a declared target"
         );
+        assert!(
+            call_target_parameters(&program, requirement)
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(call_target_parameters(&program, missing).unwrap().is_none());
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
             panic!("call expression")
         };

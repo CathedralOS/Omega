@@ -26,7 +26,10 @@ modules to native code.
 */
 
 pub mod access;
+pub mod body_services;
 pub mod bytes;
+pub mod callable_envelopes;
+pub mod callable_values;
 pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};
@@ -368,7 +371,9 @@ pub(crate) mod semantic_rows {
         CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
         BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
         SelectImplementation => ("schema:operation:select-implementation", LeafDenotation, None),
+        SelectMachine => ("schema:operation:select-machine", LeafDenotation, None),
         CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
+        CallMachine => ("algebra:call:call-machine", CallComposition, None),
         PortWrite => ("schema:operation:port-write", LeafDenotation, None),
         RegisterAccess => ("schema:operation:register-access", LeafDenotation, None),
         IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
@@ -533,7 +538,10 @@ pub(crate) mod semantic_rows {
 
     pub(crate) use operation_semantic_cohort;
 }
-pub use structural::structural_store::{discardable_store_value, structural_store_value_admitted};
+pub use structural::structural_store::{
+    StructuralStoreValueError, discardable_store_value, structural_store_value_admitted,
+    validate_structural_store_values,
+};
 
 pub use access::access_view_referent::{
     AccessViewInputError, AccessViewReferentError, access_view_input_parameter,
@@ -551,10 +559,11 @@ pub use bytes::byte_sequence_predicates::{
     byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
     byte_parameter_predicates, byte_parameter_predicates_from_domains,
     byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
-    byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
-    byte_sequence_source_predicates, byte_view_call_result, indexed_byte_store_goal,
-    pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
-    scalar_operation_origin, shared_byte_field_copy_predicates,
+    byte_qualification_predicates_in, byte_sequence_argument_predicates,
+    byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
+    byte_subslice_is_whole, byte_transfer_qualifications_hold, byte_view_call_result,
+    indexed_byte_store_goal, pure_byte_qualifications, scalar_array_qualifications_hold,
+    scalar_operation_literal, scalar_operation_origin, shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
@@ -639,18 +648,18 @@ pub use structural::primitive_place::{
     borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
     canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
     canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, inline_descriptor_type, primitive_place_type,
-    primitive_projection_declaration, primitive_projection_restriction, primitive_projection_type,
-    primitive_read_field, primitive_read_projection_type, primitive_read_requirement,
-    projection_stays_in_inline_storage, projection_storage_dependencies,
-    runtime_read_projection_tip, runtime_structural_copy_type, runtime_structural_path_tip,
-    stored_descriptor_paths, visit_runtime_index_goals,
+    inline_backing_container, inline_descriptor_type, preceding_element_view_length,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, projection_stays_in_inline_storage,
+    projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
+    runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
     observed_field_backing_access, observed_field_declaration, projected_field_declaration,
-    record_field_carrier, runtime_structural_field, sequence_field_allows_observation,
-    static_field_projection,
+    record_field_carrier, resolved_structural_path, runtime_structural_field,
+    sequence_field_allows_observation, static_field_projection,
 };
 pub use structural::shared_mutation::{SharedMutation, shared_mutation};
 pub use structural::static_path::{

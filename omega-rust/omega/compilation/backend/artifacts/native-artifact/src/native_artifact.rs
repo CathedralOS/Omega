@@ -18,8 +18,8 @@ use effects::{
 };
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use installation_evidence::ProviderExecutionEvidence;
+use provider_admission::provider_admission::AdmittedNativeProviders;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
-use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
 #[path = "dynamic_elf.rs"]
 mod dynamic_elf;
@@ -92,7 +92,7 @@ pub(super) fn validate_boundary_application_coverage(
     terminal: terminal_psi::TerminalPsiIdentity,
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: &NativePhysicalEvidenceScope,
-    execution_scope: Option<&terminal_psi_to_abstract_operations::NativeExecutionScope>,
+    execution_scope: Option<&verified_optimization_input::NativeExecutionScope>,
 ) -> Result<(), &'static str> {
     // A retained native scope establishes which calls must have selected rows.
     // Without that custody, keep the full-module obligation; absence is not an
@@ -1084,7 +1084,7 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
 
 fn validate_ieee_float_fma_occurrences(
     module: &TerminalModule,
-    execution_scope: Option<&terminal_psi_to_abstract_operations::NativeExecutionScope>,
+    execution_scope: Option<&verified_optimization_input::NativeExecutionScope>,
 ) -> Result<(), &'static str> {
     if module
         .machines

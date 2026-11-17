@@ -2,6 +2,4 @@
 # Counts may only fall: express the rule as a dependency in
 # `cargo xtask check-boundary`, a type or visibility, or a test that runs code.
 # Written by `cargo xtask check-rules --update-source-reads`.
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs
-7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs
 5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs

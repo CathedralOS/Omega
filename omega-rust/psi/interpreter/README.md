@@ -520,9 +520,8 @@ disposal, staged byte-buffer writeback, later operation or cleanup commits.
 Host effects already performed cannot be undone. Resuming again returns the
 same crash without charging or calling again. An ordinary operand crash keeps
 its original edge and stops the enclosing boundary call. Installed-provider
-refinement and native support are separate work; the edge-only
-`TerminalTraceV1` observer rejects boundary crash routes until it can
-represent them.
+refinement and native support are separate work. No `TerminalTraceV1`
+observer exists yet (**OBSERVATION-PROFILE** in `TASKS.md`).
 
 A structural response today has an exact type, qualifications, an opaque
 identity and an empty path. Linear results, result claims, projected

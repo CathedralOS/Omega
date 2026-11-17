@@ -9,7 +9,7 @@
 */
 
 use crate::SelectedInstructionKind;
-use legalized_operations::encode_integer;
+use target_vocabulary::encode_integer;
 
 pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) {
     bytes.push(tag);
@@ -24,9 +24,14 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
         SelectedInstructionKind::RegisterAccess { operation } => {
             crate::codec_bytes::push_encoded(bytes, operation.catalog_tag().to_le_bytes());
         }
-        SelectedInstructionKind::PortWrite { port, value } => {
+        SelectedInstructionKind::PortWrite {
+            service,
+            port,
+            value,
+        } => {
             crate::codec_bytes::push_encoded(bytes, port.to_le_bytes());
             bytes.push(value);
+            crate::codec_bytes::push_encoded(bytes, service.get().to_le_bytes());
         }
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {

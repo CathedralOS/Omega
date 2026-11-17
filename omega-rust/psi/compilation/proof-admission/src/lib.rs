@@ -410,11 +410,11 @@ pub use integer_rules::integer_shift::{
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use mathematical_core::{
     BoundedDenotation, BoundedDenotationError, Budget, Context, CoreError,
-    DEFAULT_CONVERSION_STEPS, Declaration, INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP,
-    INDEXED_W, IndexedFamily, Level, MathematicalCertificate, MathematicalCertificateBatchError,
-    QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE,
-    QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP,
-    QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT,
+    DEFAULT_CONVERSION_STEPS, Declaration, EquivalenceProofs, INDEXED_AT, INDEXED_IND,
+    INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, Level, MathematicalCertificate,
+    MathematicalCertificateBatchError, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP,
+    QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM,
+    QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT,
     QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, Signature, SignatureCheckError,
     Sort, SourceContentTheory, Term, TermArena, TermHandle, assumption_closure,

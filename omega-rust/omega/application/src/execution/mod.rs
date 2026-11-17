@@ -30,8 +30,9 @@ We support two entry points:
 
 Reference runs are sponsored by the CLI with `DEFAULT_PSI_WORK_ALLOWANCE`
 (10,000,000 work units) unless overridden by `psi_work_budget`. Exhausting
-work during `--both` declines the comparison (`InterpreterComparison::Declined`)
-rather than failing the native run. When `keep_artifacts` is true, we also write
+work during `--both` declines the comparison (`InterpreterComparison::Declined`),
+and so does a Psi exit status the host can show only truncated; `omega run`
+then exits 204, because a comparison that did not happen is not agreement. When `keep_artifacts` is true, we also write
 `terminal.stdout`, `terminal.stderr`, `psi.work.tsv`, `terminal.effects`,
 and any `*.entry-ram.*` snapshots into `build_dir`.
 
@@ -590,20 +591,35 @@ fn compare_interpretation(
                     };
                 }
             };
-            if native_exit.matches_host_presentation(exit_code) {
-                InterpreterComparison::Agrees { exit_code }
-            } else {
-                InterpreterComparison::Disagrees {
-                    interpreter_exit_code: exit_code,
-                }
-            }
+            compare_exit_status(native_exit, exit_code)
         }
+    }
+}
+
+// Unix keeps only the low byte of a process status, so a Psi status outside
+// 0..=255 cannot be checked against the native one; that run is declined.
+fn compare_exit_status(
+    native_exit: ProcessExitObservation,
+    exit_code: i32,
+) -> InterpreterComparison {
+    match native_exit.matches_host_presentation(exit_code) {
+        Some(true) => InterpreterComparison::Agrees { exit_code },
+        Some(false) => InterpreterComparison::Disagrees {
+            interpreter_exit_code: exit_code,
+        },
+        None => InterpreterComparison::Declined(format!(
+            "Psi exit {exit_code} does not fit the host's 8-bit exit status; native {} \
+             shows only its low byte, so the full argument is unverified",
+            native_exit.describe()
+        )),
     }
 }
 
 #[cfg(test)]
 mod comparison_tests {
-    use super::{InterpreterComparison, ProcessExitObservation, compare_interpretation};
+    use super::{
+        InterpreterComparison, ProcessExitObservation, compare_exit_status, compare_interpretation,
+    };
     use terminal_runtime::TerminalRuntimeError;
 
     #[test]
@@ -635,5 +651,28 @@ mod comparison_tests {
             })),
         );
         assert!(matches!(comparison, InterpreterComparison::Declined(_)));
+    }
+
+    // Psi `exit_process(256)` and a native exit of 0 agree only in the low
+    // byte Unix keeps; the comparison must not report that as agreement.
+    #[test]
+    fn truncated_exit_status_is_not_agreement() {
+        let truncated = compare_exit_status(ProcessExitObservation::Exited(0), 256);
+        if cfg!(unix) {
+            assert!(
+                matches!(truncated, InterpreterComparison::Declined(_)),
+                "{truncated:?}"
+            );
+        } else {
+            assert!(
+                matches!(truncated, InterpreterComparison::Disagrees { .. }),
+                "{truncated:?}"
+            );
+        }
+        let exact = compare_exit_status(ProcessExitObservation::Exited(7), 7);
+        assert!(
+            matches!(exact, InterpreterComparison::Agrees { exit_code: 7 }),
+            "{exact:?}"
+        );
     }
 }

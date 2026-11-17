@@ -145,8 +145,8 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → tokens | [source-files-to-tokens](psi/compilation/pipeline/00_source-files-to-tokens/src/lib.rs) |
-| Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
+| Source files → tokens | [source-files-to-tokens](psi/compilation/pipeline/00_source-files-to-tokens/lexer.rs) |
+| Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/parser.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed trees → prepared typed trees (one ordered pass list) | [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
@@ -215,7 +215,11 @@ Build custody; code needing machine output calls the Omega driver with Terminal
 Psi plus target and realization inputs. Package management, the
 application, interpreters, inspection and test runners do not depend on stage
 or intermediate-representation crates, so they cannot invent a stage order,
-skip checks or keep sidecars. Focused tools stop the driver at an explicit
+skip checks or keep sidecars. Backend libraries such as machine and image
+emission do not call stages either; they read the representation the driver
+hands them. `mbx xtask check-boundary` refuses any production dependency on an
+Omega stage outside the native driver, except for a fixed list of remaining
+exceptions that may only shrink. Focused tools stop the driver at an explicit
 point or inspect what it returns; they are not other compile modes.
 
 This limits orchestration, not use of shared libraries. Each transform consumes

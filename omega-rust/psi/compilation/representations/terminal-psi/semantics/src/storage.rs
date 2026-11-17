@@ -2140,6 +2140,107 @@ pub mod borrowed_storage {
         Ok(())
     }
 
+    /// The referents a callee can store into through the `&mut` references
+    /// carried by a value it receives with `access`: one path per reference,
+    /// relative to the value and ending in `Referent`, outermost first.
+    /// Lowering writes each of them at a call that has no narrower frame,
+    /// and the checker derives the same rows, because a caller's fact
+    /// survives a call only when its storage is disjoint from the callee's
+    /// frame, "aliases included" (dependent_values.md, "Mutation frames").
+    /// A shared or write-only borrow of the value grants no store through
+    /// what it carries, and a shared reference grants none beneath it
+    /// (loans.md, "Reborrow lineage and access"). `None` when the referents
+    /// are not a finite list of exact paths: a recursive type, an array of
+    /// open extent, or an exclusive view of values that carry references.
+    pub fn carried_exclusive_referents(
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
+        use terminal_psi::{
+            ResolvedStructuralPathSegment as Segment, StructuralAccess, StructuralFieldType,
+            StructuralTypeShape,
+        };
+        type Paths = Vec<Vec<Segment>>;
+
+        fn walk(
+            types: &[terminal_psi::StructuralTypeDeclaration],
+            structural_type: semantic_vocabulary::StructuralTypeId,
+            active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+        ) -> Option<Paths> {
+            if active.contains(&structural_type) || active.len() > 64 {
+                return None;
+            }
+            let declaration = crate::exactly_one::exactly_one(types.iter(), |declaration| {
+                declaration.id == structural_type
+            })?;
+            active.push(structural_type);
+            let mut found = Paths::new();
+            let beneath = |prefix: &[Segment], paths: Paths, found: &mut Paths| {
+                found.extend(
+                    paths
+                        .into_iter()
+                        .map(|path| prefix.iter().copied().chain(path).collect()),
+                );
+            };
+            match &declaration.shape {
+                StructuralTypeShape::Reference { referent, access } => match access {
+                    StructuralAccess::MutableBorrow => {
+                        found.push(vec![Segment::Referent]);
+                        let paths = walk(types, *referent, active)?;
+                        beneath(&[Segment::Referent], paths, &mut found);
+                    }
+                    StructuralAccess::WriteOnlyBorrow => found.push(vec![Segment::Referent]),
+                    StructuralAccess::SharedBorrow | StructuralAccess::Owned => {}
+                },
+                StructuralTypeShape::FixedArray { element, length } => {
+                    let element = walk(types, *element, active)?;
+                    if !element.is_empty() {
+                        let length = length.literal().filter(|length| *length <= 4096)?;
+                        for index in 0..length {
+                            for path in &element {
+                                found.push(
+                                    [Segment::FixedIndex(index)]
+                                        .into_iter()
+                                        .chain(path.iter().copied())
+                                        .collect(),
+                                );
+                            }
+                        }
+                    }
+                }
+                StructuralTypeShape::ElementView {
+                    element,
+                    access: Some(StructuralAccess::MutableBorrow),
+                } if !walk(types, *element, active)?.is_empty() => return None,
+                _ => {}
+            }
+            for (case, field) in declaration.shape.fields_with_case() {
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    continue;
+                };
+                if field.relevance.is_erased() {
+                    continue;
+                }
+                let prefix: &[Segment] = match case {
+                    Some(case) => &[Segment::Case(case.id), Segment::Field(field.id)],
+                    None => &[Segment::Field(field.id)],
+                };
+                let paths = walk(types, child, active)?;
+                beneath(prefix, paths, &mut found);
+            }
+            active.pop();
+            Some(found)
+        }
+
+        match access {
+            StructuralAccess::MutableBorrow | StructuralAccess::Owned => {
+                walk(types, structural_type, &mut Vec::new())
+            }
+            StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow => Some(Vec::new()),
+        }
+    }
+
     /// Substitute a published frame through the call's already evaluated
     /// operands. These are invalidation regions, not new borrows or move
     /// permissions. An unserved reference origin retains the call ceiling.
@@ -2365,6 +2466,26 @@ pub mod borrowed_storage {
                 self.captured_at = Some(position);
             }
             self
+        }
+
+        /// Recover the complete captured address, including fields after a
+        /// dynamic selector. A widened region or a window has no single such
+        /// path; a dynamic coordinate must retain its formation point.
+        pub fn captured_storage_path(&self) -> Option<Vec<StructuralPathSegment>> {
+            if self.indirect || self.window.is_some() {
+                return None;
+            }
+            let mut result = Vec::new();
+            for step in self.address.as_ref()? {
+                let AddressStep::Path(path, at) = step else {
+                    return None;
+                };
+                if path.iter().any(|segment| segment.runtime_index().is_some()) && at.is_none() {
+                    return None;
+                }
+                result.extend_from_slice(path);
+            }
+            Some(result)
         }
 
         pub fn window(start: ValueId, end: ValueId, position: Position) -> Self {
@@ -3151,7 +3272,7 @@ pub(crate) mod calling_storage {
                 shape,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -3322,8 +3443,14 @@ pub(crate) mod collection_backing {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CollectionExtent {
+        Parameter {
+            owner: semantic_vocabulary::MachineId,
+            value: semantic_vocabulary::ValueId,
+        },
         Fixed(u64),
-        LiveLength { capacity: u64 },
+        LiveLength {
+            capacity: u64,
+        },
         StoredLength,
     }
 
@@ -3400,6 +3527,13 @@ pub(crate) mod collection_backing {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } if actual == element => Some(CollectionBacking {
                 extent: CollectionExtent::Fixed(length),
+                storage: CollectionStorage::Inline,
+            }),
+            StructuralTypeShape::FixedArray {
+                element: actual,
+                length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            } if actual == element => Some(CollectionBacking {
+                extent: CollectionExtent::Parameter { owner, value },
                 storage: CollectionStorage::Inline,
             }),
             StructuralTypeShape::ByteSequence(carrier)
@@ -3750,6 +3884,27 @@ pub(crate) mod representation_regions {
         pub leaves: Vec<RepresentationScalarLeaf>,
     }
 
+    impl RepresentationElementLayout {
+        pub(crate) fn is_tightly_tiled(&self) -> bool {
+            let mut end = 0;
+            for leaf in &self.leaves {
+                if leaf.offset != end {
+                    return false;
+                }
+                let Some(width) =
+                    crate::storage::element_representation::scalar_size(leaf.scalar_type)
+                else {
+                    return false;
+                };
+                let Some(next) = end.checked_add(width) else {
+                    return false;
+                };
+                end = next;
+            }
+            end == self.size
+        }
+    }
+
     pub fn representation_element_layout<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         element: StructuralTypeId,
@@ -3868,25 +4023,7 @@ pub(crate) mod representation_regions {
                 {
                     return None;
                 }
-                let tiled = |layout: &RepresentationElementLayout| {
-                    let mut end = 0;
-                    for leaf in &layout.leaves {
-                        if leaf.offset != end {
-                            return false;
-                        }
-                        let Some(width) =
-                            crate::storage::element_representation::scalar_size(leaf.scalar_type)
-                        else {
-                            return false;
-                        };
-                        let Some(next) = end.checked_add(width) else {
-                            return false;
-                        };
-                        end = next;
-                    }
-                    end == layout.size
-                };
-                if !tiled(&source) || !tiled(&target) {
+                if !source.is_tightly_tiled() || !target.is_tightly_tiled() {
                     return None;
                 }
                 Some(ElementViewRegionGeometry::WholeRepresentation {

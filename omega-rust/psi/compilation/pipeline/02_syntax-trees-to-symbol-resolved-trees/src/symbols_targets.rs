@@ -133,6 +133,26 @@ mod calls {
                     _ => return SymbolHandle::invalid(),
                 }
             }
+            // A typed static record keeps its Const binder. Select its
+            // member from the exact declared schema just as for an ordinary
+            // parameter; specialization supplies the record value later.
+            if let Some(type_reference) = machine.type_parameters.iter().find_map(|parameter| {
+                if parameter.symbol != receiver_symbol {
+                    return None;
+                }
+                match &parameter.kind {
+                    TypeParameterKind::Const { type_reference } => Some(type_reference),
+                    _ => None,
+                }
+            }) {
+                return call_target_for_type_reference(
+                    machine,
+                    symbols,
+                    child_type_references,
+                    type_reference,
+                    target,
+                );
+            }
             if let Some(parameter) = parameters
                 .iter()
                 .find(|parameter| parameter.symbol == receiver_symbol)
@@ -345,8 +365,9 @@ mod calls {
     /*
         Resolve a compile-time static argument in the role of the binder it fills
         (`wiki/spec/language/modules.md#builtin-type-names`). A type binder reads
-        a builtin or data type and a value binder reads a constant; lexical
-        binders and runtime subjects are the caller's, which knows their kinds.
+        a builtin or data type and a value binder reads a constant or named
+        record; lexical binders and runtime subjects are the caller's, which
+        knows their kinds.
         Otherwise the argument selects a declaration: a machine stands for its
         entry state (a free machine is spelled `work`, an attached one
         `Card::power`) and denotes no runtime value. Lookup never tries both
@@ -375,7 +396,9 @@ mod calls {
         };
         match role {
             BinderRole::Type => return top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
-            BinderRole::Value => return top_level(&[SymbolKind::Const]),
+            BinderRole::Value => {
+                return top_level(&[SymbolKind::Const, SymbolKind::Conformance]);
+            }
             BinderRole::Declaration => {}
         }
         if owner.is_empty() {
@@ -501,9 +524,9 @@ mod calls {
         A type binder reads a type binder in scope, then a builtin or data type.
         A value binder reads a value binder in scope, then a parameter or local
         of `subjects` (the enclosing state, or invalid where no runtime value is
-        in scope), then a constant. A binding of the other role is never
-        consulted: `const u16` cannot stand for the type `u16`, and the type
-        never stands in for a missing value.
+        in scope), then a constant or named record. A binding of the other
+        role is never consulted: `const u16` cannot stand for the type `u16`,
+        and the type never stands in for a missing value.
     */
     fn assign_role_argument_symbol(
         symbols: &SymbolTable,
@@ -770,27 +793,59 @@ mod calls {
     }
 
     /*
-        Fallback resolution through descendant paths for selection arguments: the
-        source reference still gates visibility of the found descendant.
+        Build operands follow ordinary name resolution (modules spec,
+        "Resolution"): a unique source-scoped answer wins, and an ambiguous one
+        refuses instead of letting root-roster order choose. Only a qualified
+        member path the top-level lookup cannot answer, such as a requirement
+        `Clock::now` beneath its boundary trait, walks to a descendant. That walk
+        starts from every same-named root declaration the reference's file may
+        select (its own, its module's, or one it imported), and two such
+        starting points that both reach a matching member are ambiguous too.
     */
+    fn selection_symbol(
+        symbols: &SymbolTable,
+        argument: &StaticMachineArgument,
+        kinds: &[SymbolKind],
+        lookup: SymbolLookup,
+    ) -> SymbolHandle {
+        match lookup {
+            SymbolLookup::Unique(symbol) => symbol,
+            SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+            SymbolLookup::NotFound => descendant_selection_symbol(symbols, argument, kinds),
+        }
+    }
+
     fn descendant_selection_symbol(
         symbols: &SymbolTable,
         argument: &StaticMachineArgument,
         kinds: &[SymbolKind],
     ) -> SymbolHandle {
-        let reference = argument.path.last().map(|name| name.source_span());
-        symbols
-            .find_descendant_by_path(
-                symbols.root(),
-                argument.path.iter().map(|member| member.as_str()),
-            )
-            .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
-            .filter(|symbol| {
-                reference.is_none_or(|reference| {
-                    symbols.source_reference_can_see_symbol(reference, *symbol)
-                })
+        let (Some(head), Some(member)) = (argument.path.first(), argument.path.last()) else {
+            return SymbolHandle::invalid();
+        };
+        if argument.path.len() < 2 {
+            return SymbolHandle::invalid();
+        }
+        let reference = member.source_span();
+        let head_reference = head.source_span();
+        let mut found = symbols
+            .root_children_named(head.as_str())
+            .filter(|root| symbols.source_reference_may_select_symbol(head_reference, *root))
+            .filter_map(|root| {
+                symbols.find_descendant_by_path(
+                    root,
+                    argument.path.iter().skip(1).map(|name| name.as_str()),
+                )
             })
-            .unwrap_or_else(SymbolHandle::invalid)
+            .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
+            .filter(|symbol| symbols.source_reference_can_see_symbol(reference, *symbol));
+        let Some(first) = found.next() else {
+            return SymbolHandle::invalid();
+        };
+        if found.any(|other| other != first) {
+            return SymbolHandle::invalid();
+        }
+        first
     }
 
     /*
@@ -825,26 +880,29 @@ mod calls {
                 SymbolKind::BuiltinType,
             ]
         };
-        let exact = argument.path.last().and_then(|name| {
-            if allow_operator_family {
+        let Some(name) = argument.path.last() else {
+            argument.symbol = SymbolHandle::invalid();
+            return;
+        };
+        let reference = name.source_span();
+        let lookup = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+            &rendered,
+            kinds,
+            reference,
+            |_| true,
+        );
+        // An overloaded operator family is several same-path declarations;
+        // its own resolver decides whether they form one family.
+        let family = (allow_operator_family && !matches!(lookup, SymbolLookup::Unique(_)))
+            .then(|| {
                 symbols.find_top_level_declaration_or_operator_family_from_source(
-                    &rendered,
-                    kinds,
-                    name.source_span(),
+                    &rendered, kinds, reference,
                 )
-            } else {
-                symbols.find_top_level_by_name_and_kinds_from_source(
-                    &rendered,
-                    kinds,
-                    name.source_span(),
-                )
-            }
-        });
-        let exact = exact.unwrap_or_else(SymbolHandle::invalid);
-        argument.symbol = if exact.is_valid() {
-            exact
-        } else {
-            descendant_selection_symbol(symbols, argument, kinds)
+            })
+            .flatten();
+        argument.symbol = match family {
+            Some(family) => family,
+            None => selection_symbol(symbols, argument, kinds, lookup),
         };
     }
 
@@ -861,17 +919,17 @@ mod calls {
             return;
         };
         let kinds = &[SymbolKind::State, SymbolKind::Machine];
-        argument.symbol = argument
-            .path
-            .last()
-            .and_then(|name| {
-                symbols.find_top_level_by_name_and_kinds_from_source(
-                    &rendered,
-                    kinds,
-                    name.source_span(),
-                )
-            })
-            .unwrap_or_else(|| descendant_selection_symbol(symbols, argument, kinds));
+        let Some(name) = argument.path.last() else {
+            argument.symbol = SymbolHandle::invalid();
+            return;
+        };
+        let lookup = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+            &rendered,
+            kinds,
+            name.source_span(),
+            |_| true,
+        );
+        argument.symbol = selection_symbol(symbols, argument, kinds, lookup);
     }
 
     /*
@@ -1006,12 +1064,18 @@ mod static_namespaces {
         // every call form, without choosing among an ambiguous family.
         let candidates =
             symbols.top_level_candidates_from_source(name, super::SOURCE_CALL_KINDS, reference);
-        // A conformance-owned body keeps its selected-call owner. The
-        // module containing its source cannot replace that public route.
-        let declared_module = candidates.first().and_then(|first| {
+        // A root-owned qualified declaration need not introduce a separate
+        // value or module for its written prefix. The source-visible complete
+        // callable path supplies its static selection, including a root header.
+        // A conformance-owned body keeps its selected-call owner; its source
+        // namespace cannot replace that public route.
+        let declared_owner = candidates.first().and_then(|first| {
             let owner = symbols.namespace_parent(*first);
             (owner.is_valid()
-                && symbols.get(owner).kind == SymbolKind::Module
+                && matches!(
+                    symbols.get(owner).kind,
+                    SymbolKind::Module | SymbolKind::Root
+                )
                 && candidates.iter().all(|candidate| {
                     !symbols.get(*candidate).declaration_owner.is_valid()
                         && symbols.namespace_parent(*candidate) == owner
@@ -1025,7 +1089,7 @@ mod static_namespaces {
         );
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
             && !symbols.is_source_package_qualifier(reference, receiver_name)
-            && declared_module.is_none()
+            && declared_owner.is_none()
         {
             // A source-free qualified operation has a declaration too. Only an
             // unbound namespace may reach that default; visible authored owners
@@ -1389,6 +1453,59 @@ mod tests {
             assert_eq!(authored.symbols_kind, SymbolKind::State);
             assert_eq!(authored.machine_name, operation);
         }
+    }
+
+    #[test]
+    fn root_owned_qualified_calls_retain_the_callable_without_a_value_receiver() {
+        let text = r#"
+            machine names::identity(value: u32) -> u32 { value }
+            machine caller() -> u32 { names::identity(42) }
+            machine shadow(names: u32) -> u32 { names::identity(42) }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source_id = sources.add("main.omg".into(), text.to_owned()).source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let expressions = &program.tables.bodies.expressions;
+        let calls: Vec<_> = expressions
+            .iter_expressions()
+            .filter_map(|(_, node)| {
+                if let ExpressionNode::Call(call) = node {
+                    Some(call)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let selected = calls
+            .iter()
+            .find(|call| call.target.as_str() == "names::identity")
+            .expect("root-owned static call");
+        assert!(!selected.receiver.is_valid());
+        assert_eq!(
+            program.symbols.get(selected.target_symbol).kind,
+            SymbolKind::State
+        );
+        let owner = program.symbols.get(selected.target_symbol).parent;
+        assert_eq!(program.symbols.name(owner), "names::identity");
+        let shadow = calls
+            .iter()
+            .find(|call| call.receiver.is_valid())
+            .expect("the shadowing value stays a runtime receiver");
+        let ExpressionNode::Name(path) = expressions.expression(shadow.receiver) else {
+            panic!("the actual parameter reference");
+        };
+        assert!(path.symbol.is_valid());
+        assert_eq!(program.symbols.name(path.symbol), "names");
+        assert_ne!(program.symbols.get(path.symbol).kind, SymbolKind::Module);
     }
 
     #[test]
@@ -1823,6 +1940,18 @@ mod tests {
             static_argument_kinds(binder),
             [("identity", Some(SymbolKind::BuiltinType))]
         );
+        let record = "trait Step { machine apply(); }\n\
+                      Hold satisfies Step { machine apply() { } }\n\
+                      machine count<const Selected: Step>() -> u64 { 0u64 }\n\
+                      machine relay<const Selected: Step>() -> u64 { count<Selected>() }\n\
+                      machine main() -> u64 { count<Hold>() }";
+        assert_eq!(
+            static_argument_kinds(record),
+            [
+                ("count", Some(SymbolKind::TypeParameter)),
+                ("count", Some(SymbolKind::Conformance)),
+            ]
+        );
     }
 
     /* Each call's target and the kind its first static argument selected. */
@@ -1876,6 +2005,19 @@ mod tests {
         state_name: String,
         machine_name: String,
         target_symbol: symbols::SymbolHandle,
+    }
+
+    #[test]
+    fn typed_const_record_members_keep_the_declared_schema_requirement() {
+        for body in ["Selected::apply()", "Selected::apply();"] {
+            let text = format!(
+                "trait Step {{ machine apply(); }} trait Other {{ machine apply(); }} machine relay<const Selected: Step>() {{ {body} }}"
+            );
+            let call = resolved_call(&text, "apply");
+            assert_eq!(call.symbols_kind, SymbolKind::State);
+            assert_eq!(call.machine_name, "Step");
+            assert_eq!(call.state_name, "apply");
+        }
     }
 
     fn resolved_call(text: &str, target: &str) -> ResolvedCall {
@@ -1943,5 +2085,155 @@ mod tests {
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).is_err()
+    }
+
+    /*
+        A Build operand names a declaration the way any other source name does
+        (modules spec, "Resolution"). Two toolchain modules `a` and `b` both
+        declare `boundary trait Clock`. The Build file's imports decide which
+        `Clock` its `select_provider` subject and its `Clock::now` requirement
+        operand name: importing `a` selects `a`'s, importing both is ambiguous,
+        and importing neither leaves `Clock` unnamed. Before the fix the
+        requirement operand took `a`'s `Clock::now` even when only `b` was
+        imported, because its lookup started from the first root `Clock`.
+    */
+    #[test]
+    fn build_operands_follow_imports_and_refuse_ambiguity() {
+        let clock = |module: &str| {
+            format!(
+                "module {module}; public boundary trait Clock {{ \
+                 machine now() -> u64 reaches none crashes none; }}"
+            )
+        };
+        let (first, second) = (clock("a"), clock("b"));
+        let caller = r#"
+            data Fixed {}
+            machine build(builder: u64) {
+                select_provider<Clock, Fixed>(builder);
+                assume_binding_contract<Clock::now, Clock::now>(builder);
+            }
+        "#;
+        let resolve_with = |imports: &[&str]| {
+            let mut sources = source::SourceMap::default();
+            let mut units = Vec::new();
+            for (path, text) in [("toolchain/a.omg", &first), ("toolchain/b.omg", &second)] {
+                let id = sources
+                    .add_with_metadata(
+                        path.into(),
+                        text.clone(),
+                        "toolchain".into(),
+                        None,
+                        source::SourceOrigin::Toolchain,
+                    )
+                    .source_id;
+                units.push((id, text.as_str()));
+            }
+            let caller_id = sources
+                .add_with_metadata(
+                    "app/build.omg".into(),
+                    caller.into(),
+                    "app".into(),
+                    None,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            units.push((caller_id, caller));
+            let mut syntax = syntax_trees::SyntaxTrees::new(caller_id);
+            for (id, text) in &units {
+                let tokens = Lexer::new(text).tokenize().expect("tokenize unit");
+                tokens_to_syntax_trees::parse(&mut syntax, *id, &tokens).expect("parse unit");
+            }
+            let bindings = imports
+                .iter()
+                .map(|module| {
+                    let index = if *module == "a" { 0 } else { 1 };
+                    symbols::SourceScopedTopLevelBinding::logical_module_import(
+                        caller_id,
+                        units[index].0,
+                        &format!("omega::language::core::{module}::Clock"),
+                        3,
+                    )
+                })
+                .collect();
+            let program = resolve(ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: bindings,
+                retained_base: None,
+            })
+            .expect("resolve Build operands");
+            let operand = |target: &str| {
+                let symbol = program
+                    .tables
+                    .declarations
+                    .state_statements
+                    .iter()
+                    .find_map(|(_, statement)| match statement {
+                        symbol_resolved_trees::statement::Statement::Call(call)
+                            if call.target.as_str() == target =>
+                        {
+                            Some(call.machine_arguments[0].symbol)
+                        }
+                        _ => None,
+                    })
+                    .or_else(|| {
+                        program
+                            .tables
+                            .bodies
+                            .expressions
+                            .iter_expressions()
+                            .find_map(|(_, node)| match node {
+                                ExpressionNode::Call(call) if call.target.as_str() == target => {
+                                    Some(call.machine_arguments[0].symbol)
+                                }
+                                _ => None,
+                            })
+                    })
+                    .expect("the Build operation call");
+                symbol.is_valid().then(|| {
+                    let owner = if program.symbols.get(symbol).kind == SymbolKind::Trait {
+                        symbol
+                    } else {
+                        program.symbols.get(symbol).parent
+                    };
+                    let module = program.symbols.symbol_module(owner);
+                    (
+                        program.symbols.get(symbol).kind,
+                        program.symbols.name(module).to_owned(),
+                    )
+                })
+            };
+            (
+                operand("select_provider"),
+                operand("assume_binding_contract"),
+            )
+        };
+
+        assert_eq!(
+            resolve_with(&["a"]),
+            (
+                Some((SymbolKind::Trait, "a".to_owned())),
+                Some((SymbolKind::State, "a".to_owned()))
+            ),
+            "the imported Clock is the operand"
+        );
+        assert_eq!(
+            resolve_with(&["b"]),
+            (
+                Some((SymbolKind::Trait, "b".to_owned())),
+                Some((SymbolKind::State, "b".to_owned()))
+            ),
+            "import order, not root order, selects the operand"
+        );
+        assert_eq!(
+            resolve_with(&["a", "b"]),
+            (None, None),
+            "two imported Clocks are ambiguous"
+        );
+        assert_eq!(
+            resolve_with(&[]),
+            (None, None),
+            "an unimported Clock is unnamed"
+        );
     }
 }

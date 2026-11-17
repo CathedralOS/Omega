@@ -10,6 +10,130 @@ pub mod provider_declarations {
     use language_semantics::trust_declarations::TrustDeclarations;
     use std::sync::{Arc, OnceLock};
 
+    pub fn closed_provider_requirements(
+        typed: &crate::TypedTrees,
+        template: &crate::machine::Machine,
+    ) -> Vec<crate::type_identity::CallableIdentityId> {
+        typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == template.symbol)
+            .filter_map(|receipt| typed.machine(receipt.instance))
+            .filter(|instance| {
+                instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+            .map(|instance| typed.machine_callable_identity(instance))
+            .filter(|identity| identity.is_valid())
+            .collect()
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct NamedProviderApplication {
+        pub declaration: symbols::SymbolHandle,
+        pub capture: arena::Handle<crate::CapturedMachineApplication>,
+    }
+
+    pub enum ProviderApplicationView {
+        None,
+        PhysicalLeaf,
+        External,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ProviderDeclarationOrigin {
+        Authored(symbols::SymbolHandle),
+        BuildNative {
+            requirement: symbols::SymbolHandle,
+            application: Option<arena::Handle<crate::product_operand::ProductOperandApplication>>,
+        },
+        Toolchain,
+    }
+
+    pub struct ProviderDeclarationRow<'identity> {
+        pub requirement: symbols::SymbolHandle,
+        pub origin: ProviderDeclarationOrigin,
+        pub requirement_identity: &'identity str,
+        pub declared_requirement_identity: &'identity str,
+        pub application: ProviderApplicationView,
+    }
+
+    pub struct ProviderDeclarationRequest<'rows> {
+        pub rows: &'rows [ProviderDeclarationRow<'rows>],
+        pub named_application: Option<NamedProviderApplication>,
+        pub provider_application_identity: Option<&'rows str>,
+        pub installation_reach: bool,
+    }
+
+    pub fn closed_provider_leaf_applications(
+        typed: &crate::TypedTrees,
+        template: &str,
+    ) -> Result<
+        Vec<language_semantics::provider_declarations::ProviderRequirementApplication>,
+        Vec<String>,
+    > {
+        let mut identities = Vec::new();
+        let mut diagnostics = Vec::new();
+        for application in typed
+            .closed_requirement_applications()
+            .filter(|application| {
+                typed
+                    .trait_machine_signature(application.template)
+                    .is_some_and(|(owner, signature)| {
+                        typed.trait_requirement_callable_identity_text(owner, signature) == template
+                    })
+            })
+        {
+            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
+                diagnostics.push("closed requirement application lost its declaring trait".into());
+                continue;
+            };
+            let identity =
+                typed.trait_requirement_callable_identity_text(owner, application.signature);
+            if !identity.is_empty() && identity != template {
+                let Some(receiving_application) = typed
+                    .type_identity_text(application.portable_trait_application_identity)
+                    .filter(|text| !text.is_empty())
+                else {
+                    diagnostics
+                        .push("provider receiving application has no portable identity".into());
+                    continue;
+                };
+                identities.push(
+                    language_semantics::provider_declarations::ProviderRequirementApplication {
+                        requirement: identity,
+                        receiving_application,
+                    },
+                );
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(identities)
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    pub fn requirement_reach(
+        typed: &crate::TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(String, bool, language_semantics::ServiceReachRowId)> {
+        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
+            return Some((
+                typed.trait_requirement_callable_identity_text(owner, requirement),
+                requirement.service_reach_is_installation_bound,
+                requirement.service_reach_row,
+            ));
+        }
+        let requirement = typed.machine_by_symbol(symbol)?;
+        if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
+            return None;
+        }
+        Some((
+            typed.machine_callable_identity_text(requirement)?,
+            requirement.service_reach_is_installation_bound,
+            requirement.service_reach_row,
+        ))
+    }
     pub(crate) mod context {
         use crate::TypedTrees;
         use source::DependencyScope;
@@ -196,12 +320,32 @@ pub mod provider_declarations {
         fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
             let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
             let other = Arc::new(owner.as_ref().clone());
-            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            let issued = [(source::SourceId(7), [0x31; 32])];
+            let mut registry = issued.to_vec();
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &registry);
+            registry[0] = (source::SourceId(22), [0xb7; 32]);
+            drop(registry);
             assert!(Arc::ptr_eq(inventory.program(), &owner));
             assert!(inventory.services_for(&owner).is_ok());
             assert!(inventory.origins_for(&owner).is_ok());
             assert!(inventory.services_for(&other).is_err());
             assert!(inventory.origins_for(&other).is_err());
+            assert_eq!(
+                inventory
+                    .services_for(&owner)
+                    .unwrap()
+                    .exact_toolchain_sources(),
+                &issued,
+            );
+            let catalog = inventory.retained_service_catalog();
+            assert!(
+                catalog
+                    .bind(super::ProviderPlanningContext::new(
+                        owner.as_ref().as_ref(),
+                        source::DependencyScope::Build,
+                    ))
+                    .is_err()
+            );
         }
 
         #[test]
@@ -256,31 +400,53 @@ pub mod projection {
         use language_semantics::service_surface::ServiceReceiverApplication;
         use language_semantics::service_surface::identities::ProviderIdentityTable;
 
-        pub(crate) fn collect_scopes<'program>(
+        pub fn collect_scopes<'program>(
             program: &'program crate::TypedTrees,
             root: AppliedTraitScope<'program>,
         ) -> Result<Vec<AppliedTraitScope<'program>>, Diagnostic> {
-            let mut scopes: Vec<AppliedTraitScope<'_>> = Vec::new();
-            let mut ambiguous = None;
-            root.visit(program, &mut |scope| {
+            // A repeated parent application has the same descendants. Keep
+            // its first declared order without walking every inheritance path.
+            fn collect<'program>(
+                program: &'program crate::TypedTrees,
+                scope: AppliedTraitScope<'program>,
+                scopes: &mut Vec<AppliedTraitScope<'program>>,
+                active: &mut Vec<symbols::SymbolHandle>,
+            ) -> Result<(), Diagnostic> {
+                let declaration = scope.declaration.symbol;
+                if active.contains(&declaration) {
+                    return Err(super::projection_failure(
+                        program,
+                        declaration,
+                        "applied trait traversal has an inherited declaration cycle",
+                    ));
+                }
                 if let Some(existing) = scopes
                     .iter()
-                    .find(|existing| existing.declaration.symbol == scope.declaration.symbol)
+                    .find(|existing| existing.declaration.symbol == declaration)
                 {
-                    if !existing.same_application(program, scope) {
-                        ambiguous.get_or_insert(scope.declaration.symbol);
-                    }
-                } else {
-                    scopes.push(scope.clone());
+                    return if existing.same_application(program, &scope) {
+                        Ok(())
+                    } else {
+                        Err(super::projection_failure(
+                            program,
+                            declaration,
+                            "the receiver is inherited with different applications",
+                        ))
+                    };
                 }
-            });
-            if let Some(declaration) = ambiguous {
-                return Err(super::projection_failure(
-                    program,
-                    declaration,
-                    "the receiver is inherited with different applications",
-                ));
+                scopes.push(scope.clone());
+                active.push(declaration);
+                let parents = scope
+                    .parent_scopes(program)
+                    .map_err(|reason| super::projection_failure(program, declaration, reason))?;
+                for parent in parents {
+                    collect(program, parent, scopes, active)?;
+                }
+                active.pop();
+                Ok(())
             }
+            let mut scopes = Vec::new();
+            collect(program, root, &mut scopes, &mut Vec::new())?;
             Ok(scopes)
         }
 
@@ -457,6 +623,10 @@ pub mod projection {
         }
     }
 
+    // Schema reading and service publication use the same original parent
+    // applications; neither may flatten inherited members by their names.
+    pub use applied_receivers::collect_scopes as inherited_scopes;
+
     use super::ProviderSchemaDeclaration;
     use crate::boundary_completions::boundary_requirement_completion;
     use crate::operator::boundary_operator_requirement_identity;
@@ -479,7 +649,7 @@ pub mod projection {
     }
 
     impl ProjectedServiceSurface<'_> {
-        pub(crate) fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
+        pub fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
             correspondence::validate(self.program, self)
         }
     }
@@ -686,6 +856,7 @@ pub mod projection {
         }
         let requirement_identity = program.machine_callable_identity_text(requirement)?;
         let parameters = program.state_parameters(entry);
+        let (parameter_types, result_type) = program.machine_definition_types(requirement)?;
         let published_termination = requirement.termination_plan.interface.published()?;
         let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
         let mut identities = ProviderIdentityTable::default();
@@ -721,11 +892,8 @@ pub mod projection {
                     parameter_count: parameters.len(),
                     declared_type_signature:
                         language_semantics::service_surface::declared_type_signature(
-                            parameters.iter().map(|parameter| {
-                                program
-                                    .package_qualified_type_identity_text(parameter.type_reference)
-                            }),
-                            &program.package_qualified_type_identity_text(entry.return_type),
+                            parameter_types.iter(),
+                            &result_type,
                         )
                         .ok()?,
                     parameter_type_identities: parameters
@@ -780,6 +948,15 @@ pub mod projection {
             {
                 continue;
             }
+            let (parameter_types, result_type, _) = program
+                .requirement_definition_types(scope, signature)
+                .ok_or_else(|| {
+                    projection_failure(
+                        program,
+                        signature.symbol,
+                        "boundary method has no complete applied signature type identity",
+                    )
+                })?;
             requirements.push(ServiceRequirementSource {
                 declaring_trait: trait_definition.symbol,
                 symbol: signature.symbol,
@@ -795,25 +972,8 @@ pub mod projection {
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
                 declared_type_signature:
                     language_semantics::service_surface::declared_type_signature(
-                        program
-                            .state_signature_parameters(signature)
-                            .iter()
-                            .map(|parameter| {
-                                program
-                                    .type_identity_text(scope.package_qualified_type_identity(
-                                        program,
-                                        parameter.type_reference,
-                                    ))
-                                    .unwrap_or_default()
-                            }),
-                        &program
-                            .type_identity_text(
-                                scope.package_qualified_type_identity(
-                                    program,
-                                    signature.return_type,
-                                ),
-                            )
-                            .unwrap_or_default(),
+                        parameter_types.iter(),
+                        &result_type,
                     )
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 parameter_type_identities: program
@@ -1347,6 +1507,7 @@ pub(crate) mod catalog {
         owner_identity: u64,
         owner_address: usize,
         scope: source::DependencyScope,
+        exact_toolchain_sources: Box<[(source::SourceId, [u8; 32])]>,
         records: Arena<ServiceRecord>,
         requirements: Arena<PreparedServiceRequirement>,
         arguments: Arena<TypeReferenceHandle>,
@@ -1422,6 +1583,7 @@ pub(crate) mod catalog {
                 owner_identity: program.identity.get(),
                 owner_address: std::ptr::from_ref(program) as usize,
                 scope: context.scope,
+                exact_toolchain_sources: exact_toolchain_sources.into(),
                 records: Arena::new(),
                 requirements: Arena::new(),
                 arguments: Arena::new(),
@@ -1613,6 +1775,11 @@ pub(crate) mod catalog {
 
         pub fn context(self) -> ProviderPlanningContext<'catalog> {
             self.context
+        }
+
+        /// The issued registry used to construct this catalog's exact source identities.
+        pub fn exact_toolchain_sources(self) -> &'catalog [(source::SourceId, [u8; 32])] {
+            &self.catalog.exact_toolchain_sources
         }
 
         pub fn declaration(
@@ -2398,6 +2565,8 @@ pub mod signatures {
 
         pub struct PreparedCallingRequest {
             pub boundary: SymbolHandle,
+            /// The exact ordinary parent relationship this owner consumes.
+            pub relationship: SymbolHandle,
             pub name: String,
             pub span: source::SourceSpan,
             instances: Result<HandleSpan<PreparedCallingInstance>, Vec<Diagnostic>>,
@@ -2407,6 +2576,7 @@ pub mod signatures {
             fn default() -> Self {
                 Self {
                     boundary: SymbolHandle::invalid(),
+                    relationship: SymbolHandle::invalid(),
                     name: String::new(),
                     span: source::SourceSpan::default(),
                     instances: Ok(HandleSpan::default()),
@@ -2571,6 +2741,7 @@ pub mod signatures {
                     })();
                     prepared.requests.insert(PreparedCallingRequest {
                         boundary: boundary.symbol,
+                        relationship: relationship.symbol,
                         name: boundary.name.as_str().to_owned(),
                         span,
                         instances,
@@ -2884,7 +3055,6 @@ pub mod signatures {
                         .iter()
                         .map(|(parameter, actual)| BoundaryTypeBinding {
                             parameter_symbol: *parameter,
-                            parameter_name: typed.symbols.name(*parameter).to_owned(),
                             actual: *actual,
                         })
                         .collect();

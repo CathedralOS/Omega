@@ -1051,7 +1051,7 @@ pub(crate) mod component_memberships {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,

@@ -2536,6 +2536,7 @@ mod propositions {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum PropositionError {
+        OpaqueCallableInProof,
         InvalidFloatMeaningClause(&'static str),
         InvalidFloatIntegerConversion(Box<crate::FloatIntegerConversionError>),
         StructuralIdentityTypeMismatch,

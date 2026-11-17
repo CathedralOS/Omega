@@ -191,7 +191,7 @@ pub fn record(
     SelectedNormalizedForeignCall {
         instruction: SelectedInstructionId(4),
         invocation_site: operation.into(),
-        call: legalized_operations::LegalizedNormalizedForeignCall {
+        call: target_vocabulary::LegalizedNormalizedForeignCall {
             boundary: BoundaryMachineId::new(3).unwrap(),
             provider_execution: ProviderExecutionBinding::from_execution_record(
                 ProviderPlanReportIdentity::new(0xA1).unwrap(),

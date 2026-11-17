@@ -49,6 +49,7 @@ impl AcceptedProofRule {
             | Self::IntegerAffineBound
             | Self::IntegerRemainderWithinDividend
             | Self::IntegerQuotientAtMostDividend
+            | Self::IntegerMultipleRemainder
             | Self::IntegerExactAddDefinitionBound
             | Self::IntegerExactSubtractDefinitionBound
             | Self::IntegerCastBound
@@ -69,6 +70,7 @@ impl AcceptedProofRule {
             self,
             Self::IntegerRemainderWithinDividend
                 | Self::IntegerQuotientAtMostDividend
+                | Self::IntegerMultipleRemainder
                 | Self::IntegerPowerOfTwoOrder
                 | Self::IeeeFloatOrderChain
                 | Self::FloatMeaningNormalization
@@ -84,6 +86,7 @@ impl AcceptedProofRule {
                 | Self::IntegerAffineBound
                 | Self::IntegerRemainderWithinDividend
                 | Self::IntegerQuotientAtMostDividend
+                | Self::IntegerMultipleRemainder
                 | Self::IntegerExactAddDefinitionBound
                 | Self::IntegerExactSubtractDefinitionBound
                 | Self::IntegerCastBound
@@ -96,7 +99,7 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 35] = [
+    const ALL: [AcceptedProofRule; 36] = [
         AcceptedProofRule::IeeeFloatOrderChain,
         AcceptedProofRule::FloatMeaningNormalization,
         AcceptedProofRule::FloatIntegerConversion,
@@ -127,6 +130,7 @@ mod tests {
         AcceptedProofRule::IntegerAffineBound,
         AcceptedProofRule::IntegerRemainderWithinDividend,
         AcceptedProofRule::IntegerQuotientAtMostDividend,
+        AcceptedProofRule::IntegerMultipleRemainder,
         AcceptedProofRule::IntegerExactAddDefinitionBound,
         AcceptedProofRule::IntegerExactSubtractDefinitionBound,
         AcceptedProofRule::IntegerCastBound,
@@ -167,6 +171,7 @@ mod tests {
                         | AcceptedProofRule::IntegerAffineBound
                         | AcceptedProofRule::IntegerRemainderWithinDividend
                         | AcceptedProofRule::IntegerQuotientAtMostDividend
+                        | AcceptedProofRule::IntegerMultipleRemainder
                         | AcceptedProofRule::IntegerExactAddDefinitionBound
                         | AcceptedProofRule::IntegerExactSubtractDefinitionBound
                         | AcceptedProofRule::IntegerCastBound
@@ -186,6 +191,7 @@ mod tests {
                     rule,
                     AcceptedProofRule::IntegerRemainderWithinDividend
                         | AcceptedProofRule::IntegerQuotientAtMostDividend
+                        | AcceptedProofRule::IntegerMultipleRemainder
                         | AcceptedProofRule::IntegerPowerOfTwoOrder
                         | AcceptedProofRule::IeeeFloatOrderChain
                         | AcceptedProofRule::FloatMeaningNormalization

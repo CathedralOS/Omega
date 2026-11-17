@@ -84,9 +84,9 @@ pub fn selected_reference_result(
     Ok(declared)
 }
 
-/// `None` when `callee` has a body (its actual origins govern) or returns no
-/// reference. A bodiless requirement in a generic check form has no body
-/// whose return could narrow its declared account.
+/// `None` when `callee` has a body, whose actual origins and writes govern.
+/// A bodiless requirement uses its public account even when it returns no
+/// borrowed value: its write authority must not become an absent body walk.
 pub fn requirement_reference_result(
     module: &TerminalModule,
     callee: MachineId,
@@ -94,30 +94,19 @@ pub fn requirement_reference_result(
     let machine = module
         .machine(callee)
         .ok_or("requirement reference call has no callee declaration")?;
-    if !machine.blocks.is_empty()
-        || !machine.contract.result.structural().is_some_and(|result| {
-            terminal_psi::structural_type_contains_reference_by(
-                |id| module.structural_type(id),
-                result.structural_type,
-            )
-        })
-    {
+    if !machine.blocks.is_empty() {
         return Ok(None);
     }
     let declared = declared_reference_result(module, &machine.contract)?;
-    let result = machine
-        .contract
-        .result
-        .structural()
-        .ok_or("requirement reference result has no structural declaration")?;
-    if crate::borrowed_result_leaves(
-        module.structural_types.iter(),
-        result.structural_type,
-        result.multiplicity,
-        declared.leaves,
-    )?
-    .iter()
-    .any(|leaf| !matches!(leaf.kind, crate::BorrowedResultLeafKind::Reference(_)))
+    if let Some(result) = machine.contract.result.structural()
+        && crate::borrowed_result_leaves(
+            module.structural_types.iter(),
+            result.structural_type,
+            result.multiplicity,
+            declared.leaves,
+        )?
+        .iter()
+        .any(|leaf| !matches!(leaf.kind, crate::BorrowedResultLeafKind::Reference(_)))
     {
         return Err("requirement view result needs its admitted completion resource");
     }
@@ -128,10 +117,23 @@ fn declared_reference_result<'module>(
     module: &'module TerminalModule,
     contract: &'module MachineContract,
 ) -> Result<DeclaredReferenceResult<'module>, &'static str> {
-    let groups = contract
-        .result_lifetimes
-        .as_deref()
-        .ok_or("public reference result has an unresolved declared lifetime frontier")?;
+    let groups = match contract.result_lifetimes.as_deref() {
+        Some(groups) => groups,
+        None => {
+            // A result with no borrowed leaves has a uniquely empty lifetime
+            // frontier. Prove that from its complete shape; an unresolved
+            // borrowed result still refuses instead of fabricating origins.
+            if let Some(result) = contract.result.structural() {
+                crate::borrowed_result_leaves(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                    result.multiplicity,
+                    0,
+                )?;
+            }
+            &[]
+        }
+    };
     let leaves = validate_result_lifetime_groups(groups)?;
     let declared = DeclaredReferenceResult {
         module,

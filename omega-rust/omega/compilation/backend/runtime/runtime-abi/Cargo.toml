@@ -12,3 +12,4 @@ path = "src/lib.rs"
 arena = { path = "../../../../../psi/foundation/arena" }
 target = { path = "../../target" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+sha2 = "0.10.9"

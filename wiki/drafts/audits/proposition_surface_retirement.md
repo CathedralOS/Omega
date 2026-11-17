@@ -18,7 +18,7 @@ declaration remains.
 
 ## 1. Source grammar
 
-`01_tokens-to-syntax-trees/src/declarations.rs`
+`01_tokens-to-syntax-trees/declarations/propositions.rs`
 (`parse_proposition_definition`) admits two bodies:
 
 - `proposition Name(params) = expr;` — transparent formula

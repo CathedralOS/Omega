@@ -1,13 +1,6 @@
-// Target preparation asks what one target must supply for this Product, and
-// the answer comes from the Product's accepted Terminal module: the boundary
-// requirements its entries reach through the providers that target chooses,
-// paired with the provider selections the Build made and the defaults the
-// target package retains (`provider_planning::target_supply`). The module is
-// the Product's one module, already judged with the providers every target
-// chooses (`judge_supplied_product`, run when the source is checked). A
-// target that reaches none prepares an empty supply; a module that demands a
-// plan this route cannot form yet is refused by the name of what it demands.
-// Typed declarations alone decide nothing here.
+//! Target preparation retains the accepted program's real invocation root.
+//! Provider choices are already canonical Psi rows; settlement never reopens
+//! source declarations or treats retained provider bodies as separate entries.
 
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -16,10 +9,11 @@ use provider_planning::target_supply::{
     JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
     TargetSupplyRequest,
 };
+use semantic_vocabulary::MachineId;
 
 pub(crate) struct PreparedProductTarget {
     pub(crate) profile: Option<target::TargetProfile>,
-    pub(crate) supply: PreparedTargetSupply,
+    pub(crate) entry: Option<MachineId>,
 }
 
 /// The slot and provider one selection names, as the roster states a supply.
@@ -314,29 +308,33 @@ impl PreparedProductTarget {
     pub(crate) fn capture(
         source: &CheckedProductSource,
         profile: Option<target::TargetProfile>,
-        package_inputs: Option<&PackageCompilationInputs>,
+        _package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<Self, Vec<Diagnostic>> {
         source
             .terminal_publication
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
-        let supply = prepare_supplied_target(TargetSupplySource {
-            publication: &source.terminal_publication,
-            build: &source.computed_build_config.config.provider_selections,
-            native_bindings: &source.computed_build_config.config.native_bindings,
-            defaults: &source.provider_defaults,
-            target: profile.map(|profile| profile.target_name()),
-        })
-        .map_err(|mut diagnostics| {
-            if let Some(sources) = source.program.symbols.source_map() {
-                crate::checked::checking::attribute_diagnostics(
-                    &mut diagnostics,
-                    &sources,
-                    package_inputs,
-                );
+        let accepted = source.terminal_publication.accepted()?;
+        let module = accepted.module();
+        let entry = match profile {
+            Some(profile)
+                if !(source.terminal_publication.roster()?.entries.is_empty()
+                    && module.program_entry_contracts.is_empty()) =>
+            {
+                let contract = module
+                    .program_entry_contract(profile.target_name())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                module.machine(contract.entry).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected target entry has no exact executable machine",
+                    )]
+                })?;
+                Some(contract.entry)
             }
-            diagnostics
-        })?;
-        Ok(Self { profile, supply })
+            // A reusable source artifact has no executable nomination. It
+            // acquires provider demand only when a consumer supplies one.
+            _ => None,
+        };
+        Ok(Self { profile, entry })
     }
 }

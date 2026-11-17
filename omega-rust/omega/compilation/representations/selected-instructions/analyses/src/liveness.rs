@@ -1236,6 +1236,7 @@ pub(crate) mod edge_values {
             };
             SelectedFunction {
                 contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    structural_block_parameters: Vec::new(),
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
                     provenance: target_vocabulary::TerminalPsiProvenance {
@@ -2154,6 +2155,27 @@ mod staging {
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
+    /// Stage liveness a rewrite already validated for `selected`'s program,
+    /// without computing it again. The analysis must name that exact program.
+    pub fn admit_optimized_liveness(
+        selected: SelectedOptimizationInput,
+        liveness: ValidatedLiveness,
+    ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
+        if liveness.receipt().selected() != selected.program.identity {
+            return Err(OptimizedLivenessCustodyError::ProgramMismatch);
+        }
+        let custody = custody::liveness_custody_receipt(
+            selected.custody,
+            selected.program.identity,
+            liveness.receipt(),
+        );
+        Ok(StagedOptimizedLiveness {
+            selected,
+            liveness,
+            custody,
+        })
+    }
+
     pub fn stage_optimized_liveness(
         selected: SelectedOptimizationInput,
     ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
@@ -2178,7 +2200,7 @@ mod staging {
     }
 
     impl StagedOptimizedLiveness {
-        staged_producer_accessors!(selected; selected, register_environment, selections, budget_per_pass);
+        staged_producer_accessors!(selected; selected, record, register_environment, selections, budget_per_pass);
 
         pub const fn liveness(&self) -> &ValidatedLiveness {
             &self.liveness
@@ -2208,6 +2230,8 @@ mod staging {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum OptimizedLivenessCustodyError {
         Analysis(LivenessError),
+        /// An admitted liveness analysis names another program.
+        ProgramMismatch,
     }
 
     failed_display!(
@@ -2217,7 +2241,7 @@ mod staging {
 }
 pub use staging::{
     OptimizedLivenessCustodyError, StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt,
-    stage_optimized_liveness,
+    admit_optimized_liveness, stage_optimized_liveness,
 };
 
 copy_receipt! {

@@ -68,6 +68,15 @@ fn typed_with_external_binding(
     prelude: &str,
     external_binding: Option<&str>,
 ) -> typed_trees::TypedTrees {
+    typed_with_core_sources(build, prelude, external_binding, &[])
+}
+
+fn typed_with_core_sources(
+    build: &str,
+    prelude: &str,
+    external_binding: Option<&str>,
+    core: &[(&str, &str)],
+) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
@@ -107,6 +116,19 @@ fn typed_with_external_binding(
         inputs.push((
             "source/library/core/external_binding.omg",
             external_binding,
+            "source/library/core",
+            None,
+            source::SourceOrigin::Toolchain,
+        ));
+    }
+    let core_paths = core
+        .iter()
+        .map(|(name, _)| format!("source/library/core/{name}"))
+        .collect::<Vec<_>>();
+    for ((_, text), path) in core.iter().zip(&core_paths) {
+        inputs.push((
+            path,
+            *text,
             "source/library/core",
             None,
             source::SourceOrigin::Toolchain,
@@ -204,6 +226,8 @@ fn accepted_frontier_with_subjects(
             subjects,
             purpose: DependencyScope::Build,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
             supplies: &[],
         },
@@ -575,7 +599,7 @@ fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            2_u32.write(output)?;
+            u64::from_le_bytes(*b"OMGBLD02").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[terminal_production::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
@@ -789,20 +813,22 @@ machine build(builder: &mut Build) {
             &mut UnmeasuredProduction,
         )
         .expect_err("a same-shaped edited source cannot supply the native vocabulary");
-    assert!(refused.iter().any(|diagnostic| {
-        diagnostic
-            .to_string()
-            .contains("bundled core ForeignBinding declaration")
-    }));
+    assert!(
+        refused.iter().any(|diagnostic| {
+            diagnostic.to_string().contains(
+                "native binding requires the exact compiler-owned `ForeignBinding` declaration",
+            )
+        }),
+        "{refused:?}"
+    );
 }
 
-/// A selection is two generated calls, and each records the protocol
-/// operation typing chose for it. Publication takes a row's action from that
-/// record: when the record is changed, the published action follows it while
-/// the called requirement stays the same, so no reader re-derives the
-/// operation from the requirement's name.
+/// Generated selection calls retain both their operation and its exact input
+/// association. Editing only the operation must fail at source admission,
+/// before the request can become a host action.
+
 #[test]
-fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
+fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
     use typed_trees::expression::ExpressionNode;
     let build = "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
@@ -850,6 +876,24 @@ fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
         ]
     );
 
+    let published = accepted_frontier(recorded, terminal_codec::TerminalPublication::Invocation)
+        .expect("the untouched generated calls are accepted")
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .expect("the untouched generated calls publish their host actions");
+    let calls = published
+        .build_bindings()
+        .calls_for(published.view())
+        .unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(
+        calls
+            .iter()
+            .any(|call| call.action == TerminalBuildBindingOperation::BindNative)
+    );
+
     // The failing twin: the same program with the commit's record changed.
     let mut edited = typed();
     let (_, commit, call) = selections(&edited)
@@ -871,17 +915,14 @@ fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
         unreachable!("the row was read from a call")
     };
     call.build_selection = replaced;
-    let refused = accepted_frontier(edited, terminal_codec::TerminalPublication::Invocation)
-        .unwrap()
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
-        )
-        .expect_err("a native request recorded as a plain selection is refused");
+    let Err(refused) = accepted_frontier(edited, terminal_codec::TerminalPublication::Invocation)
+    else {
+        panic!("an edited operation cannot reuse the original input association");
+    };
     assert!(
         refused.iter().any(|diagnostic| diagnostic
             .to_string()
-            .contains("native Build binding disagrees with its protocol operation")),
+            .contains("Build input association names another request or generation")),
         "{refused:?}"
     );
 }
@@ -995,6 +1036,92 @@ machine build(builder: &mut Build) { Probe::send<u64>(9u64); Probe::send(11u64);
 }
 
 #[test]
+fn distinct_closed_boundary_arguments_keep_distinct_source_declarations() {
+    let prelude = PRELUDE.replace(
+        "machine poke(value: u64) reaches none crashes none;",
+        "machine poke(value: u64) reaches none crashes none;\n    machine send<T>(value: T) reaches none crashes none;",
+    );
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            r#"
+machine build(builder: &mut Build) {
+    Probe::send<u64>(9u64);
+    Probe::send(11u64);
+    Probe::send<u32>(9u32);
+    Probe::send(11u32);
+}
+"#,
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("both closed applications must be checked: {refused:?}"));
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let view = program.view();
+    let module = view.module();
+    assert_eq!(module.boundary_machines.len(), 2);
+    let identities = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| {
+            module
+                .identities
+                .text(
+                    boundary
+                        .declaration
+                        .as_ref()
+                        .unwrap()
+                        .source
+                        .semantic_declaration,
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(identities[0], identities[1]);
+    let selections = program.source_selections().unwrap();
+    let packet = selections.questions_for(view).unwrap();
+    for identity in identities {
+        let declarations = packet
+            .declarations
+            .iter()
+            .filter(|(_, declaration)| declaration.identity == identity)
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(
+            declarations[0].1.custody,
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain
+        );
+        assert_eq!(
+            declarations[0].1.purpose,
+            semantic_vocabulary::source_selections::SelectionPurpose::Build
+        );
+    }
+    selections
+        .admit(
+            view,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
+        )
+        .unwrap();
+
+    let mut repeated = packet.clone();
+    let duplicate = repeated.declarations.values().next().unwrap().clone();
+    repeated.declarations.push(duplicate);
+    assert!(
+        terminal_installation::selection_questions::validate_selection_questions(module, &repeated)
+            .unwrap_err()
+            .contains("dictionary repeats a declaration in one purpose")
+    );
+}
+
+#[test]
 fn inferred_const_arguments_still_have_to_fit_their_declared_carriers() {
     let prelude = PRELUDE.replace(
         "machine poke(value: u64) reaches none crashes none;",
@@ -1066,6 +1193,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     // value-pattern literal for the same case must preserve any application.
     let head = typed.expression_table.insert(ExpressionNode::StructLiteral(
         typed_trees::expression::TableStructLiteral {
+            zero_omitted_fields: false,
             application_type: plain,
             type_name: type_name.clone(),
             type_symbol: owner,
@@ -1111,13 +1239,44 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
         "machine bind(activation: u64) reaches none crashes none;",
         "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
     );
-    let accepted = accepted_frontier(
-        typed_with_prelude(
-            "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
-            &prelude,
-        ),
-        terminal_codec::TerminalPublication::Invocation,
-    ).unwrap_or_else(|refused| panic!("the Build records a provider choice for later Product resolution: {refused:?}"));
+    let typed = typed_with_prelude(
+        "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+        &prelude,
+    );
+    let probe = typed
+        .traits
+        .iter()
+        .find_map(|(_, declaration)| {
+            (declaration.name.as_str() == "Probe").then_some(declaration.symbol)
+        })
+        .expect("the prelude declares Probe");
+    let resolved_inputs = typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(expression, _)| {
+            typed
+                .expression_table
+                .build_selection_inputs(expression)
+                .unwrap()
+        })
+        .flat_map(|inputs| inputs.inputs.iter())
+        .filter(|input| {
+            input
+                .target
+                .as_resolved()
+                .is_some_and(|target| target.selected_symbol() == probe)
+        })
+        .map(|input| {
+            assert_eq!(input.resolved_target, Some(probe));
+            (input.occurrence.ordinal(), input.argument_ordinal)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(resolved_inputs.len(), 1);
+    let (occurrence, operand) = resolved_inputs[0];
+    let accepted = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+        .unwrap_or_else(|refused| {
+            panic!("the Build records a provider choice for later Product resolution: {refused:?}")
+        });
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
@@ -1131,6 +1290,46 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
             .unwrap()
             .iter()
             .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+    );
+    use semantic_vocabulary::source_selections::{
+        SelectionNode, SelectionPurpose, SelectionReference, SelectionRole,
+    };
+    let packet = program
+        .source_selections()
+        .unwrap()
+        .questions_for(program.view())
+        .unwrap();
+    let published = packet
+        .questions
+        .iter()
+        .filter(|(_, question)| {
+            matches!(
+                question.occurrence.node,
+                SelectionNode::AuthoredSelection { occurrence: selected, .. }
+                    if selected == occurrence
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(published.len(), 1);
+    let question = published[0].1;
+    let SelectionRole::ProductDesignation(designation) = &question.role else {
+        panic!("the resolved Probe operand must retain its Product designation");
+    };
+    assert_eq!(designation.operand, operand);
+    assert_eq!(question.purpose, SelectionPurpose::Product);
+    assert_eq!(
+        packet
+            .declarations
+            .get(question.occurrence.lexical_owner)
+            .unwrap()
+            .purpose,
+        SelectionPurpose::Build
+    );
+    assert_eq!(
+        question.selected,
+        SelectionReference::ProductInput {
+            input_selection: designation.input_selection,
+        }
     );
 }
 
@@ -1164,4 +1363,106 @@ machine build(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
     assert_eq!(initializer.occurrence.source_id, source::SourceId(0));
     assert_eq!(result.occurrence.source_id, source::SourceId(0));
     assert!(initializer.occurrence.span.start < result.occurrence.span.start);
+}
+
+#[test]
+fn boundary_declaration_facts_do_not_admit_pure_execution() {
+    use semantic_vocabulary::{TargetMachineCallable, compiler_evaluation::DeclarationCustody};
+    let external = "use omega::language::core::Never; use omega::language::core::ProcessExit; machine build() -> Never reaches ProcessExit crashes none terminates { ProcessExit::exit_process(0); }";
+    let core = [
+        (
+            "never.omg",
+            include_str!("../../../../../source/library/core/never.omg"),
+        ),
+        (
+            "process_exit.omg",
+            include_str!("../../../../../source/library/core/process_exit.omg"),
+        ),
+    ];
+    for (build, reason, external_completion) in [
+        (
+            "machine build(builder: &Build) { BuildRequestOperations::artifact_only(builder); }",
+            "compiler evaluation needs admitted boundary execution",
+            false,
+        ),
+        (
+            external,
+            "compiler evaluation needs admitted external completion",
+            true,
+        ),
+    ] {
+        let typed = typed_with_core_sources(
+            build,
+            PRELUDE,
+            None,
+            if external_completion { &core } else { &[] },
+        );
+        let program = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+            .unwrap()
+            .produce(
+                TerminalProductionCustody::default(),
+                &mut UnmeasuredProduction,
+            )
+            .unwrap();
+        let view = program.view();
+        let module = view.module();
+        assert_eq!(
+            module
+                .machines
+                .iter()
+                .any(|machine| machine.blocks.iter().any(|block| matches!(
+                    block.terminator,
+                    terminal_psi::Terminator::ExternalCompletion { .. }
+                ))),
+            external_completion
+        );
+        if !external_completion {
+            assert!(module.operations().any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BoundaryCall { .. }
+            )));
+        }
+        let entry = module.entry.unwrap();
+        assert!(matches!(entry, TargetMachineCallable::Machine(_)));
+        let scope = &module.scalar_applications.proof_scope;
+        let root = scope.callable_declaration(entry).unwrap();
+        let facts = scope
+            .callable_headers
+            .iter()
+            .find(|(_, header)| header.declaration == root)
+            .unwrap()
+            .1
+            .compiler_evaluation
+            .as_ref()
+            .unwrap();
+        assert!(!facts.name.is_empty());
+        assert_eq!(facts.custody, DeclarationCustody::Package(package()));
+        assert_eq!(facts.invocation_refusal.as_deref(), Some(reason));
+        program
+            .source_selections()
+            .unwrap()
+            .admit(
+                view,
+                &terminal_installation::selection_questions::SelectionAuthorities {
+                    build: None,
+                    product: None,
+                },
+            )
+            .unwrap();
+        let providers =
+            terminal_installation::admit_provider_execution_installation(view, &[], &[]).unwrap();
+        let refusal = terminal_installation::admit_compiler_evaluation(
+            view,
+            None,
+            root,
+            providers,
+            DeclarationCustody::Package(package()),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(
+            refusal, reason,
+            "the same accepted artifact remains unavailable for pure invocation"
+        );
+    }
 }

@@ -13,7 +13,7 @@ provider plan without reopening the dependency's source or Build.
 `encode_retained` and `recover_retained` explicitly publish and recover a coupled
 component; recovery requires a fresh receiving-host producer acceptance, not
 trust encoded in the product. They use `component_description` and
-`terminal_psi_to_abstract_operations::recover_native_derivation_inputs`,
+`verified_optimization_input::recover_native_derivation_inputs`,
 rejecting any record that exceeds `MAX_BYTES` (128 MiB) or attempts to carry
 application installation assumptions.
 */
@@ -21,9 +21,7 @@ application installation assumptions.
 use package_compilation::IndependentComponentDescription;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
-use terminal_psi_to_abstract_operations::{
-    RetainedComponentNativeInputs, RetainedTerminalArtifact,
-};
+use verified_optimization_input::{RetainedComponentNativeInputs, RetainedTerminalArtifact};
 
 const MAGIC: &[u8; 8] = b"OMGCMP01";
 const MAX_BYTES: usize = 128 * 1024 * 1024;
@@ -34,7 +32,7 @@ pub struct SelectedIndependentComponent {
     plan: effects::provider_plan::ProviderPlan,
     receiving_identities: Arc<terminal_psi::TerminalIdentityTable>,
     accepted_package_permissions:
-        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+        provider_admission::provider_admission::TerminalAuthorityPermissionPolicy,
 }
 
 impl SelectedIndependentComponent {
@@ -59,9 +57,7 @@ impl SelectedIndependentComponent {
         })
     }
 
-    pub fn input(
-        &self,
-    ) -> Result<terminal_psi_to_abstract_operations::ComponentNativeInputs<'_>, String> {
+    pub fn input(&self) -> Result<verified_optimization_input::ComponentNativeInputs<'_>, String> {
         self.input.borrow()
     }
 
@@ -75,8 +71,7 @@ impl SelectedIndependentComponent {
 
     pub fn accepted_package_permissions(
         &self,
-    ) -> &terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy
-    {
+    ) -> &provider_admission::provider_admission::TerminalAuthorityPermissionPolicy {
         &self.accepted_package_permissions
     }
 }
@@ -86,7 +81,7 @@ pub struct IndependentComponentProduct {
     description: IndependentComponentDescription,
     retained: Arc<RetainedTerminalArtifact>,
     accepted_package_permissions:
-        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+        provider_admission::provider_admission::TerminalAuthorityPermissionPolicy,
     native_derivation_inputs: Option<Result<Arc<[u8]>, String>>,
 }
 
@@ -104,7 +99,7 @@ impl IndependentComponentProduct {
     pub fn new(
         description: IndependentComponentDescription,
         retained: RetainedTerminalArtifact,
-        accepted_package_permissions: terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+        accepted_package_permissions: provider_admission::provider_admission::TerminalAuthorityPermissionPolicy,
     ) -> Result<Self, &'static str> {
         if description.expected_subject() != retained.artifact().view().identity() {
             return Err("component description and retained product name different subjects");
@@ -128,8 +123,7 @@ impl IndependentComponentProduct {
 
     pub const fn accepted_package_permissions(
         &self,
-    ) -> &terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy
-    {
+    ) -> &provider_admission::provider_admission::TerminalAuthorityPermissionPolicy {
         &self.accepted_package_permissions
     }
 
@@ -185,7 +179,7 @@ impl IndependentComponentProduct {
             description_bytes.to_vec(),
         );
         let (retained, permissions, installation_assumptions) =
-            terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+            verified_optimization_input::recover_native_derivation_inputs(
                 terminal_installation::authorize_terminal_artifact(Arc::new(artifact), producer)
                     .map_err(|error| error.to_string())?,
                 native_inputs,

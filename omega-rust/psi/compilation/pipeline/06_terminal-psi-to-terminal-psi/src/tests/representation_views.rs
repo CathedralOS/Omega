@@ -34,6 +34,73 @@ fn refused(body: &str, detail: &str) {
 }
 
 #[test]
+fn scalar_reference_recasts_keep_their_backing_and_presented_fields() {
+    let source = r#"
+data Envelope [copy] { before: u64; bits: u64; after: u64; }
+data SignedWord [copy] { value: i64; }
+machine signed(mut bits: u64) -> i64 {
+    let value: &i64 = &bits as &i64;
+    value
+}
+machine unsigned(bits: i64) -> u64 {
+    let value: &u64 = &bits as &u64;
+    value
+}
+machine overwrite(bits: &mut u64) { bits = 0u64; }
+machine entry() crashes Trap {
+    let bits: u64 = 18446744073709551615u64;
+    let envelope: Envelope = Envelope { before: 11u64, bits: bits, after: 37u64 };
+    let scalar: &i64 = &envelope.bits as &i64;
+    let word: &SignedWord = &envelope.bits as &SignedWord;
+    transition signed(bits) == -1i64 && unsigned(-1i64) == bits
+        && scalar == -1i64 && word.value == -1i64
+        && envelope.before == 11u64 && envelope.after == 37u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let judge_source = |program: &str| {
+        let typed = super::boundary_calls::typed(program);
+        let entry = super::boundary_calls::entry(&typed);
+        judge(typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        ))
+    };
+    let accepted = match judge_source(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        verdict => panic!("same-width views keep their original bits and backing: {verdict:?}"),
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+
+    // A shared representation still freezes the original storage. Changing
+    // the spelling of its scalar carrier cannot permit an overlapping write.
+    let competing = source.replace(
+        "let value: &i64 = &bits as &i64;",
+        "let value: &i64 = &bits as &i64; overwrite(&mut bits);",
+    );
+    let refused = judge_source(&competing);
+    assert!(
+        matches!(refused, Ok(RouteVerdict::Rejected { ref conflicts, .. }) if !conflicts.is_empty()),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn a_shared_view_is_read_as_the_elements_that_tile_it() {
     // An `i32` holds four bytes, so sixteen words are sixty-four bytes.
     let bytes = |bound: u64| {
@@ -135,4 +202,211 @@ machine write(buffer: &mut [u8], count: u64) -> u64 {requires} {{
     );
     // Without the bound the window may end past the bytes it views.
     assert_eq!(verdict(&program("")), "rejected");
+}
+
+#[test]
+fn a_borrowed_record_buffer_can_be_recast_as_a_whole() {
+    let source = r#"
+data Word [copy] { value: u64; }
+data Receiver [copy] {
+    prefix: u64;
+    stat_buf: [u8; 8];
+}
+
+machine read_word(receiver: &Receiver) -> u64 {
+    let word: &Word = &receiver.stat_buf as &Word;
+    word.value
+}
+
+machine entry() crashes Trap {
+    let receiver: Receiver = Receiver { prefix: 0, stat_buf: [42, 0, 0, 0, 0, 0, 0, 0] };
+    let value: u64 = read_word(&receiver);
+    transition value == 42 { true -> done() false -> fail() }
+    machine done() {}
+    machine fail() { crash Trap; }
+}
+"#;
+    let judge_source = |program: &str| {
+        let typed = super::boundary_calls::typed(program);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        judge(Ok(elaboration))
+    };
+    let accepted = match judge_source(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        verdict => panic!("the field occupies the complete aligned region: {verdict:?}"),
+    };
+    accepted.publish_invocation().unwrap();
+
+    // One borrowed byte does not grant access to its siblings.
+    let single_byte = source.replace("&receiver.stat_buf as", "&receiver.stat_buf[0] as");
+    // The root is still aligned to eight, but the buffer now begins at byte nine.
+    let unaligned = source
+        .replace("    prefix: u64;", "    prefix: u64;\n    tag: u8;")
+        .replace("prefix: 0, stat_buf", "prefix: 0, tag: 0, stat_buf");
+    // Stronger address alignment cannot make padding readable.
+    let padded = source
+        .replace(
+            "data Receiver [copy]",
+            "data Padded [copy] { tag: u8; value: u32; }\ndata Receiver [copy]",
+        )
+        .replace("stat_buf: [u8; 8]", "stat_buf: Padded")
+        .replace("[42, 0, 0, 0, 0, 0, 0, 0]", "Padded { tag: 42, value: 0 }");
+    for program in [single_byte, unaligned, padded] {
+        let refused = judge_source(&program);
+        assert!(
+            format!("{refused:?}")
+                .contains("reference formation changes its captured referent type"),
+            "{refused:?}"
+        );
+    }
+}
+
+#[test]
+fn representation_target_constraints_must_be_established() {
+    let source = |predicate: &str| {
+        format!(
+            "data Target {predicate} {{ value: i32; }}
+machine reinterpret(words: &[i32]) requires words.len <= 8 {{
+    let values: &[Target] = words as &[Target];
+    take(values);
+}}
+machine take(values: &[Target]) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("")), "accepted");
+    let actual = verdict(&source("requires value > 0"));
+    assert!(
+        actual.starts_with(
+            "not supported: an array view without plain element storage and unclaimed backing"
+        ),
+        "the source bits do not establish the target invariant: {actual}"
+    );
+}
+
+#[test]
+fn representation_byte_target_keeps_canonical_element_identity() {
+    let source = "data ByteBox { value: u8; }
+machine retain(value: ByteBox) -> u8 { value.value }
+machine bytes_of(words: &[i32]) requires words.len <= 8 {
+    let bytes: &[u8] = words as &[u8];
+    take(bytes);
+}
+machine take(bytes: &[u8]) { }";
+    let typed = super::boundary_calls::typed(source);
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                calling: None,
+                providers: None,
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    else {
+        panic!("the original source must prepare its ordinary checking closure");
+    };
+    let mut changed = prepared.closure.expect("the original source elaborates");
+    let RouteVerdict::Accepted(accepted) = judge(Ok(changed.clone())).unwrap() else {
+        panic!("the canonical byte view must be accepted before the mutation");
+    };
+    let publication = accepted
+        .publish_invocation()
+        .expect("the original view publishes");
+    terminal_codec::EvidenceSealValidator::new(
+        publication.artifact.view().module(),
+        &publication.seals.seals,
+    )
+    .validate_all()
+    .expect("the original element owns its count evidence");
+    let mut wrappers = changed.module.structural_types.iter().filter_map(|row| {
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &row.shape else {
+            return None;
+        };
+        let [field] = fields.as_slice() else {
+            return None;
+        };
+        let terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) =
+            field.field_type
+        else {
+            return None;
+        };
+        (integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned).then_some(row.id)
+    });
+    let wrapper = wrappers
+        .next()
+        .expect("the source retains its ByteBox declaration");
+    assert!(
+        wrappers.next().is_none(),
+        "the wrapper declaration is unique"
+    );
+    let alter_element = |module: &mut terminal_psi::TerminalModule| {
+        let mut formations = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishElementView {
+                        region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                        ..
+                    }
+                )
+            });
+        let formation = formations.next().expect("the original source has its view");
+        assert!(
+            formations.next().is_none(),
+            "the source has exactly one view"
+        );
+        let terminal_psi::OperationKind::EstablishElementView { element, .. } = &mut formation.kind
+        else {
+            unreachable!()
+        };
+        *element = wrapper;
+    };
+    alter_element(&mut changed.module);
+    let mut received = publication.artifact.view().module().clone();
+    alter_element(&mut received);
+    let changed_evidence =
+        terminal_codec::EvidenceSealValidator::new(&received, &publication.seals.seals)
+            .validate_all();
+    let checked = judge(Ok(changed));
+    assert!(
+        matches!(
+            changed_evidence,
+            Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
+        ),
+        "the wrapper must not own the canonical byte element's evidence: {changed_evidence:?}"
+    );
+    match checked {
+        Err(refusal) => {
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert!(
+                refusal
+                    .detail
+                    .contains("a byte view re-views elements that are not bytes"),
+                "{}",
+                refusal.detail
+            );
+        }
+        Ok(RouteVerdict::Accepted(_)) => {
+            panic!("a nominal byte wrapper must not authenticate the canonical u8 element")
+        }
+        Ok(other) => panic!("the altered element has a different verdict: {other:?}"),
+    }
 }

@@ -31,6 +31,7 @@ pub(crate) fn encode_physical(
             PackageReviewBoundaryCallingPolicy::Aapcs64 => "aapcs64",
             PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64 => "linux_syscall_x86_64",
             PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64 => "linux_syscall_aarch64",
+            PackageReviewBoundaryCallingPolicy::DarwinAapcs64 => "darwin_aapcs64",
         };
         encoder.tag(name, calling_policy_tag(physical.policy()));
         Ok(())

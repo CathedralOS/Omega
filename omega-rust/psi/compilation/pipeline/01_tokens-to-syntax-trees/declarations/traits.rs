@@ -1,0 +1,604 @@
+use crate::contracts::signatures::parse_signature_clauses;
+use crate::declarations::operators::parse_operator_spelling;
+use crate::machine_bodies::defaults::parse_trait_default_machine_body;
+use crate::parameters::callable::{
+    parse_optional_parameters, parse_optional_return_type, parse_parameter,
+};
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::parameters::requirements::validate_machine_parameter_contracts;
+use crate::syntax_storage::tables::{items, items_of, type_refs, type_refs_of};
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle;
+use arena::HandleSpan;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{PropositionParameterSignature, StateSignature, TraitDefinition};
+use syntax_trees::types::TypeReferenceNode;
+use tokens::{KeywordKind, PunctuationKind};
+
+pub(crate) fn parse_trait_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_boundary: bool,
+) -> ParseResult<'tokens, 'source, TraitDefinition> {
+    let input = input.take_contextual("trait")?;
+    let (name, mut input) = input.take_identifier()?;
+    let (generic_parameters, next) = parse_generic_parameters(
+        syntax_trees,
+        input,
+        GenericParameterSyntax::TraitRequirements,
+    )?;
+    input = next;
+    let type_parameters = generic_parameters.type_parameters;
+    let (refines, next) = if input.at_punctuation(PunctuationKind::Equal) {
+        let after_equal = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let (base, rest) = parse_type_reference_handle(syntax_trees, after_equal)?;
+        (Some(base), rest)
+    } else {
+        (None, input)
+    };
+    input = next;
+    let (parents, next) = if refines.is_some() {
+        if input.at_punctuation(PunctuationKind::Colon) {
+            return Err(input.error_here(
+                "a transparent refinement declares its base with `= Base`; the `:` parent list belongs to ordinary traits",
+            ));
+        }
+        (HandleSpan::empty(), input)
+    } else {
+        parse_trait_parents(syntax_trees, input)?
+    };
+    input = next;
+    if refines.is_some() && input.at_contextual("requires") {
+        return Err(input.error_here(
+            "a transparent refinement takes no `requires` clauses; bounds on its parameters belong to the base trait",
+        ));
+    }
+    let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
+    input = next;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
+    input = next;
+    let conformance_bounds = generic_parameters.conformance_bounds;
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut requires = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut machines = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut refinement_clauses = Vec::new();
+
+    if refines.is_some() {
+        while !input.at_punctuation(PunctuationKind::RightBrace) {
+            if input.at_contextual("requires") {
+                return Err(input.error_here(
+                    "a refinement narrows its base contract; it cannot add `requires` requirements",
+                ));
+            }
+            if input.at_contextual("invariant") {
+                return Err(input.error_here(
+                    "the `invariant` clause is retired: a refinement narrows operational axes only",
+                ));
+            }
+            input = input.take_keyword(KeywordKind::Machine, "machine")?;
+            let ((), next) =
+                parse_refinement_clause(syntax_trees, input, refines, &mut refinement_clauses)?;
+            input = next;
+        }
+        input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+        return Ok((
+            TraitDefinition {
+                is_boundary,
+                is_public: false,
+                name,
+                lifetime_parameters: generic_parameters.lifetime_parameters,
+                type_parameters,
+                conformance_bounds,
+                parents,
+                requires: HandleSpan::empty(),
+                machines: HandleSpan::empty(),
+                refines,
+                refinement_clauses,
+            },
+            input,
+        ));
+    }
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_contextual("invariant") {
+            return Err(input.error_here(
+                "the `invariant` clause is retired: traits publish proof obligations through \
+                 explicit `requires` and `ensures`; value-wide facts belong to the carrier's \
+                 default domain",
+            ));
+        }
+
+        if input.at_contextual("requires") {
+            let (required_trait, rest) = parse_trait_requirement(input)?;
+            let handle = syntax_trees
+                .items
+                .append_identifier_path_member(required_trait);
+            requires.push(handle);
+            input = rest;
+            continue;
+        }
+
+        if input.at_contextual("default") {
+            return Err(input.error_here(
+                "the `default` keyword is retired: a trait machine with a body IS \
+                 the default -- drop the keyword and keep the body",
+            ));
+        }
+        if input.at_contextual("operator") {
+            return Err(input.error_here(
+                "the `operator` introducer is retired: a trait requirement binds operator \
+                 syntax as an ordinary machine -- write `machine + name(...)`, or \
+                 `machine name(...)` without a token",
+            ));
+        }
+        input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let spelling = if input.tokens.first().is_some_and(|token| {
+            token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
+        }) {
+            let (spelling, rest) = parse_operator_spelling(input)?;
+            input = rest;
+            Some(spelling)
+        } else {
+            None
+        };
+        let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
+        signature.spelling = spelling;
+        let (clauses, rest) =
+            parse_signature_clauses(syntax_trees, rest, signature.type_parameters)?;
+        validate_machine_parameter_contracts(syntax_trees, signature.type_parameters, rest)?;
+        let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
+        if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
+            return Err(rest.error_here(
+                "`native callback ... from ...` is permitted only on a bodyless boundary-trait requirement",
+            ));
+        }
+        signature.is_default = is_default;
+        if is_boundary && clauses.service_reach_keyword_source_spans.is_empty() {
+            return Err(rest.error_here(format!(
+                "boundary-trait machine requirement `{}::{}` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach",
+                name.as_str(syntax_trees),
+                signature.name.as_str(syntax_trees),
+            )));
+        }
+        // effects.md: every boundary-trait machine requirement "must
+        // likewise write `crashes`". It has no body to infer routes from,
+        // so an omitted clause would publish nothing a caller can use.
+        if is_boundary && !clauses.writes_crash_clause {
+            return Err(rest.error_here(format!(
+                "boundary-trait machine requirement `{}::{}` must declare its crash ceiling; write `crashes none` when it has no crash route",
+                name.as_str(syntax_trees),
+                signature.name.as_str(syntax_trees),
+            )));
+        }
+        if clauses.service_reach_is_installation_bound && (!is_boundary || is_default) {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is permitted only on a bodyless boundary-trait requirement",
+            ));
+        }
+        signature.service_reach_is_installation_bound = clauses.service_reach_is_installation_bound;
+        signature.service_reach_keyword_source_spans = clauses.service_reach_keyword_source_spans;
+        signature.service_reaches = clauses.service_reaches;
+        signature.invokes = clauses.invokes;
+        signature.suspends_keyword_source_spans = clauses.suspends_keyword_source_spans;
+        signature.blocks_keyword_source_spans = clauses.blocks_keyword_source_spans;
+        signature.suspends = clauses.suspends;
+        signature.blocks = clauses.blocks;
+        signature.contracts = clauses.contracts;
+        signature.terminates_guarantee = clauses.terminates_guarantee;
+        signature.declares_no_crash_route = clauses.declares_no_crash_route;
+        let (default_body, next) = if is_default {
+            parse_trait_default_machine_body(syntax_trees, rest)?
+        } else {
+            (
+                HandleSpan::empty(),
+                rest.take_punctuation(PunctuationKind::Semicolon, ";")?,
+            )
+        };
+        signature.default_body = default_body;
+        let handle = items(syntax_trees).insert_state_signature(&signature);
+        let handle = items(syntax_trees).append_state_signature_handle(handle);
+        machines.push(handle);
+        input = next;
+    }
+
+    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    Ok((
+        TraitDefinition {
+            is_boundary,
+            is_public: false,
+            name,
+            lifetime_parameters: generic_parameters.lifetime_parameters,
+            type_parameters,
+            conformance_bounds,
+            parents,
+            requires: requires.finish(),
+            machines: machines.finish(),
+            refines,
+            refinement_clauses,
+        },
+        input,
+    ))
+}
+
+fn parse_refinement_clause<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+    refines: Option<syntax_trees::types::TypeReferenceHandle>,
+    clauses: &mut Vec<syntax_trees::item::TraitRefinementClause>,
+) -> ParseResult<'tokens, 'source, ()> {
+    let requirement = if input.at_punctuation(PunctuationKind::Asterisk) {
+        input = input.take_punctuation(PunctuationKind::Asterisk, "*")?;
+        None
+    } else {
+        let mut segments = Vec::new();
+        let (member, rest) = input.take_identifier()?;
+        segments.push(member);
+        input = rest;
+        while input.at_punctuation(PunctuationKind::ColonColon) {
+            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (member, rest) = input.take_identifier()?;
+            segments.push(member);
+            input = rest;
+        }
+        let qualifier = &segments[..segments.len() - 1];
+        if !qualifier.is_empty() {
+            let base_name =
+                refines.and_then(
+                    |base| match type_refs_of(syntax_trees).type_reference(base) {
+                        TypeReferenceNode::Named(name) => Some(name.clone()),
+                        TypeReferenceNode::Generic { base_name, .. } => Some(base_name.clone()),
+                        _ => None,
+                    },
+                );
+            let qualifies_base = qualifier.iter().all(|segment| {
+                base_name
+                    .as_ref()
+                    .is_some_and(|name| segment.as_str(syntax_trees) == name.as_str(syntax_trees))
+            });
+            if !qualifies_base || qualifier.len() > 1 {
+                return Err(input.error_here(
+                    "a refinement clause qualifies its requirement with the base trait name",
+                ));
+            }
+        }
+        Some(segments.last().expect("nonempty segments").clone())
+    };
+    if input.at_punctuation(PunctuationKind::LeftParen)
+        || input.at_punctuation(PunctuationKind::Arrow)
+        || input.at_punctuation(PunctuationKind::Less)
+    {
+        return Err(input.error_here(
+            "a refinement clause names an existing base requirement; it declares no parameters, generics, or result",
+        ));
+    }
+    let mut signature = crate::parameters::callable::blank_state_signature();
+    signature.name = requirement
+        .clone()
+        .unwrap_or_else(|| Identifier::generated("*"));
+    let mut authored_suspends = false;
+    let mut authored_blocks = false;
+    let mut authored_terminates = false;
+    let mut authored_reaches = false;
+    let mut contracts = Vec::new();
+    loop {
+        if input.at_contextual("ensures") {
+            if requirement.is_none() {
+                return Err(
+                    input.error_here("a refinement postcondition names one exact base requirement")
+                );
+            }
+            let keyword_source_span = Some(input.current_source_span());
+            input = input.take_contextual("ensures")?;
+            let (binding, fact_input) = input.take_optional_label()?;
+            let ((facts, token_count), rest) =
+                crate::contracts::facts::parse_required_proof_facts_until(
+                    syntax_trees,
+                    fact_input,
+                    refinement_reaches_clause_boundary,
+                    false,
+                )?;
+            contracts.push(syntax_trees::item::CapabilityContract {
+                kind: syntax_trees::item::CapabilityContractKind::Ensures,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
+            input = rest;
+            continue;
+        }
+        if input.at_contextual("reaches") {
+            if authored_reaches {
+                return Err(input.error_here("duplicate `reaches` clause on a refinement member"));
+            }
+            authored_reaches = true;
+            let after_keyword = input.take_contextual("reaches")?;
+            if after_keyword.at_punctuation(PunctuationKind::LessEqual) {
+                return Err(after_keyword.error_here(
+                    "`reaches <= Bound` is an installation row; a refinement narrows the authored reach set",
+                ));
+            }
+            let mut reaches = Vec::new();
+            let mut installation_bound = false;
+            input = crate::contracts::effects::take_operational_reaches_clause(
+                input,
+                &mut signature.service_reach_keyword_source_spans,
+                &mut reaches,
+                &mut installation_bound,
+                refinement_reaches_clause_boundary,
+            )?;
+            signature.service_reaches = items(syntax_trees).insert_identifier_path_members(reaches);
+            continue;
+        }
+        if input.at_contextual("suspends") {
+            if authored_suspends {
+                return Err(input.error_here("duplicate `suspends` clause on a refinement member"));
+            }
+            authored_suspends = true;
+            signature
+                .suspends_keyword_source_spans
+                .push(input.current_source_span());
+            input = input.take_contextual("suspends")?;
+            (signature.suspends, input) = crate::contracts::effects::operational_bound(input)?;
+            continue;
+        }
+        if input.at_contextual("blocks") {
+            if authored_blocks {
+                return Err(input.error_here("duplicate `blocks` clause on a refinement member"));
+            }
+            authored_blocks = true;
+            signature
+                .blocks_keyword_source_spans
+                .push(input.current_source_span());
+            input = input.take_contextual("blocks")?;
+            (signature.blocks, input) = crate::contracts::effects::operational_bound(input)?;
+            continue;
+        }
+        if input.at_contextual("terminates") {
+            if authored_terminates {
+                return Err(
+                    input.error_here("duplicate `terminates` clause on a refinement member")
+                );
+            }
+            authored_terminates = true;
+            signature.terminates_guarantee = true;
+            input = input.take_contextual("terminates")?;
+            continue;
+        }
+        break;
+    }
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    signature.contracts =
+        crate::contracts::effects::publish_capability_contracts(syntax_trees, contracts);
+    clauses.push(syntax_trees::item::TraitRefinementClause {
+        requirement,
+        signature,
+    });
+    Ok(((), input))
+}
+
+fn refinement_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_punctuation(PunctuationKind::RightBrace)
+        || input.at_contract_continuation_keyword()
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+}
+
+fn parse_proposition_parameter_contracts<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ()> {
+    loop {
+        if !input.at_contextual("requires") {
+            break;
+        }
+        let after_requires = input.take_contextual("requires")?;
+        if !after_requires.at_contextual("proposition") {
+            break;
+        }
+        let after_proposition = after_requires.take_contextual("proposition")?;
+        let (name, after_name) = after_proposition.take_identifier()?;
+        let Some(parameter_index) = syntax_trees
+            .items
+            .type_parameters(type_parameters)
+            .iter()
+            .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
+        else {
+            return Err(after_name.error_here(format!(
+                "`requires proposition {}` has no matching `<proposition {}>` parameter",
+                name.as_str(syntax_trees),
+                name.as_str(syntax_trees),
+            )));
+        };
+        match &items_of(syntax_trees).type_parameters(type_parameters)[parameter_index].kind {
+            syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
+            syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
+                return Err(after_name.error_here(format!(
+                    "proposition parameter `{}` already has a declaration-site signature",
+                    name.as_str(syntax_trees),
+                )));
+            }
+            _ => {
+                return Err(after_name.error_here(format!(
+                    "`{}` is not a proposition parameter; declare it as `<proposition {}>` first",
+                    name.as_str(syntax_trees),
+                    name.as_str(syntax_trees),
+                )));
+            }
+        }
+        let (parameters, rest) = parse_optional_parameters(syntax_trees, after_name)?;
+        let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        items(syntax_trees).type_parameters_mut(type_parameters)[parameter_index].kind =
+            syntax_trees::item::TypeParameterKind::Proposition {
+                contract: Some(PropositionParameterSignature { name, parameters }),
+            };
+        input = rest;
+    }
+
+    if let Some(missing) = syntax_trees
+        .items
+        .type_parameters(type_parameters)
+        .iter()
+        .find(|parameter| {
+            matches!(
+                parameter.kind,
+                syntax_trees::item::TypeParameterKind::Proposition { contract: None }
+            )
+        })
+    {
+        return Err(input.error_here(format!(
+            "proposition parameter `{}` requires an authored declaration-site signature: write `requires proposition {}(...);`",
+            missing.name.as_str(syntax_trees),
+            missing.name.as_str(syntax_trees),
+        )));
+    }
+    Ok(((), input))
+}
+
+fn parse_trait_parents<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<syntax_trees::types::TypeReferenceHandle>> {
+    if !input.at_punctuation(PunctuationKind::Colon) {
+        return Ok((HandleSpan::empty(), input));
+    }
+
+    input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let mut parents = Vec::new();
+    loop {
+        let (parent, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        parents.push(parent);
+        input = rest;
+        if !input.at_punctuation(PunctuationKind::Plus) {
+            break;
+        }
+        input = input.take_punctuation(PunctuationKind::Plus, "+")?;
+    }
+    Ok((
+        type_refs(syntax_trees).insert_type_reference_handles(parents),
+        input,
+    ))
+}
+
+fn parse_trait_machine_signature<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StateSignature> {
+    let (name, input) = parse_trait_machine_name(input)?;
+    let (generic_parameters, input) = parse_generic_parameters(
+        syntax_trees,
+        input,
+        GenericParameterSyntax::RequirementSignature,
+    )?;
+    let ((parameters, native_callback_parameters), input) =
+        parse_boundary_parameter_telescope(syntax_trees, input)?;
+    let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+    let ((), input) =
+        parse_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, input)?;
+
+    Ok((
+        StateSignature {
+            name,
+            lifetime_parameters: generic_parameters.lifetime_parameters,
+            type_parameters: generic_parameters.type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
+            parameters,
+            native_callback_parameters,
+            return_type,
+            ..crate::parameters::callable::blank_state_signature()
+        },
+        input,
+    ))
+}
+
+fn parse_boundary_parameter_telescope<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<syntax_trees::item::StateParameterHandle>,
+        Vec<syntax_trees::item::NativeCallbackParameterNode>,
+    ),
+> {
+    if !input.at_punctuation(PunctuationKind::LeftParen) {
+        return Ok(((HandleSpan::empty(), Vec::new()), input));
+    }
+
+    let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+    let mut parameters = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut native_callback_parameters = Vec::new();
+    let mut native_ordinal = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightParen) {
+        if input.at_contextual("native") {
+            let input_after_native = input.take_contextual("native")?;
+            let input_after_callback = input_after_native.take_contextual("callback")?;
+            let (name, input_after_name) = input_after_callback.take_identifier()?;
+            let input_after_from = input_after_name.take_contextual("from")?;
+            let (binder, rest) = input_after_from.take_identifier()?;
+            if native_callback_parameters.iter().any(
+                |prior: &syntax_trees::item::NativeCallbackParameterNode| {
+                    prior.name.as_str(syntax_trees) == name.as_str(syntax_trees)
+                },
+            ) {
+                return Err(rest.error_here(format!(
+                    "native callback parameter `{}` is declared more than once",
+                    name.as_str(syntax_trees),
+                )));
+            }
+            native_callback_parameters.push(syntax_trees::item::NativeCallbackParameterNode {
+                name,
+                binder,
+                native_ordinal,
+            });
+            input = rest;
+        } else {
+            let (parameter, rest) = parse_parameter(syntax_trees, input)?;
+            let handle = items(syntax_trees).append_state_parameter_handle(parameter);
+            parameters.push(handle);
+            input = rest;
+        }
+        native_ordinal = native_ordinal
+            .checked_add(1)
+            .expect("native parameter telescope count overflow");
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        break;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+    let parameters = parameters.finish();
+    Ok(((parameters, native_callback_parameters), input))
+}
+
+fn parse_trait_machine_name<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Identifier> {
+    let (name, input) = input.take_identifier()?;
+    if input.at_punctuation(PunctuationKind::ColonColon) {
+        return Err(input.error_here(
+            "a trait requirement declares its bare name; a trait has no subject type to qualify it, so declare each data type it needs as an ordinary trait parameter",
+        ));
+    }
+    Ok((name, input))
+}
+
+fn parse_trait_requirement<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, syntax_trees::identifier::Identifier> {
+    let input = input.take_contextual("requires")?;
+    let (required_trait, input) = input.take_identifier()?;
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    Ok((required_trait, input))
+}

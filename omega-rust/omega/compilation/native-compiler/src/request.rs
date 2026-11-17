@@ -14,6 +14,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 
 pub(crate) struct NativeRealizationRequest<'request> {
+    pub retain_native_stage_inputs: bool,
     pub observation: &'request crate::observations::NativePipelineObservation,
     pub proposal: &'request terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
     pub execution: &'request terminal_psi_to_abstract_operations::PreparedNativeExecution,
@@ -40,6 +41,8 @@ pub(crate) fn native_optimization_budget() -> OptimizationWorkBudget {
 }
 
 pub struct NativeCompileRequest<'request> {
+    /// Retain original stage inputs for explicitly requested correspondence audits.
+    pub retain_native_stage_inputs: bool,
     pub private_entry_ram: &'request [terminal_installation::PrivateEntryRamInitialization],
     pub installation_assumptions:
         &'request [installation_evidence::InstallationEnvironmentAssumption],
@@ -50,6 +53,9 @@ pub struct NativeCompileRequest<'request> {
     pub image_request: ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
     pub components: &'request [crate::ComponentCompilation<'request>],
+    /// The scalar values the program entry reads, completed before compiling
+    /// (`build_settings::scalar_completion::complete_native`).
+    pub scalars: Option<&'request terminal_installation::AdmittedScalarApplications>,
 }
 
 impl NativeCompileRequest<'_> {

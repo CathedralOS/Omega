@@ -1,2 +1,0 @@
-// Console byte I/O uses the shared checked PosixConsoleHost implementation.
-// std/build.omg selects it and binds the exact raw requirements for this target.

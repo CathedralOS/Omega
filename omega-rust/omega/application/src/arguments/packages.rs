@@ -1,11 +1,10 @@
 // Parse arguments for `omega packages install` and `omega packages update`, including `--resume`, `--discard-review`, and `--dangerously-accept-all`.
 
-use super::{parse_build_input, take_text, take_value};
+use super::{explicit_targets, parse_build_input, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
-use target::TargetProfile;
 
 pub(super) const USAGE: &str = "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] ...\n       omega packages update [package-or-alias...] [--to <revision>] ...\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] ...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\nRun `omega packages <install|update|audit> --help` for that command's options.";
 
@@ -29,7 +28,7 @@ pub(super) fn parse_arguments(
     let mut alias = None;
     let mut package = None;
     let mut project_root = None;
-    let mut targets = Vec::new();
+    let mut target_names = Vec::new();
     let mut resume = false;
     let mut discard_review = false;
     let mut accept_all = false;
@@ -85,15 +84,7 @@ pub(super) fn parse_arguments(
                 }
                 alias = Some(take_text(&mut arguments, &argument)?);
             }
-            "--target" => {
-                let name = take_text(&mut arguments, &argument)?;
-                let target = TargetProfile::from_omega_target_name(Some(&name))
-                    .map_err(|error| error.to_string())?;
-                if targets.contains(&target) {
-                    return Err(format!("duplicate target `{name}`"));
-                }
-                targets.push(target);
-            }
+            "--target" => target_names.push(take_text(&mut arguments, &argument)?),
             _ if argument.starts_with('-') => {
                 return Err(format!("unrecognized option `{argument}`"));
             }
@@ -123,13 +114,14 @@ pub(super) fn parse_arguments(
             || alias.is_some()
             || package.is_some()
             || !build_inputs.is_empty()
-            || !targets.is_empty())
+            || !target_names.is_empty())
     {
         return Err("--resume and --discard-review allow only --project and --offline".to_owned());
     }
     if help {
         return Ok(None);
     }
+    let targets = explicit_targets(&target_names)?;
     let build_inputs = if build_inputs.is_empty() {
         None
     } else {

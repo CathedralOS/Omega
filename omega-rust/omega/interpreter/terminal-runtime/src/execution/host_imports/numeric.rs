@@ -140,21 +140,20 @@ impl TerminalEffectHandler for NumericImport {
                 FloatClass::Subnormal { negative } => (3, Some(negative)),
                 FloatClass::Zero { negative } => (4, Some(negative)),
             };
-            return Ok(TerminalEffectResult::ScalarAggregate(
-                terminal_interpreter::TerminalScalarAggregateValue {
-                    structural_type: classification.structural_type,
-                    result_case: Some(classification.cases[ordinal]),
-                    fields: sign
-                        .map(|negative| {
-                            vec![(
-                                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                                    classification.fields[ordinal - 1],
-                                )],
-                                TerminalScalarValue::Boolean(negative),
-                            )]
-                        })
-                        .unwrap_or_default(),
-                },
+            return Ok(TerminalEffectResult::Aggregate(
+                terminal_interpreter::TerminalAggregateValue::from_scalars(
+                    classification.structural_type,
+                    Some(classification.cases[ordinal]),
+                    sign.map(|negative| {
+                        vec![(
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                classification.fields[ordinal - 1],
+                            )],
+                            TerminalScalarValue::Boolean(negative),
+                        )]
+                    })
+                    .unwrap_or_default(),
+                ),
             ));
         }
         let result = evaluate(self.realization, call.arguments)?;

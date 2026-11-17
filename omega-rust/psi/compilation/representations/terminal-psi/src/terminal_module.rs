@@ -5,7 +5,7 @@ bodies, folded constants, quotients, scalar applications, and task-activation de
 */
 
 pub use crate::types_and_values::{types, values};
-pub use crate::{boundary, control_flow, identity, observation, ownership, proof};
+pub use crate::{boundary, control_flow, identity, ownership, proof};
 
 pub use boundary::*;
 pub(crate) mod folded_constants {
@@ -284,13 +284,19 @@ pub mod scalar_applications {
     pub enum ArrayExtent {
         Literal(u64),
         Application(ScalarApplicationId),
+        /// A generic body's exact const input. Zero is admitted: unlike an
+        /// integer width, an array extent contributes no positivity premise.
+        Parameter {
+            owner: semantic_vocabulary::MachineId,
+            value: semantic_vocabulary::ValueId,
+        },
     }
 
     impl ArrayExtent {
         pub const fn literal(self) -> Option<u64> {
             match self {
                 Self::Literal(length) => Some(length),
-                Self::Application(_) => None,
+                Self::Application(_) | Self::Parameter { .. } => None,
             }
         }
     }
@@ -308,6 +314,12 @@ pub mod scalar_applications {
                 Self::Application(application) => {
                     write!(formatter, "pending application #{}", application.get())
                 }
+                Self::Parameter { owner, value } => write!(
+                    formatter,
+                    "const input #{} of machine #{}",
+                    value.get(),
+                    owner.get()
+                ),
             }
         }
     }
@@ -916,17 +928,17 @@ pub mod scalar_conditions {
     }
 }
 pub use control_flow::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
-    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
-    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
-    RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
+    CrashCause, ElementViewRegion, FenceOrdering, FloatResultPolicy, MemoryOrdering,
+    ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
+    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
+    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
     TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle,
     TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
     TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub use identity::*;
-pub use observation::*;
 pub use ownership::*;
 pub use proof::*;
 pub use proof_application_scope::{
@@ -1223,6 +1235,9 @@ pub struct TerminalModule {
     pub calling_signatures: Vec<crate::CallingSignatureDeclaration>,
     pub calling_abi_signatures: Vec<crate::CallingAbiDeclaration>,
     pub calling_policy_requests: Vec<crate::CallingPolicyRequest>,
+    pub service_schemas: Vec<crate::TerminalServiceSchema>,
+    pub program_entry_contracts: Vec<crate::TerminalProgramEntryContract>,
+    pub provider_selections: Vec<crate::TerminalProviderSelection>,
     pub opaque_representations: Vec<crate::TerminalOpaqueRepresentation>,
     pub unoptimized_behavior: Vec<crate::UnoptimizedMachineBehavior>,
     pub external_providers: Vec<ExternalProviderConformance>,
@@ -1232,6 +1247,7 @@ pub struct TerminalModule {
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
     pub installed_interrupt_registrations: Vec<crate::TerminalInstalledInterruptRegistration>,
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
+    pub callables: crate::TerminalCallableCatalog,
     pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
     pub float_meaning_equalities: Vec<crate::FloatMeaningEqualityProposition>,
     pub proposition_declarations: Vec<PropositionDeclaration>,
@@ -1297,6 +1313,18 @@ impl TerminalModule {
     }
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {
         self.machines.iter().flat_map(|machine| &machine.blocks)
+    }
+
+    /// Whether any block can end the whole process (`ProcessExit`) instead of
+    /// returning to its caller. A native host sees such an end only as an exit
+    /// status, which a normal return can also produce.
+    pub fn can_end_the_process(&self) -> bool {
+        self.blocks().any(|block| {
+            matches!(
+                block.terminator,
+                crate::Terminator::ExternalCompletion { .. }
+            )
+        })
     }
 
     pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {
@@ -1619,6 +1647,9 @@ impl TerminalModule {
             calling_signatures: Vec::new(),
             calling_abi_signatures: Vec::new(),
             calling_policy_requests: Vec::new(),
+            service_schemas: Vec::new(),
+            program_entry_contracts: Vec::new(),
+            provider_selections: Vec::new(),
             opaque_representations: Vec::new(),
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
@@ -1628,6 +1659,7 @@ impl TerminalModule {
             callback_applications: Vec::new(),
             installed_interrupt_registrations: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
+            callables: crate::TerminalCallableCatalog::default(),
             quotients: Default::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),

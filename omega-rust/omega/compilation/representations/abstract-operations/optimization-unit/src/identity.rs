@@ -894,9 +894,94 @@ pub(crate) mod runtime_evidence_encoding {
     use super::structural_encoding::{encode_evidence_contract_lane, encode_evidence_interface};
     use crate::RuntimeEvidenceCatalog;
 
+    pub(super) fn encode_proposition_declaration(
+        bytes: &mut CanonicalBytes,
+        declaration: &terminal_psi::PropositionDeclaration,
+    ) {
+        bytes.id(declaration.id);
+        bytes.string(&declaration.name);
+        bytes.slice(&declaration.binders, |bytes, binder| {
+            bytes.string(&binder.name);
+            match binder.kind {
+                terminal_psi::PropositionBinderKind::Type => bytes.u8(1),
+                terminal_psi::PropositionBinderKind::Const { type_identity } => {
+                    bytes.u8(2);
+                    bytes.u32(type_identity.0);
+                }
+                terminal_psi::PropositionBinderKind::Machine => bytes.u8(3),
+            }
+        });
+        bytes.slice(&declaration.parameter_types, |bytes, ty| bytes.string(ty));
+        match &declaration.evidence {
+            terminal_psi::PropositionEvidence::FactOnly => bytes.u8(1),
+            terminal_psi::PropositionEvidence::Witness { evidence_type } => {
+                bytes.u8(2);
+                bytes.string(evidence_type);
+            }
+        }
+    }
+
+    fn encode_proposition_application(
+        bytes: &mut CanonicalBytes,
+        application: &terminal_psi::PropositionApplicationIdentity,
+    ) {
+        bytes.id(application.id);
+        bytes.id(application.declaration);
+        bytes.slice(&application.binder_arguments, |bytes, argument| {
+            use terminal_psi::PropositionBinderArgumentKind as K;
+            bytes.u8(match argument.kind {
+                K::Type => 1,
+                K::Const => 2,
+                K::Machine => 3,
+            });
+            bytes.u32(argument.identity.0);
+            encode_optional(
+                bytes,
+                argument.evidence_projection.as_ref(),
+                |bytes, projection| {
+                    bytes.id(projection.term);
+                    bytes.u32(projection.declaring_trait_identity.0);
+                    bytes.slice(&projection.declaring_trait_arguments, |bytes, argument| {
+                        bytes.string(argument)
+                    });
+                    bytes.u32(projection.requirement_identity.0);
+                },
+            );
+        });
+        bytes.slice(&application.arguments, |bytes, argument| {
+            bytes.string(argument)
+        });
+        encode_optional(
+            bytes,
+            application.evidence_interface.as_ref(),
+            encode_evidence_interface,
+        );
+    }
+
+    pub(super) fn encode_callable_evidence_lane(
+        bytes: &mut CanonicalBytes,
+        lane: &terminal_psi::TerminalCallableEvidenceLane,
+    ) {
+        bytes.u8(match lane.kind {
+            terminal_psi::EvidenceContractLaneKind::Requires => 1,
+            terminal_psi::EvidenceContractLaneKind::Ensures => 2,
+        });
+        bytes.u32(lane.position);
+        encode_proposition_declaration(bytes, &lane.declaration);
+        encode_proposition_application(bytes, &lane.application);
+        bytes.id(lane.term.id);
+        bytes.id(lane.term.proposition);
+        encode_evidence_interface(bytes, &lane.term.interface);
+        bytes.slice(
+            &lane.argument_subjects,
+            super::structural_encoding::encode_evidence_argument_subject,
+        );
+    }
+
     pub(super) fn encode_catalog(bytes: &mut CanonicalBytes, catalog: &RuntimeEvidenceCatalog) {
         bytes.u16(catalog.psi().vocabulary_marker.get());
         bytes.bytes(catalog.psi().program_fingerprint.as_bytes());
+        super::unit_encoding::encode_callable_catalog(bytes, catalog.callables());
         bytes.slice(catalog.declarations(), |bytes, (machine, declaration)| {
             bytes.id(*machine);
             encode_optional(bytes, declaration.as_ref(), |bytes, declaration| {
@@ -922,45 +1007,17 @@ pub(crate) mod runtime_evidence_encoding {
                 );
             });
         });
+        bytes.slice(
+            catalog.proposition_declarations(),
+            encode_proposition_declaration,
+        );
         bytes.slice(catalog.owned_cleanups(), |bytes, row| {
             bytes.id(row.machine);
             bytes.id(row.edge);
             bytes.u32(row.action_ordinal);
             super::structural_encoding::encode_owned_cleanup(bytes, &row.invocation);
         });
-        bytes.slice(catalog.applications(), |bytes, application| {
-            bytes.id(application.id);
-            bytes.id(application.declaration);
-            bytes.slice(&application.binder_arguments, |bytes, argument| {
-                use terminal_psi::PropositionBinderArgumentKind as K;
-                bytes.u8(match argument.kind {
-                    K::Type => 1,
-                    K::Const => 2,
-                    K::Machine => 3,
-                });
-                bytes.u32(argument.identity.0);
-                encode_optional(
-                    bytes,
-                    argument.evidence_projection.as_ref(),
-                    |bytes, projection| {
-                        bytes.id(projection.term);
-                        bytes.u32(projection.declaring_trait_identity.0);
-                        bytes.slice(&projection.declaring_trait_arguments, |bytes, argument| {
-                            bytes.string(argument)
-                        });
-                        bytes.u32(projection.requirement_identity.0);
-                    },
-                );
-            });
-            bytes.slice(&application.arguments, |bytes, argument| {
-                bytes.string(argument)
-            });
-            encode_optional(
-                bytes,
-                application.evidence_interface.as_ref(),
-                encode_evidence_interface,
-            );
-        });
+        bytes.slice(catalog.applications(), encode_proposition_application);
         bytes.slice(catalog.terms(), |bytes, term| {
             bytes.id(term.id);
             bytes.id(term.proposition);
@@ -970,7 +1027,7 @@ pub(crate) mod runtime_evidence_encoding {
         bytes.slice(catalog.calls(), |bytes, call| {
             bytes.id(call.caller);
             bytes.u32(call.ordinal);
-            bytes.u32(call.target_machine_identity.0);
+            bytes.u32(call.target_identity.0);
             encode_optional(
                 bytes,
                 call.static_requirement_dispatch.as_ref(),
@@ -991,6 +1048,10 @@ pub(crate) mod runtime_evidence_encoding {
                 |bytes, result| match result {
                     terminal_psi::ProofOutputRuntimeResult::Unit => bytes.u8(1),
                     terminal_psi::ProofOutputRuntimeResult::NoNormal => bytes.u8(3),
+                    terminal_psi::ProofOutputRuntimeResult::Structural(structural_type) => {
+                        bytes.u8(4);
+                        bytes.id(*structural_type);
+                    }
                     terminal_psi::ProofOutputRuntimeResult::Scalar(scalar_type) => {
                         bytes.u8(2);
                         encode_scalar_type(bytes, *scalar_type);
@@ -1001,7 +1062,17 @@ pub(crate) mod runtime_evidence_encoding {
                 let mut site = Vec::new();
                 runtime.site.encode_identity(&mut site);
                 bytes.slice(&site, |bytes, value| bytes.u8(*value));
-                bytes.id(runtime.callee);
+                match runtime.target {
+                    terminal_psi::EvidenceCallableTarget::Machine(machine) => {
+                        bytes.u8(1);
+                        bytes.id(machine);
+                    }
+                    terminal_psi::EvidenceCallableTarget::Runtime { contract, callee } => {
+                        bytes.u8(2);
+                        bytes.id(contract);
+                        bytes.id(callee);
+                    }
+                }
             });
             bytes.slice(&call.evidence_arguments, |bytes, argument| {
                 bytes.u32(argument.input_position);
@@ -1044,12 +1115,12 @@ pub(crate) mod runtime_evidence_encoding {
             module.proof_output_calls.push(ProofOutputCall {
                 caller: machine,
                 ordinal: 0,
-                target_machine_identity: TerminalIdentityIndex(1),
+                target_identity: TerminalIdentityIndex(1),
                 static_requirement_dispatch: None,
                 runtime_result: Some(ProofOutputRuntimeResult::Unit),
                 runtime_call: Some(ProofOutputRuntimeCall {
                     site: OperationId::new(1).unwrap().into(),
-                    callee: machine,
+                    target: terminal_psi::EvidenceCallableTarget::Machine(machine),
                 }),
                 evidence_arguments: vec![ProofOutputEvidenceArgument {
                     input_position: 0,
@@ -1111,7 +1182,7 @@ pub(crate) mod structural_encoding {
 
     mod contract {
         use super::super::carrier_encoding::{
-            encode_ids, encode_optional, encode_structural_path_segment,
+            encode_ids, encode_optional, encode_scalar_type, encode_structural_path_segment,
         };
         use super::super::{
             CanonicalBytes, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
@@ -1225,7 +1296,17 @@ pub(crate) mod structural_encoding {
         ) {
             bytes.id(contract.id);
             bytes.slice(&contract.crash_routes, encode_crash_route_bucket);
+            bytes.slice(&contract.erased_scalar_formals, |bytes, formal| {
+                bytes.id(formal.id);
+                encode_scalar_type(bytes, formal.scalar_type);
+                bytes.u64(formal.qualifications.get());
+            });
+            bytes.slice(&contract.erased_proof_formals, |bytes, formal| {
+                bytes.u32(formal.source_position);
+                bytes.u32(formal.type_identity.0);
+            });
             bytes.slice(&contract.requires, encode_proposition);
+            bytes.slice(&contract.source_checked_requires, encode_proposition);
             bytes.slice(&contract.ensures, |bytes, clause| {
                 bytes.id(clause.obligation);
                 encode_proposition(bytes, &clause.proposition);
@@ -1250,11 +1331,49 @@ pub(crate) mod structural_encoding {
             });
         }
 
+        pub(in super::super) fn encode_evidence_argument_subject(
+            bytes: &mut CanonicalBytes,
+            subject: &terminal_psi::EvidenceArgumentSubject,
+        ) {
+            use terminal_psi::EvidenceArgumentSubject as S;
+            match subject {
+                S::Parameter(parameter) => {
+                    bytes.u8(1);
+                    bytes.u32(parameter.argument_position);
+                    bytes.u32(parameter.parameter_position);
+                    encode_optional(bytes, parameter.structural_path.as_ref(), |bytes, path| {
+                        bytes.slice(path, encode_structural_path_segment)
+                    });
+                }
+                S::Result { argument_position } => {
+                    bytes.u8(2);
+                    bytes.u32(*argument_position);
+                }
+                S::Closed { argument_position } => {
+                    bytes.u8(3);
+                    bytes.u32(*argument_position);
+                }
+                S::Unknown { argument_position } => {
+                    bytes.u8(4);
+                    bytes.u32(*argument_position);
+                }
+            }
+        }
+
         pub(in super::super) fn encode_evidence_contract_lane(
             bytes: &mut CanonicalBytes,
             lane: &EvidenceContractLane,
         ) {
-            bytes.id(lane.machine);
+            match lane.owner {
+                terminal_psi::EvidenceCallableOwner::Machine(machine) => {
+                    bytes.u8(1);
+                    bytes.id(machine);
+                }
+                terminal_psi::EvidenceCallableOwner::Runtime(contract) => {
+                    bytes.u8(2);
+                    bytes.id(contract);
+                }
+            }
             bytes.u8(match lane.kind {
                 EvidenceContractLaneKind::Requires => 1,
                 EvidenceContractLaneKind::Ensures => 2,
@@ -1264,40 +1383,14 @@ pub(crate) mod structural_encoding {
             encode_optional(bytes, lane.output_field.as_ref(), |bytes, output| {
                 bytes.string(output)
             });
-            bytes.slice(&lane.argument_subjects, |bytes, subject| {
-                use terminal_psi::EvidenceArgumentSubject as S;
-                match subject {
-                    S::Parameter(parameter) => {
-                        bytes.u8(1);
-                        bytes.u32(parameter.argument_position);
-                        bytes.u32(parameter.parameter_position);
-                        encode_optional(
-                            bytes,
-                            parameter.structural_path.as_ref(),
-                            |bytes, path| bytes.slice(path, encode_structural_path_segment),
-                        );
-                    }
-                    S::Result { argument_position } => {
-                        bytes.u8(2);
-                        bytes.u32(*argument_position);
-                    }
-                    S::Closed { argument_position } => {
-                        bytes.u8(3);
-                        bytes.u32(*argument_position);
-                    }
-                    S::Unknown { argument_position } => {
-                        bytes.u8(4);
-                        bytes.u32(*argument_position);
-                    }
-                }
-            });
+            bytes.slice(&lane.argument_subjects, encode_evidence_argument_subject);
         }
     }
 
     pub(super) use contract::{
         encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-        encode_evidence_contract_lane, encode_evidence_interface, encode_machine_contract,
-        encode_outcome_specific_call_evidence,
+        encode_evidence_argument_subject, encode_evidence_contract_lane, encode_evidence_interface,
+        encode_machine_contract, encode_outcome_specific_call_evidence,
     };
 
     pub(super) fn encode_place_declaration(
@@ -1762,7 +1855,7 @@ pub(crate) mod structural_encoding {
         bytes.u8(u8::from(declaration.no_code_affine_cleanup));
         bytes.u8(u8::from(declaration.owns_linear_claim));
         bytes.u8(u8::from(declaration.descriptor_cleanup));
-        bytes.u8(u8::from(declaration.copyable));
+        encode_multiplicity(bytes, declaration.multiplicity);
         encode_optional(
             bytes,
             declaration.nominal_cleanup.as_ref(),
@@ -1841,6 +1934,11 @@ pub(crate) mod structural_encoding {
                 bytes.u8(3);
                 bytes.id(*element);
                 match length {
+                    terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                        bytes.u8(2);
+                        bytes.id(*owner);
+                        bytes.id(*value);
+                    }
                     terminal_psi::ArrayExtent::Literal(length) => {
                         bytes.u8(0);
                         bytes.u64(*length);
@@ -2152,7 +2250,7 @@ pub(crate) mod structural_encoding {
                             cleanup_machine: MachineId::new(machine).unwrap(),
                         }
                     }),
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     scalar_restriction: None,
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2171,9 +2269,13 @@ pub(crate) mod structural_encoding {
         }
 
         #[test]
-        fn logical_copy_permission_changes_encoded_identity() {
+        fn declared_multiplicity_changes_encoded_identity() {
             let mut encodings = Vec::new();
-            for copyable in [false, true] {
+            for multiplicity in [
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                terminal_psi::StructuralMultiplicity::Affine,
+                terminal_psi::StructuralMultiplicity::Linear,
+            ] {
                 let declaration = StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     requires: Vec::new(),
@@ -2182,7 +2284,7 @@ pub(crate) mod structural_encoding {
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
-                    copyable,
+                    multiplicity,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2403,6 +2505,7 @@ pub(crate) mod structural_encoding {
                 boundary_machines: vec![boundary],
                 provider_candidates: Vec::new(),
                 dynamic_dispatch: Default::default(),
+                callables: Default::default(),
                 accepted_obligation_facts: Vec::new(),
                 ownership_frontier_facts: Vec::new(),
                 pruned_machines: Vec::new(),
@@ -2493,7 +2596,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v58\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v59\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -2544,6 +2647,7 @@ pub(crate) mod unit_encoding {
             super::runtime_evidence_encoding::encode_catalog,
         );
         bytes.slice(&unit.functions, encode_function);
+        encode_callable_catalog(bytes, &unit.callables);
         if !unit.dynamic_dispatch.interfaces.is_empty() || !unit.dynamic_dispatch.tables.is_empty()
         {
             bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v3\0");
@@ -2603,6 +2707,140 @@ pub(crate) mod unit_encoding {
                     encode_optional(bytes, machine.as_ref(), |bytes, machine| bytes.id(*machine));
                 });
             });
+        }
+    }
+
+    pub(super) fn encode_callable_catalog(
+        bytes: &mut CanonicalBytes,
+        catalog: &terminal_psi::TerminalCallableCatalog,
+    ) {
+        bytes.slice(&catalog.contracts, |bytes, contract| {
+            bytes.id(contract.id);
+            bytes.u32(contract.identity.0);
+            bytes.slice(&contract.scalar_parameters, |bytes, formal| {
+                bytes.id(formal.id);
+                encode_scalar_type(bytes, formal.scalar_type);
+                bytes.u64(formal.qualifications.get());
+            });
+            bytes.slice(&contract.parameter_order, |bytes, kind| {
+                bytes.u8(match kind {
+                    terminal_psi::BoundaryParameterKind::Scalar => 0,
+                    terminal_psi::BoundaryParameterKind::Structural => 1,
+                })
+            });
+            bytes.slice(&contract.structural_parameters, encode_structural_parameter);
+            encode_boundary_result(bytes, &contract.result);
+            match &contract.proof_result {
+                terminal_psi::TerminalMachineResult::Unit => bytes.u8(0),
+                terminal_psi::TerminalMachineResult::Scalar(formal) => {
+                    bytes.u8(1);
+                    bytes.id(formal.id);
+                    encode_scalar_type(bytes, formal.scalar_type);
+                    bytes.u64(formal.qualifications.get());
+                }
+                terminal_psi::TerminalMachineResult::Structural(formal) => {
+                    bytes.u8(2);
+                    encode_structural_result(bytes, formal);
+                }
+            }
+            bytes.slice(&contract.entry_claim_paths, |bytes, claim| {
+                bytes.u32(claim.argument_index);
+                bytes.slice(&claim.path, encode_structural_path_segment);
+            });
+            bytes.slice(&contract.result_claim_paths, |bytes, path| {
+                bytes.slice(path, encode_structural_path_segment)
+            });
+            bytes.slice(&contract.result_reference_regions, |bytes, region| {
+                bytes.slice(&region.path, encode_structural_path_segment);
+                match region.origin {
+                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                        bytes.u8(0);
+                        bytes.u32(argument_index);
+                    }
+                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                        bytes.u8(1);
+                        bytes.id(carrier_type);
+                    }
+                }
+                bytes.slice(&region.source_path, encode_structural_path_segment);
+                encode_access(bytes, region.access);
+            });
+            encode_machine_contract(bytes, &contract.proof);
+            bytes.slice(
+                &contract.evidence_contract,
+                super::runtime_evidence_encoding::encode_callable_evidence_lane,
+            );
+            encode_callable_envelope(bytes, &contract.envelope);
+        });
+        bytes.slice(&catalog.machine_envelopes, |bytes, row| {
+            encode_optional(bytes, row.as_ref(), |bytes, row| {
+                bytes.id(row.machine);
+                encode_callable_envelope(bytes, &row.envelope);
+            });
+        });
+        bytes.slice(&catalog.boundary_envelopes, |bytes, row| {
+            encode_optional(bytes, row.as_ref(), |bytes, row| {
+                bytes.id(row.boundary);
+                encode_callable_envelope(bytes, &row.envelope);
+            });
+        });
+        bytes.slice(&catalog.declaration_envelopes, |bytes, row| {
+            bytes.id(row.contract);
+            encode_callable_envelope(bytes, &row.envelope);
+        });
+        bytes.slice(&catalog.descriptors, |bytes, descriptor| {
+            bytes.id(descriptor.id);
+            bytes.id(descriptor.contract);
+            bytes.id(descriptor.machine);
+            bytes.u32(descriptor.origin.application.0);
+            encode_optional(
+                bytes,
+                descriptor.origin.conformance.as_ref(),
+                |bytes, identity| bytes.u32(identity.0),
+            );
+            encode_optional(
+                bytes,
+                descriptor.origin.requirement.as_ref(),
+                |bytes, identity| bytes.u32(identity.0),
+            );
+            encode_ids(bytes, &descriptor.refinement_obligations);
+            bytes.slice(&descriptor.refinement_evidence, |bytes, certificate| {
+                bytes.id(certificate.identity);
+                bytes.u16(certificate.proof_system_marker.get());
+            });
+        });
+    }
+
+    fn encode_callable_envelope(
+        bytes: &mut CanonicalBytes,
+        envelope: &terminal_psi::TerminalCallableEnvelope,
+    ) {
+        encode_ids(bytes, &envelope.service_reach);
+        bytes.slice(
+            &envelope.invocations,
+            |bytes, invocation| match invocation {
+                terminal_psi::TerminalCallableInvocation::Parameter(ordinal) => {
+                    bytes.u8(0);
+                    bytes.u32(*ordinal);
+                }
+                terminal_psi::TerminalCallableInvocation::Service(service) => {
+                    bytes.u8(1);
+                    bytes.id(*service);
+                }
+            },
+        );
+        bytes.u8(u8::from(envelope.suspends));
+        bytes.u8(u8::from(envelope.blocks));
+        match &envelope.termination {
+            terminal_psi::TerminalCallableTermination::NotGuaranteed => bytes.u8(0),
+            terminal_psi::TerminalCallableTermination::Terminates { premises } => {
+                bytes.u8(1);
+                bytes.slice(premises, |bytes, premise| {
+                    bytes.u32(premise.parameter);
+                    bytes.slice(&premise.path, encode_structural_path_segment);
+                    bytes.id(premise.domain);
+                });
+            }
         }
     }
 
@@ -3162,6 +3400,7 @@ pub(crate) mod operation_encoding {
 
             O::CallStructural { .. }
             | O::SelectImplementation { .. }
+            | O::SelectMachine { .. }
             | O::BoundaryCall { .. }
             | O::PortWrite { .. }
             | O::ActivateTaskRegister { .. }
@@ -3471,6 +3710,16 @@ pub(crate) mod operation_encoding {
                         }
                     }
                 }
+                O::SelectMachine {
+                    psi_operation,
+                    result,
+                    descriptor,
+                } => {
+                    bytes.u8(255);
+                    bytes.id(*psi_operation);
+                    encode_abstract_result(bytes, *result);
+                    bytes.id(*descriptor);
+                }
                 O::SelectImplementation {
                     psi_operation,
                     result,
@@ -3664,19 +3913,7 @@ pub(crate) mod operation_encoding {
             bytes: &mut CanonicalBytes,
             target: abstract_operations::AbstractCallTarget,
         ) {
-            match target {
-                abstract_operations::AbstractCallTarget::Machine(machine) => bytes.id(machine),
-                abstract_operations::AbstractCallTarget::Dynamic {
-                    selector,
-                    interface,
-                    slot,
-                } => {
-                    bytes.u64(0);
-                    bytes.id(selector);
-                    bytes.u32(interface);
-                    bytes.u32(slot);
-                }
-            }
+            target.visit_canonical_bytes(|part| bytes.bytes(part));
         }
     }
 

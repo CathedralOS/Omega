@@ -33,6 +33,7 @@ impl OperationSite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    CallableValueProvenance(&'static str),
     InvalidNoNormalInvocation {
         machine: MachineId,
         callee: MachineId,

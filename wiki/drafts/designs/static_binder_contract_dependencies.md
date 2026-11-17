@@ -64,7 +64,7 @@ acceptance are complete.
 ## Current code
 
 - The parser accepts `reaches none` and `crashes none` beside the bare keyword
-  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts_and_parameters.rs`);
+  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/parameters/requirements.rs`);
   the Omega-written parser accepts both in `source/psi/parse/clause.omg`.
   `crashes none` currently publishes no contract, which equals omission on
   today's published surfaces; private-body and requirement

@@ -218,6 +218,71 @@ fn aapcs_hfa_is_one_value_split_across_vector_registers() {
     ));
 }
 
+/// AAPCS64 C.3: a float record that misses the vector registers closes them,
+/// so the `f64` after it goes to the stack (as C passes it), not to `v7`.
+#[test]
+fn aapcs_hfa_that_misses_vector_registers_closes_them_for_later_floats() {
+    let signature = call_signature(
+        vec![ValueShape::float(8); 7]
+            .into_iter()
+            .chain([
+                ValueShape::homogeneous_float_aggregate(8, 2),
+                ValueShape::float(8),
+            ])
+            .collect(),
+        None,
+    );
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS HFA overflow");
+
+    assert_eq!(
+        plan.parameters[7].locations,
+        vec![ValueLocation::stack(0, 0, 16, 8)]
+    );
+    assert_eq!(
+        plan.parameters[8].locations,
+        vec![ValueLocation::stack(16, 0, 8, 8)]
+    );
+}
+
+/// The twin: with only seven floats before it, the last `f64` still takes `v7`.
+#[test]
+fn aapcs_float_after_seven_floats_takes_the_last_vector_register() {
+    let signature = call_signature(vec![ValueShape::float(8); 8], None);
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS floats");
+
+    assert_eq!(
+        plan.parameters[7].locations,
+        vec![ValueLocation::register(MachineRegister::Aarch64V(7), 0, 8)]
+    );
+}
+
+/// AAPCS64 C.3: a stacked three-`f32` record takes 16 bytes, so the `u32`
+/// after it sits at sp+16, not sp+12.
+#[test]
+fn aapcs_stacked_hfa_size_rounds_up_to_eight_bytes() {
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 8]
+            .into_iter()
+            .chain(vec![ValueShape::float(8); 8])
+            .chain([
+                ValueShape::homogeneous_float_aggregate(4, 3),
+                ValueShape::integer(4, 4),
+            ])
+            .collect(),
+        None,
+    );
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS stacked HFA");
+
+    assert_eq!(
+        plan.parameters[16].locations,
+        vec![ValueLocation::stack(0, 0, 12, 4)]
+    );
+    assert_eq!(
+        plan.parameters[17].locations,
+        vec![ValueLocation::stack(16, 0, 4, 4)]
+    );
+}
+
 #[test]
 fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
     let signature = call_signature(
@@ -241,6 +306,72 @@ fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
             ValueLocation::register(MachineRegister::Aarch64X(1), 8, 4),
         ]
     );
+}
+
+#[test]
+fn darwin_aligned_arguments_start_in_the_next_integer_register_without_a_gap() {
+    for preceding in [1, 3, 5] {
+        let mut parameters = vec![ValueShape::integer(8, 8); preceding];
+        parameters.extend([ValueShape::integer(16, 16), ValueShape::integer(8, 8)]);
+        let signature = call_signature(parameters, None);
+        for (target, first) in [
+            (target::NativeTarget::macos_arm64(), preceding as u8),
+            (target::NativeTarget::linux_arm64(), preceding as u8 + 1),
+        ] {
+            let plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+                .expect("aligned argument plan");
+            validate_call_plan(&plan, &signature).expect("valid aligned argument plan");
+            assert_eq!(
+                plan.parameters[preceding].locations,
+                [
+                    ValueLocation::register(MachineRegister::Aarch64X(first), 0, 8),
+                    ValueLocation::register(MachineRegister::Aarch64X(first + 1), 8, 8),
+                ]
+            );
+            assert_eq!(
+                plan.parameters[preceding + 1].locations,
+                [if first + 2 < 8 {
+                    ValueLocation::register(MachineRegister::Aarch64X(first + 2), 0, 8)
+                } else {
+                    ValueLocation::stack(0, 0, 8, 8)
+                }]
+            );
+        }
+    }
+}
+
+#[test]
+fn arm64_aligned_arguments_fit_the_last_pair_or_spill_wholly_and_close_the_bank() {
+    for preceding in [6, 7] {
+        let mut parameters = vec![ValueShape::integer(8, 8); preceding];
+        parameters.extend([ValueShape::integer(16, 16), ValueShape::integer(8, 8)]);
+        let signature = call_signature(parameters, None);
+        for policy in [CallingPolicy::DarwinAapcs64, CallingPolicy::Aapcs64] {
+            let plan = evaluate_call_plan(policy, &signature).expect("register exhaustion plan");
+            validate_call_plan(&plan, &signature).expect("valid register exhaustion plan");
+            let expected = if preceding == 6 {
+                vec![
+                    ValueLocation::register(MachineRegister::Aarch64X(6), 0, 8),
+                    ValueLocation::register(MachineRegister::Aarch64X(7), 8, 8),
+                ]
+            } else {
+                vec![
+                    ValueLocation::stack(0, 0, 8, 8),
+                    ValueLocation::stack(8, 8, 8, 8),
+                ]
+            };
+            assert_eq!(plan.parameters[preceding].locations, expected);
+            assert_eq!(
+                plan.parameters[preceding + 1].locations,
+                [ValueLocation::stack(
+                    if preceding == 6 { 0 } else { 16 },
+                    0,
+                    8,
+                    8
+                )]
+            );
+        }
+    }
 }
 
 #[test]

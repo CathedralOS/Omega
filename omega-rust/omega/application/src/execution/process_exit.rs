@@ -8,7 +8,11 @@ non-exit deaths into a synthetic numeric code like `-1`:
 - `matches_host_presentation` compares a numeric exit code against the host OS's
   wait-status width: Unix `waitpid` retains only the low 8 bits (`status & 255`),
   whereas Windows retains the full 32-bit `i32` pattern. A `Signaled` or
-  `Terminated` process never matches a numeric completion.
+  `Terminated` process never matches a numeric completion. When Unix keeps only
+  the low byte of a semantic status outside 0..=255, a matching low byte proves
+  nothing about the rest of the argument, so the answer is `None` (unverified)
+  rather than agreement: the process-exit spec compares the exact `i32` and
+  forbids letting fewer host status bits weaken that comparison.
 - `matches_crash_presentation` checks whether a native child died with the exact
   architectural trap emitted by our backend (`BRK` -> `SIGTRAP` on ARM64
   Unix, `UD2` -> `SIGILL` on x86-64 Unix, and `STATUS_ILLEGAL_INSTRUCTION`
@@ -47,13 +51,19 @@ impl ProcessExitObservation {
         }
     }
 
-    pub(super) fn matches_host_presentation(self, semantic_status: i32) -> bool {
-        let expected_status = if cfg!(unix) {
+    /// `Some(true)` when the host shows the whole semantic status and it
+    /// matches, `Some(false)` when what the host shows differs, and `None`
+    /// when the host truncated the status and the visible bits match.
+    pub(super) fn matches_host_presentation(self, semantic_status: i32) -> Option<bool> {
+        let presented_status = if cfg!(unix) {
             semantic_status & 255
         } else {
             semantic_status
         };
-        self.code() == Some(expected_status)
+        if self.code() != Some(presented_status) {
+            return Some(false);
+        }
+        (presented_status == semantic_status).then_some(true)
     }
 
     pub(super) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
@@ -120,12 +130,40 @@ mod tests {
 
     #[test]
     fn numeric_completion_never_accepts_a_signal() {
-        assert!(!ProcessExitObservation::Signaled(5).matches_host_presentation(5));
-        assert!(!ProcessExitObservation::Terminated.matches_host_presentation(-1));
-        assert!(ProcessExitObservation::Exited(70).matches_host_presentation(70));
+        assert_eq!(
+            ProcessExitObservation::Signaled(5).matches_host_presentation(5),
+            Some(false)
+        );
+        assert_eq!(
+            ProcessExitObservation::Terminated.matches_host_presentation(-1),
+            Some(false)
+        );
+        assert_eq!(
+            ProcessExitObservation::Exited(70).matches_host_presentation(70),
+            Some(true)
+        );
+    }
+
+    // Unix shows only the low byte, so Psi `exit_process(-44)` and a native
+    // exit of 212 look alike there; that is unverified, never agreement.
+    #[test]
+    fn truncated_status_is_unverified_not_agreement() {
+        let unix_low_byte = if cfg!(unix) { None } else { Some(false) };
         assert_eq!(
             ProcessExitObservation::Exited(212).matches_host_presentation(-44),
-            cfg!(unix)
+            unix_low_byte
+        );
+        assert_eq!(
+            ProcessExitObservation::Exited(0).matches_host_presentation(256),
+            unix_low_byte
+        );
+        assert_eq!(
+            ProcessExitObservation::Exited(1).matches_host_presentation(256),
+            Some(false)
+        );
+        assert_eq!(
+            ProcessExitObservation::Exited(-44).matches_host_presentation(-44),
+            if cfg!(unix) { Some(false) } else { Some(true) }
         );
     }
 }

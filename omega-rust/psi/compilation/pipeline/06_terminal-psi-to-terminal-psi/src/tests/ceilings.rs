@@ -17,6 +17,9 @@ fn judged(text: &str) -> RouteVerdict {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -475,5 +478,185 @@ machine entry() invokes Missing {}
             .statement
             .contains("`invokes Missing` names no parameter and no requirement")),
         "{violations:#?}"
+    );
+}
+
+fn callable_witness(
+    required: &str,
+    supplied: &str,
+) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
+    let program = format!(
+        r#"
+boundary trait Output {{}}
+boundary trait Handler {{}}
+boundary trait Console {{
+    machine write(value: u32) reaches Output crashes none invokes Handler;
+}}
+trait Sink {{
+    machine put(value: u32) {required};
+}}
+machine supplied(value: u32) {supplied} {{ Console::write(value); }}
+"#
+    );
+    let typed = typed(&program);
+    let requirement = typed
+        .trait_machine_signatures
+        .iter()
+        .find(|(_, signature)| signature.name.as_str() == "put")
+        .unwrap()
+        .1;
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "supplied")
+        .unwrap()
+        .symbol;
+    typed_trees_to_terminal_psi::elaborate_callable_witness(
+        &typed,
+        requirement,
+        typed_trees_to_terminal_psi::CallableDeclaration::Machine(machine),
+    )
+}
+
+// The required public ceiling is independent of the supplied body.
+#[test]
+fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
+    let refine = |required: &str, supplied: &str| {
+        let witness = callable_witness(required, supplied)?;
+        crate::prove_callable_refinement(witness, &mut crate::ProofSearchActivity::default())
+    };
+    let inside = "reaches Output crashes none invokes Handler";
+    refine(inside, inside).unwrap();
+    let refused = refine("reaches none crashes none invokes Handler", inside).unwrap_err();
+    assert_eq!(
+        refused.detail,
+        "supplied callable reaches a service outside the required ceiling"
+    );
+    let refused = refine("reaches Output crashes none", inside).unwrap_err();
+    assert_eq!(
+        refused.detail,
+        "supplied callable enters a callback outside the required invokes ceiling"
+    );
+}
+
+#[test]
+fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings() {
+    let inside = "reaches Output crashes none invokes Handler";
+    let mut witness = callable_witness(inside, inside).unwrap();
+    assert_eq!(witness.module.services.len(), 2);
+    assert!(
+        witness
+            .module
+            .services
+            .iter()
+            .all(|service| { witness.module.identities.text(service.identity).is_some() })
+    );
+    // Removing the declarations must remain a foreign-identity refusal; the
+    // logical witness cannot bypass service admission because it has no body.
+    witness.module.services.clear();
+    let refused =
+        crate::prove_callable_refinement(witness, &mut crate::ProofSearchActivity::default())
+            .unwrap_err();
+    assert_eq!(
+        refused.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert_eq!(refused.detail, "published row names an undeclared service");
+}
+
+#[test]
+fn abstract_record_operations_keep_operational_bounds_through_private_helpers() {
+    const SOURCE: &str = r#"
+boundary trait Output {}
+trait Operations {
+    machine wait() -> u32
+    reaches Output
+    blocks
+    crashes none
+    terminates;
+}
+machine entry<const Selected: Operations>() -> u32
+reaches Output
+blocks
+crashes none
+terminates
+{
+    block helper()
+    machine helper() -> u32 {
+        block Selected::wait()
+    }
+}
+"#;
+    let source = typed(SOURCE);
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source))
+        .expect("form the source-only record requirement and private helper");
+    let instance = form
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.bindings)
+        .flat_map(|binding| &binding.members)
+        .flat_map(|member| &member.instances)
+        .next()
+        .expect("the actual record member retains its logical instance")
+        .machine;
+    assert!(form.requirements.contains(&instance));
+    let bounds = form.requirement_ceilings.get(instance).unwrap();
+    assert!(matches!(&bounds.reaches,
+        terminal_check_tables::contracts::Ceiling::Authored(row) if !row.is_empty()));
+    assert_eq!(bounds.suspension, Some(false));
+    assert_eq!(bounds.blocking, Some(true));
+    assert!(matches!(&bounds.termination,
+        terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty()));
+    let requirement = form.module.machine(instance).unwrap();
+    assert!(requirement.blocks.is_empty() && requirement.declaration.is_none());
+    assert!(
+        form.module.callables.machine_envelope(instance).is_none(),
+        "the abstract contract does not acquire a runtime envelope"
+    );
+    let helper = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "helper")
+        .unwrap()
+        .symbol;
+    let helper = form
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == helper).then_some(id))
+        .unwrap();
+    assert!(form.module.machine(helper).unwrap().published_may_block);
+    assert!(!form.module.machine(helper).unwrap().published_may_suspend);
+
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default())
+        .expect("the real calls retain their blocking acknowledgements");
+    for (machine, result) in discharged.machines.iter() {
+        if !form.requirements.contains(&machine) {
+            assert!(
+                result.verdicts.values().all(Result::is_ok),
+                "{:?}",
+                result.verdicts
+            );
+            assert!(result.conflicts.is_empty() && result.unestablished().next().is_none());
+        }
+    }
+    assert!(
+        crate::ceilings::judge(&form).unwrap().is_empty(),
+        "the complete abstract contract fits the real helper and generic entry"
+    );
+
+    // Remove only the caller's permission; both actual call acknowledgements
+    // and the originating record requirement remain unchanged.
+    let denied = SOURCE.replace(
+        "reaches Output\nblocks\ncrashes none\nterminates\n{",
+        "reaches Output\nblocks false\ncrashes none\nterminates\n{",
+    );
+    assert_ne!(denied, SOURCE);
+    let source = typed(&denied);
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source)).unwrap();
+    let refused = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Violation);
+    assert_eq!(
+        refused.detail,
+        "call may block but its caller's blocks ceiling is false"
     );
 }

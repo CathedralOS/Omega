@@ -3,24 +3,24 @@ We encode and decode structural type, parameter, argument, place, path, and
 qualification declarations inside the `FixedViewCopyPlan` selected payload.
 
 Each structural type declaration preserves its quotient carrier, declaration-
-owned linearity, no-code affine cleanup authority, descriptor cleanup, logical
-copyability, scalar refinement predicates, and record/array/sum/mixed/reference/
+owned linearity, no-code affine cleanup authority, descriptor cleanup, declared
+multiplicity, scalar refinement predicates, and record/array/sum/mixed/reference/
 element-view/byte-sequence/atomic-cell shapes. Parameter-rooted qualification
 paths (`decode_qualification_path`) admit `AllElements` wildcards as retained
 metadata while ordinary address paths (`decode_path`) and reference origin paths
 (`decode_reference_origin_path`) reject wildcards.
 */
 
-pub(super) use legalized_operations::identity::encode_structural_place as encode_place;
+pub(super) use target_vocabulary::identity::encode_structural_place as encode_place;
 
 use ::selected_instructions::effects::program::identity::encode_path;
-use legalized_operations::identity::encode_authored_field_storage;
-use legalized_operations::{
-    LegalizedCallUnitParameter, encode_integer, encode_placement, encode_shape,
-};
 use semantic_vocabulary::{
     AffineConstructionElement, BlockId, BoundedIntegerType, IeeeFloatFormat, OperationId, PlaceId,
     ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+};
+use target_vocabulary::identity::encode_authored_field_storage;
+use target_vocabulary::{
+    LegalizedCallUnitParameter, encode_integer, encode_placement, encode_shape,
 };
 use target_vocabulary::{
     TargetStructuralArgument, TargetStructuralParameter, TargetStructuralRuntimeIndex,
@@ -77,7 +77,7 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
-    bytes.push(u8::from(declaration.copyable));
+    encode_multiplicity(bytes, declaration.multiplicity);
     bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
     if let Some(selection) = &declaration.nominal_cleanup {
         bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
@@ -156,6 +156,11 @@ pub(super) fn encode_type(
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
             match length {
+                terminal_psi::ArrayExtent::Parameter { .. } => {
+                    return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                        "an array extent is still a rigid const input",
+                    ));
+                }
                 terminal_psi::ArrayExtent::Literal(length) => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
@@ -193,7 +198,7 @@ pub(super) fn decode_type(
     let owns_linear_claim = decode_bool(cursor)?;
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
-    let copyable = decode_bool(cursor)?;
+    let multiplicity = decode_multiplicity(cursor)?;
     let nominal_cleanup = if decode_bool(cursor)? {
         Some(terminal_psi::NominalCleanupSelection {
             declaration: terminal_psi::NominalDeclarationIdentity::new(
@@ -309,7 +314,7 @@ pub(super) fn decode_type(
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
-        copyable,
+        multiplicity,
         descriptor_cleanup,
         nominal_cleanup,
         scalar_restriction,
@@ -546,6 +551,14 @@ fn decode_target_parameter(
         shape: decode_shape(cursor)?,
         placement: decode_placement(cursor)?,
     })
+}
+
+pub(super) fn decode_abi_parameter(
+    cursor: &mut Cursor<'_>,
+) -> Result<TargetStructuralParameter, FixedViewCopyDecodeError> {
+    let mut parameter = decode_target_parameter(cursor)?;
+    parameter.projected_qualifications = decode_projected(cursor, true)?;
+    Ok(parameter)
 }
 
 pub(super) fn encode_semantic_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
@@ -1045,7 +1058,7 @@ mod tests {
                         cleanup_machine: MachineId::new(machine).unwrap(),
                     }
                 }),
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
@@ -1066,9 +1079,13 @@ mod tests {
     }
 
     #[test]
-    fn logical_copy_permission_changes_encoded_identity() {
+    fn declared_multiplicity_changes_encoded_identity() {
         let mut encodings = Vec::new();
-        for copyable in [false, true] {
+        for multiplicity in [
+            StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Linear,
+        ] {
             let declaration = StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
@@ -1077,7 +1094,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
-                copyable,
+                multiplicity,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1106,7 +1123,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1142,7 +1159,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1177,7 +1194,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -1224,7 +1241,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -1295,7 +1312,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1383,7 +1400,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,

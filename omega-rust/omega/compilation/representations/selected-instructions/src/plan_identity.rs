@@ -2,11 +2,11 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v56\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v63\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
-  functions, each function digest (`omega.terminal-selected-instruction-function.v3\0`)
+  functions, each function digest (`omega.terminal-selected-instruction-function.v6\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
-  boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v2\0`).
+  boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v3\0`).
   Every field of every function reaches the identity, while `SelectedFunctions`
   and `SelectedBlocks` retain pre-encoded prefix pages beside their shared
   entries so register-pressure recovery re-hashes only touched metadata,
@@ -25,7 +25,7 @@ use crate::{
     SelectedInstructionPlanIdentity, SelectedSuccessor,
 };
 
-pub use contracts::encode_memory_access;
+pub use contracts::{encode_memory_access, encode_structural_block_parameters};
 
 #[derive(Clone)]
 pub(crate) struct RetainedPlanPrefix {
@@ -41,7 +41,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v56\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v63\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -52,6 +52,7 @@ pub fn selected_instruction_plan_identity(
     push_encoded(&mut header_bytes, plan.work_schedule.marker().to_le_bytes());
     header_bytes.extend_from_slice(&plan.target.identity_bytes());
     push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
+    header_bytes.extend_from_slice(&plan.contracts.identity_bytes());
     crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
 
     if let Some(retained) = plan.functions.retained_plan_prefix()
@@ -105,7 +106,8 @@ struct RetainedHeaderKey {
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
     provenance: target_vocabulary::TerminalPsiProvenance,
-    structural: Option<legalized_operations::LegalizedStructuralContract>,
+    structural: Option<target_vocabulary::LegalizedStructuralContract>,
+    structural_block_parameters: Vec<crate::SelectedStructuralBlockParameters>,
     outgoing_arguments: Vec<crate::SelectedOutgoingArgumentSlot>,
     calls: Vec<crate::SelectedCallContract>,
     normalized_foreign_calls: Vec<crate::SelectedNormalizedForeignCall>,
@@ -120,6 +122,7 @@ impl RetainedHeaderKey {
             entry_block: function.entry_block,
             provenance: function.provenance.clone(),
             structural: function.structural.clone(),
+            structural_block_parameters: function.structural_block_parameters.clone(),
             outgoing_arguments: function.outgoing_arguments.clone(),
             calls: function.calls.clone(),
             normalized_foreign_calls: function.normalized_foreign_calls.clone(),
@@ -133,6 +136,7 @@ impl RetainedHeaderKey {
             && self.entry_block == function.entry_block
             && self.provenance == function.provenance
             && self.structural == function.structural
+            && self.structural_block_parameters == function.structural_block_parameters
             && self.outgoing_arguments == function.outgoing_arguments
             && self.calls == function.calls
             && self.normalized_foreign_calls == function.normalized_foreign_calls
@@ -173,7 +177,7 @@ fn encode_function_header(
     function: &crate::SelectedFunctionContracts,
     entry_block: crate::SelectedBlockId,
 ) {
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v6\0");
     push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
         bytes,
@@ -367,7 +371,7 @@ pub(crate) struct RetainedBlockEncoding {
 }
 
 fn encode_block_header(bytes: &mut Vec<u8>, block: &crate::SelectedBlock) {
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v3\0");
     push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         crate::SelectedBlockOrigin::Source(source) => {
@@ -706,6 +710,10 @@ fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
 
 pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     match scalar_type {
+        ScalarType::Callable(contract) => {
+            bytes.push(3);
+            push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
             bytes.push(1);
@@ -790,6 +798,22 @@ mod contracts {
         crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
     }
 
+    pub fn encode_structural_block_parameters(
+        bytes: &mut Vec<u8>,
+        families: &[crate::SelectedStructuralBlockParameters],
+    ) {
+        encode_len(bytes, families.len());
+        for (block, parameters) in families {
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            encode_len(bytes, parameters.len());
+            for parameter in parameters.iter() {
+                target_vocabulary::identity::structural_types::encode_structural_parameter(
+                    bytes, parameter,
+                );
+            }
+        }
+    }
+
     pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &crate::SelectedFunctionContracts) {
         match &function.structural {
             Some(contract) => {
@@ -798,6 +822,7 @@ mod contracts {
             }
             None => bytes.push(0),
         }
+        encode_structural_block_parameters(bytes, &function.structural_block_parameters);
         encode_len(bytes, function.outgoing_arguments.len());
         for row in &function.outgoing_arguments {
             slot(bytes, row.id);
@@ -1195,7 +1220,7 @@ mod ordinary {
                         },
                     },
                     transport: crate::SelectedStructuralTransport::Unused,
-                    source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                    source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
                         operand: native_vocabulary::values::AbstractResult {
                             value: ValueId::new(6).unwrap(),
                             scalar_type: ScalarType::Integer(
@@ -1472,6 +1497,7 @@ mod function_digest_tests {
     fn function(machine: u64) -> SelectedFunction {
         SelectedFunction {
             contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                structural_block_parameters: Vec::new(),
                 machine: MachineId::new(machine).unwrap(),
                 attachment: None,
                 provenance: Default::default(),
@@ -1491,6 +1517,7 @@ mod function_digest_tests {
 
     fn plan(functions: Vec<SelectedFunction>) -> SelectedInstructionPlan {
         SelectedInstructionPlan {
+            contracts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
@@ -1509,11 +1536,11 @@ mod function_digest_tests {
     }
 
     #[test]
-    fn shared_function_chunks_keep_the_pre_split_canonical_identity() {
+    fn shared_function_chunks_keep_the_v6_canonical_identity() {
         let function = function(1);
-        // Measured from the unchanged fixture at aeedfbe7b9227, before contracts
-        // moved into shared storage. Storage ownership must not change bytes.
-        let expected = "640e588b5b7fb1c09f6e7f53de328ad3e4aac85de0d11ce22ca32bc62c931bb9";
+        // Function v6 binds structural block parameters. Sharing the function
+        // columns must preserve its exact canonical bytes.
+        let expected = "2dfa2a7372436f71d7c6823c65346e14c21f5c0b654dfcb6159ebdf3548f582a";
         assert_eq!(
             crate::digest_encoder::hex(&super::selected_function_digest(&function)),
             expected
@@ -1531,6 +1558,20 @@ mod function_digest_tests {
     #[test]
     fn shared_chunks_match_nonempty_register_contract_and_block_encoding() {
         let mut populated = function(1);
+        populated.structural_block_parameters.push((
+            semantic_vocabulary::BlockId::new(17).unwrap(),
+            vec![terminal_psi::StructuralParameterDeclaration {
+                place: semantic_vocabulary::PlaceId::new(18).unwrap(),
+                position: 0,
+                structural_type: semantic_vocabulary::StructuralTypeId::new(19).unwrap(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            }]
+            .into(),
+        ));
         populated.virtual_registers.push(crate::VirtualRegister {
             id: crate::VirtualRegisterId(0),
             scalar_type: semantic_vocabulary::ScalarType::Integer(
@@ -1558,6 +1599,21 @@ mod function_digest_tests {
                 alignment: 8,
             });
         populated.blocks = vec![block(0)].into();
+        let source_block = semantic_vocabulary::BlockId::new(17).unwrap();
+        let place = semantic_vocabulary::PlaceId::new(18).unwrap();
+        assert!(
+            populated
+                .structural_block_parameter(source_block, place)
+                .is_some()
+        );
+        assert!(
+            populated
+                .structural_block_parameter(
+                    source_block,
+                    semantic_vocabulary::PlaceId::new(20).unwrap()
+                )
+                .is_none()
+        );
         let expected = super::selected_function_digest(&populated);
         assert_ne!(expected, super::selected_function_digest(&function(1)));
         assert_eq!(
@@ -1568,6 +1624,30 @@ mod function_digest_tests {
             ),
             expected,
         );
+        let retained = populated.clone();
+        assert!(std::sync::Arc::ptr_eq(
+            &retained.structural_block_parameters[0].1,
+            &populated.structural_block_parameters[0].1,
+        ));
+        std::sync::Arc::make_mut(&mut populated.structural_block_parameters[0].1)[0].position = 1;
+        assert_ne!(super::selected_function_digest(&populated), expected);
+        assert_eq!(super::selected_function_digest(&retained), expected);
+        let mut duplicated = retained.clone();
+        let parameter = duplicated.structural_block_parameters[0].1[0].clone();
+        duplicated.structural_block_parameters[0].1 = vec![parameter.clone(), parameter].into();
+        assert!(
+            duplicated
+                .structural_block_parameter(source_block, place)
+                .is_none()
+        );
+        let duplicate = duplicated.structural_block_parameters[0].clone();
+        duplicated.structural_block_parameters.push(duplicate);
+        assert!(
+            duplicated
+                .structural_block_parameter(source_block, place)
+                .is_none()
+        );
+        assert!(!duplicated.ids_are_positions());
     }
 
     #[test]

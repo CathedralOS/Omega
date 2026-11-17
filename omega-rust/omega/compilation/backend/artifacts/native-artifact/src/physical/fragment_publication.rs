@@ -1,7 +1,7 @@
 /*
 We bind fragment-published object custody to a validated optimized physical
 evidence scope, retaining the relocation-free object plan, placed text section,
-and selected instruction plan so physical derivation can rejoin unresolved
+and current physical instruction/contract columns so derivation can rejoin unresolved
 import fields and instruction spans directly.
 */
 
@@ -56,15 +56,15 @@ impl FragmentPublicationBinding {
         self.source.source().text_section()
     }
 
-    pub(super) fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
-        &self
-            .source
+    pub(super) fn physical_program(
+        &self,
+    ) -> &post_allocation_machine::PostAllocationMachineProgram {
+        self.source
             .source()
             .source()
             .source()
             .source()
-            .program()
-            .selected
+            .physical_program()
     }
 }
 
@@ -84,12 +84,11 @@ pub(crate) fn derive_scope(
     let source = object
         .retained_fragment_source()
         .ok_or("physical publication requires retained fragment source")?;
-    let fragments = source.source().source().source();
-    let optimized = fragments.source().optimized_target().optimized();
-    let final_plan = optimized.plan();
-    let terminal = optimized.projection_psi();
-    let validation = optimized.projection();
-    let final_unit = optimized.final_unit();
+    let facts = source.emission_facts();
+    let final_plan = facts.abstract_program.as_ref();
+    let terminal = facts.projection.terminal;
+    let validation = facts.projection.identity;
+    let final_unit = facts.projection.final_unit;
     validate_source_terminal(final_plan.psi, terminal, object.psi())?;
     let scope = super::projection::derive_validated_optimization_scope(
         final_plan,

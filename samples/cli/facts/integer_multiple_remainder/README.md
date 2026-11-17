@@ -7,9 +7,9 @@ Each place returns 14 at count 7 and binds all four hosted ProgramEntry targets.
 places are `local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
 `other_state`, `other_machine`, and `target_body`. Each `invalid/` twin changes only
 `OFFSET` from 0 to 1 and declares its authored rejection identity in `sample.json`:
-seven construction twins fail with the `default domain` refusal on the `EvenLength`
-literal, and `parameter` and `other_state` fail the call with `cannot prove requires
-contract for call receive` / `completed from probe: (count * 2 + 1 as u16) % 2 == 0`.
+seven construction twins fail with `cannot prove requires clause 1 of a data type` on
+the `EvenLength` literal, and `parameter` and `other_state` fail the call with `cannot
+prove requires contract for call receive` / `completed from probe: count * 2 + 1 as u16 % 2 == 0`.
 The input bound, carrier, modulo obligation, and authored observation remain
 unchanged; the byte count stays representable but is no longer even.
 

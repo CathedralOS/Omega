@@ -1081,7 +1081,7 @@ pub(crate) mod aggregate_results {
     ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
         plan.geometry()
             .sum_layout(structural_type)
-            .map_err(|_| LegalizationError::custody())
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))
     }
 
     pub(crate) fn cleanup(
@@ -1207,7 +1207,7 @@ pub(crate) mod aggregate_results {
                 result,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if graph.call_plan != expected
             || target.scalar_abi.as_ref().is_some_and(|abi| {
                 !graph.parameters.is_empty()
@@ -2422,7 +2422,7 @@ pub(crate) mod call_origin {
             .target_context
             .map(|selection| target::TargetProfile::from_canonical_target_name(selection.target()))
             .transpose()
-            .map_err(|_| LegalizationError::custody())?;
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if native.profile != profile
             || profile.is_some_and(|profile| profile.native_realization() != Some(native.target))
             || input
@@ -2431,6 +2431,11 @@ pub(crate) mod call_origin {
         {
             return Err(LegalizationError::custody());
         }
+        validate_qualified_numeric_executions(
+            native,
+            &input.module.boundary_machines,
+            Some(input.module),
+        )?;
         for function in &native.functions {
             for operation in function.graph.operations() {
                 if let TargetUnitOperation::Call {
@@ -2466,6 +2471,100 @@ pub(crate) mod call_origin {
                 {
                     return Err(LegalizationError::custody());
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Check only numeric boundaries consumed by the selected target rows.
+    /// Each distinct qualified declaration is authenticated once; occurrences
+    /// then compare the full operation, including its conversion policy.
+    pub(crate) fn validate_qualified_numeric_executions(
+        native: &TargetOperationPlan,
+        declarations: &[terminal_psi::BoundaryMachineDeclaration],
+        module: Option<&terminal_psi::TerminalModule>,
+    ) -> Result<(), LegalizationError> {
+        use semantic_vocabulary::BoundaryMachineId;
+        use target_operations::{BoundaryExecutionBinding, CompilerBuiltinExecution};
+        let mut consumed: Vec<_> = native
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.operations())
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::NearestIeeeFloatArithmetic { boundary, .. } => Some(*boundary),
+                _ => None,
+            })
+            .collect();
+        consumed.sort_unstable();
+        consumed.dedup();
+        let mut retained: Vec<_> = declarations.iter().collect();
+        retained.sort_unstable_by_key(|row| row.id);
+        let mut canonical: Vec<_> = module
+            .into_iter()
+            .flat_map(|module| &module.boundary_machines)
+            .collect();
+        canonical.sort_unstable_by_key(|row| row.id);
+        fn unique<'a>(
+            rows: &[&'a terminal_psi::BoundaryMachineDeclaration],
+            id: BoundaryMachineId,
+        ) -> Result<&'a terminal_psi::BoundaryMachineDeclaration, LegalizationError> {
+            let index = rows
+                .binary_search_by_key(&id, |row| row.id)
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+            if index
+                .checked_sub(1)
+                .is_some_and(|previous| rows[previous].id == id)
+                || rows.get(index + 1).is_some_and(|next| next.id == id)
+            {
+                return Err(LegalizationError::custody());
+            }
+            Ok(rows[index])
+        }
+        let mut executions = Vec::new();
+        for id in consumed {
+            let declaration = unique(&retained, id)?;
+            let canonical_declaration = module.map(|_| unique(&canonical, id)).transpose()?;
+            let is_qualified = |row: &terminal_psi::BoundaryMachineDeclaration| matches!(row.result, terminal_psi::BoundaryMachineResult::Scalar(result) if !result.qualifications.is_empty());
+            if !is_qualified(declaration) && !canonical_declaration.is_some_and(is_qualified) {
+                continue;
+            }
+            let module = module.ok_or_else(LegalizationError::custody)?;
+            if canonical_declaration != Some(declaration) {
+                return Err(LegalizationError::custody());
+            }
+            let execution = provider_admission::provider_admission::numeric_boundary_execution(
+                module,
+                declaration,
+            )
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+            executions.push((id, execution));
+        }
+        for operation in native
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.operations())
+        {
+            let TargetUnitOperation::NearestIeeeFloatArithmetic {
+                boundary,
+                realization,
+                execution,
+                ..
+            } = operation
+            else {
+                continue;
+            };
+            let Ok(index) = executions.binary_search_by_key(boundary, |(id, _)| *id) else {
+                continue;
+            };
+            let expected = executions[index].1;
+            if expected
+                != (CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: realization.operation,
+                    format: realization.format,
+                })
+                || *execution != BoundaryExecutionBinding::CompilerBuiltin(expected)
+            {
+                return Err(LegalizationError::custody());
             }
         }
         Ok(())
@@ -2764,6 +2863,11 @@ pub(crate) mod call_signature {
                 .function(machine)
                 .map(AbstractCallSignature::Machine)
                 .ok_or(LegalizationError::custody()),
+            AbstractCallTarget::Callable { contract, .. } => plan
+                .callables
+                .contract(contract)
+                .map(AbstractCallSignature::Callable)
+                .ok_or(LegalizationError::custody()),
             AbstractCallTarget::Dynamic {
                 interface, slot, ..
             } => {
@@ -2861,7 +2965,7 @@ pub(crate) mod cleanup_calls {
                     edge,
                     action_ordinal: ordinal
                         .try_into()
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                 };
                 let shapes = callee
                     .structural_parameters
@@ -2878,7 +2982,7 @@ pub(crate) mod cleanup_calls {
                         result: None,
                     },
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let mut arguments = Vec::new();
                 for (position, parameter) in callee.structural_parameters.iter().enumerate() {
                     if position != 0 || parameter.access != terminal_psi::StructuralAccess::Owned {
@@ -3467,7 +3571,7 @@ pub(crate) mod header {
                 result,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if expected
             .result
             .as_ref()
@@ -3728,7 +3832,7 @@ pub(crate) mod ieee_float_arithmetic {
             || !realization.supports_target(native)
             || !realization.signature_matches(&declaration.scalar_parameters, scalar)
             || !declaration.structural_parameters.is_empty()
-            || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
+            || !matches!(declaration.result, terminal_psi::BoundaryMachineResult::Scalar(declared) if declared.scalar_type == scalar)
             || !declaration.requires.is_empty()
             || !declaration.program_local_root_introductions.is_empty()
             || !declaration.content_guarantees.is_empty()
@@ -3941,7 +4045,7 @@ pub(crate) mod normalized_foreign {
                     plan.geometry(),
                     policy,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 Ok((
                     TargetBoundaryResult::Structural(
                         target_operations::TargetStructuralHomeRequirement {
@@ -4036,13 +4140,13 @@ pub(crate) mod normalized_foreign {
         if matching.len() != materializations.len() {
             return Err(LegalizationError::custody());
         }
-        let pointer_size =
-            u16::try_from(native.target.pointer_size).map_err(|_| LegalizationError::custody())?;
+        let pointer_size = u16::try_from(native.target.pointer_size)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         let pointer_alignment = u16::try_from(native.target.pointer_alignment)
-            .map_err(|_| LegalizationError::custody())?;
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         for (index, callback) in matching.iter().enumerate() {
             let ordinal = usize::try_from(callback.application.native_ordinal)
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             let access_root = boundary_entry_plan.call.parameters.get(ordinal)
                 == Some(&callback.application.placement);
             let destination_admitted = match &callback.destination {
@@ -4246,10 +4350,10 @@ pub(crate) mod normalized_foreign {
                         }),
                 )
             };
-        let pointer_size =
-            u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
-        let pointer_alignment =
-            u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
+        let pointer_size = u16::try_from(native.pointer_size)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+        let pointer_alignment = u16::try_from(native.pointer_alignment)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         let presentation = (semantic.access != StructuralAccess::Owned)
             .then(|| {
                 borrowed_byte_view_presentation(
@@ -4344,7 +4448,7 @@ pub(crate) mod normalized_foreign {
                     declarations,
                     policy,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let multiplicity = if semantic.path.is_empty() {
                     root_multiplicity
                 } else if declaration_parameter.multiplicity
@@ -4369,7 +4473,7 @@ pub(crate) mod normalized_foreign {
                         declarations,
                         policy,
                     )
-                    .map_err(|_| LegalizationError::custody())?
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                 } else {
                     if !matches!(destination.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
@@ -4681,7 +4785,7 @@ pub(crate) mod read_byte {
             &[],
             &[vec![], vec![ValueShape::integer(4, 4)]],
         )
-        .map_err(|_| LegalizationError::custody())
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))
     }
 
     pub(crate) fn validate(
@@ -7506,6 +7610,17 @@ pub(crate) mod nodes {
         let scalar_shape =
             |scalar| closed(scalar).and_then(calling_conventions::ValueShape::for_closed_scalar);
         match &node.operation {
+            AbstractOperation::SelectMachine {
+                psi_operation,
+                result,
+                ..
+            } if matches!(
+                result.scalar_type,
+                semantic_vocabulary::ScalarType::Callable(_)
+            ) =>
+            {
+                Ok((*psi_operation, result.value))
+            }
             AbstractOperation::SelectImplementation {
                 psi_operation,
                 result,
@@ -8258,7 +8373,8 @@ pub(crate) mod nodes {
                     result: Some(result),
                     ..
                 } => result.scalar_type,
-                AbstractOperation::SelectImplementation { result, .. } => result.scalar_type,
+                AbstractOperation::SelectImplementation { result, .. }
+                | AbstractOperation::SelectMachine { result, .. } => result.scalar_type,
                 AbstractOperation::StorageAddress { result, .. } => {
                     if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
                     {
@@ -8975,7 +9091,7 @@ pub(crate) fn callee_plan(
             CallingPolicy::native_for_target(native.target),
             &CallSignature { parameters, result },
         )
-        .map_err(|_| LegalizationError::custody());
+        .map_err(|cause| LegalizationError::custody_with_cause(cause));
     };
     let targets = native
         .functions
@@ -9101,4 +9217,48 @@ pub(crate) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> 
         )
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
+
+    #[test]
+    fn sum_layout_refusal_retains_its_geometry_cause_and_operation() {
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(terminal_psi::TerminalModule::declarations())
+                .unwrap();
+        let types = crate::native_geometry::ModuleTypes::of(&closed);
+        let plan = abstract_operations::AbstractOperationPlan {
+            psi: closed.identity(),
+            entry: MachineId::new(1).unwrap(),
+            structural_types: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            callables: Default::default(),
+            dynamic_dispatch: Default::default(),
+            identities: Default::default(),
+            functions: Vec::new(),
+        };
+        let geometry = crate::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let input = crate::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
+        let machine = MachineId::new(7).unwrap();
+        let operation = OperationId::new(11).unwrap();
+        for raw_type in [3, 5] {
+            let structural_type = StructuralTypeId::new(raw_type).unwrap();
+            let error = super::aggregate_results::sum_type_layout(structural_type, &input)
+                .unwrap_err()
+                .attributed(machine, Some(operation));
+            let diagnostic = error.to_string();
+            assert!(
+                diagnostic.contains(&format!("UnknownStructuralType({structural_type:?})")),
+                "{diagnostic}"
+            );
+            assert!(
+                matches!(error, crate::LegalizationError::SourceCustodyMismatch {
+                machine: Some(owner), operation: Some(site), ..
+            } if owner == machine && site == operation)
+            );
+        }
+    }
 }

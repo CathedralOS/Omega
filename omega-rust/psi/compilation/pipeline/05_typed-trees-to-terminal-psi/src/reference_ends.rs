@@ -1,5 +1,5 @@
 //! Turn the descriptor lifetime frontier into explicit storage disposition.
-//! Releases precede the operation after the last use; ordinary edge cleanup
+//! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
@@ -29,7 +29,9 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
         Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
     };
     Refusal {
-        source_span: origin.copied().and_then(SourceOrigin::authored_span),
+        source_span: origin
+            .copied()
+            .and_then(terminal_check_tables::program::SourceOrigin::authored_span),
         reason,
         machine,
         concerns,
@@ -108,7 +110,11 @@ pub(crate) fn install(
             let mut before = ProgramPoint::BlockEntry(block.id);
             let old = std::mem::take(&mut block.operations);
             let mut operations = Vec::with_capacity(old.len());
-            for (position, operation) in old.into_iter().enumerate() {
+            let count = old.len();
+            let mut old = old.into_iter();
+            // Releases precede the operation at each position; those at
+            // the final position precede the block's terminator.
+            for position in 0..=count {
                 let at = (
                     block.id,
                     u32::try_from(position).map_err(|_| {
@@ -125,7 +131,7 @@ pub(crate) fn install(
                     let argument = end.source;
                     let id = source
                         .operations
-                        .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse));
+                        .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse).into());
                     let path = terminal_semantics::canonical_inline_region(
                         module.structural_types.iter(),
                         end.structural_type,
@@ -186,6 +192,9 @@ pub(crate) fn install(
                 if revised_before != before {
                     relocated.push((before, revised_before));
                 }
+                let Some(operation) = old.next() else {
+                    break;
+                };
                 before = ProgramPoint::AfterOperation(operation.id);
                 operations.push(operation);
             }
@@ -249,11 +258,11 @@ mod tests {
         let mut sources = MachineSources::default();
         let operation = sources
             .operations
-            .push(SourceOrigin::Authored(operation_span));
-        let edge = sources.edges.push(SourceOrigin::Authored(edge_span));
+            .push(SourceOrigin::Authored(operation_span).into());
+        let edge = sources.edges.push(SourceOrigin::Authored(edge_span).into());
         let synthetic = sources
             .operations
-            .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse));
+            .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse).into());
 
         for (site, expected) in [
             (Some(Site::Operation(operation)), Some(operation_span)),

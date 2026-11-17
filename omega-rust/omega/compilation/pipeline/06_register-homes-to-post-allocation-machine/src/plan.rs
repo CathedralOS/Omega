@@ -117,6 +117,7 @@ pub enum PostAllocationMachineError {
     PhysicalRegisterModelMismatch,
     RegisterConstraintCatalogMismatch,
     PostAllocationManifestMismatch,
+    PreservationRootMismatch,
     OptimizationUnitMismatch,
     WorkScheduleMismatch,
     FunctionMismatch {
@@ -238,7 +239,7 @@ pub(crate) fn compute_post_allocation_machine_plan(
         ranges: allocation.ranges_identity,
         legality: allocation.legality_identity,
         homes: allocation.homes_identity,
-        post_allocation_manifest: allocation.manifest.identity,
+        post_allocation_manifest: allocation.publication.record().identity,
         target: selected_plan.target,
         register_environment: sources.register_environment,
         physical_register_model: sources.physical.identity(),
@@ -267,8 +268,9 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         legality_identity,
         homes,
         homes_identity,
-        manifest,
+        ..
     } = allocation;
+    let manifest = allocation.publication.record();
     if effects.selected != selected.identity || ranges.selected != selected.identity {
         return Err(PostAllocationMachineError::SelectedRootMismatch);
     }
@@ -302,6 +304,17 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         || manifest.register_environment != register_environment
     {
         return Err(PostAllocationMachineError::PostAllocationManifestMismatch);
+    }
+    let preservation = allocation.preservation.plan();
+    if preservation.selected != selected.identity
+        || preservation.homes != homes_identity
+        || preservation.post_allocation_manifest != manifest.identity
+        || preservation.register_environment != register_environment
+        || preservation.physical_register_model != physical.identity()
+        || preservation.target != selected.plan.target
+        || preservation.budget != allocation.publication.budget()
+    {
+        return Err(PostAllocationMachineError::PreservationRootMismatch);
     }
     if effects.target != selected.plan.target {
         return Err(PostAllocationMachineError::TargetMismatch);

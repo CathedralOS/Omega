@@ -66,6 +66,9 @@ fn judged_invocation(text: &str) -> super::RouteVerdict {
     super::judge(typed_trees_to_terminal_psi::elaborate_for(
         &program,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -616,12 +619,11 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .unwrap() = lowered.clone();
         let reference_graph =
             crate::places::reference_graph(&reference_module, lowered.id).unwrap();
-        let references = std::cell::RefCell::new(
+        let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
                 &elaboration.module.structural_types,
                 &reference_graph,
-            ),
-        );
+            );
         let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
@@ -630,7 +632,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             &graph,
             &tables,
             &types,
-            &references,
+            &mut references,
         )
         .unwrap();
         let first = lowered.blocks[0]
@@ -657,9 +659,17 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
                 )
             })
             .unwrap();
-        assert!(storage.read_equation(&tables, first).unwrap().is_some());
+        assert!(
+            storage
+                .read_equation(&mut references, &tables, first)
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(
-            storage.read_equation(&tables, fresh).unwrap().is_some(),
+            storage
+                .read_equation(&mut references, &tables, fresh)
+                .unwrap()
+                .is_some(),
             !mutable
         );
     }
@@ -696,6 +706,8 @@ fn judged_ranked(text: &str) -> terminal_check_tables::Checked<super::RouteVerdi
     super::judge(typed_trees_to_terminal_psi::elaborate_for(
         &program,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

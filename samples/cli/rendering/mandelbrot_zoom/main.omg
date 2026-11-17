@@ -121,7 +121,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // Re-guard so the increment's direct edge proves `frame + 1` lands in
     // [1..=12] under the standing owner domain.
     machine frame_end(main: &mut Main) {
-        Clock::sleep(70);
+        block Clock::sleep(70);
         main.span = main.span * 0.62;
         transition main.frame >= 0 && main.frame < 12 { true -> block frame_advance(main) _ -> block finish(main) }
     }

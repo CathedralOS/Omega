@@ -76,6 +76,9 @@ pub mod snapshot {
             StaticSelection {
                 selection: Box<StaticArgumentSnapshot>,
             },
+            Callable {
+                signature: Box<super::state_and_statement_snapshots::StateSignatureSnapshot>,
+            },
             ConstExpression {
                 expression: ExpressionSnapshot,
             },
@@ -195,6 +198,7 @@ pub mod snapshot {
                 semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
             },
             Call {
+                callee: Option<Box<ExpressionSnapshot>>,
                 receiver: Option<Box<ExpressionSnapshot>>,
                 target: IdentifierSnapshot,
                 machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -243,6 +247,8 @@ pub mod snapshot {
                 end_inclusive: bool,
             },
             StructLiteral {
+                #[serde(skip_serializing_if = "std::ops::Not::not")]
+                zero_omitted_fields: bool,
                 #[serde(skip_serializing_if = "Option::is_none")]
                 application_type: Option<Box<TypeReferenceSnapshot>>,
                 constructor_name: IdentifierSnapshot,
@@ -331,6 +337,14 @@ pub mod snapshot {
                         selection: Box::new(snapshot_static_argument(syntax_trees, selection)),
                     }
                 }
+                TypeReferenceNode::Callable { signature } => TypeReferenceSnapshot::Callable {
+                    signature: Box::new(
+                        super::state_and_statement_snapshots::snapshot_state_signature(
+                            syntax_trees,
+                            syntax_trees.items.state_signature(*signature),
+                        ),
+                    ),
+                },
                 TypeReferenceNode::ConstExpression(expression) => {
                     TypeReferenceSnapshot::ConstExpression {
                         expression: snapshot_expression_handle(syntax_trees, *expression),
@@ -567,6 +581,7 @@ pub mod snapshot {
                     end_inclusive: range.end_inclusive,
                 },
                 ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
+                    zero_omitted_fields: value.zero_omitted_fields,
                     application_type: value.application_type.is_valid().then(|| {
                         Box::new(snapshot_type_reference_handle(
                             syntax_trees,
@@ -610,6 +625,10 @@ pub mod snapshot {
             call: &TableCallExpression,
         ) -> ExpressionSnapshot {
             ExpressionSnapshot::Call {
+                callee: call
+                    .callee
+                    .is_valid()
+                    .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.callee))),
                 receiver: call
                     .receiver
                     .is_valid()
@@ -2074,6 +2093,7 @@ pub mod snapshot {
                 value: ExpressionSnapshot,
             },
             Call {
+                callee: Option<Box<ExpressionSnapshot>>,
                 receiver: Vec<IdentifierSnapshot>,
                 target: IdentifierSnapshot,
                 machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -2155,6 +2175,9 @@ pub mod snapshot {
                 path: Vec<IdentifierSnapshot>,
                 arguments: Vec<ExpressionSnapshot>,
                 evidence_arguments: Vec<IdentifierSnapshot>,
+                acknowledgement_synthesized: bool,
+                acknowledges_suspend: bool,
+                acknowledges_block: bool,
             },
             Value {
                 expression: ExpressionSnapshot,
@@ -2377,6 +2400,10 @@ pub mod snapshot {
                     value: snapshot_expression_handle(syntax_trees, assignment.value),
                 },
                 StatementNode::Call(call) => StatementSnapshot::Call {
+                    callee: call
+                        .callee
+                        .is_valid()
+                        .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.callee))),
                     receiver: snapshot_identifier_slice(
                         syntax_trees,
                         syntax_trees
@@ -2501,6 +2528,7 @@ pub mod snapshot {
         ) -> TransitionTargetSnapshot {
             match target {
                 TransitionTargetNode::Named {
+                    operational_acknowledgement,
                     path,
                     arguments,
                     evidence_arguments,
@@ -2517,6 +2545,10 @@ pub mod snapshot {
                         .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                         .collect(),
                     evidence_arguments: snapshot_identifier_slice(syntax_trees, evidence_arguments),
+                    acknowledgement_synthesized: operational_acknowledgement.origin
+                        == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                    acknowledges_suspend: operational_acknowledgement.acknowledges_suspend,
+                    acknowledges_block: operational_acknowledgement.acknowledges_block,
                 },
                 TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
                     expression: snapshot_expression_handle(syntax_trees, *expression),

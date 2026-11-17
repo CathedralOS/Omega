@@ -1,12 +1,12 @@
 /*
-We represent direct, dynamic, and boundary call targets, result roles, place-free
-formal signatures, and plan-laid access-view inputs.
+Argument planning needs public formals even when code is selected at runtime.
+Named machines, table slots and machine values expose them through
+`AbstractCallSignature`; indirect calls never borrow a body's private signature
+or invent a machine declaration. Structural formals and results use the same
+view across these targets.
 
-Dynamic requirement slots have no machine body and therefore no parameter places,
-while direct machines carry parameter and result declarations. We unify both
-behind `AbstractCallSignature`, `StructuralCallFormal`, and `StructuralCallResult`
-so native argument planning never fabricates a dummy machine or borrows a table
-row's private declaration.
+Access-view inputs stay separate from ordinary structural parameters so
+pointer-shaped `Access<P, T>` views are never mistaken for owned backing.
 */
 
 use crate::{AbstractFunction, AbstractResult};
@@ -99,6 +99,7 @@ impl<'declaration> From<&'declaration ResultDeclaration> for StructuralCallResul
 pub enum AbstractCallSignature<'declaration> {
     Machine(&'declaration AbstractFunction),
     Requirement(&'declaration TerminalDynamicSlot),
+    Callable(&'declaration terminal_psi::TerminalCallableContract),
 }
 
 impl<'declaration> AbstractCallSignature<'declaration> {
@@ -106,6 +107,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.parameters.len(),
             Self::Requirement(requirement) => requirement.scalar_parameters.len(),
+            Self::Callable(contract) => contract.scalar_parameters.len(),
         }
     }
 
@@ -116,6 +118,10 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .get(position)
                 .map(|parameter| parameter.scalar_type),
             Self::Requirement(requirement) => requirement.scalar_parameters.get(position).copied(),
+            Self::Callable(contract) => contract
+                .scalar_parameters
+                .get(position)
+                .map(|formal| formal.scalar_type),
         }
     }
 
@@ -123,6 +129,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.structural_parameters.len(),
             Self::Requirement(requirement) => requirement.structural_parameters.len(),
+            Self::Callable(contract) => contract.structural_parameters.len(),
         }
     }
 
@@ -136,6 +143,9 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .structural_parameters
                 .get(position)
                 .map(Into::into),
+            Self::Callable(contract) => {
+                contract.structural_parameters.get(position).map(Into::into)
+            }
         }
     }
 
@@ -143,12 +153,17 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => matches!(machine.result, crate::AbstractFunctionResult::Unit),
             Self::Requirement(requirement) => requirement.result.is_unit(),
+            Self::Callable(contract) => contract.result.is_unit(),
         }
     }
 
     pub fn structural_result(self) -> Option<StructuralCallResult<'declaration>> {
         match self {
             Self::Machine(machine) => machine.result.structural().map(Into::into),
+            Self::Callable(contract) => match &contract.result {
+                BoundaryMachineResult::Structural(result) => Some(result.into()),
+                BoundaryMachineResult::Unit | BoundaryMachineResult::Scalar(_) => None,
+            },
             Self::Requirement(requirement) => match &requirement.result {
                 BoundaryMachineResult::Structural(result) => Some(result.into()),
                 BoundaryMachineResult::Unit | BoundaryMachineResult::Scalar(_) => None,
@@ -160,6 +175,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.result.scalar().map(|result| result.scalar_type),
             Self::Requirement(requirement) => requirement.result.scalar(),
+            Self::Callable(contract) => contract.result.scalar(),
         }
     }
 }
@@ -175,4 +191,43 @@ pub fn call_source(
     source.path.extend(formal.path.iter().cloned());
     source.access = formal.access;
     Some(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AbstractCallTarget;
+    use semantic_vocabulary::{CallableContractId, MachineId, ValueId};
+
+    #[test]
+    fn callable_target_identity_keeps_code_and_contract() {
+        let callee = ValueId::new(1).unwrap();
+        let contract = CallableContractId::new(1).unwrap();
+        let callable = AbstractCallTarget::Callable { callee, contract };
+        // These coordinates can have the same payload bytes across target kinds.
+        // Reusing an identity must never change a code value into a table slot.
+        let dynamic = AbstractCallTarget::Dynamic {
+            selector: callee,
+            interface: 1,
+            slot: 0,
+        };
+        let direct = AbstractCallTarget::Machine(MachineId::new(1).unwrap());
+        assert_ne!(callable.canonical_bytes(), dynamic.canonical_bytes());
+        assert_ne!(callable.canonical_bytes(), direct.canonical_bytes());
+        assert_ne!(
+            callable.canonical_bytes(),
+            AbstractCallTarget::Callable {
+                callee: ValueId::new(2).unwrap(),
+                contract,
+            }
+            .canonical_bytes()
+        );
+        assert_ne!(
+            callable.canonical_bytes(),
+            AbstractCallTarget::Callable {
+                callee,
+                contract: CallableContractId::new(2).unwrap(),
+            }
+            .canonical_bytes()
+        );
+    }
 }

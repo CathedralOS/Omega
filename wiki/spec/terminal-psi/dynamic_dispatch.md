@@ -101,10 +101,12 @@ loans. Equal field sizes cannot substitute for a shared witness.
 
 ## Call and forwarding roles
 
-Checked output supplies explicit callable construction/call plans, package
+Lowering builds explicit callable construction/call plans, package
 construction/opening/projection identities, argument/reborrow maps, postconditions
-and custody transfers. Lowering consumes them without re-searching source ASTs
-or teaching the backend a special `record.operation(record.state)` pattern.
+and custody transfers from the typed program, without re-searching source ASTs
+or teaching the backend a special `record.operation(record.state)` pattern. The
+[lowered-form checker](../../drafts/designs/check_on_lowered_form.md) then judges them on
+the lowered program; no earlier checker supplies them already checked.
 
 Every indirect call retains its callable contract and actual descriptor. Expand
 no receiver and drop no argument because the callable came from a field. Argument

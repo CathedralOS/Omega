@@ -3,8 +3,8 @@
 //! a width, substitute an argument, or change the module's meaning.
 
 use crate::{
-    IeeeFloatFormat, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, IntegerWidth,
-    PropositionError, ScalarType, WidthParameter,
+    CallableContractId, IeeeFloatFormat, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
+    IntegerWidth, PropositionError, ScalarType, WidthParameter,
 };
 use numerics::integer_carrier::FixedInteger;
 
@@ -147,6 +147,7 @@ pub enum ClosedScalarType {
     Boolean,
     Integer(ClosedIntegerType),
     IeeeFloat(IeeeFloatFormat),
+    Callable(CallableContractId),
 }
 
 impl TryFrom<ScalarType> for ClosedScalarType {
@@ -157,6 +158,7 @@ impl TryFrom<ScalarType> for ClosedScalarType {
             ScalarType::Boolean => Self::Boolean,
             ScalarType::Integer(integer) => Self::Integer(integer.try_into()?),
             ScalarType::IeeeFloat(format) => Self::IeeeFloat(format),
+            ScalarType::Callable(contract) => Self::Callable(contract),
         })
     }
 }
@@ -174,6 +176,7 @@ impl ClosedScalarType {
             Self::Boolean => ScalarType::Boolean,
             Self::Integer(integer) => ScalarType::Integer(integer.as_checking()),
             Self::IeeeFloat(format) => ScalarType::IeeeFloat(format),
+            Self::Callable(contract) => ScalarType::Callable(contract),
         }
     }
 }
@@ -201,6 +204,24 @@ mod tests {
         fn write(&mut self, bytes: &[u8]) {
             self.0.extend_from_slice(bytes);
         }
+    }
+
+    #[test]
+    fn closed_callable_descriptors_preserve_exact_contract_ids_without_integer_authority() {
+        let first = CallableContractId::new(1).unwrap();
+        let second = CallableContractId::new(2).unwrap();
+        for contract in [first, second] {
+            let scalar = ScalarType::Callable(contract);
+            let closed = ClosedScalarType::try_from(scalar).unwrap();
+            assert_eq!(closed, ClosedScalarType::Callable(contract));
+            assert_eq!(closed.as_checking(), scalar);
+            assert_eq!(ScalarType::from(closed), scalar);
+            assert_eq!(closed.as_integer(), None);
+        }
+        assert_ne!(
+            ClosedScalarType::Callable(first),
+            ClosedScalarType::Callable(second)
+        );
     }
 
     #[test]

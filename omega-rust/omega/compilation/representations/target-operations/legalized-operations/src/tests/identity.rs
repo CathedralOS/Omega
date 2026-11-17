@@ -530,7 +530,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         descriptor_cleanup: false,
         nominal_cleanup: None,
         scalar_restriction: None,
@@ -916,32 +916,54 @@ fn borrowed_storage_and_function_abis_bind_identity() {
         )
     };
     let mut borrowed = plan.clone();
-    borrowed.borrowed_storage_layouts.push(layout(0));
+    borrowed.borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::seal(vec![layout(0)]).unwrap();
     let borrowed_identity = legalized_operation_plan_identity(&borrowed);
     assert_ne!(borrowed_identity, original);
     let mut moved = plan.clone();
-    moved.borrowed_storage_layouts.push(layout(1));
+    moved.borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::seal(vec![layout(1)]).unwrap();
     assert_identity_drift(borrowed_identity, &moved);
 
     let function = &plan.scalar_functions[0];
     let abi = crate::LegalizedFunctionAbi {
         machine: function.machine,
         call_plan: function.call_plan.clone(),
+        entry_scalar_codecs: vec![Some(0); function.call_plan.parameters.len()],
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         scalar: None,
         mixed_structural_scalar: None,
     };
     let mut described = plan.clone();
-    described.function_abis.push(abi.clone());
+    described.function_abis = std::sync::Arc::from([abi.clone()]);
     let described_identity = legalized_operation_plan_identity(&described);
     assert_ne!(described_identity, original);
     assert_eq!(described.function_abi(function.machine), Some(&abi));
     let mut scalar = described.clone();
-    scalar.function_abis[0].scalar = Some(target_vocabulary::ScalarFunctionAbi {
-        call_plan: function.call_plan.clone(),
-        parameters: Vec::new(),
-        result: None,
-    });
+    std::sync::Arc::make_mut(&mut scalar.function_abis)[0].scalar =
+        Some(target_vocabulary::ScalarFunctionAbi {
+            call_plan: function.call_plan.clone(),
+            parameters: Vec::new(),
+            result: None,
+        });
     assert_identity_drift(described_identity, &scalar);
+}
+
+#[test]
+fn borrowed_geometry_binds_the_prepared_plan_identity() {
+    let mut plan = super::call_aware_plan();
+    let empty = legalized_operation_plan_identity(&plan);
+    plan.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(id(1), 8, 8, [], [], []),
+    ])
+    .unwrap();
+    let populated = legalized_operation_plan_identity(&plan);
+    assert_ne!(populated, empty);
+    assert_eq!(populated, legalized_operation_plan_identity(&plan.clone()));
+    plan.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(id(1), 16, 8, [], [], []),
+    ])
+    .unwrap();
+    assert_ne!(legalized_operation_plan_identity(&plan), populated);
 }

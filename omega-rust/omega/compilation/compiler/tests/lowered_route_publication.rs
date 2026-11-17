@@ -1,12 +1,7 @@
-//! Tests the path from the lowered-form checker to a running program. A program
-//! the checker accepts is published as canonical Terminal Psi from the checker's
-//! own module (`AcceptedClosure::publish`). Omega 00 attaches its evidence seals
-//! to that module, Omega 01 uses them to fill the accepted obligations' proof
-//! fingerprints, and the published program runs in the Terminal interpreter to
-//! the exit its fixture pins (`wiki/drafts/designs/check_on_lowered_form.md`,
-//! "Route one", Build: "Discharged certificates travel in memory beside
-//! `TerminalModule` within one compile so Omega 00 can fill
-//! `AcceptedObligationFact::proof_bundle_fingerprint`").
+//! Publication must execute the program the lowered-form checker accepted.
+//! These tests join Build's selected entry to that program, carry its proof
+//! certificates into native lowering, and run its authored Psi result. A root
+//! with the same name from another owner must refuse.
 //!
 //! Each machine of the published module states the declaration identity of
 //! the source machine it lowers, so the Build's selected entry is found on it
@@ -300,11 +295,15 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     let (check_publication, _, _, checked) = published_fixture(fixture);
     let (signature, _) = compiler::prepare_program_entry(&checked).unwrap();
     let accepted = checked.terminal_publication().accepted().unwrap();
+    let catalog = checked
+        .source_inspection()
+        .inventory()
+        .services_for(accepted.source().as_ref())
+        .expect("the accepted source's retained Product service catalog");
     let boundary = package_compilation::selected_program_entry_boundary(
-        accepted.source(),
+        catalog,
         signature.target_slot(),
         None,
-        checked.sources().exact_toolchain_sources(),
     )
     .expect("the selected target's authenticated entry declaration");
     let mut roster = checked.terminal_publication().roster().unwrap().clone();

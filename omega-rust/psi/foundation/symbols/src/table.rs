@@ -1400,7 +1400,17 @@ mod modules {
                             })
                 })
                 .collect::<Vec<_>>();
-            if !local.is_empty() {
+            /*
+                A module's own declaration outranks an import, except for
+                domains: distinct visible domains competing for one spelling
+                reject, and declaring one in this module wins nothing
+                (`wiki/spec/language/modules.md#resolution`). Both stay
+                candidates so the lookup reports the ambiguity.
+            */
+            let local_domains = local
+                .iter()
+                .any(|candidate| self.get(*candidate).kind == SymbolKind::Domain);
+            if !local.is_empty() && !local_domains {
                 return local;
             }
             let source_scope = self.source_lookup_scope(reference.source_id);
@@ -1434,6 +1444,17 @@ mod modules {
                     })
                 })
                 .collect::<Vec<_>>();
+            if local_domains {
+                let mut competing = local;
+                for candidate in imported {
+                    if self.get(candidate).kind == SymbolKind::Domain
+                        && !competing.contains(&candidate)
+                    {
+                        competing.push(candidate);
+                    }
+                }
+                return competing;
+            }
             if !imported.is_empty() {
                 return imported;
             }
@@ -1725,6 +1746,24 @@ mod modules {
                 }
             }
             if !module_local_matches.is_empty() {
+                /*
+                    A module's own domain does not outrank a visible imported
+                    domain of the same spelling; both stay candidates so the
+                    lookup reports the ambiguity
+                    (`wiki/spec/language/modules.md#resolution`).
+                */
+                if module_local_matches
+                    .iter()
+                    .any(|candidate| self.get(*candidate).kind == SymbolKind::Domain)
+                {
+                    for candidate in matches.into_iter().chain(carrier_domain_matches) {
+                        if self.get(candidate).kind == SymbolKind::Domain
+                            && !module_local_matches.contains(&candidate)
+                        {
+                            module_local_matches.push(candidate);
+                        }
+                    }
+                }
                 Some(module_local_matches)
             } else if qualified {
                 if matches.is_empty() && carrier_domain_matches.len() == 1 {

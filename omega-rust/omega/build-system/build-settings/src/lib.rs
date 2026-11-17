@@ -29,8 +29,10 @@ machine build(build: &mut Build) {
   `Console`, so an omitted `build.omg` or empty `build` machine yields the hosted
   console default. `Unspecified(value)` provides a platform escape hatch without
   requiring a compiler release.
-- `freestanding` ("trust no host packages") is an explicit boolean field rather
-  than being conflated with `EfiApplication`.
+- `freestanding` grants machine-owner assembly authority to every target the
+  build binds. It selects no packages and removes no imports; whether this grant
+  belongs to the target profile instead is
+  `OWNER_QUESTIONS.md#freestanding-machine-owner-authority`.
 - `optimizations` is an exact set of individually named transformations (empty by
   default; duplicate selections reject rather than acting like coarse `-O`
   levels).
@@ -61,10 +63,8 @@ The crate is organized along that lifecycle:
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
-  `source_result.rs`), plus invocation-local `Pure` build value reuse
-  (`completed_pure_build.rs`), which charges each reused evaluation to the
-  current work sponsor without fabricating interpreter execution or live-resource
-  peaks.
+  `source_result.rs`). Each execution has its own host admission and account.
+  The compatibility handle in `completed_pure_build.rs` grants no cache reuse.
 - `host/` implements the host imports callable from `build(build: &mut Build)`:
   root bindings and product entry queries (`bindings.rs`, `native_bindings.rs`,
   `product_queries.rs`), scoped filesystem staging (`filesystem.rs`), and

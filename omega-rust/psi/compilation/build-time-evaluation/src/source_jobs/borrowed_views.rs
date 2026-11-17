@@ -299,6 +299,8 @@ machine run() -> i64 crashes none {
     let accepted = terminal_production::AcceptedTerminalSource::judge(
         std::sync::Arc::new(portable),
         terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

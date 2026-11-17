@@ -297,8 +297,8 @@ mod tests {
         if module.is_null() {
             return Err("LoadLibrary failed".to_owned());
         }
-        let make = unsafe { GetProcAddress(module, b"inet_makeaddr\0".as_ptr()) };
-        let host = unsafe { GetProcAddress(module, b"inet_lnaof\0".as_ptr()) };
+        let make = unsafe { GetProcAddress(module, c"inet_makeaddr".as_ptr().cast()) };
+        let host = unsafe { GetProcAddress(module, c"inet_lnaof".as_ptr().cast()) };
         if make.is_null() || host.is_null() {
             unsafe { FreeLibrary(module) };
             return Err("export missing".to_owned());

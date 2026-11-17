@@ -24,6 +24,8 @@ fn elaborate(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     )

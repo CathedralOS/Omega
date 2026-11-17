@@ -27,8 +27,8 @@ re-running the legalization solver.
 We group the target-legal representation into four subordinate owners beneath
 `LegalizedOperationPlan`:
 1. `legality` — checked exact arithmetic operators that retain their semantic integer carrier.
-2. `calls` — structural function signatures, boundary settlements, and call-origin errors.
-3. `control_flow` — saturating and trapping integer forms, scalar instruction graphs, and case
+2. `calls` — re-exports shared structural signatures, boundary settlements, and call-origin errors.
+3. `control_flow` — scalar instruction graphs, shared arithmetic forms, and case
    dispatch edges.
 4. `identity` and `validation` — canonical SHA-256 identity digests (`LegalizedOperationPlanIdentity`)
    and representation-owned call/instruction shape checks.
@@ -65,11 +65,15 @@ pub struct LegalizedOperationPlan {
     /// authority says with what.
     pub installation_operations: Vec<semantic_vocabulary::OperationId>,
     /// Each function's target calling contract, sorted by machine and unique.
-    pub function_abis: Vec<LegalizedFunctionAbi>,
+    pub function_abis: std::sync::Arc<[LegalizedFunctionAbi]>,
     /// Native storage geometry of borrowed boundary inputs and owned roots
     /// reached by foreign calls. The host bridge reads it to borrow guest
     /// values; the plan carries it so nothing reads stage 02's working form.
-    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
+    pub publication: target_vocabulary::NativePublicationFacts,
+    /// Preparation fills this before sealing. A partial, unsealed operation
+    /// model can omit query output; instruction selection cannot consume it.
+    pub execution: Option<target_vocabulary::NativeExecutionFacts>,
 }
 
 impl LegalizedOperationPlan {
@@ -101,10 +105,29 @@ impl LegalizedOperationPlan {
 pub struct PreparedExecutionPlan {
     plan: LegalizedOperationPlan,
     receipt: PreparationReceipt,
+    // The same immutable owner also lives in `plan` and its canonical identity.
+    // Keeping this reference makes the sealed input's query result unconditional.
+    execution: target_vocabulary::NativeExecutionFacts,
 }
 
 impl PreparedExecutionPlan {
-    pub fn seal(plan: LegalizedOperationPlan, validator: OptimizationValidatorIdentity) -> Self {
+    pub fn seal(
+        plan: LegalizedOperationPlan,
+        validator: OptimizationValidatorIdentity,
+    ) -> Result<Self, &'static str> {
+        let execution = plan
+            .execution
+            .as_ref()
+            .ok_or("execution plan has no prepared callable facts")?
+            .clone();
+        let roots = execution.roots();
+        if roots.psi != plan.psi
+            || roots.optimization_unit != plan.optimization_unit
+            || roots.work_schedule != plan.work_schedule
+            || roots.entry != plan.entry
+        {
+            return Err("callable facts differ from the execution plan's preparation roots");
+        }
         let receipt = PreparationReceipt {
             identity: legalized_operation_plan_identity(&plan),
             validator,
@@ -113,7 +136,11 @@ impl PreparedExecutionPlan {
             target: plan.target,
             function_count: plan.scalar_functions.len(),
         };
-        Self { plan, receipt }
+        Ok(Self {
+            plan,
+            receipt,
+            execution,
+        })
     }
 
     pub const fn plan(&self) -> &LegalizedOperationPlan {
@@ -124,9 +151,49 @@ impl PreparedExecutionPlan {
         self.receipt
     }
 
+    pub const fn execution_facts(&self) -> &target_vocabulary::NativeExecutionFacts {
+        &self.execution
+    }
+
+    /// Actual invocation facts prepared from this plan's optimized unit,
+    /// schedule and entry before instruction selection begins.
+    pub fn callable_invocations(
+        &self,
+    ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
+        self.execution.callable_invocations()
+    }
+
+    /// Retain the exact prepared entry roster when carrying this publication.
+    pub fn entry_callable_invocations(
+        &self,
+    ) -> &[(
+        MachineId,
+        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    )] {
+        self.execution.entry_callable_invocations()
+    }
+
+    /// Lookup only: every root's input-sensitive summary was prepared before
+    /// selection under this exact unit, schedule and target entry association.
+    pub fn callable_invocations_from(
+        &self,
+        entry: MachineId,
+    ) -> Option<&terminal_semantics::callable_values::ReachableCallableInvocations> {
+        if !self
+            .plan
+            .scalar_functions
+            .iter()
+            .any(|function| function.machine == entry)
+        {
+            return None;
+        }
+        self.execution.callable_invocations_from(entry)
+    }
+
     /// Whether the plan still hashes to the identity it was sealed under.
     pub fn is_intact(&self) -> bool {
         legalized_operation_plan_identity(&self.plan) == self.receipt.identity
+            && self.plan.execution.as_ref() == Some(&self.execution)
             && self.receipt.optimization_unit == self.plan.optimization_unit
             && self.receipt.work_schedule == self.plan.work_schedule
             && self.receipt.target == self.plan.target

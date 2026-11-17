@@ -16,7 +16,7 @@ reaches FilesystemContentRead {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
-            WindowsPinnedAccessResult::Value { handle, access } -> block access(handle, access, buffer, count, offset)
+            WindowsPinnedAccessResult::Value { handle as reopened, access } -> block access(reopened, access, buffer, count, offset)
         }
     }
     machine access(handle: u64, granted: u32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
@@ -61,7 +61,7 @@ reaches FilesystemContentWrite {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
-            WindowsPinnedAccessResult::Value { handle, access } -> block access(handle, access, bytes, offset)
+            WindowsPinnedAccessResult::Value { handle as reopened, access } -> block access(reopened, access, bytes, offset)
         }
     }
     machine access(handle: u64, granted: u32, bytes: &[u8], offset: i64) -> i64 {

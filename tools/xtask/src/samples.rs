@@ -525,7 +525,17 @@ pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
         if let Some(rest) = trimmed.strip_prefix("//") {
             let comment = rest.trim();
             if let Some(exit_str) = comment.strip_prefix("Expected exit:") {
-                let digits = exit_str.trim().trim_end_matches('.');
+                let annotation = exit_str.trim();
+                // A period ends the numeric annotation; explanatory prose
+                // belongs to the next sentence. A decimal such as 0.5 does not.
+                let digits = match annotation.split_once('.') {
+                    Some((code, following))
+                        if following.is_empty() || following.starts_with(char::is_whitespace) =>
+                    {
+                        code.trim()
+                    }
+                    _ => annotation.trim_end_matches('.'),
+                };
                 if let Ok(code) = digits.parse::<i32>() {
                     expected_exit = Some(code);
                 }
@@ -1236,6 +1246,29 @@ mod tests {
             ["main.omg", "build.omg", "examples"]
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn exit_oracles_keep_their_integer_before_a_following_sentence() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let entry = directory.join("main.omg");
+        for (annotation, expected) in [
+            ("0", Some(0)),
+            ("0.", Some(0)),
+            ("0. The entry checks the selected success result.", Some(0)),
+            ("-7. A nonzero result is expected.", Some(-7)),
+            ("0.5", None),
+            ("0 or 1", None),
+            ("2147483648. Too large for an exit code.", None),
+        ] {
+            fs::write(
+                &entry,
+                format!("// Expected exit: {annotation}\nmachine main() {{}}\n"),
+            )
+            .unwrap();
+            assert_eq!(parse_header_oracle(&entry).0, expected, "{annotation}");
+        }
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[cfg(unix)]

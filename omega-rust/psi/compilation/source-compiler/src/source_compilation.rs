@@ -468,7 +468,10 @@ mod product_policy {
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
                     request.operation,
-                    BuildOperation::NativeBinding | BuildOperation::ServiceAudit
+                    BuildOperation::NativeBinding
+                        | BuildOperation::ServiceAudit
+                        | BuildOperation::TestGroupRegistration
+                        | BuildOperation::TestGroupService
                 ) || super::provider_requests::has_provider_application(request)
             })?;
             let providers = self.admit_product_provider_requests(
@@ -477,9 +480,16 @@ mod product_policy {
                 request.executed,
                 &formations,
             )?;
-            let audit_formations = formations
+            let declaration_formations = formations
                 .iter()
-                .filter(|(request, _)| request.operation == BuildOperation::ServiceAudit)
+                .filter(|(request, _)| {
+                    matches!(
+                        request.operation,
+                        BuildOperation::ServiceAudit
+                            | BuildOperation::TestGroupRegistration
+                            | BuildOperation::TestGroupService
+                    )
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             let mut native_formations = formations
@@ -524,7 +534,7 @@ mod product_policy {
                 request.activation,
                 request.declared,
                 request.executed,
-                &audit_formations,
+                &declaration_formations,
             )?;
             let exclusions = build_time_evaluation::product_policy::collect_behavior_exclusions(
                 typed,
@@ -1126,6 +1136,24 @@ impl SourceContinuation {
         Ok((typing, input.pending_pre_checks.clone()))
     }
 
+    pub fn describe_parameter(
+        &self,
+        occurrence: source::SourceSpan,
+        selecting: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+        crate::product_descriptions::describe_parameter(self.typed(), occurrence, selecting, path)
+    }
+
+    pub fn describe_field(
+        &self,
+        occurrence: source::SourceSpan,
+        selecting: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+        crate::product_descriptions::describe_field(self.typed(), occurrence, selecting, path)
+    }
+
     pub fn describe_schema(
         &self,
         occurrence: source::SourceSpan,
@@ -1625,6 +1653,8 @@ mod resolution_handoff_tests {
         let refused = crate::AcceptedTerminalSource::judge(
             Arc::new(program),
             crate::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[helper],
                 subjects: &[],

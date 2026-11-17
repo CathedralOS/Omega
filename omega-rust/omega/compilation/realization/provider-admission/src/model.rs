@@ -150,145 +150,29 @@ impl std::ops::Deref for AdmittedInstalledInterruptEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledInterruptScope {
-    pub(super) service: semantic_vocabulary::ServiceId,
-    pub(super) operation: OperationId,
-    pub(super) boundary: BoundaryMachineId,
-    pub(super) arguments: [terminal_psi::StructuralArgument; 6],
-    pub(super) table_type: semantic_vocabulary::StructuralTypeId,
-    pub(super) context_type: semantic_vocabulary::StructuralTypeId,
-    pub(super) validator: semantic_vocabulary::MachineId,
-    pub(super) work: semantic_vocabulary::MachineId,
-    pub(super) completion: semantic_vocabulary::MachineId,
-    pub(super) acknowledgement_application: u32,
-    pub(super) fatal_entries: Vec<AdmittedFatalInterruptEntry>,
-    pub(super) anchor: Option<AdmittedInterruptContextAnchor>,
-    pub(super) installation_assumptions:
-        Vec<installation_evidence::InstallationEnvironmentAssumption>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedInterruptContextAnchor {
-    pub(super) application: u32,
-    pub(super) function: function_identity::MachineFunctionIdentity,
-    pub(super) destination: NativePlace,
-    pub(super) gate_byte_offset: u32,
-    pub(super) table_bytes: u32,
-}
-
-impl AdmittedInterruptContextAnchor {
-    pub const fn application(&self) -> u32 {
-        self.application
-    }
-
-    pub const fn function(&self) -> function_identity::MachineFunctionIdentity {
-        self.function
-    }
-
-    pub fn destination(&self) -> &NativePlace {
-        &self.destination
-    }
-
-    pub const fn gate_byte_offset(&self) -> u32 {
-        self.gate_byte_offset
-    }
-
-    pub const fn table_bytes(&self) -> u32 {
-        self.table_bytes
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedFatalInterruptEntry {
-    pub(super) application: u32,
-    pub(super) gate_byte_offset: u32,
-    pub(super) machine: semantic_vocabulary::MachineId,
-}
-
-impl AdmittedFatalInterruptEntry {
-    pub const fn gate_byte_offset(&self) -> u32 {
-        self.gate_byte_offset
-    }
-
-    pub const fn application(&self) -> u32 {
-        self.application
-    }
-
-    pub const fn machine(&self) -> semantic_vocabulary::MachineId {
-        self.machine
-    }
+    pub(super) facts: std::sync::Arc<bound_installations::BoundInterruptInstallation>,
 }
 
 impl AdmittedInstalledInterruptScope {
-    pub fn bootstrap_assumption(
+    pub(crate) fn shared_facts(
         &self,
-    ) -> Option<&installation_evidence::BootstrapEnvironmentAssumption> {
-        self.installation_assumptions
-            .iter()
-            .find_map(|row| row.bootstrap())
-    }
-
-    pub fn interrupt_delivery_assumption(
-        &self,
-    ) -> Option<&installation_evidence::X86InterruptDeliveryAssumption> {
-        self.installation_assumptions
-            .iter()
-            .find_map(|row| row.interrupt_delivery())
-    }
-
-    pub fn installation_assumptions(
-        &self,
-    ) -> &[installation_evidence::InstallationEnvironmentAssumption] {
-        &self.installation_assumptions
-    }
-
-    pub fn context_anchor(&self) -> Option<&AdmittedInterruptContextAnchor> {
-        self.anchor.as_ref()
-    }
-
-    pub const fn service(&self) -> semantic_vocabulary::ServiceId {
-        self.service
-    }
-
-    pub const fn operation(&self) -> OperationId {
-        self.operation
-    }
-
-    pub const fn boundary(&self) -> BoundaryMachineId {
-        self.boundary
-    }
-
-    pub const fn arguments(&self) -> &[terminal_psi::StructuralArgument; 6] {
-        &self.arguments
-    }
-
-    pub const fn table_type(&self) -> semantic_vocabulary::StructuralTypeId {
-        self.table_type
-    }
-
-    pub const fn context_type(&self) -> semantic_vocabulary::StructuralTypeId {
-        self.context_type
-    }
-
-    pub const fn validator(&self) -> semantic_vocabulary::MachineId {
-        self.validator
-    }
-
-    pub const fn work(&self) -> semantic_vocabulary::MachineId {
-        self.work
-    }
-
-    pub const fn completion(&self) -> semantic_vocabulary::MachineId {
-        self.completion
-    }
-
-    pub const fn acknowledgement_application(&self) -> u32 {
-        self.acknowledgement_application
-    }
-
-    pub fn fatal_entries(&self) -> &[AdmittedFatalInterruptEntry] {
-        &self.fatal_entries
+    ) -> &std::sync::Arc<bound_installations::BoundInterruptInstallation> {
+        &self.facts
     }
 }
+
+impl std::ops::Deref for AdmittedInstalledInterruptScope {
+    type Target = bound_installations::BoundInterruptInstallation;
+
+    fn deref(&self) -> &Self::Target {
+        &self.facts
+    }
+}
+
+pub use bound_installations::{
+    BoundFatalInterruptEntry as AdmittedFatalInterruptEntry,
+    BoundInterruptContextAnchor as AdmittedInterruptContextAnchor,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledInterruptHelper {
@@ -337,32 +221,22 @@ impl AdmittedNativeCallbackArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedCallbackEntry {
-    pub(super) psi: terminal_psi::TerminalPsiIdentity,
-    pub(super) target: target::NativeTarget,
-    pub(super) machine: semantic_vocabulary::MachineId,
-    pub(super) inbound: calling_conventions::BoundaryEntryPlan,
-    pub(super) inbound_ordinals: Vec<u32>,
+    pub(super) contract: std::sync::Arc<bound_installations::BoundCallbackEntry>,
 }
 
 impl AdmittedCallbackEntry {
-    pub const fn psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.psi
+    pub(crate) fn shared_contract(
+        &self,
+    ) -> &std::sync::Arc<bound_installations::BoundCallbackEntry> {
+        &self.contract
     }
+}
 
-    pub const fn target(&self) -> target::NativeTarget {
-        self.target
-    }
+impl std::ops::Deref for AdmittedCallbackEntry {
+    type Target = bound_installations::BoundCallbackEntry;
 
-    pub const fn machine(&self) -> semantic_vocabulary::MachineId {
-        self.machine
-    }
-
-    pub fn inbound(&self) -> &calling_conventions::BoundaryEntryPlan {
-        &self.inbound
-    }
-
-    pub fn inbound_ordinals(&self) -> &[u32] {
-        &self.inbound_ordinals
+    fn deref(&self) -> &Self::Target {
+        &self.contract
     }
 }
 

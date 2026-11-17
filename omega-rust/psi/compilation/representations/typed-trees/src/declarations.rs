@@ -64,10 +64,13 @@ pub mod boundary_completions {
         requirement: SymbolHandle,
     ) -> semantic_vocabulary::BoundaryCompletion {
         use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
-        let external = program
-            .traits()
-            .iter()
-            .any(|definition| exact_process_exit_requirement(program, definition, requirement));
+        let external = program.symbols.symbols().nodes().is_valid(requirement)
+            && program
+                .trait_machine_signature(requirement)
+                .is_some_and(|(owner, _)| {
+                    program.symbols.symbols().nodes().is_valid(owner.symbol)
+                        && exact_process_exit_requirement(program, owner, requirement)
+                });
         if external {
             BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
         } else {
@@ -240,6 +243,190 @@ pub mod boundary_completions {
                 },
                 result,
             )
+        }
+
+        const PROCESS_EXIT_SOURCE: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/process_exit.omg"
+        ));
+
+        fn completion_fixture(
+            origin: SourceOrigin,
+            exit_source: &str,
+        ) -> (TypedTrees, SymbolHandle, SymbolHandle) {
+            let mut sources = SourceMap::default();
+            let never_source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/never.omg"),
+                    NEVER_SOURCE.into(),
+                    PathBuf::from("core"),
+                    None,
+                    SourceOrigin::Toolchain,
+                )
+                .source_id;
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/process_exit.omg"),
+                    exit_source.into(),
+                    PathBuf::from("core"),
+                    None,
+                    origin,
+                )
+                .source_id;
+            let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let never_at = NEVER_SOURCE.find("Never").unwrap();
+            let owner_at = exit_source.find("ProcessExit").unwrap();
+            let roots = builder.insert_children(
+                root,
+                builtin_type_symbols().into_iter().chain([
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            never_source,
+                            Span::new(never_at, never_at + "Never".len()),
+                        )),
+                    ),
+                    (
+                        SymbolKind::Trait,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            source,
+                            Span::new(owner_at, owner_at + "ProcessExit".len()),
+                        )),
+                    ),
+                    (SymbolKind::Trait, SymbolNameRef::Static("Unrelated")),
+                ]),
+            );
+            let builtin_count = u32::try_from(symbols::BUILTIN_TYPE_COUNT).unwrap();
+            let never = roots.handle_at(builtin_count);
+            let owner = roots.handle_at(builtin_count + 1);
+            let unrelated = roots.handle_at(builtin_count + 2);
+            let at = exit_source.find("exit_process").unwrap();
+            let requirement = builder
+                .insert_children(
+                    owner,
+                    [(
+                        SymbolKind::State,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            source,
+                            Span::new(at, at + "exit_process".len()),
+                        )),
+                    )],
+                )
+                .start();
+            let other = builder
+                .insert_children(
+                    unrelated,
+                    [(SymbolKind::State, SymbolNameRef::Static("exit_process"))],
+                )
+                .start();
+            let arguments = [requirement, other].map(|requirement| {
+                builder
+                    .insert_children(
+                        requirement,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("code"))],
+                    )
+                    .start()
+            });
+            let mut typed = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            typed.push_data_definition(DataDefinition {
+                symbol: never,
+                name: "Never".into(),
+                ..Default::default()
+            });
+            let integer = typed
+                .symbols
+                .builtin_atom_symbol(BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::signed(32),
+                ))
+                .unwrap();
+            let argument = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: integer,
+                name: "i32".into(),
+            });
+            let result = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: never,
+                name: "Never".into(),
+            });
+            // Put the unrelated public boundary first. Its equally named member
+            // must not inherit the canonical requirement's completion.
+            for (owner, requirement, parameter, name) in [
+                (unrelated, other, arguments[1], "Unrelated"),
+                (owner, requirement, arguments[0], "ProcessExit"),
+            ] {
+                let parameters = typed.state_parameters.insert_many([StateParameter {
+                    symbol: parameter,
+                    name: "code".into(),
+                    type_reference: argument,
+                    ..Default::default()
+                }]);
+                let machines = typed.trait_machine_signatures.insert_many([
+                    crate::signature::StateSignature {
+                        symbol: requirement,
+                        name: "exit_process".into(),
+                        parameters,
+                        return_type: result,
+                        declares_no_crash_route: true,
+                        termination_guarantee:
+                            language_semantics::TerminationGuarantee::Terminates {
+                                premises: Vec::new(),
+                            },
+                        ..Default::default()
+                    },
+                ]);
+                typed.push_trait_definition(crate::trait_definition::TraitDefinition {
+                    symbol: owner,
+                    name: name.into(),
+                    machines,
+                    is_public: true,
+                    is_boundary: true,
+                    ..Default::default()
+                });
+            }
+            (typed, requirement, other)
+        }
+
+        #[test]
+        fn completion_uses_the_exact_requirement_owner_and_keeps_source_custody() {
+            use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+            let (typed, requirement, other) =
+                completion_fixture(SourceOrigin::Toolchain, PROCESS_EXIT_SOURCE);
+            assert_eq!(
+                boundary_requirement_completion(&typed, requirement),
+                BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
+            );
+            assert_eq!(
+                boundary_requirement_completion(&typed, other),
+                BoundaryCompletion::NormalReturn
+            );
+            assert_eq!(
+                declared_completion(&typed, SymbolHandle::invalid()),
+                BoundaryCompletion::NormalReturn
+            );
+            // A handle from this source cannot give another source owner an
+            // external completion or cause a foreign-symbol lookup panic.
+            assert_eq!(
+                declared_completion(&TypedTrees::default(), requirement),
+                BoundaryCompletion::NormalReturn
+            );
+            let edited = format!("{PROCESS_EXIT_SOURCE}\n// source bytes changed\n");
+            for (origin, source) in [
+                (SourceOrigin::User, PROCESS_EXIT_SOURCE),
+                (SourceOrigin::Toolchain, edited.as_str()),
+            ] {
+                let (typed, requirement, other) = completion_fixture(origin, source);
+                assert_eq!(
+                    boundary_requirement_completion(&typed, requirement),
+                    BoundaryCompletion::NormalReturn
+                );
+                assert_eq!(
+                    boundary_requirement_completion(&typed, other),
+                    BoundaryCompletion::NormalReturn
+                );
+            }
         }
 
         #[test]
@@ -854,15 +1041,11 @@ pub mod domain {
     /// The judgment of one evaluated `AccessPolicy::plan` result
     /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
     ///
-    /// The evaluator records a plan as checked only when it can state all of
-    /// it here:
-    /// the returned schema is the domain subject's own, every route names a
-    /// declaration of this program, and the plan has no field observation
-    /// demands, no reader or writer rules and no required reach. A plan with
-    /// any of those is `AccessPlanJudgment::Unjudged` instead, so this record
-    /// is the plan's complete judgment: issuance is exactly `issuance`, and reads and
-    /// writes are unrestricted by this policy ("omission leaves that axis
-    /// unrestricted").
+    /// The evaluator authenticates the returned schema, declarations and
+    /// complete caller applications. The canonical operation judgment then
+    /// checks the retained read/write rules on every actual subject and
+    /// invocation. Observation demands and boundary reach remain unserved
+    /// until their supply/lifecycle consumers can prove them.
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedDomainAccessPlan {
         /// The policy member whose body returned the plan.
@@ -946,15 +1129,64 @@ pub mod domain {
     }
 
     impl DomainDefinition {
-        /// Whether reads and writes of what this domain governs wait on a
-        /// plan no pass has judged. A checked plan has no reader or writer
-        /// rules (`CheckedDomainAccessPlan`), so only an unjudged one
-        /// restricts.
+        /// Predicate clauses can be translated in full. Other semantic
+        /// definitions need their own translation before the theory is complete;
+        /// issuer and access rules are checked independently.
+        pub fn has_complete_predicate_theory(&self) -> bool {
+            (self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                || !self.facts.is_empty())
+                && self.operators.is_empty()
+                && self.alias.is_none()
+                && self.classification.is_none()
+                && self.semantic_roles.is_empty()
+                && self.cleanup_selection.is_none()
+        }
+
+        /// An empty theory has nothing about contents left to translate.
+        /// No proposition alone does not prove the declaration is empty.
+        pub fn has_complete_empty_theory(&self) -> bool {
+            self.has_complete_predicate_theory()
+                && self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                && self.facts.is_empty()
+        }
+
+        /// Whether source lowering still lacks the complete selected plan.
+        /// A checked plan permits forming operations; its retained rules are
+        /// enforced by the canonical operation judgment before execution.
         pub fn access_unjudged(&self) -> bool {
             self.access_policy
                 .as_ref()
                 .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn issuer_clauses_do_not_make_an_empty_content_theory_nonempty() {
+        let mut definition = DomainDefinition::default();
+        assert!(definition.has_complete_empty_theory());
+        definition.semantic_clause_token_count = 4;
+        definition.establishment_routes.push(
+            language_semantics::DomainEstablishmentRoute::ExactMachine {
+                machine: symbols::SymbolHandle::invalid(),
+            },
+        );
+        assert!(
+            definition.has_complete_empty_theory(),
+            "parsed issuance has its own authority check, separate from predicate completeness"
+        );
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
+        assert!(!definition.has_complete_empty_theory());
+        assert!(
+            !definition.has_complete_predicate_theory(),
+            "a declared predicate without retained clauses is unavailable, not true"
+        );
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
+        definition.alias = Some(DomainAliasDefinition {
+            constituents: Vec::new(),
+        });
+        assert!(!definition.has_complete_empty_theory());
+        assert!(!definition.has_complete_predicate_theory());
     }
 
     impl Default for DomainDefinition {
@@ -1562,52 +1794,70 @@ pub mod domain {
         index_argument_is_closed_with_substitutions(program, reference, &[])
     }
 
+    struct StaticArgumentClosure<'a> {
+        program: &'a TypedTrees,
+        substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
+        expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
+        open: bool,
+    }
+    impl Extend<symbols::SymbolHandle> for StaticArgumentClosure<'_> {
+        fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+            self.open |= symbols
+                .into_iter()
+                .filter(|symbol| symbol.is_valid())
+                .any(|symbol| {
+                    if let Some((_, actual)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return !index_argument_is_closed(self.program, *actual);
+                    }
+                    matches!(
+                        self.program.symbols.get(symbol).kind,
+                        symbols::SymbolKind::TypeParameter
+                            | symbols::SymbolKind::MachineParameter
+                            | symbols::SymbolKind::ConformanceParameter
+                            | symbols::SymbolKind::PropositionParameter
+                            | symbols::SymbolKind::Parameter
+                            | symbols::SymbolKind::Local
+                    )
+                });
+        }
+    }
+    impl crate::references::TypedReferences for StaticArgumentClosure<'_> {
+        fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            self.types.insert(reference)
+        }
+        fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(expression)
+        }
+    }
+
+    /// Callable operands close under the same declaration-based test as type
+    /// indices, including every nested static application argument.
+    pub fn static_argument_is_closed(
+        program: &TypedTrees,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> bool {
+        let mut closure = StaticArgumentClosure {
+            program,
+            substitutions: &[],
+            types: Default::default(),
+            expressions: Default::default(),
+            open: false,
+        };
+        crate::references::visit_static_argument(program, &mut closure, argument);
+        !closure.open
+    }
+
     pub fn index_argument_is_closed_with_substitutions(
         program: &TypedTrees,
         reference: crate::types::TypeReferenceHandle,
         substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
     ) -> bool {
-        struct Closure<'a> {
-            program: &'a TypedTrees,
-            substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
-            types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
-            expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
-            open: bool,
-        }
-        impl Extend<symbols::SymbolHandle> for Closure<'_> {
-            fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
-                self.open |= symbols
-                    .into_iter()
-                    .filter(|symbol| symbol.is_valid())
-                    .any(|symbol| {
-                        if let Some((_, actual)) = self
-                            .substitutions
-                            .iter()
-                            .find(|(formal, _)| *formal == symbol)
-                        {
-                            return !index_argument_is_closed(self.program, *actual);
-                        }
-                        matches!(
-                            self.program.symbols.get(symbol).kind,
-                            symbols::SymbolKind::TypeParameter
-                                | symbols::SymbolKind::MachineParameter
-                                | symbols::SymbolKind::ConformanceParameter
-                                | symbols::SymbolKind::PropositionParameter
-                                | symbols::SymbolKind::Parameter
-                                | symbols::SymbolKind::Local
-                        )
-                    });
-            }
-        }
-        impl crate::references::TypedReferences for Closure<'_> {
-            fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
-                self.types.insert(reference)
-            }
-            fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
-                self.expressions.insert(expression)
-            }
-        }
-        let mut closure = Closure {
+        let mut closure = StaticArgumentClosure {
             program,
             substitutions,
             types: Default::default(),

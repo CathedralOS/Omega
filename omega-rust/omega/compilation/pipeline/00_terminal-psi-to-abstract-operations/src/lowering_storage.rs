@@ -634,10 +634,12 @@ pub(crate) mod borrowed_windows {
         {
             return Err(invalid("stored value lacks required child memberships"));
         }
-        let whole_owned_store = path.is_empty()
-            && field.is_none()
-            && destination.parameter().is_none()
-            && disposition == terminal_psi::StructuralStoreDisposition::Vacant;
+        // A whole store into owned local storage either fills its vacancy or
+        // replaces its discardable contents; whole record assignment is the
+        // latter (structural_access.md: root destinations do not change
+        // construction semantics).
+        let whole_owned_store =
+            path.is_empty() && field.is_none() && destination.parameter().is_none();
         if !root_window_loan(&destination, path, field) && !whole_owned_store {
             return Err(invalid(
                 "store has no admitted child or whole-referent loan",

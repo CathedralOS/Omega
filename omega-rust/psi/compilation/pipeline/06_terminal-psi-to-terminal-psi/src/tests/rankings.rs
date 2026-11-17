@@ -154,7 +154,8 @@ fn ranked(signed: bool, tuple: bool, stalls: bool) -> typed_trees_to_terminal_ps
 fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
     for (signed, tuple) in [(false, false), (true, false), (false, true)] {
         let mut elaboration = ranked(signed, tuple, false);
-        let discharged = discharge(&mut elaboration).unwrap();
+        let discharged =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let verdicts = &discharged.machines.get(id(1)).unwrap().verdicts;
         for (obligation, row) in tables.obligations.iter() {
@@ -169,8 +170,16 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
                     };
                     assert_kernel_checked(&elaboration, 1, obligation, evidence);
                     let mut consumer = elaboration.clone();
-                    let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-                    reverify(&mut replay, id(1), obligation, &evidence.certificate).unwrap();
+                    let mut activity = crate::ProofSearchActivity::default();
+                    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+                    reverify(
+                        &mut replay,
+                        id(1),
+                        obligation,
+                        &evidence.certificate,
+                        &mut activity,
+                    )
+                    .unwrap();
                 }
                 _ => {}
             }
@@ -234,7 +243,7 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
             _ => unreachable!(),
         }
         assert!(
-            discharge(&mut elaboration).is_err(),
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).is_err(),
             "fault {fault} accepted"
         );
     }
@@ -364,7 +373,8 @@ fn borrowed_slice_iterations_keep_their_measure_and_backing() {
 #[test]
 fn every_complete_cycle_must_cross_a_strict_edge() {
     let mut elaboration = ranked(false, false, true);
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert!(
         refusal.detail.contains("removing strict rank edges"),
         "{}",
@@ -399,7 +409,8 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
         .unwrap();
     let old = cycle.edges[last].successor_ranks;
     cycle.observations.get_mut(old.start()).value = zero;
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert!(
         refusal.detail.contains("successor rank") || refusal.detail.contains("actual scope"),
         "{}",
@@ -584,4 +595,74 @@ fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
         Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
         if refusal.detail.contains("removing strict rank edges")
     )), "passing the unchanged slice cannot prove descent: {:?}", observed_verdicts(&results));
+}
+
+/// A ranked tail transfer that lends an element of a borrowed array
+/// (`&sig.shapes[ordinal]`) builds that argument's path before its successor
+/// ranking emits the next measure. The index obligation is owed by the jump,
+/// so it must sit at the jump's point, after those observations, or the
+/// lowered-form check refuses the table as misplaced. The negative twin lets
+/// the index reach the array's length and is refused on that bound.
+#[test]
+fn a_ranked_tail_transfer_creates_its_element_index_obligation_at_the_jump() {
+    let source = |guard: &str| {
+        format!(
+            r#"
+data Shape {{ size: u64; }}
+data Signature {{ count: u64; shapes: [Shape; 4]; }}
+machine walk(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+terminates by remaining -> Nat::Descending
+crashes none
+{{
+    transition {{
+        ordinal == sig.count -> true
+        ordinal < sig.count && remaining > 0 -> root(sig, ordinal, remaining)
+        _ -> false
+    }}
+    machine root(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+    requires remaining > 0 {{
+        transition {guard} {{
+            true -> shape(sig, ordinal, remaining, &sig.shapes[ordinal])
+            _ -> false
+        }}
+    }}
+    machine shape(sig: &Signature, ordinal: u64, remaining: u64, item: &Shape) -> bool
+    requires remaining > 0, ordinal < 5 {{
+        transition remaining > 1 {{
+            true -> walk(sig, ordinal + 1, remaining - 1)
+            _ -> false
+        }}
+    }}
+}}
+machine entry(sig: &Signature) -> bool terminates crashes none {{ walk(sig, 0, 4) }}
+"#
+        )
+    };
+    let verdicts = |guard| {
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source(guard)))
+    };
+    let misplaced = |verdict: &Result<RouteVerdict, crate::CompilationRefusal>| {
+        matches!(
+            verdict,
+            Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
+            if refusal.detail.contains("not created at the point of what owes it")
+        )
+    };
+    let positive = verdicts("ordinal < 4");
+    assert!(!positive.is_empty());
+    for verdict in &positive {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "an index proved by its guard must be accepted: {verdict:?}"
+        );
+    }
+    let negative = verdicts("ordinal < 5");
+    assert!(!negative.iter().any(misplaced), "{negative:?}");
+    assert!(
+        negative.iter().any(|verdict| matches!(
+            verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))
+        )),
+        "an index the guard does not bound must be refused on its bound: {negative:?}"
+    );
 }

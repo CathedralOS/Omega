@@ -1087,11 +1087,11 @@ pub(crate) mod descriptor_backing {
             .case_successors
             .values()
             .flatten()
-            .map(|(predicate, _)| {
-                (
-                    (predicate.subject.clone(), predicate.case),
+            .filter_map(|(predicate, _)| {
+                Some((
+                    (predicate.subject.exact_location()?.clone(), predicate.case),
                     predicate.clone(),
-                )
+                ))
             })
             .collect::<BTreeMap<_, _>>()
             .into_values()
@@ -1227,7 +1227,7 @@ pub(crate) mod descriptor_backing {
                 path: input.path[..case_position].to_vec(),
             };
             let predicate = terminal_semantics::descriptor_results::DescriptorCasePredicate {
-                subject: subject.clone(),
+                subject: subject.clone().into(),
                 case: *case,
             };
             capture_predicate_feasibility(observations, analysis, machine, position, &predicate);
@@ -1241,14 +1241,15 @@ pub(crate) mod descriptor_backing {
         position: DescriptorPosition,
         predicate: &terminal_semantics::descriptor_results::DescriptorCasePredicate,
     ) {
+        let Some(subject) = predicate.subject.exact_location() else {
+            return;
+        };
         if analysis.case_feasibility(machine, position, predicate)
             == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
         {
-            observations.inactive_cases.insert((
-                position,
-                predicate.subject.clone(),
-                predicate.case,
-            ));
+            observations
+                .inactive_cases
+                .insert((position, subject.clone(), predicate.case));
         }
     }
 
@@ -6227,12 +6228,7 @@ pub(crate) fn apply(
                     .any(|(carrier, _)| *carrier == result.place)
                 || !reference_source_accessible(function, custody, types, source)
                 || !match storage {
-                    Some(storage)
-                        if matches!(
-                            source.path.last(),
-                            Some(StructuralPathSegment::FixedRange { .. })
-                        ) =>
-                    {
+                    Some(storage) if storage.stored_scalar.is_none() => {
                         source_contract(function, custody, source.place).is_some_and(|root| {
                             terminal_semantics::reference_storage_region_source_compatible(
                                 types.iter(),
@@ -6559,6 +6555,21 @@ pub(crate) fn apply(
                             parameters: &callee.structural_parameters,
                             sources: &result.reference_sources,
                         },
+                    )
+                }
+                abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                    let contract = plan
+                        .callables
+                        .contract(*contract)
+                        .ok_or_else(|| invalid())?;
+                    if !contract.result.matches_operation_result(
+                        &terminal_psi::OperationResult::Structural(result.clone()),
+                    ) {
+                        return Err(invalid());
+                    }
+                    (
+                        None,
+                        terminal_semantics::ReferenceCallContract::Callable(contract),
                     )
                 }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {

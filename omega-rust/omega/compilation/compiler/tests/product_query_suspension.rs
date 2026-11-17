@@ -88,54 +88,20 @@ fn schema_and_named_provider_queries_resume_the_original_build() {
 
 #[test]
 fn admitted_build_helpers_keep_their_lexical_product_scope() {
-    use package_compilation::{
-        BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding,
-    };
-    use semantic_vocabulary::PackageKeyIdentity;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap();
+    let repository = fixture_package_inputs::repo_root();
     for fixture in [
         "product_entry_query_foreign_helper_private_entry",
         "product_entry_query_build_scope_alias",
     ] {
         let root = repository.join("tests/fixtures/fail/build").join(fixture);
-        let owner = PackageKeyIdentity::from_digest([91; 32]).unwrap();
-        let helper = PackageKeyIdentity::from_digest([92; 32]).unwrap();
-        // Explicit pre-admitted inputs exercise lexical visibility independently
-        // of the separate discovery task for pre-execution helper imports.
-        let inputs = PackageCompilationInputs::new(
-            owner,
-            BuildDeclarationKind::Application,
-            vec![
-                captured_package(owner, fixture, &root),
-                captured_package(helper, "query_helper", &root.join("helper")),
-            ],
-            vec![PackageDependencyBinding::for_purpose(
-                owner,
-                "support",
-                helper,
-                build_declarations::DependencyPurpose::Build,
-            )],
-        )
-        .unwrap();
-        let mut request = CheckedCompileRequest::new(&root.join("main.omg"), None);
-        request.package_inputs = Some(inputs);
-        let mut invocation = CompilationSession::default()
-            .begin_package_build(request)
-            .unwrap_or_else(|failure| panic!("{fixture}: {:?}", failure.into_diagnostics()));
-        let mut queries = invocation.product_queries();
-        let host = invocation.execution().unwrap().host().unwrap();
-        let mut activation = host.start().unwrap();
-        let pending = loop {
-            let step = activation.advance(1024).unwrap();
-            assert!(!step.returned, "{fixture}: query must execute");
-            if let Some(query) = step.awaiting_query {
-                break query;
-            }
+        // The fixture suspends while its Build dependency is prepared. The
+        // ordinary scheduler serves that pause and resumes the same activation
+        // before checking the query's original helper/package visibility.
+        let Err(diagnostics) =
+            fixture_package_inputs::discover_fixture(&root.join("main.omg"), Default::default())
+        else {
+            panic!("{fixture}: the Product query must be refused");
         };
-        let diagnostics = queries.describe(&pending, Vec::new()).unwrap_err();
         let expected = std::fs::read_to_string(root.join("expected.txt")).unwrap();
         assert!(
             diagnostics
@@ -144,25 +110,6 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
             "{fixture}: {diagnostics:?}"
         );
     }
-}
-
-fn captured_package(
-    identity: semantic_vocabulary::PackageKeyIdentity,
-    name: &str,
-    root: &std::path::Path,
-) -> package_compilation::PackageSourceBinding {
-    let capture = source_acquisition::local::operations::capture_local_source_input(
-        root,
-        source_acquisition::LocalSourceLimits::default(),
-    )
-    .unwrap();
-    package_compilation::PackageSourceBinding::new(
-        identity,
-        name,
-        capture.canonical_live_root().to_path_buf(),
-    )
-    .with_captured_source(capture.tree().clone())
-    .unwrap()
 }
 
 #[test]
@@ -218,5 +165,79 @@ fn authored_product_query_retains_lexical_occurrence_and_pauses() {
     assert!(
         activation.complete().is_err(),
         "an unanswered query is not a normal return"
+    );
+}
+
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
+#[test]
+fn typed_product_descriptions_use_the_named_capture_and_reject_another_role() {
+    let repository = fixture_package_inputs::repo_root();
+    let positive =
+        repository.join("tests/fixtures/run/reflection/build_parameter_description/main.omg");
+    // Discovery runs the actual Build and its text/position oracle under the
+    // acquired package's lineage. No fixture package key substitutes for it.
+    fixture_package_inputs::discover_fixture(&positive, Default::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let negative =
+        repository.join("tests/fixtures/fail/reflection/build_parameter_wrong_kind/main.omg");
+    let Err(diagnostics) = fixture_package_inputs::discover_fixture(&negative, Default::default())
+    else {
+        panic!("a field cannot satisfy a formal query");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("names no formal in")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn runtime_formal_descriptions_publish_without_reading_parameter_values() {
+    let repository = fixture_package_inputs::repo_root();
+    let positive = repository.join("tests/fixtures/run/reflection/parameter_description/main.omg");
+    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &positive,
+        Some("macos_arm64"),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let checked =
+        fixture_package_inputs::check_fixture(&mut prepared, "macos_arm64", Default::default())
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let published = checked
+        .terminal_publication()
+        .accepted()
+        .unwrap()
+        .produce(
+            source_compiler::TerminalProductionCustody::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(published.view().module().entry.is_some());
+
+    let negative =
+        repository.join("tests/fixtures/fail/reflection/parameter_description_wrong_kind/main.omg");
+    let diagnostics = match fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &negative,
+        Some("macos_arm64"),
+    ) {
+        Err(diagnostics) => diagnostics,
+        Ok(mut prepared) => match fixture_package_inputs::check_fixture(
+            &mut prepared,
+            "macos_arm64",
+            Default::default(),
+        ) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("a field is not a boundary requirement's formal"),
+        },
+    };
+    let expected = std::fs::read_to_string(negative.with_file_name("expected.txt")).unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(expected.trim())),
+        "{diagnostics:?}"
     );
 }

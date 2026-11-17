@@ -1705,6 +1705,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: true,
+            retain_native_stage_inputs: false,
             image: Default::default(),
             private_entry_ram: Vec::new(),
             terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
@@ -1764,7 +1765,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         .unwrap(),
     );
     let (recovered, recovered_permissions, installation_assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+        products::recover_native_derivation_inputs(
             {
                 let authorization = pending.terminal.authorization().clone();
                 authorization.require_artifact(&artifact).unwrap();
@@ -2065,6 +2066,8 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             selected: &[],
             declaration_metadata: &[],
             bindings: &[],
+            calling: None,
+            providers: None,
             supplies: &[],
         },
     }
@@ -2682,7 +2685,6 @@ machine main() {}
                 source_inspection: std::sync::Arc::clone(&inspection),
                 build: std::sync::Arc::new(build),
                 build_admission: checked.build_admission().clone(),
-                provider_defaults: checked.provider_defaults().to_vec().into(),
             },
             std::sync::Arc::new(checked.sources().clone()),
             Default::default(),

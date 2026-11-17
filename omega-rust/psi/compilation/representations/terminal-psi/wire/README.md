@@ -42,7 +42,7 @@ validation, moves run-only work to preparation and keeps exact reusable
 results. Shared input and total-work limits must cover these paths; per-query
 search caps alone cannot bound loading cost to the host's budget.
 
-The other modules under [sections.rs](src/sections.rs) encode manifest, debug, optimization and observation-profile data.
+The other modules under [sections.rs](src/sections.rs) encode manifest, debug and optimization data.
 [lib.rs](src/lib.rs) defines the shared encoding errors.
 Do not infer one section's identity from another section's current version.
 
@@ -80,31 +80,15 @@ payloadless form of the same operation. Encoding proves nothing. Source
 checking proves the range facts; receiver structural checks confirm the exact
 match, and source verdicts are reused only when the host trusts the producer.
 
-## Observation-profile implementation
+## Observation profile
 
-[observation.rs](../src/observation.rs) defines the stored profile for
-[TerminalTraceV1](../../../../../../wiki/spec/terminal-psi/observations.md). Acceptance
-validates the module, derives its identity and site list independently and
-compares the decoded profile exactly. Revision 2
-(`omega.terminal.observation-profile.v2`) appended the operation-crash group:
-each trapping operation is its own `Trap` site, not an invented edge or
-boundary route. Its fixed meaning records either the integer primitive and
-carriers or the non-finite float-result rule and IEEE format. Integer
-denotation tags 1–8 keep their original bytes; tag 9 adds the float rule, so
-an older decoder rejects it before consuming a carrier. Saturating float
-adapters add no crash row. The original arithmetic boundary call remains a
-separate operation with its own observation identity.
-
-The encoder writes the terminal-external group with count zero; the decoder
-rejects any other count. That is an implementation limit, not a claim that the
-trace excludes successful external termination. The
-[canonical ProcessExit contract](../../../../../../wiki/spec/language/process_exit.md)
-settles requirement-owned completion identity without a new source keyword.
-The [source-to-verifier migration](../../../../../../TASKS.md#process-exit-contract)
-(**ENTRY-CONTENT-ROOTS**) is not built; nonzero rows must keep failing until
-that route records and independently verifies the exact final transfer.
-Scalar and whole-root structural comparison helpers provide value comparison
-only, not trace construction or refinement evidence.
+No code builds or checks the
+[TerminalTraceV1 observation profile](../../../../../../wiki/spec/terminal-psi/observations.md):
+no stage derives the profile from a validated module, the encoder writes no
+profile section and acceptance compares none. The earlier unused profile types
+in `observation.rs` were deleted. **OBSERVATION-PROFILE** in
+[TASKS.md](../../../../../../TASKS.md#observation-profile) tracks the deriver,
+codec and acceptance comparison.
 
 ## Current-only decoding
 

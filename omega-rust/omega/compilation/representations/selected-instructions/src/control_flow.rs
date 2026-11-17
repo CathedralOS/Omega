@@ -33,7 +33,9 @@ pub struct SelectedFunctionContracts {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
-    pub structural: Option<legalized_operations::LegalizedStructuralContract>,
+    pub structural: Option<target_vocabulary::LegalizedStructuralContract>,
+    /// Original block declarations remain shared when selection expands control.
+    pub structural_block_parameters: Vec<SelectedStructuralBlockParameters>,
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
     pub outgoing_arguments: Vec<super::SelectedOutgoingArgumentSlot>,
     pub calls: Vec<super::SelectedCallContract>,
@@ -42,6 +44,11 @@ pub struct SelectedFunctionContracts {
     pub boundary_settlements: Vec<super::SelectedBoundarySettlement>,
     pub virtual_registers: Vec<VirtualRegister>,
 }
+
+pub type SelectedStructuralBlockParameters = (
+    BlockId,
+    std::sync::Arc<[terminal_psi::StructuralParameterDeclaration]>,
+);
 
 impl std::ops::Deref for SelectedFunction {
     type Target = SelectedFunctionContracts;
@@ -80,6 +87,14 @@ impl SelectedFunction {
                 .iter()
                 .enumerate()
                 .all(|(index, register)| register.id.0 as usize == index)
+            && self
+                .structural_block_parameters
+                .iter()
+                .all(|(_, rows)| !rows.is_empty())
+            && self
+                .structural_block_parameters
+                .windows(2)
+                .all(|pair| pair[0].0 < pair[1].0)
     }
 
     pub fn instructions(&self) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
@@ -115,6 +130,31 @@ impl SelectedFunction {
 }
 
 impl SelectedFunctionContracts {
+    pub fn structural_block_parameter(
+        &self,
+        block: BlockId,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+        let index = self
+            .structural_block_parameters
+            .binary_search_by_key(&block, |(id, _)| *id)
+            .ok()?;
+        if index > 0 && self.structural_block_parameters[index - 1].0 == block
+            || self
+                .structural_block_parameters
+                .get(index + 1)
+                .is_some_and(|(id, _)| *id == block)
+        {
+            return None;
+        }
+        let mut parameters = self.structural_block_parameters[index]
+            .1
+            .iter()
+            .filter(|row| row.place == place);
+        let parameter = parameters.next()?;
+        parameters.next().is_none().then_some(parameter)
+    }
+
     pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
         self.virtual_registers
             .get(register.0 as usize)
@@ -263,7 +303,7 @@ pub struct SelectedSuccessor {
 pub struct SelectedStructuralBinding {
     pub semantic: native_vocabulary::values::AbstractStructuralBinding,
     pub transport: SelectedStructuralTransport,
-    pub source_indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+    pub source_indices: Vec<target_vocabulary::LegalizedRuntimeIndexOperand>,
 }
 
 impl SelectedStructuralBinding {

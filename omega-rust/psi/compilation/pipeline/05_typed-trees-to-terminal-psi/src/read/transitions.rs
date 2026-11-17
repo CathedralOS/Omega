@@ -9,7 +9,8 @@ use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{
-    StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    StatementHandle, StatementNode, TableTransition, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode,
 };
 
 use super::authority::Access;
@@ -25,9 +26,17 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        transition: &TableTransition,
+        statement: StatementHandle,
         result: Option<ValueType>,
     ) -> Checked<(Option<Expression>, Target)> {
+        let StatementNode::Transition(transition) = self.typed.statement_table.statement(statement)
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Transition("occurrence does not name a transition statement"),
+            ));
+        };
         if transition.continuation.is_valid() {
             return Err(refuse(
                 id,
@@ -109,7 +118,7 @@ impl Program<'_> {
         // is a transition whose exit is the crash and whose target
         // is the terminal node stage 01 gives it.
         let target = match transition.exit {
-            TransitionExit::Ordinary => self.target(id, slots, transition.target, result)?,
+            TransitionExit::Ordinary => self.target(id, slots, statement, result)?,
             TransitionExit::Crash(cause) => {
                 self.crash_target(id, transition.target)?;
                 Target::Crash(crash_cause(cause))
@@ -170,7 +179,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        statements: &[StatementNode],
+        statements: impl Iterator<Item = StatementHandle>,
         result: Option<ValueType>,
     ) -> Checked<(Statement, usize)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
@@ -180,7 +189,9 @@ impl Program<'_> {
         let mut taken = 0;
         let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         for statement in statements {
-            let StatementNode::Transition(transition) = statement else {
+            let StatementNode::Transition(transition) =
+                self.typed.statement_table.statement(statement)
+            else {
                 break;
             };
             let patterns = self
@@ -249,7 +260,7 @@ impl Program<'_> {
             // decisions before it, over values. Which case a dispatch
             // selected is not a value, so the guard could not state it.
             let target = match transition.exit {
-                TransitionExit::Ordinary => self.target(id, slots, transition.target, result)?,
+                TransitionExit::Ordinary => self.target(id, slots, statement, result)?,
                 TransitionExit::Crash(_) => return Err(unserved("crash in a case arm")),
             };
             taken += 1;
@@ -277,7 +288,7 @@ impl Program<'_> {
     /// A value pattern on a scalar subject is its condition. Stage 01 gives a
     /// value arm such as `true -> ...` one non-structural pattern with no head
     /// and no fields whose condition is `subject == value`
-    /// (`01_tokens-to-syntax-trees/src/bodies_and_transitions.rs`,
+    /// (`01_tokens-to-syntax-trees/transitions/guards.rs`,
     /// `retain_value_pattern`); the condition already names the captured
     /// subject, so it is the arm's whole guard. Any other pattern destructures
     /// and is refused.
@@ -314,11 +325,20 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        handle: typed_trees::statement::TransitionTargetHandle,
+        statement: StatementHandle,
         result: Option<ValueType>,
     ) -> Checked<Target> {
         let typed = self.typed;
-        if !handle.is_valid() {
+        let StatementNode::Transition(transition) = typed.statement_table.statement(statement)
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Transition("target has no exact transition statement"),
+            ));
+        };
+        let handle = transition.target;
+        if !typed.statement_table.transition_target_is_valid(handle) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -360,7 +380,10 @@ impl Program<'_> {
                 let members = typed.statement_table.name_path_members(path.members).len();
                 let qualified = members == 2
                     && path.head_symbol == path.receiver_symbol
-                    && self.names_requirement(path.symbol, path.receiver_symbol);
+                    && (self.names_requirement(path.symbol, path.receiver_symbol)
+                        || self
+                            .record_requirement_signature(id, path.receiver_symbol, path.symbol)?
+                            .is_some());
                 if !qualified && (members != 1 || path.receiver_symbol.is_valid()) {
                     return Err(refuse(
                         id,
@@ -369,11 +392,18 @@ impl Program<'_> {
                     ));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);
-                let source = SourceOrigin::of(*source_span);
+                let source = self.authored_node(
+                    id,
+                    typed_trees::SourceNode::Statement(statement),
+                    *source_span,
+                )?;
                 let mut call = if let Some(rigid) = self.rigid_named_call(
                     id,
                     slots,
                     path.symbol,
+                    path.receiver_symbol
+                        .is_valid()
+                        .then_some(path.receiver_symbol),
                     arguments,
                     *authored_call_selection,
                     source,
@@ -383,7 +413,15 @@ impl Program<'_> {
                     let (authored, static_reach_binding) =
                         self.static_machine_target(id, path.symbol, *static_machine_parameter)?;
                     self.direct_selection(id, authored, *authored_call_selection, None)?;
-                    let call = self.call(id, slots, path.symbol, arguments, source, None)?;
+                    let call = self.call_selected(
+                        id,
+                        slots,
+                        path.symbol,
+                        arguments,
+                        source,
+                        None,
+                        static_reach_binding,
+                    )?;
                     self.retain_static_reach(id, call, static_reach_binding)?
                 };
                 crate::operational::retain(&mut call, *operational_acknowledgement, true);
@@ -391,11 +429,7 @@ impl Program<'_> {
             }
         };
         crate::operational::boundary(&mut target);
-        let agreed = match (target.result, result) {
-            (Some(actual), Some(expected)) => self.agrees(Some(actual), expected),
-            (actual, expected) => actual == expected,
-        };
-        if !agreed {
+        if !self.agrees(target.result, result) {
             return Err(self.mistyped(
                 id,
                 target.source,

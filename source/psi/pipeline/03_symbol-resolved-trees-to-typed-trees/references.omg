@@ -280,7 +280,7 @@ crashes Trap
         index: u64 in Trapping,
         reference: TypeReference
     ) {
-        let value: LiteralValue = literal_value(sources, reference.name.source_span);
+        let value: LiteralValue = literal_value(syntax, reference.literal);
         let mut row: TypeRow = type_row_of(TypeKind::StaticInteger);
         row.length = value.magnitude as u64 in Trapping;
         transition value.valid && !value.has_suffix {

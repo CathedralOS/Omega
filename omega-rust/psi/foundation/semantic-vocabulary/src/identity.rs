@@ -68,6 +68,21 @@ impl InvocationSite {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CallableInvocationSite {
+    Invocation(InvocationSite),
+    CleanupAction { edge: EdgeId, action_ordinal: u32 },
+}
+
+impl CallableInvocationSite {
+    pub fn operation(self) -> Option<OperationId> {
+        match self {
+            Self::Invocation(InvocationSite::Operation(operation)) => Some(operation),
+            _ => None,
+        }
+    }
+}
+
 impl From<OperationId> for InvocationSite {
     fn from(operation: OperationId) -> Self {
         Self::Operation(operation)
@@ -169,6 +184,14 @@ macro_rules! semantic_id {
     };
 }
 
+semantic_id!(
+    SelectionDeclarationId,
+    "One declaration in a source selection companion."
+);
+semantic_id!(
+    SelectionQuestionId,
+    "One exact source declaration-selection occurrence."
+);
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
 semantic_id!(
     ScalarApplicationId,
@@ -364,6 +387,14 @@ semantic_id!(
 semantic_id!(
     ContractId,
     "Stable identity of one author contract in a terminal-Psi semantic module."
+);
+semantic_id!(
+    CallableContractId,
+    "Identity of one complete structural callable contract in a semantic module."
+);
+semantic_id!(
+    MachineDescriptorId,
+    "Identity of one checked closed machine application retained as a callable value."
 );
 semantic_id!(
     ObligationId,

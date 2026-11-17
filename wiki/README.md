@@ -3,48 +3,72 @@
 | Directory | Read it for |
 | --- | --- |
 | [learn/](learn/index.html) | Illustrated field guide for reading Omega and supervising agent-written code. |
-| [language_guide/](language_guide/language_guide.md) | How to write Omega: a short tutorial that starts from code. |
+| [language_guide/](language_guide/language_guide.md) | How to write Omega: a tutorial starting from code. |
 | spec/ | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
-| [drafts/](drafts/README.md) | Temporary investigations and migration plans. |
+| [drafts/](drafts/README.md) | Temporary investigations and implementation plans. |
 
-The specification uses grammar, definitions, rules, tables, and examples where
-useful. It is not claimed to be fully formalized. Implementation details belong
-beside code; completed work belongs in Git, not current reference material.
-The spec states the accepted language and required guarantees, independently of
-compiler delivery. Put implementation gaps in the owning task on the
-[execution boards](../TASKS.md), extending an existing task before adding another.
-Keep normative limits, trust assumptions and required evidence in the spec;
-do not replace them with progress reports or remove them as status.
+The specification uses grammar, definitions, rules, tables and examples where
+useful; it is not claimed to be fully formalized. Implementation details belong
+beside code. Accepted language and required guarantees are independent of compiler
+delivery. Put gaps in the existing owning task on [TASKS.md](../TASKS.md), not a
+parallel progress ledger. Keep normative limits, trust assumptions and evidence
+requirements in the spec; they are not implementation status to delete.
+
+## Current rules, not historical layers
+
+State the current rule once at its owner and link to it. Correct contradictory
+examples directly. Keep a design's reason when it prevents a recurring mistake;
+remove superseded rulings, completed migrations, obsolete fallback instructions,
+stale pass totals and chronology. Git already retains that history. A recorded
+run establishes only its exact revision, host and tested behavior.
+
+Before release, obsolete source spellings and internal formats need no
+compatibility aliases, parallel decoders or migration dialects merely to keep
+development artifacts working. This does not remove the current format
+discriminator or exact schema identity: incompatible bytes must reject rather
+than be interpreted under a new layout. Package pins, producer authorization,
+selected-provider identity and contracted runtime replacement are live correctness
+mechanisms, not historical baggage. The [encoding contract](spec/terminal-psi/encoding.md)
+owns these requirements.
+
+A missing implementation, test or difficult repair stays with its owning task.
+Escalate a genuinely unresolved language, architecture or trust choice to
+[OWNER_QUESTIONS.md](../OWNER_QUESTIONS.md), naming the customer and the contracts
+checked. Do not reopen a settled rule because its implementation is unfinished.
 
 ## Guide and specification
-
-The guide and the specification do different jobs, and text belongs in one of
-them:
 
 | | Guide | Specification |
 | --- | --- | --- |
 | Answers | What do I write? | What is true in every case? |
 | Leads with | A code sample | The rule |
-| Covers | What most code needs | Everything, including what rejects and why |
-| When it is incomplete | It links to the rule | That is a defect |
+| Covers | What most code needs | Complete behavior, including rejection and why |
+| When incomplete | Link to the rule | Repair the contract or escalate the actual choice |
 
-A rule is stated in the specification. The guide shows it working and links to
-it. A change to the language updates the specification, and touches the guide
-only to correct an example the change made wrong or to add a sample for
-something a newcomer would reach for. A guide chapter that needs a list of
-what rejects, or a paragraph of exceptions, is restating the specification;
-link to it.
+Language changes update the specification and examples they invalidate. Guides
+illustrate the rule rather than maintain another exception list. Proof failures
+also need precise terminology: unsupported implementation, a missing required
+automatic discharge, an unestablished goal and resource exhaustion are distinct
+outcomes under [proof contracts](spec/proofs/contracts.md#required-automatic-discharge).
+
+Release-facing examples need owning tests for their advertised behavior.
+Deliberately invalid examples must reach the intended rejection, not merely
+fail. Prefer maintained source and its tests to copied implementations or old
+pass stamps. Label illustrative or unexecuted code honestly; documentation edits
+are not execution evidence. Native/Psi agreement covers the tested execution,
+not source-meaning errors already shared by both routes. See
+[verification placement](../omega-rust/pipeline.md#verification-placement).
 
 ## Public names
 
-Use **Psi** for the portable IR, artifact, interpreter and user-facing commands.
-Use **Terminal Psi** only to identify the internal compiler stage or its
-representation, particularly when distinguishing it from checked or lowered
-trees. Internal crate paths and wire/type identifiers retain their own names.
-Do not turn the stage name into a public product label. Source-language terminal
-transfers and terminal outcomes are unrelated and retain those terms.
-The [command-line contract](spec/build/command_line.md) owns public spellings.
+Use **Psi** for the portable IR, artifact, interpreter and public commands.
+Use **Terminal Psi** only for the internal compiler stage or representation,
+particularly when distinguishing it from typed source forms. Internal crate
+paths and wire/type identifiers keep their names. Do not make the stage name a
+public product label. Source terminal transfers and outcomes are unrelated and
+keep those terms. The [command-line contract](spec/build/command_line.md) owns
+public spellings.
 
 ## Current specification subjects
 
@@ -69,7 +93,7 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [semantic evaluation](spec/language/evaluation.md),
   [expressions and operators](spec/language/expressions.md),
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),
-  and [counts, indices, and addresses](spec/language/counts_and_addresses.md).
+  and [counts, indices and addresses](spec/language/counts_and_addresses.md).
 - Representation policies: [layout plans](spec/layouts/plans.md),
   [size and alignment queries](spec/layouts/plans.md#size-and-alignment-queries),
   [native code regions](spec/language/counts_and_addresses.md#native-code-layout-queries),
@@ -77,8 +101,8 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
-  [contracts, bundles, normalization, and trust](spec/proofs/contracts.md),
-  [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization)
+  [contracts, bundles, normalization and trust](spec/proofs/contracts.md),
+  [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization),
   and [relations and quotients](spec/proofs/quotients.md).
 - Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
   and [some packages](spec/language/some_packages.md).
@@ -92,7 +116,7 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [loan resources and compatibility](spec/terminal-psi/loans.md),
   [structural claims and cleanup](spec/terminal-psi/ownership.md),
   [runtime callable dispatch](spec/terminal-psi/dynamic_dispatch.md),
-  [observations](spec/terminal-psi/observations.md), and
+  [observations](spec/terminal-psi/observations.md),
   [encoding](spec/terminal-psi/encoding.md),
   [fact validity](spec/terminal-psi/fact_validity.md),
   [mathematical proof values](spec/terminal-psi/mathematical_values.md), and
@@ -113,7 +137,7 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [bounded growth](spec/resources/bounded_growth.md).
 - Build: [command-line tools](spec/build/command_line.md),
   [declarations and package identity](spec/build/declarations.md),
-  [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
+  [dependency scopes, product references and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
   [recorded proof-work policy](spec/build/configuration.md#proof-work-policy),
   [portable platform services](spec/build/platform_services.md),
@@ -154,10 +178,10 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [acceptance](spec/packages/acceptance.md), and the
   [workflow guide](language_guide/packages.md).
 
-Bootstrap language and proof contracts live beside the chain; start at
+Bootstrap contracts live beside the chain; start at
 [edge contracts](../bootstrap/CONTRACT.md) and
 [minimization](../bootstrap/MINIMIZATION.md). Alternative-chain tradeoffs are
-[reference notes](drafts/reference/bootstrap_chain_alternatives.md), not a proposed replacement.
+[reference notes](drafts/reference/bootstrap_chain_alternatives.md), not a replacement proposal.
 
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.

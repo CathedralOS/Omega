@@ -38,10 +38,12 @@ pub use provider_installation::{
 };
 
 mod admission_source;
+mod installation_binding;
 mod lowering_facts;
 pub use admission_source::{
     AdmissionSource, AdmittedInstalledEntryExecution, AdmittedProgramEntryCall, ComponentCallFacts,
 };
+pub use installation_binding::{BoundInstallationAuthority, bind_installation_authority};
 pub use lowering_facts::{AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort};
 
 pub mod installed_interrupt_helpers;

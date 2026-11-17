@@ -23,7 +23,7 @@ data Main {
 }
 
 machine init(sets: &mut DisjointSet) {
-    sets.components = 64;
+    sets.components = 64 as +Wrapping;
     transition { _ -> loop_init(sets, 0) }
 
     machine loop_init(sets: &mut DisjointSet, index: u64) {
@@ -36,7 +36,7 @@ machine init(sets: &mut DisjointSet) {
     machine body(sets: &mut DisjointSet, index: u64)
     requires index < 64 {
         sets.parent[index] = index;
-        sets.rank[index] = 0;
+        sets.rank[index] = 0 as +Wrapping;
         transition { _ -> loop_init(sets, index + 1) }
     }
 
@@ -253,7 +253,7 @@ machine verify_workload(sets: &mut DisjointSet) -> bool {
         && rep_16 != rep_48
         && rep_48 != rep_63;
     transition agreed && sets.components == 8 {
-        true -> checksum_loop(sets, 0, 0)
+        true -> checksum_loop(sets, 0, 0 as +Wrapping)
         _ -> failed()
     }
 

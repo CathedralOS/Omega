@@ -6,7 +6,7 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -18,6 +18,32 @@ use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueTyp
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
+    pub(super) fn authored_node(
+        &self,
+        id: MachineId,
+        node: typed_trees::SourceNode,
+        span: source::SourceSpan,
+    ) -> Checked<SourceOrigin> {
+        let owner = self
+            .symbols
+            .get(id)
+            .copied()
+            .filter(|owner| self.typed.symbols.symbols().nodes().is_valid(*owner))
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Declaration("authored occurrence without its source machine"),
+                )
+            })?;
+        Ok(SourceOrigin::AuthoredNode {
+            source_member: id,
+            owner,
+            node,
+            span: SourceOrigin::of(span).span(),
+        })
+    }
+
     pub(super) fn slot_of(
         &self,
         id: MachineId,
@@ -137,6 +163,9 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(_) => {
+                return unserved("erased runtime machine construction");
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -230,12 +259,43 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
+        let value = self.read_expression(id, slots, handle, expected)?;
+        self.complete_formed_operator(id, handle, &value)?;
+        Ok(value)
+    }
+
+    fn read_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        let source = SourceOrigin::of(typed.expression_table.source_span(handle));
+        if let ExpressionNode::Call(call) = node
+            && call.runtime_call.is_none()
+            && call.layout_query.is_none()
+        {
+            self.bound_target(id, call.target_symbol)?;
+        }
+        let span = typed.expression_table.source_span(handle);
+        let source = match node {
+            ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => {
+                self.authored_node(id, typed_trees::SourceNode::Expression(handle), span)?
+            }
+            _ => SourceOrigin::of(span),
+        };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
+        let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
+            let owner = self.symbols.get(id).copied().unwrap_or_default();
+            self.read_static_truth(id, owner, handle, super::types::Reading::Value)?
+        } else {
+            None
+        };
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             // At a parameter width no literal is a value of the carrier
             // until the checker proves it lands: the literal is formed in
             // the closed carrier of its sign and converted exactly, which
@@ -364,18 +424,16 @@ impl<'t> Program<'t> {
             // closed type equations, and the fields of the integer carrier
             // query (`carriers`), whose own body is never run.
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.type_truth(
-                    super::carriers::Scope::Own,
-                    handle,
-                    super::types::Reading::Value,
-                ) == Some(super::types::TypeTruth::Open) =>
+                if type_truth == Some(super::types::TypeTruth::Open) =>
             {
                 return unserved(super::types::OPEN_CARRIER_FAMILY);
             }
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.static_truth(handle).is_some() =>
+                if matches!(type_truth, Some(super::types::TypeTruth::Known(_))) =>
             {
-                let truth = self.static_truth(handle).unwrap_or_default();
+                let Some(super::types::TypeTruth::Known(truth)) = type_truth else {
+                    unreachable!("the static evaluator supplied the known truth");
+                };
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }
             ExpressionNode::Binary(_)
@@ -389,8 +447,13 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
-                let (value, integer) = self.anonymous_value(id, handle, expected_scalar)?;
-                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
+                let evaluated = self.anonymous_value(id, handle, expected_scalar)?;
+                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                (
+                    ExpressionKind::Integer(evaluated.value),
+                    ScalarType::Integer(evaluated.integer),
+                )
             }
             ExpressionNode::Binary(binary) => {
                 // A suffixed operator (`+%`, `+|`, `+!`) names its policy at
@@ -423,18 +486,38 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
-                // `subject in S::C`. Stage 01 writes the test as
-                // `CaseMembership` in a guard and as `Equal` in value
-                // position; in both the right operand names a case, which is
-                // what makes it a case test. `k == Kind::A` on a
-                // payload-free sum is the same test (data_and_literals.md:
-                // "Primitive and payload-free-sum equality is intrinsic").
+                // `subject in S::C` is a case test wherever it stands.
+                // `k == Kind::A` is the same test only on a payload-free sum
+                // (data_and_literals.md: "Primitive and payload-free-sum
+                // equality is intrinsic"). On a record or a payload-bearing
+                // sum, Psi 03 replaces a `==` it can type with the selected
+                // `Equatable` call, so a `==` that reaches here against a case
+                // has no selected comparison and `case_test` refuses it.
                 if matches!(
                     binary.operator,
-                    BinaryOperator::CaseMembership | BinaryOperator::Equal
+                    BinaryOperator::CaseMembership
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
                 ) && let Some(case) = self.named_case(binary.right)
                 {
-                    return self.case_test(id, slots, binary.left, case, source);
+                    let test = self.case_test(
+                        id,
+                        slots,
+                        binary.left,
+                        case,
+                        binary.operator != BinaryOperator::CaseMembership,
+                        source,
+                    )?;
+                    return Ok(if binary.operator == BinaryOperator::NotEqual {
+                        Expression {
+                            call_context: None,
+                            result: test.result,
+                            kind: ExpressionKind::Not(Box::new(test)),
+                            source,
+                        }
+                    } else {
+                        test
+                    });
                 }
                 // A quoted literal is a byte view whatever its partner is
                 // (data_and_literals.md, "Quoted bytes"), so it is read
@@ -447,7 +530,13 @@ impl<'t> Program<'t> {
                 let operand = |quoted: bool, hint: Option<ScalarType>| {
                     hint.filter(|_| !quoted).map(ValueType::plain)
                 };
-                let (left, right) = if self.wholly_anonymous(binary.left) {
+                // A shift's count has its own carrier. Neither an expected
+                // result nor the value operand can reland a typed count literal.
+                let shift = matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                );
+                let (left, right) = if !shift && self.wholly_anonymous(binary.left) {
                     let right =
                         self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
@@ -461,11 +550,22 @@ impl<'t> Program<'t> {
                 } else {
                     let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     let partner = left.result.and_then(ValueType::scalar);
+                    // A wholly anonymous count (`x << 8`) has no carrier of
+                    // its own, so it lands in the shifted value's carrier
+                    // (numeric_values.md, "Policy operators": "At least one
+                    // operand must already be integer-typed and the other
+                    // lands to that carrier"). The count obligation is still
+                    // judged on the landed value; a typed count keeps its type.
+                    let count = if self.wholly_anonymous(binary.right) {
+                        partner
+                    } else {
+                        None
+                    };
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        operand(quoted.1, hint.or(partner)),
+                        operand(quoted.1, if shift { count } else { hint.or(partner) }),
                     )?;
                     (left, right)
                 };
@@ -586,7 +686,7 @@ impl<'t> Program<'t> {
                 return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
-            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, expected, source),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, handle, cast, source),
             ExpressionNode::Float(literal) => {
                 let value = self.float_literal(id, literal, expected_scalar)?;
                 (
@@ -596,7 +696,15 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, expected, Access::Read);
+                return self.indexed(
+                    id,
+                    slots,
+                    indexed,
+                    handle,
+                    expected,
+                    Access::Read,
+                    super::arrays::ElementRead::Whole,
+                );
             }
             ExpressionNode::Member(member) => {
                 let value = self.member(id, slots, member, source, Access::Read)?;
@@ -640,6 +748,7 @@ impl<'t> Program<'t> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let value = self.retain_view_input(id, slots, value, expected)?;
         if let (Some(wanted @ ValueType::Record(wanted_row, _, _)), Some(carried)) =
             (expected, value.result)
             && let ValueType::Record(carried_row, _, _) = carried
@@ -699,16 +808,28 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
+        let projection = if access == Access::Replace {
+            Access::Write
+        } else {
+            access
+        };
         let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, Access::Write)?
+                self.member(id, slots, member, source, projection)?
             }
-            ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, Access::Write)?
-            }
+            ExpressionNode::Indexed(indexed) => self.indexed(
+                id,
+                slots,
+                indexed,
+                target,
+                expected,
+                projection,
+                super::arrays::ElementRead::Whole,
+            )?,
             _ => return self.expression(id, slots, target, expected),
         };
+        self.complete_formed_operator(id, target, &value)?;
         if access == Access::Replace {
             return Ok(value);
         }
@@ -919,7 +1040,7 @@ impl<'t> Program<'t> {
             None => return Err(unserved("match with a Unit arm")),
         };
         if result.is_some_and(|result| {
-            !self.type_excludes_values(result) && !self.agrees(Some(value_type), result)
+            !self.type_excludes_values(result) && !self.agrees(Some(value_type), Some(result))
         }) {
             return Err(self.mistyped(
                 id,
@@ -1142,7 +1263,6 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
-    let (left, right) = comparison_operands(operator, left, right);
     let (operation, policy, result) = binary_selection(
         id,
         operator,
@@ -1173,73 +1293,6 @@ fn binary_expression(
     })
 }
 
-/// numeric_values.md, "Integer equality and order" (`mixed-integer-comparison`):
-/// a builtin comparison relates the exact integer values of its operands,
-/// whatever their widths or signedness. Widening the narrower operand to a
-/// fixed carrier that holds every value of both keeps each value exactly, so
-/// comparing there is that relation. The common carrier is at most 64 bits:
-/// native code has no widening into `i128`, so a pair that needs one (`u64`
-/// with a signed partner) stays refused rather than passing the checker and
-/// failing in native lowering. Operands that carry a domain or policy are
-/// left unchanged for selection to judge.
-fn comparison_operands(
-    operator: BinaryOperator,
-    left: Expression,
-    right: Expression,
-) -> (Expression, Expression) {
-    let comparison = matches!(
-        operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-    );
-    let plain_integer = |expression: &Expression| match expression.result {
-        Some(ValueType::Scalar(ScalarType::Integer(integer), qualification))
-            if qualification == Qualification::NONE && !integer.is_address() =>
-        {
-            Some(integer)
-        }
-        _ => None,
-    };
-    let (Some(left_type), Some(right_type)) = (plain_integer(&left), plain_integer(&right)) else {
-        return (left, right);
-    };
-    if !comparison || left_type == right_type {
-        return (left, right);
-    }
-    let common = if left_type.can_widen_to(right_type) {
-        Some(right_type)
-    } else if right_type.can_widen_to(left_type) {
-        Some(left_type)
-    } else {
-        [16, 32, 64]
-            .into_iter()
-            .filter_map(|bits| IntegerType::new(IntegerSign::Signed, bits).ok())
-            .find(|carrier| left_type.can_widen_to(*carrier) && right_type.can_widen_to(*carrier))
-    };
-    let Some(common) = common else {
-        return (left, right);
-    };
-    let widen = |operand: Expression, integer: IntegerType| {
-        if integer == common {
-            return operand;
-        }
-        Expression {
-            call_context: None,
-            source: operand.source,
-            result: Some(ValueType::Scalar(
-                ScalarType::Integer(common),
-                Qualification::NONE,
-            )),
-            kind: ExpressionKind::Cast(Box::new(operand)),
-        }
-    };
-    (widen(left, left_type), widen(right, right_type))
-}
-
 /// A contract and an executable expression select the same operator from
 /// the same operand types. The selected policy belongs to the operation;
 /// this query neither builds an operation nor proves its formation condition.
@@ -1260,9 +1313,9 @@ pub(super) fn binary_selection(
         /// Integer value and integer count, each its own type; the result
         /// has the value's type.
         Shift,
-        /// Same integer or Boolean type; the result is Boolean.
+        /// Integer values, or two Booleans; the result is Boolean.
         Equality,
-        /// Same integer type; the result is Boolean.
+        /// Integer values; the result is Boolean.
         Ordering,
     }
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
@@ -1390,13 +1443,30 @@ pub(super) fn binary_selection(
         Operands::Shift if integer(left_type) && integer(right_type) => computed(left_type),
         // A comparison compares the stored values, whatever policy either
         // carries ("they compare the stored values and return `bool`").
-        Operands::Equality
-            if left_type == right_type
-                && (integer(left_type) || left_type == ScalarType::Boolean) =>
+        // Terminal Psi comparisons retain both integer carriers and relate
+        // their exact values. They need no common carrier or inserted cast;
+        // native lowering implements that same mixed-sign relation.
+        Operands::Equality | Operands::Ordering
+            if integer(left_type)
+                && integer(right_type)
+                && (left_type == right_type
+                    || (left_policy.is_none()
+                        && right_policy.is_none()
+                        && suffix.is_none()
+                        && left_type
+                            .as_integer()
+                            .is_some_and(|integer| !integer.is_address())
+                        && right_type
+                            .as_integer()
+                            .is_some_and(|integer| !integer.is_address()))) =>
         {
             boolean
         }
-        Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
+        Operands::Equality
+            if left_type == ScalarType::Boolean && right_type == ScalarType::Boolean =>
+        {
+            boolean
+        }
         Operands::Arithmetic
             if left_type.as_ieee_float().is_some()
                 && right_type.as_ieee_float().is_some()
@@ -1448,8 +1518,13 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::ScalarApplication { application: b },
             ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (
+                ExpressionKind::MachineValue { contract: a, descriptor: a_selected },
+                ExpressionKind::MachineValue { contract: b, descriptor: b_selected },
+            ) => a == b && a_selected == b_selected,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
+            (ExpressionKind::ByteSequencePredicate { base: a, predicate: ap }, ExpressionKind::ByteSequencePredicate { base: b, predicate: bp }) => ap == bp && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
@@ -1500,7 +1575,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => {
                 // A boundary may observe supplied state or issue a fresh
                 // host ticket. Equal syntax is not one observed result.
-                matches!(a, semantic_vocabulary::TargetMachineCallable::Machine(_))
+                matches!(a, crate::body::CallTarget::Machine(_))
                     && a == b
                     && a_required == b_required
                     && a_designated == b_designated
@@ -1512,8 +1587,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
-            (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
-            (ExpressionKind::RepresentationView { base: a, element: ae }, ExpressionKind::RepresentationView { base: b, element: be }) => ae == be && both(a, b),
+            (ExpressionKind::CollectionView { base: a, access: aa, element: ae }, ExpressionKind::CollectionView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
             (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
@@ -1611,11 +1685,13 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
+                | ExpressionKind::ByteSequencePredicate { .. }
                 | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::RepresentationView { .. }
+            | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
-                | ExpressionKind::Boolean(_)
+                | ExpressionKind::Zero
+        | ExpressionKind::Boolean(_)
+                | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }
                 | ExpressionKind::Index { .. }
@@ -1857,12 +1933,11 @@ mod tests {
         }
     }
 
-    /// A comparison relates exact values across widths and signedness; the
-    /// narrower operand widens to a carrier holding both. Arithmetic still
-    /// needs one carrier, and a pair with no common carrier of at most 64 bits
-    /// stays refused.
+    /// Integer comparisons preserve each operand's carrier and compare exact
+    /// values, including pairs with no common fixed carrier. Arithmetic still
+    /// needs one carrier. Native support is judged by the native compiler.
     #[test]
-    fn a_comparison_widens_operands_of_different_integer_carriers() {
+    fn a_comparison_preserves_operands_of_different_integer_carriers() {
         let integer = |sign, bits| {
             ValueType::Scalar(
                 ScalarType::Integer(IntegerType::new(sign, bits).unwrap()),
@@ -1893,14 +1968,13 @@ mod tests {
                 integer(IntegerSign::Unsigned, 128),
                 integer(IntegerSign::Signed, 8),
                 neither
-            )
-            .unwrap_err(),
-            "typing operand types"
+            ),
+            Ok(boolean)
         );
-        // `u64` against `i32` would need `i128`, which native code cannot widen to.
+        // The relation needs no common carrier or implicit cast.
         assert_eq!(
-            typed(BinaryOperator::Less, u64_, i32_, neither).unwrap_err(),
-            "typing operand types"
+            typed(BinaryOperator::Less, u64_, i32_, neither),
+            Ok(boolean)
         );
     }
 }

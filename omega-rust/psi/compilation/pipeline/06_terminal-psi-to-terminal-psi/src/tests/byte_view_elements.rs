@@ -8,9 +8,97 @@
 //! exactly where the program has shown the index lies inside this view: a
 //! `requires` clause, or a guard, over this view's own `len`.
 
-use super::build_purpose::judge_build;
+use super::byte_domains::judge_build;
 use super::*;
 use terminal_psi::OperationKind;
+
+#[test]
+fn a_representation_view_count_must_measure_its_captured_descriptor() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        r#"
+machine build_entry(words: &[u32], peer: &[u32]) requires words.len <= 2 {
+    let earlier: u64 = peer.len;
+    let bytes: &[u8] = words as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    );
+    let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        roster(
+            &[symbol(&typed, "build_entry")],
+            &[Some(package())],
+            source::DependencyScope::Build,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let machine = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::EstablishElementView {
+                            region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                            ..
+                        }
+                    )
+                })
+        })
+        .unwrap();
+    let earlier = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ElementViewLength { .. }))
+        .unwrap()
+        .result
+        .expect_scalar()
+        .id;
+    let operation = machine
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let OperationKind::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    assert_ne!(*source_length, earlier);
+    *source_length = earlier;
+    let refusal = match judge(Ok(elaboration)) {
+        Err(refusal) | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+        other => panic!("a substituted measurement must refuse: {other:?}"),
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("source length is not its view's measurement directly before it"),
+        "{refusal:?}"
+    );
+}
 
 /// `accepted`, `rejected` with what the program could not establish, or the
 /// refusal's text.
@@ -28,6 +116,60 @@ fn verdict(build: &str) -> String {
         },
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn image_dimensions_establish_the_representation_view_count() {
+    let result = judge_build(
+        r#"
+machine build_entry(width: u32, height: u32, pixels: &[i32])
+requires width > 0 && width <= 8192
+requires height > 0 && height <= 8192
+requires pixels.len == (width as u64) * (height as u64)
+{
+    let bytes: &[u8] = pixels as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    )
+    .unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:#?}");
+}
+
+#[test]
+fn representation_views_do_not_gain_writable_access_or_boolean_validity() {
+    let mutable = judge_build(
+        r#"
+machine build_entry(words: &[u32]) requires words.len <= 2 {
+    let bytes: &[u8] = words as &[u8];
+    mutate(bytes);
+}
+machine mutate(bytes: &mut [u8]) {}
+"#,
+    );
+    match mutable {
+        Ok(RouteVerdict::Rejected { violations, .. }) => assert!(
+            violations.iter().any(|violation| violation
+                .statement
+                .contains("caller lends only immutable access")),
+            "{violations:?}"
+        ),
+        other => panic!("shared representation bytes cannot grant writable access: {other:?}"),
+    }
+    let boolean = verdict(
+        r#"
+machine build_entry(values: &[bool]) requires values.len <= 2 {
+    let bytes: &[u8] = values as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    );
+    assert!(
+        boolean.contains("target elements do not exactly tile its source elements"),
+        "{boolean}"
+    );
 }
 
 #[test]
@@ -113,6 +255,33 @@ fn a_typed_slice_read_needs_a_bound_on_its_own_descriptor() {
     assert_eq!(verdict(&source("numbers", 0)), "accepted");
     assert_eq!(verdict(&source("numbers", 1)), "rejected");
     assert_eq!(verdict(&source("peer", 0)), "rejected");
+}
+
+/// A window of a shared typed slice, as in the tail recursion `s[1..]`, keeps
+/// the slice's backing and checks its endpoints against that view's own
+/// length. A mutable typed slice is not given a window by this read path.
+#[test]
+fn a_typed_slice_window_needs_bounds_on_its_own_descriptor() {
+    let source = |view: &str, window: &str| {
+        format!(
+            "machine build_entry(numbers: &[u32], peer: &[u32]) requires {view}.len > 1 {{
+                 let rest: &[u32] = numbers[{window}]; use(rest[0]);
+             }}
+             machine use(number: u32) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("numbers", "1..")), "accepted");
+    assert_eq!(verdict(&source("numbers", "1..2")), "accepted");
+    assert!(verdict(&source("numbers", "1..3")).starts_with("rejected"));
+    assert!(verdict(&source("peer", "1..")).starts_with("rejected"));
+    assert_ne!(
+        verdict(
+            "machine build_entry(numbers: &mut [u32]) requires numbers.len > 1 {
+                 let rest: &[u32] = numbers[1..];
+             }"
+        ),
+        "accepted"
+    );
 }
 
 /// The lowered form of an accepted read is the measurement of the view and
@@ -423,7 +592,7 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
 #[test]
 fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
     let program = r#"
-        domain [u8]::Path requires no_nul(self);
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
         machine prefix_length(path: &[u8] in Path, position: u64) -> u64
         requires position <= path.len {
             let prefix: &[u8] = &path[0..position];
@@ -433,7 +602,12 @@ fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
             let length: u64 = prefix_length("foo/bar" as +Path, 3);
         }
     "#;
-    assert_eq!(verdict(program), "accepted");
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("qualified byte range must be accepted: {other:?}"),
+    }
 
     let outside = program.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
     assert_eq!(verdict(&outside), "rejected");
@@ -1134,6 +1308,72 @@ machine use(same: bool) { }",
 /// read whole and shared, or a result that is no plain `bool` is not
 /// accepted.
 #[test]
+fn byte_predicate_reads_keep_exact_measurements_and_shared_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(left: &[u8], right: &[u8]) { use(left == right); }
+machine use(same: bool) { }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    let observe = |elaboration: &mut typed_trees_to_terminal_psi::Elaboration, predicate, fault| {
+        let operation = elaboration
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceEqual { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
+            unreachable!()
+        };
+        let mut operand = right.clone();
+        let ByteSequenceOperand::Whole { source, length } = &mut operand else {
+            panic!("the ordinary source produced a whole descriptor observation");
+        };
+        match fault {
+            0 => {}
+            1 => *length = left.length(),
+            2 => source.access = terminal_psi::StructuralAccess::MutableBorrow,
+            _ => unreachable!(),
+        }
+        // Keep the real result, surrounding measurements, source inputs and
+        // source write log. Only the pure byte operation changes; it must
+        // still derive no stores while checking the descriptor it observes.
+        operation.kind = OperationKind::ByteSequencePredicate { operand, predicate };
+    };
+    for predicate in semantic_vocabulary::ByteSequencePredicate::ALL {
+        let mut lowered = elaborate();
+        observe(&mut lowered, predicate, 0);
+        let accepted = judge(Ok(lowered)).unwrap();
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{accepted:?}"
+        );
+        for fault in [1, 2] {
+            let mut changed = elaborate();
+            observe(&mut changed, predicate, fault);
+            let refused = judge(Ok(changed)).unwrap();
+            let RouteVerdict::FallBack(ref refusal) = refused else {
+                panic!("a changed byte measurement/access must be refused: {refused:?}");
+            };
+            let detail = if fault == 1 { "measurement" } else { "shared" };
+            assert!(refusal.detail.contains(detail), "{refusal:?}");
+        }
+    }
+}
+
+#[test]
 fn a_byte_comparison_names_each_views_own_measurement() {
     use super::build_purpose::{frontier_of, package, roster, symbol};
     let typed = frontier_of(
@@ -1224,19 +1464,17 @@ machine use(same: bool) { }",
     }
 }
 
-/// The forms of a comparison this route does not read: a view that is
-/// stored in a field, and an operand whose type carries a domain
-/// (domains.md, "Operands": "Builtin operators and comparisons ... accept
-/// unqualified operands only").
+/// A stored descriptor is compared through its exact field. Other operand
+/// kinds still require the ordinary scalar/type rules.
 #[test]
-fn the_byte_comparisons_not_read_are_refused_by_name() {
+fn byte_field_comparisons_use_the_existing_readable_descriptor() {
     assert_eq!(
         verdict(
             "data Holder<'held> { path: &'held [u8]; }
 machine build_entry<'held>(holder: &Holder<'held>) { use(holder.path == \"main.omg\"); }
 machine use(same: bool) { }"
         ),
-        "expression comparison of a view stored in a field"
+        "accepted"
     );
     assert_eq!(
         verdict(
@@ -1387,5 +1625,140 @@ requires position < bytes.len {
         matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. } | ObligationKind::ArrivalInvariant { .. }))),
         "the first view's bound cannot establish a bound on its sibling"
+    );
+}
+
+#[test]
+fn field_byte_comparisons_retain_their_own_measurement_and_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
+machine build_entry<'held>(holder: &Holder<'held>) { use(holder.left == holder.right); }
+machine use(same: bool) { }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    assert_eq!(verdict("data Token {}
+data Holder<'held> { token: Token; path: &'held [u8]; }
+machine take(token: Token) {}
+machine build_entry<'held>(holder: Holder<'held>) { take(holder.token); use(holder.path == \"main.omg\"); }
+machine use(same: bool) {}"), "accepted");
+    for fault in 0..4 {
+        let mut changed = elaborate();
+        let operation = changed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceEqual { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceEqual { left, right } = &mut operation.kind else {
+            unreachable!()
+        };
+        let (
+            ByteSequenceOperand::Field {
+                source: left_source,
+                field: left_field,
+                length: left_length,
+            },
+            ByteSequenceOperand::Field {
+                field: right_field,
+                length: right_length,
+                ..
+            },
+        ) = (left, right)
+        else {
+            panic!("both operands retain their fields")
+        };
+        match fault {
+            0 => std::mem::swap(left_field, right_field),
+            1 => std::mem::swap(left_length, right_length),
+            2 => left_source.access = terminal_psi::StructuralAccess::MutableBorrow,
+            3 => *left_field = semantic_vocabulary::StructuralFieldId::new(9999).unwrap(),
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
+}
+
+/// Adding a primitive byte domain is checked even when its result is unused.
+/// Later destination facts cannot excuse a literal that fails introduction.
+#[test]
+fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
+    let program = r#"
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+        machine build_entry() {
+            let other: &[u8] in Path = "trusted" as +Path;
+            let path: &[u8] in Path = "foo/bar" as +Path;
+        }
+    "#;
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => accepted.publish_invocation().unwrap(),
+        rejected => panic!("the literal must establish its own predicate: {rejected:?}"),
+    };
+    let invalid = program.replace("foo/bar", r"foo\x00bar");
+    let rejected = judge_build(&invalid).unwrap();
+    assert!(
+        matches!(&rejected, RouteVerdict::Rejected { unestablished, .. }
+        if unestablished.iter().any(|row| {
+            matches!(row.at, Construct::Edge(_))
+                && row.detail == "a byte transfer's source does not establish its primitive byte-domain qualifications"
+        })),
+        "the literal itself must establish no_nul: {rejected:?}"
+    );
+}
+
+/// Both arrivals retain their own descriptor extent. A long arrival cannot
+/// supply the short arrival's length, while both retain their byte domain.
+#[test]
+fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
+    let program = r#"
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+        machine require_path(path: &[u8] in Path, position: u64)
+        requires position <= path.len { }
+        machine build_entry(flag: bool) {
+            let selected: &[u8] in Path = match flag {
+                true -> "foo/bar" as +Path,
+                _ -> "other" as +Path
+            };
+            require_path(selected, 3);
+        }
+    "#;
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("both qualified arrivals have at least three bytes: {other:?}"),
+    }
+    let short = program.replace(r#""other" as +Path"#, r#""xy" as +Path"#);
+    let rejected = judge_build(&short).unwrap();
+    assert!(
+        matches!(&rejected, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded
+        } if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
+            && conflicts.is_empty() && exceeded.is_empty() && !unproved.is_empty()
+            && unproved.iter().all(|row| {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+                    && row.statement.contains("for call require_path from build_entry")
+                    && row.statement.contains("needs fact `position <= path.len`")
+            })),
+        "the short arrival must fail only its own length requirement: {rejected:?}"
     );
 }

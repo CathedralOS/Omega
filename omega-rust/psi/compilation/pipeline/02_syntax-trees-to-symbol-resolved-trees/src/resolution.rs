@@ -1145,6 +1145,7 @@ pub(crate) mod lowerer {
         InitializerSelection,
     }
     pub(crate) struct Lowerer {
+        pub(crate) runtime_callable_scopes: crate::runtime_callable_scopes::RuntimeCallableScopes,
         pub(crate) defer_machine_bodies: bool,
         pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
         pub(crate) pending_callable_types:
@@ -1343,6 +1344,7 @@ pub(crate) mod lowerer {
             source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
         ) -> Self {
             Self {
+                runtime_callable_scopes: Default::default(),
                 defer_machine_bodies: false,
                 pending_machine_bodies: Vec::new(),
                 pending_callable_types: Vec::new(),
@@ -1475,6 +1477,16 @@ pub(crate) mod lowerer {
                         reaches,
                     });
             }
+            for (handle, contract) in base.tables.declarations.runtime_callable_contracts.iter() {
+                let signature = &contract.signature;
+                let reaches = retained_reach(signature.symbol, signature.service_reach_row);
+                self.pending_signature_service_reaches
+                    .push(PendingSignatureServiceReach {
+                        location: PendingSignatureLocation::RuntimeCallable(handle),
+                        owner: PendingSignatureOwner::Requirement(signature.name.clone()),
+                        reaches,
+                    });
+            }
             self.bound_generic_application_origins =
                 base.tables.types.generic_application_origins.len();
             self.symbol_resolved_trees = base.as_ref().clone();
@@ -1579,6 +1591,7 @@ pub(crate) mod lowerer {
                 semantic_domains,
                 external_bindings,
                 evidence_forwardings,
+                pending_token_shape_comparisons,
                 resolution_indexes: _,
             } = self.symbol_resolved_trees;
             let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
@@ -1588,6 +1601,7 @@ pub(crate) mod lowerer {
             trees.semantic_domains = semantic_domains;
             trees.external_bindings = external_bindings;
             trees.evidence_forwardings = evidence_forwardings;
+            trees.pending_token_shape_comparisons = pending_token_shape_comparisons;
             trees
         }
 
@@ -1634,6 +1648,13 @@ pub(crate) mod lowerer {
                         };
                         contract.structural().ok_or_else(|| vec![Diagnostic::error("pending service reach lost its structural machine-parameter signature")])?.symbol
                     }
+                    PendingSignatureLocation::RuntimeCallable(handle) => {
+                        resolved_declarations(&self.symbol_resolved_trees)
+                            .runtime_callable_contracts
+                            .get(handle)
+                            .signature
+                            .symbol
+                    }
                 };
                 Ok(crate::selection::service_reaches::PendingSignatureServiceReach {
                     symbol,
@@ -1663,6 +1684,7 @@ pub(crate) mod lowerer {
     pub(crate) enum PendingSignatureLocation {
         Trait(arena::Handle<symbol_resolved_trees::signature::StateSignature>),
         MachineParameter(arena::Handle<symbol_resolved_trees::data::TypeParameter>),
+        RuntimeCallable(symbol_resolved_trees::callable_values::RuntimeCallableContractHandle),
     }
 
     #[derive(Debug, Clone)]
@@ -2593,7 +2615,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
 
     constant::finalize_operator_obligations(lowerer)?;
     selection::finalize(lowerer)?;
-    reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
+    reject_duplicate_direct_token_bindings(&mut lowerer.symbol_resolved_trees)?;
     Ok(())
 }
 
@@ -2980,7 +3002,7 @@ mod primitive_family_binding_tests {
         assert!(program.symbols.symbol_source_is_selected(product.symbol));
         assert_ne!(build.operator_home_domain, product.operator_home_domain);
         let product_home = product.operator_home_domain;
-        super::reject_duplicate_direct_token_bindings(&program).unwrap();
+        super::reject_duplicate_direct_token_bindings(&mut program).unwrap();
 
         // A newly selected binding still has to name its semantic home. The
         // retained inactive copy must neither reject the valid twin nor supply
@@ -3069,7 +3091,7 @@ mod domain_lookup_tests {
     use symbol_resolved_trees::domain::ProofFact;
     use symbols::SymbolHandle;
 
-    fn resolve_result(
+    pub(super) fn resolve_result(
         source_text: &str,
     ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
         let tokens = Lexer::new(source_text).tokenize().expect("tokens");
@@ -3165,6 +3187,97 @@ mod domain_lookup_tests {
                     .contains("ambiguous membership `Player::Valid`")
             }),
             "{errors:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod pattern_binding_name_tests {
+    /*
+        A match or transition arm binding shares one namespace with the
+        machine's parameters and earlier locals
+        (`wiki/spec/language/state_contracts.md`, "Bindings"). Each negative
+        program differs from its positive twin only in the binding's name, so
+        a refusal can come only from the reused name.
+    */
+
+    use super::domain_lookup_tests::resolve_result;
+
+    const READING: &str = "data Reading { case Sample(value: u32); case Idle; }\n";
+
+    fn refusal(body: &str) -> String {
+        let source = format!("{READING}{body}");
+        let errors = resolve_result(&source).expect_err("a reused binding name rejects");
+        errors
+            .iter()
+            .map(|error| error.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn accepts(body: &str) {
+        let source = format!("{READING}{body}");
+        if let Err(errors) = resolve_result(&source) {
+            panic!("expected acceptance, got {errors:?}");
+        }
+    }
+
+    #[test]
+    fn a_match_arm_binding_may_not_reuse_a_parameter_name() {
+        let positive = "machine pick(limit: u32, r: Reading) -> u32 { \
+             match r { Reading::Sample { value } -> value  Reading::Idle -> limit } }";
+        accepts(positive);
+        let message = refusal(&positive.replace("limit", "value"));
+        assert!(
+            message.contains("pattern binding `value` conflicts with an existing name"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_match_arm_binding_may_not_reuse_an_earlier_local_name() {
+        let positive = "machine pick(r: Reading) -> u32 { let base: u32 = 1; \
+             match r { Reading::Sample { value } -> value  Reading::Idle -> base } }";
+        accepts(positive);
+        let message = refusal(&positive.replace("base", "value"));
+        assert!(
+            message.contains("pattern binding `value` conflicts with an existing name"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_transition_arm_binding_may_not_reuse_a_parameter_name() {
+        let positive = "machine pick(limit: u32, r: Reading) -> u32 { \
+             transition r { Reading::Sample { value } -> value  Reading::Idle -> limit } }";
+        accepts(positive);
+        let message = refusal(&positive.replace("limit", "value"));
+        assert!(
+            message.contains("pattern binding `value` conflicts with an existing name"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_nested_arm_binding_may_not_reuse_its_enclosing_arm_binding() {
+        let positive = "machine pick(r: Reading, s: Reading) -> u32 { \
+             match r { Reading::Sample { value } -> match s { \
+             Reading::Sample { value as inner } -> inner  Reading::Idle -> value } \
+             Reading::Idle -> 0 } }";
+        accepts(positive);
+        let message = refusal(&positive.replace("value as inner } -> inner", "value } -> value"));
+        assert!(
+            message.contains("pattern binding `value` conflicts with an existing name"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn different_arms_of_one_match_may_reuse_a_binding_name() {
+        accepts(
+            "machine pick(a: Reading, b: Reading) -> u32 { \
+             let first: u32 = match a { Reading::Sample { value } -> value  Reading::Idle -> 0 }; \
+             match b { Reading::Sample { value } -> value + first  Reading::Idle -> first } }",
         );
     }
 }

@@ -55,7 +55,7 @@ crashes Trap
     transition expression.kind {
         ExpressionKind::Name -> named(typer, syntax, resolution, index, expression)
         ExpressionKind::Path -> named(typer, syntax, resolution, index, expression)
-        ExpressionKind::Integer -> integer(typer, sources, index, expression)
+        ExpressionKind::Integer -> integer(typer, syntax, index, expression)
         ExpressionKind::Boolean -> boolean(typer, index)
         ExpressionKind::String -> string(typer, sources, index, expression)
         ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
@@ -105,8 +105,8 @@ crashes Trap
         set_expression_type(&mut typer.output, index, handle);
     }
 
-    machine integer(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
-        let value: LiteralValue = literal_value(sources, expression.name.source_span);
+    machine integer(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        let value: LiteralValue = literal_value(syntax, expression.literal);
         let anonymous: ExactInteger = ExactInteger { negative: false, magnitude: value.magnitude };
         transition value.valid {
             true -> integer_valid(typer, index, expression, value, anonymous)

@@ -369,9 +369,10 @@ fn require_supported_inventory(
             && !declarations.owns(declaration.symbol, package)?
             && (declaration.is_public || !declaration.supplies_checked_body())
         {
-            return Err(unavailable(
-                "Build-scope public or bodyless callable contracts",
-            ));
+            return Err(unavailable(&format!(
+                "the Build-scope public or bodyless callable contract of `{}`",
+                declaration.symbol_spelling()
+            )));
         }
     }
     Ok(())

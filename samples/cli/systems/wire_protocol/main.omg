@@ -79,7 +79,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
     let msg: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -89,7 +89,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         depth: 0 - 64
     };
 
-    SensorPacketCodec::encode(&msg, &mut main.buffer, &mut main.written);
+    packet_encode(&msg, &mut main.buffer, &mut main.written);
 
     let mut decoded: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         depth: 0
     };
 
-    SensorPacketCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    packet_decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
     let ok_and_sizes: bool = main.verdict == PacketVerdict::Sound && main.written == 13 && main.read == 13;
     transition ok_and_sizes {
@@ -108,12 +108,26 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine check_fields(main: &mut Main, decoded: SensorPacketValue) {
+        // Check the documented wire format as well as round-trip agreement.
+        let bytes_ok: bool = main.buffer[0u64] == 0u8
+            && main.buffer[1u64] == 0u8
+            && main.buffer[2u64] == 3u8
+            && main.buffer[3u64] == 0u8
+            && main.buffer[4u64] == 172u8
+            && main.buffer[5u64] == 2u8
+            && main.buffer[6u64] == 1u8
+            && main.buffer[7u64] == 3u8
+            && main.buffer[8u64] == 172u8
+            && main.buffer[9u64] == 2u8
+            && main.buffer[10u64] == 3u8
+            && main.buffer[11u64] == 2u8
+            && main.buffer[12u64] == 127u8;
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150
             && decoded.samples.items[1] == 0 - 2
             && decoded.depth == 0 - 64;
-        transition fields_ok {
+        transition bytes_ok && fields_ok {
             true -> block good(main)
             false -> block bad_fields(main)
         }
@@ -122,21 +136,21 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad_sizes(main: &mut Main) {
         Console::write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
     machine bad_fields(main: &mut Main) {
-        Console::write_line("FAIL: a decoded field did not match the original packet (exit 72)");
+        Console::write_line("FAIL: encoded bytes or decoded fields did not match the expected packet (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 }
@@ -185,7 +199,9 @@ requires remaining_steps <= 128
     }
     machine place(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64, index: i64 in Wrapping) -> Plan
     requires 1 <= remaining_steps
-    requires remaining_steps <= 128 {
+    requires remaining_steps <= 128
+    requires index >= 0 && index < 32 && index < schema.field_count
+    {
         compact_binary.tag = schema.fields[index].number;
         compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
         transition remaining_steps > 1 { true -> fill(compact_binary, schema, remaining_steps - 1, index + 1) _ -> done(compact_binary, schema) }
@@ -215,42 +231,41 @@ machine field_plan(kind: &FieldKind, tag: i64) -> FieldPlan {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
 
 // The semantic owner delegates ordinary source operations for every member.
-data SensorPacketCodec {}
-machine SensorPacketCodec::fields(value: &SensorPacketValue, context: &mut EncodeContext) {
+machine packet_fields(value: &SensorPacketValue, context: &mut EncodeContext) {
     policy_gate(POLICY_ACCEPTED);
-    reflect::visit_runtime_fields<SensorPacketValue, SensorPacketCodec::member>(value, context);
+    reflect::visit_runtime_fields<SensorPacketValue, packet_member>(value, context);
 }
-machine SensorPacketCodec::member<Kind>(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &Kind)
+machine packet_member<Kind>(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &Kind)
 requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeaderValue
 {
     transition {
-        Kind == RoomHeaderValue -> SensorPacketCodec::header(context, info, value)
+        Kind == RoomHeaderValue -> packet_header(context, info, value)
         Kind == FixedVec<i32, 4> -> CompactBinary::fixed_vec_field<Kind, i32, 4>(context, info, value)
         _ -> CompactBinary::scalar_field<Kind>(context, info, value)
     }
 }
-machine SensorPacketCodec::encode<const N: u64>(value: &SensorPacketValue, out: &mut [u8; N], written: &mut u64) {
+machine packet_encode<const N: u64>(value: &SensorPacketValue, out: &mut [u8; N], written: &mut u64) {
     let mut scratch: [u8; N];
     let mut fields: [EncodedField; 3];
-    transition CompactBinary::encode<SensorPacketValue, SensorPacketCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+    transition CompactBinary::encode<SensorPacketValue, packet_fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
         EncodeResult::Encoded { next } -> finish(written, next)
         _ -> finish(written, 0u64)
     }
     machine finish(written: &mut u64, next: u64) { written = next; }
 }
 
-machine SensorPacketCodec::header_fields(value: &RoomHeaderValue, context: &mut EncodeContext) {
+machine packet_header_fields(value: &RoomHeaderValue, context: &mut EncodeContext) {
     reflect::visit_runtime_fields<RoomHeaderValue, CompactBinary::scalar_field>(value, context);
 }
-machine SensorPacketCodec::header(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &RoomHeaderValue) {
+machine packet_header(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &RoomHeaderValue) {
     let mut bytes: [u8; 16];
     let mut scratch: [u8; 16];
     let mut fields: [EncodedField; 1];
-    transition CompactBinary::encode<RoomHeaderValue, SensorPacketCodec::header_fields>(value, &mut bytes[..], &mut scratch[..], &mut fields[..], 100u64) {
+    transition CompactBinary::encode<RoomHeaderValue, packet_header_fields>(value, &mut bytes[..], &mut scratch[..], &mut fields[..], 100u64) {
         EncodeResult::Encoded { next } -> bounded(context, info, &bytes[..], next)
         _ -> invalid(context)
     }
@@ -266,11 +281,11 @@ machine SensorPacketCodec::header(context: &mut EncodeContext, info: &reflect::F
     machine invalid(context: &mut EncodeContext) { context.valid = false; }
 }
 
-machine SensorPacketCodec::plan(context: &mut ScalarPlanContext) {
+machine packet_plan(context: &mut ScalarPlanContext) {
     policy_gate(POLICY_ACCEPTED);
-    reflect::inspect_record_fields<SensorPacket, SensorPacketCodec::plan_member>(context);
+    reflect::inspect_record_fields<SensorPacket, packet_plan_member>(context);
 }
-machine SensorPacketCodec::plan_member<Kind>(context: &mut ScalarPlanContext, info: &reflect::FieldInfo)
+machine packet_plan_member<Kind>(context: &mut ScalarPlanContext, info: &reflect::FieldInfo)
 requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeader
 {
     transition {
@@ -278,7 +293,7 @@ requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomH
         _ -> CompactBinary::plan_payload<Kind>(context, info)
     }
 }
-machine SensorPacketCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<SensorPacketValue> {
+machine packet_construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<SensorPacketValue> {
     transition fields.len == 3u64 { true -> regions(bytes, fields) false -> DecodeResult::Invalid }
     machine regions(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<SensorPacketValue>
     requires fields.len == 3u64
@@ -363,9 +378,9 @@ machine SensorPacketCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> Dec
         } }
     }
 }
-machine SensorPacketCodec::decode<const N: u64>(value: &mut SensorPacketValue, bytes: &[u8; N], read: &mut u64, verdict: &mut PacketVerdict) {
+machine packet_decode<const N: u64>(value: &mut SensorPacketValue, bytes: &[u8; N], read: &mut u64, verdict: &mut PacketVerdict) {
     let mut fields: [ScalarSlot; 3];
-    transition CompactBinary::decode_record<SensorPacketValue, SensorPacketCodec::plan, SensorPacketCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+    transition CompactBinary::decode_record<SensorPacketValue, packet_plan, packet_construct>(&bytes[..], &mut fields[..], read, 10000u64) {
         DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
         _ -> invalid(verdict)
     }

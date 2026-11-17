@@ -1,0 +1,21 @@
+// Expected exit: 0. Reflection preserves the explicit context and its borrowed storage.
+use omega::language::core::reflect;
+data Packet [copy] { first: u32; second: u32; third: u32; }
+data Context<'bytes> { bytes: &'bytes [u8]; calls: u64; }
+machine observe<Kind [copy]>(context: &mut Context, field: &reflect::FieldInfo, value: &Kind)
+requires Kind == u32
+{
+    context.calls = context.calls +% 1u64;
+}
+machine main() crashes Trap {
+    let packet: Packet = Packet { first: 1u32, second: 2u32, third: 3u32 };
+    let bytes: [u8; 3] = [4u8, 5u8, 6u8];
+    let mut context: Context = Context { bytes: &bytes[..], calls: 0u64 };
+    reflect::visit_runtime_fields<Packet, observe>(&packet, &mut context);
+    transition context.calls == 3u64 && context.bytes.len == 3u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

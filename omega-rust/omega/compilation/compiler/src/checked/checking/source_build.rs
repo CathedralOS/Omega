@@ -54,8 +54,9 @@ impl SourceBuild {
     pub(super) fn prepare_next_stage(
         &mut self,
         prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
     ) -> Result<(), CompileFailure> {
-        self.invocation.prepare_next_stage(prepared)
+        self.invocation.prepare_next_stage(prepared, named_source)
     }
 
     pub(super) fn source_result<'result>(

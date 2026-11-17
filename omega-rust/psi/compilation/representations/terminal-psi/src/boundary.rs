@@ -380,6 +380,11 @@ pub(crate) mod conformances {
                 bytes
             }
             ClosedConformanceCallableResult::Scalar(ScalarType::Boolean) => vec![2, 1],
+            ClosedConformanceCallableResult::Scalar(ScalarType::Callable(contract)) => {
+                let mut bytes = vec![2, 4];
+                bytes.extend(contract.get().to_le_bytes());
+                bytes
+            }
             ClosedConformanceCallableResult::Scalar(ScalarType::Integer(integer)) => {
                 let mut bytes = vec![
                     2,
@@ -1298,6 +1303,7 @@ pub(crate) mod external_providers {
         pub requirement_identity: TerminalIdentityIndex,
         pub requirement_package: Option<PackageKeyIdentity>,
         pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+        pub sealed_intrinsic: Option<crate::TerminalSealedNativeIntrinsic>,
         pub requirement_schema: Option<ExternalRequirementSchema>,
         pub target: Option<String>,
         pub realization: CheckedMachineDeclaration,
@@ -1314,6 +1320,12 @@ pub(crate) mod external_providers {
                     .text(identity)
                     .is_some_and(|text| !text.is_empty())
             };
+            if self.sealed_intrinsic.is_some()
+                && (self.numeric_intrinsic.is_some()
+                    || self.binding != ExternalBindingIdentity::CompilerIntrinsic)
+            {
+                return Err("sealed native meaning differs from its intrinsic binding");
+            }
             if self.numeric_intrinsic.is_some() && self.requirement_schema.is_none() {
                 return Err("numeric provider lost its exact requirement schema");
             }
@@ -1763,6 +1775,7 @@ pub(crate) mod reach_applications {
             digest.len(position);
             digest.byte(u8::from(binding.upper_bound_may_suspend));
             digest.byte(u8::from(binding.upper_bound_may_block));
+            digest.byte(u8::from(binding.upper_bound_crashes_none));
             digest.byte(u8::from(binding.upper_bound.is_some()));
             if let Some(services) = &binding.upper_bound {
                 let mut identities = services
@@ -1855,8 +1868,14 @@ pub(crate) mod reach_applications {
         pub upper_bound: Option<Vec<ServiceId>>,
         pub upper_bound_may_suspend: bool,
         pub upper_bound_may_block: bool,
+        /// The binder wrote `crashes none`, which admits only crash-free
+        /// selections. Without it the binder defers to the selected callable.
+        pub upper_bound_crashes_none: bool,
         pub selected_may_suspend: bool,
         pub selected_may_block: bool,
+        /// The selected callee publishes at least one crash route, authored
+        /// or inferred.
+        pub selected_may_crash: bool,
         pub selected_identity: TerminalIdentityIndex,
         pub selected_contract_commitment: [u8; 32],
         pub selected_reach: Vec<ServiceId>,

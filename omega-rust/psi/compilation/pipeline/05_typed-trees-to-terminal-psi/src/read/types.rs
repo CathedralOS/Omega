@@ -25,6 +25,23 @@ pub(super) enum TypeTruth {
     Open,
 }
 
+/// One operator the static evaluator decided in this source scope. Callee
+/// contract expressions never acquire the caller's occurrence ownership.
+pub(super) struct StaticOperatorRead {
+    expression: ExpressionHandle,
+    type_equation: bool,
+}
+
+impl StaticOperatorRead {
+    pub(super) fn expression(&self) -> ExpressionHandle {
+        self.expression
+    }
+
+    pub(super) fn is_type_equation(&self) -> bool {
+        self.type_equation
+    }
+}
+
 /// The refusal of a value its rigid type parameter's premises leave open:
 /// the body would need to be read once per carrier family, which no reading
 /// does yet.
@@ -95,6 +112,13 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
 /// addresses, rather than borrowing the destination's identity.
 pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
     Ok(match scalar {
+        ScalarType::Callable(_) => {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("callable lender has no builtin scalar storage identity"),
+            ));
+        }
         ScalarType::Boolean => BuiltinTypeAtom::Bool,
         ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
         ScalarType::Integer(integer) => {
@@ -181,6 +205,12 @@ impl<'t> Program<'t> {
     }
 }
 
+pub(super) struct AnonymousValue {
+    pub value: IntegerValue,
+    pub integer: IntegerType,
+    pub operators: Vec<ExpressionHandle>,
+}
+
 impl Program<'_> {
     /// Whether the existing value-type reader will declare a value identity.
     /// This preflight does not allocate records, regions or qualifications.
@@ -233,6 +263,12 @@ impl Program<'_> {
                     }
                     return Err(unserved());
                 }
+                TypeReferenceNode::Callable { contract } => {
+                    if !self.typed.runtime_callable_contracts.is_valid(*contract) {
+                        return Err(unserved());
+                    }
+                    return Ok(true);
+                }
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
@@ -268,9 +304,30 @@ impl Program<'_> {
                     ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
-                    Some(BuiltinTypeAtom::Address) if self.descriptor_storage => Ok(
-                        ScalarType::Integer(IntegerType::supported_address_representation()),
-                    ),
+                    Some(BuiltinTypeAtom::Address)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::Integer(
+                            IntegerType::supported_address_representation(),
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F32)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary32,
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F64)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary64,
+                        ))
+                    }
                     Some(atom) => atom_type(atom, id),
                     None => unserved("nominal type"),
                 }
@@ -303,20 +360,46 @@ impl Program<'_> {
                     return unserved("integer width without an owned const binder");
                 };
                 let key = (symbol.arena_index(), symbol.generation());
-                let Ok(position) = self.width_scope.binary_search_by_key(&key, |binding| {
+                let Ok(position) = self.const_scope.binary_search_by_key(&key, |binding| {
                     (binding.symbol.arena_index(), binding.symbol.generation())
                 }) else {
                     return unserved("integer width without an owned const u64 binder");
                 };
+                if self.const_scope[position].scalar_type
+                    != ScalarType::Integer(IntegerType::width_binder())
+                {
+                    return unserved("integer width without an owned const u64 binder");
+                }
                 Ok(ScalarType::Integer(IntegerType::parameterized(
                     match sign {
                         numerics::integer_carrier::IntegerSign::Signed => IntegerSign::Signed,
                         numerics::integer_carrier::IntegerSign::Unsigned => IntegerSign::Unsigned,
                     },
-                    self.width_scope[position].parameter,
+                    semantic_vocabulary::WidthParameter {
+                        owner: self.const_scope[position].owner,
+                        value: self.const_scope[position].value,
+                    },
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
+            TypeReferenceNode::Callable { contract } => self
+                .callables
+                .source_contract(*contract)
+                .map_err(|reason| terminal_check_tables::Refusal {
+                    source_span: None,
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: id,
+                    concerns: Construct::Machine,
+                    detail: reason.to_owned(),
+                })?
+                .map(ScalarType::Callable)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("unprepared runtime callable"),
+                    )
+                }),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -335,6 +418,28 @@ impl Program<'_> {
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
+        if let Some((position, excluded)) = self
+            .alternative
+            .as_ref()
+            .and_then(|world| world.remainder.as_ref())
+        {
+            let rigid = |reference| {
+                matches!(self.resolve_written(scope, Written::Reference(reference)),
+                Bound::Value(ValueType::Rigid(parameter)) if parameter.0 as usize == *position)
+            };
+            let other = match (rigid(left), rigid(right)) {
+                (true, false) => Some(right),
+                (false, true) => Some(left),
+                _ => None,
+            };
+            if let Some(other) = other
+                && excluded
+                    .iter()
+                    .any(|known| self.closed_type_equation(scope, other, *known) == Some(true))
+            {
+                return Some(false);
+            }
+        }
         enum Closed {
             Atom(BuiltinTypeAtom),
             Scalar(ScalarType),
@@ -500,6 +605,61 @@ impl Program<'_> {
         expression: ExpressionHandle,
         reading: Reading,
     ) -> Option<TypeTruth> {
+        self.observed_type_truth(scope, expression, reading, &mut |_| {})
+    }
+
+    pub(super) fn type_truth_operators(
+        &self,
+        expression: ExpressionHandle,
+        reading: Reading,
+    ) -> (Option<TypeTruth>, Vec<StaticOperatorRead>) {
+        let mut operators = Vec::new();
+        let truth = self.observed_type_truth(Scope::Own, expression, reading, &mut |operator| {
+            operators.push(operator);
+        });
+        (truth, operators)
+    }
+
+    fn observed_type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+        observe: &mut impl FnMut(StaticOperatorRead),
+    ) -> Option<TypeTruth> {
+        let truth = self.evaluate_type_truth(scope, expression, reading, observe);
+        if matches!(scope, Scope::Own) && matches!(truth, Some(TypeTruth::Known(_))) {
+            let table = &self.typed.expression_table;
+            let type_equation = match table.expression(expression) {
+                ExpressionNode::Binary(binary) => {
+                    binary.operator == typed_trees::expression::BinaryOperator::Equal
+                        && matches!(
+                            table.expression(binary.left),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                        && matches!(
+                            table.expression(binary.right),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                }
+                ExpressionNode::Unary(_) => false,
+                _ => return truth,
+            };
+            observe(StaticOperatorRead {
+                expression,
+                type_equation,
+            });
+        }
+        truth
+    }
+
+    fn evaluate_type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+        observe: &mut impl FnMut(StaticOperatorRead),
+    ) -> Option<TypeTruth> {
         use typed_trees::expression::{BinaryOperator, UnaryOperator};
         if !expression.is_valid() {
             return None;
@@ -529,14 +689,14 @@ impl Program<'_> {
             }
             ExpressionNode::Call(call) if reading != Reading::Value => {
                 let (bindings, value) = self.contract_value(scope, call)?;
-                self.type_truth(Scope::Callee(&bindings), value, Reading::Stated)
+                self.observed_type_truth(Scope::Callee(&bindings), value, Reading::Stated, observe)
             }
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                Some(match self.type_truth(scope, unary.operand, reading)? {
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
+                match self.observed_type_truth(scope, unary.operand, reading, observe)? {
                     TypeTruth::Known(truth) => TypeTruth::Known(!truth),
                     TypeTruth::Open => TypeTruth::Open,
-                })
-            }
+                },
+            ),
             ExpressionNode::Binary(binary) => {
                 let literal = |handle: ExpressionHandle| match handle
                     .is_valid()
@@ -569,8 +729,8 @@ impl Program<'_> {
                                 .map(TypeTruth::Known);
                         }
                         match (
-                            self.type_truth(scope, binary.left, reading),
-                            self.type_truth(scope, binary.right, reading),
+                            self.observed_type_truth(scope, binary.left, reading, observe),
+                            self.observed_type_truth(scope, binary.right, reading, observe),
                         ) {
                             (Some(TypeTruth::Known(left)), Some(right)) => {
                                 Some(compare(right, left))
@@ -589,8 +749,10 @@ impl Program<'_> {
                         }
                     }
                     BinaryOperator::And => {
-                        let left = self.type_truth(scope, binary.left, reading)?;
-                        let right = self.type_truth(scope, binary.right, reading)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(false), _) | (_, TypeTruth::Known(false)) => {
                                 TypeTruth::Known(false)
@@ -602,8 +764,10 @@ impl Program<'_> {
                         })
                     }
                     BinaryOperator::Or => {
-                        let left = self.type_truth(scope, binary.left, reading)?;
-                        let right = self.type_truth(scope, binary.right, reading)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(true), _) | (_, TypeTruth::Known(true)) => {
                                 TypeTruth::Known(true)
@@ -631,7 +795,7 @@ impl Program<'_> {
         id: MachineId,
         mut handle: TypeReferenceHandle,
     ) -> Checked<TypeReferenceHandle> {
-        if !self.descriptor_storage {
+        if self.type_purpose == super::storage_metadata::TypePurpose::Value {
             return Ok(handle);
         }
         let mut visiting = Vec::new();
@@ -656,19 +820,6 @@ impl Program<'_> {
         }
     }
 
-    /// `value_type` where a byte view in a domain is served: a data field's
-    /// type and a cast's result type (`view_type`).
-    pub(super) fn qualified_view_type(
-        &mut self,
-        id: MachineId,
-        handle: TypeReferenceHandle,
-    ) -> Checked<ValueType> {
-        let outer = std::mem::replace(&mut self.qualified_views, true);
-        let read = self.value_type(id, handle);
-        self.qualified_views = outer;
-        read
-    }
-
     pub(super) fn value_type(
         &mut self,
         id: MachineId,
@@ -676,6 +827,12 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         if let Some(atomic) = self.atomic_type(id, handle)? {
             return Ok(atomic);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::Callable { contract } =
+                self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.callable_type(id, *contract).map(ValueType::plain);
         }
         if handle.is_valid()
             && let Some(view) = self.view_type(id, handle)?
@@ -1049,6 +1206,7 @@ impl Program<'_> {
                 return unserved("a predicate domain on laid layout storage");
             }
         }
+        self.admitted_declarations.include(domain.declaration);
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
@@ -1062,6 +1220,7 @@ impl Program<'_> {
                 instance: domain,
                 carrier: plain,
                 predicate: None,
+                complete_predicate_theory: false,
             });
         }
         Ok(())
@@ -1131,7 +1290,7 @@ impl Program<'_> {
             }
             let copies = match carrier {
                 ValueType::Scalar(..) => true,
-                ValueType::Record(record, _, _) => self.data_type(id, record)?.copyable,
+                ValueType::Record(record, _, _) => self.data_type(id, record)?.is_copyable(),
                 ValueType::Rigid(_) => return unserved("domain on a type parameter"),
             };
             if !copies {
@@ -1222,14 +1381,27 @@ impl Program<'_> {
         id: MachineId,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
-    ) -> Checked<(IntegerValue, IntegerType)> {
+    ) -> Checked<AnonymousValue> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let typed = self.typed;
+        let mut operators = Vec::new();
         let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
             typed,
             expression,
             &[],
-            &mut |expression| closed_numeric::has_anonymous_operator_meaning(typed, expression),
+            &mut |expression| {
+                let admitted = closed_numeric::has_anonymous_operator_meaning(typed, expression);
+                if admitted
+                    && typed
+                        .expression_table
+                        .authored_selection_occurrences(expression)
+                        .next()
+                        .is_some()
+                {
+                    operators.push(expression);
+                }
+                admitted
+            },
         ) else {
             return unserved("anonymous operation without an exact meaning");
         };
@@ -1255,7 +1427,11 @@ impl Program<'_> {
                 .map(|value| IntegerValue::Unsigned(u128::from(value))),
         };
         match value {
-            Some(value) if integer.admits(value) => Ok((value, integer)),
+            Some(value) if integer.admits(value) => Ok(AnonymousValue {
+                value,
+                integer,
+                operators,
+            }),
             Some(_) | None => unserved("anonymous value outside its type"),
         }
     }

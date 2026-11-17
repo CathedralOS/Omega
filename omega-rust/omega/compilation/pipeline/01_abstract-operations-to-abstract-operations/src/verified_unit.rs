@@ -601,7 +601,9 @@ mod evidence_seal_tests {
             &IdTable::default(),
         )
         .unwrap();
-        let discharge = terminal_psi_to_terminal_psi::discharge(&mut elaboration).unwrap();
+        let mut activity = terminal_psi_to_terminal_psi::ProofSearchActivity::default();
+        let discharge =
+            terminal_psi_to_terminal_psi::discharge(&mut elaboration, &mut activity).unwrap();
         let seals = discharge.operation_seals(&elaboration).unwrap();
         assert_eq!(seals.len(), 1, "the add's safety obligation is discharged");
         (elaboration.module, seals)

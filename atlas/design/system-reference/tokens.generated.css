@@ -1,0 +1,115 @@
+/* Omega — generated from tokens.json */
+:root, [data-theme="light"] {
+  --ground: #e6e2d9; /* Page background. Everything sits on ground first. */
+  --surface: #f2efe8; /* Panels, code blocks, inputs and tiles placed on ground. */
+  --ink: #1c1d1f; /* Text and solid marks on ground and surface (13:1 or more in both themes). Solid fills for realized, native things. */
+  --ink-muted: #55534e; /* Secondary text, labels and control borders on ground and surface (5.9:1 or more in both themes). */
+  --rule: #a9a49a; /* Decorative hairlines between sections only. Below 3:1, so never the only edge of a control. */
+  --checked: #275f53; /* Proven, passing, closed. Also the focus ring. Text on ground and surface (5.7:1 light, 7.7:1 dark). Always paired with a word or check mark. */
+  --on-checked: #f2efe8; /* Text and marks on a checked fill (6.3:1 light, 7.7:1 dark). */
+  --trap: #a63a24; /* Runtime traps and rejections only, used small. Text on ground and surface (5.0:1 light, 6.0:1 dark). Always paired with a word or cross mark. */
+  --on-trap: #f2efe8; /* Text and marks on a trap fill (5.6:1 light, 6.0:1 dark). */
+}
+[data-theme="dark"] {
+  --ground: #161719;
+  --surface: #1f2023;
+  --ink: #ece8df;
+  --ink-muted: #a8a49a;
+  --rule: #3a3b3f;
+  --checked: #6fb8a4;
+  --on-checked: #161719;
+  --trap: #e0795f;
+  --on-trap: #161719;
+}
+:root {
+  --space-1: 4px; /* Between an icon and its label. */
+  --space-2: 8px; /* Inside controls; between lines of a label group. */
+  --space-3: 16px; /* Tile padding; between related items. */
+  --space-4: 32px; /* Between groups; page gutter on wide screens. */
+  --space-5: 64px; /* Between page sections. */
+  --radius-stone: 0; /* The default corner for every block, tile and panel. */
+  --radius-chamfer: 2px; /* Buttons and inputs only, so controls read as touchable. */
+  --radius-arch: 9999px; /* Top corners only, to make an arch: status pips, section markers, arch-topped tiles. Never all four corners. */
+  --border-hairline: 1px; /* Rules between sections, in rule. */
+  --border-control: 2px; /* Control edges and outlined (Psi) shapes, in ink-muted or ink. */
+  --font-display: "Omega Serif", "Noto Serif Display", Georgia, serif;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --text-display: 300 56px/62px var(--font-display); /* Page titles, one per page, in Omega Serif Light. Greek letters at any size. */
+  --text-heading: 500 32px/40px var(--font-display); /* Section headings, in Omega Serif Medium. */
+  --text-reading: 400 18px/29px var(--font-display); /* Long-form text in Omega Serif Regular: guides, specs, essays. At most 68 characters a line. */
+  --text-subheading: 600 20px/28px var(--font-display); /* Subsections, card titles. */
+  --text-body: 400 16px/26px var(--font-sans); /* Running text, at most 68 characters a line. */
+  --text-label: 500 13px/18px var(--font-mono); /* Metadata, place names, paths, counts. */
+  --text-code: 400 14px/22px var(--font-mono); /* Code and commands, on surface. */
+}
+.display {
+  font-family: var(--font-display);
+  font-size: 56px;
+  line-height: 62px;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+.heading {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.reading {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 29px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.subheading {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@font-face {
+  font-family: "Omega Serif";
+  src: url("fonts/OmegaSerif-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Omega Serif";
+  src: url("fonts/OmegaSerif-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Omega Serif";
+  src: url("fonts/OmegaSerif-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}

@@ -243,17 +243,10 @@ fn encode_control(
         }
         FunctionFragmentControlProvenance::None => hasher.byte(0),
         FunctionFragmentControlProvenance::InternalCall { target, owner } => {
-            match target {
-                selected_instructions::SelectedCallTarget::Machine(machine) => {
-                    hasher.byte(3);
-                    hasher.raw(&machine.get().to_le_bytes());
-                }
-                selected_instructions::SelectedCallTarget::Dynamic { interface, slot } => {
-                    hasher.byte(9);
-                    hasher.raw(&interface.to_le_bytes());
-                    hasher.raw(&slot.to_le_bytes());
-                }
-            }
+            hasher.byte(10);
+            let mut target_identity = Vec::new();
+            target.encode_identity(&mut target_identity);
+            hasher.raw(&target_identity);
             encode_call_owner(hasher, *owner);
         }
         FunctionFragmentControlProvenance::NormalizedForeignCall {
@@ -315,6 +308,10 @@ fn encode_successor(
         hasher.raw(&binding.parameter.get().to_le_bytes());
         hasher.raw(&binding.argument.get().to_le_bytes());
         match binding.scalar_type {
+            ScalarType::Callable(contract) => {
+                hasher.byte(3);
+                hasher.raw(&contract.get().to_le_bytes());
+            }
             ScalarType::Boolean => hasher.byte(0),
             ScalarType::Integer(integer) => {
                 hasher.byte(1);

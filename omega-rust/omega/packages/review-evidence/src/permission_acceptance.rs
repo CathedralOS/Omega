@@ -4,12 +4,10 @@ occurrence (`RuntimePermissionInput` and `TerminalPermissionAcceptance`).
 
 The package manager selects the exact root Product occurrence and compares its
 projected `TerminalPermission` and `AssumedBindingContract` policy rows against
-retained lock consent without writing a lock during compilation. When no lock is
-present and the consuming root's own public `Build` evaluation recorded an
-assumed binding, `TerminalPermissionAcceptance::from_public_build` projects the
-Product risk rows from `PreparedRuntimePolicy` saved before shared Terminal
-publication and admits them for that single activation only. Target selection
-and provider admission remain independent requirements.
+retained lock consent without writing a lock during compilation. Only the lock
+carries accepted rows: the root's own `Build` authorization is not acceptance,
+so the compiler refuses a runtime Product with assumed bindings when no lock
+exists. Target selection and provider admission remain independent requirements.
 */
 
 pub use crate::capture::PreparedRuntimePolicy;
@@ -44,65 +42,6 @@ pub struct TerminalPermissionAcceptance {
 }
 
 impl TerminalPermissionAcceptance {
-    pub fn from_public_build(input: &RuntimePermissionInput<'_>) -> Result<Self, Vec<Diagnostic>> {
-        let package = input
-            .compilation
-            .sources()
-            .package_identity()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "assumed binding risk rows require the consuming root package",
-                )]
-            })?;
-        let target = input
-            .compilation
-            .execution()
-            .target_profile()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "assumed binding risk rows require an exact product target",
-                )]
-            })?;
-        let evaluated = input.declarations.evaluated_assumptions();
-        let installed = input
-            .compilation
-            .execution()
-            .plans()
-            .assumed_bindings()
-            .len();
-        if evaluated == 0 || evaluated != installed {
-            return Err(vec![Diagnostic::error(
-                "assumed binding risk rows do not match the public Build evaluation",
-            )]);
-        }
-        let policy_rows = input.declarations.rows(input, target, package)?;
-        let mut assumed_row_count = 0usize;
-        let mut rows = Vec::new();
-        for row in policy_rows {
-            let assumed = matches!(row.kind(), PackagePolicyRowKind::AssumedBindingContract);
-            if !assumed && !matches!(row.kind(), PackagePolicyRowKind::TerminalPermission) {
-                continue;
-            }
-            if assumed {
-                assumed_row_count += 1;
-            }
-            let key = optimization_core::digest_encoder::content_identity(row.key_bytes());
-            rows.push((key, row.into_canonical_text()));
-        }
-        if assumed_row_count != evaluated {
-            return Err(vec![Diagnostic::error(
-                "public Build evaluation produced no matching assumed-binding Product risk rows",
-            )]);
-        }
-        rows.sort_unstable_by_key(|(key, _)| *key);
-        Ok(Self {
-            schema_version: PACKAGE_POLICY_ROW_VERSION,
-            package,
-            target,
-            rows,
-        })
-    }
-
     pub fn validate(&self, input: &RuntimePermissionInput<'_>) -> Result<(), Vec<Diagnostic>> {
         if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
             return Err(vec![Diagnostic::error(

@@ -476,6 +476,28 @@ Otherwise run the checks [validation scope](#validation-scope) calls for,
 including relevant integration and bootstrap checks, and report them as
 scoped, never as a verified full baseline.
 
+## Library cross-target check
+
+`mbx xtask check-portable-services` checks that `std` gives each portable call
+the same refusals and limits on every hosted target, as
+[three layers](../../wiki/spec/build/platform_services.md#three-layers)
+requires. It reads `std`'s source, not a build, and takes well under a second.
+For each provider `std/build.omg` selects on all four targets, it collects the
+refusals, guard limits, constant arguments and clamps each member reaches, and
+lists every one that some targets have and others lack.
+
+Most of those rows are not divergences: layout offsets, OS flag words and OS
+limits differ by nature. Each reviewed row sits in
+`tools/ratchets/portable_services.txt` with a reason (`noise`, `allowed`, or
+`known` plus the `OWNER_CODE_CONCERNS.md` heading that queues it). The check
+fails on a row the baseline lacks and on a baseline row that no longer
+appears. When it reports a new row, read the call in both adapter families,
+then fix the divergence or record the row with its reason. `--list` prints
+every current row.
+
+The post-merge check runs it with `--observe`, which reports what it would
+block and exits 0. Admission does not run it yet.
+
 ## Requirements and commands
 
 `mbx xtask doctor` checks all of the below in one pass: it compiles,

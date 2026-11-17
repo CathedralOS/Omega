@@ -594,7 +594,7 @@ pub(crate) mod load_layout {
             checked_align, non_authoritative_layout_compatibility_fingerprint,
         };
         use crate::dynamic_executable::load_placement::load_layout::{
-            DYNAMIC_MAX_PAGE_SIZE, DYNAMIC_PROGRAM_HEADER_COUNT, ElfLoadImageMemoryPlacement,
+            DYNAMIC_PROGRAM_HEADER_COUNT, ELF_MAX_PAGE_SIZE, ElfLoadImageMemoryPlacement,
             ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ElfPlacedDynamicSection,
             ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,
             ElfSectionPlacementResolutionKind, PF_R, PF_W, PF_X, PLACEMENT_FIXUP_COUNT,
@@ -687,7 +687,7 @@ pub(crate) mod load_layout {
             )?;
             let read_execute_base = checked_align(
                 read_only_end,
-                DYNAMIC_MAX_PAGE_SIZE,
+                ELF_MAX_PAGE_SIZE,
                 "read-execute ELF load base",
             )?;
             let image = retained_image(relative);
@@ -716,7 +716,7 @@ pub(crate) mod load_layout {
             )?;
             let read_write_base = checked_align(
                 read_execute_end,
-                DYNAMIC_MAX_PAGE_SIZE,
+                ELF_MAX_PAGE_SIZE,
                 "read-write ELF load base",
             )?;
             let read_write_section_end = crate::dynamic_executable::checked::checked_sum_u64(
@@ -822,7 +822,7 @@ pub(crate) mod load_layout {
                     physical_address: IMAGE_BASE,
                     file_size: read_only_end,
                     memory_size: read_only_end,
-                    alignment: DYNAMIC_MAX_PAGE_SIZE,
+                    alignment: ELF_MAX_PAGE_SIZE,
                 },
                 ElfLoadProgramHeader {
                     kind: ElfLoadProgramHeaderKind::LoadReadExecute,
@@ -832,7 +832,7 @@ pub(crate) mod load_layout {
                     physical_address: s!(IMAGE_BASE => read_execute_base => "RX load address")?,
                     file_size: read_execute_end - read_execute_base,
                     memory_size: read_execute_end - read_execute_base,
-                    alignment: DYNAMIC_MAX_PAGE_SIZE,
+                    alignment: ELF_MAX_PAGE_SIZE,
                 },
                 ElfLoadProgramHeader {
                     kind: ElfLoadProgramHeaderKind::LoadReadWrite,
@@ -842,7 +842,7 @@ pub(crate) mod load_layout {
                     physical_address: s!(IMAGE_BASE => read_write_base => "RW load address")?,
                     file_size: data_end - read_write_base,
                     memory_size: read_write_memory_end - read_write_base,
-                    alignment: DYNAMIC_MAX_PAGE_SIZE,
+                    alignment: ELF_MAX_PAGE_SIZE,
                 },
                 ElfLoadProgramHeader {
                     kind: ElfLoadProgramHeaderKind::Dynamic,
@@ -918,7 +918,7 @@ pub(crate) mod load_layout {
             };
             if candidate.target != retained_target(&candidate.relative)
                 || candidate.image_base != IMAGE_BASE
-                || candidate.max_page_alignment != DYNAMIC_MAX_PAGE_SIZE
+                || candidate.max_page_alignment != ELF_MAX_PAGE_SIZE
                 || candidate.program_headers != expected.0
                 || candidate.image_memory != expected.1
                 || candidate.sections != expected.2
@@ -1296,7 +1296,7 @@ pub(crate) mod load_layout {
     #[cfg(test)]
     mod tests {
         use super::{
-            Candidate, DYNAMIC_MAX_PAGE_SIZE, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
+            Candidate, ELF_MAX_PAGE_SIZE, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
             ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, IMAGE_BASE, PF_R, PF_W,
             PF_X, ValidatedElfRelativeSectionPayloadLayout, derive_contents,
             non_authoritative_layout_compatibility_fingerprint, plan_elf_dynamic_load_layout,
@@ -1350,7 +1350,7 @@ pub(crate) mod load_layout {
                     &relative,
                     target,
                     IMAGE_BASE,
-                    DYNAMIC_MAX_PAGE_SIZE,
+                    ELF_MAX_PAGE_SIZE,
                     &program_headers,
                     &image_memory,
                     &sections,
@@ -1361,7 +1361,7 @@ pub(crate) mod load_layout {
                 relative,
                 target,
                 image_base: IMAGE_BASE,
-                max_page_alignment: DYNAMIC_MAX_PAGE_SIZE,
+                max_page_alignment: ELF_MAX_PAGE_SIZE,
                 program_headers,
                 image_memory,
                 sections,
@@ -1792,7 +1792,7 @@ pub(crate) mod load_layout {
 
     const DYNAMIC_PROGRAM_HEADER_COUNT: u64 = 5;
 
-    const DYNAMIC_MAX_PAGE_SIZE: u64 = 0x1_0000;
+    use crate::constants::ELF_MAX_PAGE_SIZE;
 
     const DYNAMIC_LOAD_POLICY_TAG: u8 = 1;
 
@@ -1824,7 +1824,7 @@ pub(crate) mod load_layout {
             }
         };
         let image_base = IMAGE_BASE;
-        let max_page_alignment = DYNAMIC_MAX_PAGE_SIZE;
+        let max_page_alignment = ELF_MAX_PAGE_SIZE;
         let non_authoritative_layout_compatibility_fingerprint =
             non_authoritative_layout_compatibility_fingerprint(
                 &relative,

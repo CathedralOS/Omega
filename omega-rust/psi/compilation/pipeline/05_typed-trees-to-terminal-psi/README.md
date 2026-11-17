@@ -63,6 +63,35 @@ arguments, under [static declarations and explicit state](../../../../../wiki/sp
 Module and trait qualification still identify ordinary static declarations;
 they supply no implicit arguments.
 
+Machines with one state and a complete body whose formals, locals and result
+are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
+assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
+`*` and `/` trees over unsuffixed literals, evaluated as exact rationals (so
+`7 / 2` is `7/2`, not 3) and lowered as one literal when the completed value
+is an integer of the context's type reached with no fractional intermediate,
+any other such tree (fractional anywhere, out of range, or under an operator
+with no anonymous meaning) being refused; builtin `Exact` integer
+arithmetic, bitwise operations, shifts and comparisons; integers of type
+`T in Wrapping` and `T in Saturating` with their arithmetic
+([Arithmetic policies](#arithmetic-policies)); `!`, `~`, `&&` and
+`||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
+formals and `ensures` clauses over their formals and `result`; `crashes Trap`
+and `crashes Abort` clauses with or without route guards over the formals;
+`crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
+form the kernel denotes a false integer equality by; a `requires` or
+`ensures` clause that compares mathematical integers
+([Mathematical integers in a clause](#mathematical-integers-in-a-clause));
+`crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
+of a machine that may return is an operation wherever it stands, and carries
+the callee's crash routes when it publishes any. A call of a machine with no
+normal completion becomes the block's no-normal invocation wherever it occurs.
+The surrounding evaluation stops on that path; other branch arrivals remain.
+Everything else is refused with `RefusalReason::Unsupported` and a detail
+naming the construct. Unsupported references, suspension, assembly and other
+unserved forms are refused explicitly. Callable values and boundary calls keep
+their complete declared contracts; retaining one does not supply an executable
+implementation or prove its obligations. A
+refusal anywhere in the compilation refuses the whole compilation.
 The base subset is machines with one state and a complete body whose
 formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
 Such a body may use:
@@ -97,6 +126,21 @@ branch's join remain. Everything else is refused with
 generic, a callable value, a suspension, assembly, a float, a domain, a cast
 that names a domain, or service reach is never skipped, approximated or
 passed through. A refusal anywhere refuses the whole compilation.
+
+### Service reach
+
+A machine header may write `reaches A + B` or `reaches none`. The reader
+retains authored ceilings and derives private effects over the complete call
+closure. Named calls, calls through stored machines and boundary calls
+contribute their retained envelopes. Blocking and suspension are independent,
+and source acknowledgements are checked after those effects are complete.
+
+`reach.rs` publishes canonical service declarations and the completed machine
+and callable rows. The authored-versus-inferred distinction also remains in the
+neutral checking input. Stage 06 checks that calls fit the caller's ceiling;
+source preparation does not prove that judgment. Open static bounds remain
+explicit in static schema questions and never become an empty runtime promise.
+See [effects](../../../../../wiki/spec/language/effects.md).
 
 ### What one compilation elaborates
 
@@ -528,7 +572,8 @@ A loop can name its decreasing measure with `terminates by remaining`,
 `terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
 Nat::BoundedDistance`. The reader uses the resolved typed expressions and
 checks explicit natural views against their sealed catalog headers. Short
-forms use the carrier's canonical default. A user-written lookalike grants
+forms use the carrier's canonical default; a pair is not a carrier and
+has none, so the author names its view. A user-written lookalike grants
 no ranking rules. Measures may use scalar formals, integer constants,
 exact subtraction and the length of a borrowed byte-view formal. Bounded
 distance uses ordinary unsigned saturating subtraction to keep zero at
@@ -632,26 +677,24 @@ layout and monomorphization."), so the declaration is one record type
 whatever lifetimes a use applies it at, and a formal, local or result may
 name it bare. What a lifetime relates is a stored view ("A lifetime relates a
 borrowed result or stored view to storage that remains valid for its use").
-The one view a field may store is a byte view, `name: &'a [u8]`, and its type
-is keyed by the region it names under the declaration that binds it, so a
-view of any other region, an elided one included, is another type: it cannot
-be stored in the field or returned as it (`typing assigned value type`).
-In the lowered form the member is a byte field of its record
-(`StructuralFieldType::ByteSequence`, with the view type as the field's
-inline carrier), not a nested value of the view type
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary)):
-an assignment to it is `StructuralByteViewFieldStore` from the root that
-holds the source descriptor, a record literal takes the view as that field's
-operand, a copy out of it is the ordinary leaf copy, and a local declared
-without an initializer holds the empty shared view there. A field that
-stores an exclusive view is refused (`stored view that is not a shared byte
-view`).
-Naming the data bare therefore relates nothing. The source-record mapping a
-product keeps belongs to the declaration and holds no lifetime argument. It
-keeps the type occurrence the record was read from, bare or applied at
-lifetimes. It keeps none for a declaration with no type parameter that the
-program declares but never names as a type, because the declaration alone
-identifies that record. Any other reference field is refused as `type reference`.
+View values retain their complete lifetime tuples separately from their storage
+rows. Erasing lifetimes in the lowered form never permits storing a view of an
+incompatible region. Shared byte views use the inline byte-field representation
+(`StructuralFieldType::ByteSequence`, with the view type as its inline carrier).
+Replacing that descriptor uses `StructuralByteViewFieldStore`; zero initialization
+supplies the empty shared view, which borrows no backing.
+
+Unqualified exclusive byte views and typed views remain ordinary structural
+fields. They transport affine permission descriptors, not backing contents.
+Keeping an incoming mutable view in a local aggregate establishes a child
+reborrow; it preserves the incoming descriptor and keeps its backing loan live.
+Qualified mutable, write-only and access-unspecified byte-view fields remain
+unsupported. Primitive and plain-record reference fields likewise use structural
+descriptor types, with their own loan and restoration checks.
+
+The source-record mapping belongs to the declaration, while each value carries
+its actual lifetime arguments. It retains the source type occurrence, bare or
+applied, so source correspondence can check the declared field and carrier types.
 The reader checks the declaration and each application itself, because the
 stage that did so was removed ("They must match the declaration's lifetime
 arity and use binders declared in the lexical owner. Duplicate binders and
@@ -953,7 +996,7 @@ everywhere else.
 
 Stage 01 desugars `transition subject { arms }` into a `DispatchSubject`
 local, evaluated once, followed by one `Transition` statement per arm
-(`01_tokens-to-syntax-trees/src/bodies_and_transitions.rs`,
+(`01_tokens-to-syntax-trees/transitions/guards.rs`,
 `parse_transition_block_handles`). Each guarded arm ends the current block in
 a `Conditional`: true enters the arm, which completes the machine; false
 continues with the next statement. An unguarded arm completes the machine and
@@ -1406,8 +1449,9 @@ worked around by adding to `terminal-check-tables`.
     [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
     with no expected type it is refused.
 9. **Every machine carries a reach row.** A machine with no reach holds
-    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
-    row is refused.
+    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`, and the row alone does not
+    say whether the header wrote `reaches none`: that is read from
+    `authored_service_reach_rows` ([Service reach](#service-reach)).
 10. **A field read is `ScalarStructuralField`, not `PrimitiveScalarRead`.**
     The lane plan's table names `PrimitiveScalarRead`; the specification
     gives a static field path the other form

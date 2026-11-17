@@ -156,15 +156,17 @@ impl BuildSourceInvocation {
     pub(super) fn prepare_next_stage(
         &mut self,
         prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
     ) -> Result<(), CompileFailure> {
         let spent = self.evaluation.source_completion_accounting().clone();
-        self.prepare_stage(prepared)
+        self.prepare_stage(prepared, named_source)
             .map_err(|failure| failure.with_source_completion_accounting(spent))
     }
 
     fn prepare_stage(
         &mut self,
         prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+        named_source: Option<PackageCompilationInputs>,
     ) -> Result<(), CompileFailure> {
         let stage = self.frontier.build_stage;
         if stage.is_last() {
@@ -182,7 +184,11 @@ impl BuildSourceInvocation {
             self.package_inputs.clone(),
             prepared.clone(),
         )
+        .and_then(|inputs| inputs.with_named_source(named_source))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let stage_authority = inputs
+            .build_stage_authority_inputs()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let preparation = self.frontier.preparation.clone();
         let (count, syntax) = pending.sources().assemble_build_stage(
             &inputs,
@@ -190,7 +196,7 @@ impl BuildSourceInvocation {
             &mut *preparation.catalogue()?,
         )?;
         let diagnostic_sources = syntax.sources.clone();
-        let package_inputs = self.package_inputs.as_ref();
+        let package_inputs = stage_authority.as_ref();
         let frontier = lower_typed_frontier(
             preparation,
             count,

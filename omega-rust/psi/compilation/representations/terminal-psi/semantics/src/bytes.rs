@@ -3,6 +3,8 @@ Semantic judgments for byte-sequence carriers, byte-view operations, and little-
 byte-window reads and stores.
 */
 
+mod fixed_arrays;
+
 pub(crate) mod operation_bounds {
     use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
     use semantic_vocabulary::{
@@ -268,6 +270,7 @@ pub(crate) mod byte_sequence_predicates {
     }
 
     pub fn byte_field_root(
+        module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
     ) -> Option<(StructuralTypeId, StructuralAccess)> {
@@ -299,8 +302,13 @@ pub(crate) mod byte_sequence_predicates {
                         result.multiplicity,
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+                    && pure_byte_qualifications(
+                        module.structural_types.iter(),
+                        module.structural_domains.iter(),
+                        structural_type,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty())
                 .then_some((structural_type, StructuralAccess::Owned));
@@ -310,8 +318,13 @@ pub(crate) mod byte_sequence_predicates {
         (matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
+        ) && pure_byte_qualifications(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ))
         .then_some((parameter.structural_type, parameter.access))
     }
 
@@ -343,6 +356,34 @@ pub(crate) mod byte_sequence_predicates {
         )
     }
 
+    /// The octet predicate may represent only its own complete logical
+    /// theory, never an additional generic clause on the same domain.
+    pub(crate) fn primitive_byte_domain_theory_matches(
+        domain: &terminal_psi::StructuralDomainDeclaration,
+    ) -> bool {
+        if !domain.complete_predicate_theory {
+            return false;
+        }
+        let Some(primitive) = domain.byte_predicate else {
+            return false;
+        };
+        let Some(theory) = &domain.predicate else {
+            return true;
+        };
+        if theory.proposition == semantic_vocabulary::Proposition::Truth {
+            return true;
+        }
+        let mut required = ByteSequencePredicateSet::EMPTY;
+        required.insert(primitive);
+        theory.proposition
+            == byte_predicate_requirement(
+                required,
+                ByteSequencePredicateSet::EMPTY,
+                theory.subject,
+                &[],
+            )
+    }
+
     pub fn byte_qualification_predicates_in<'domain>(
         domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
         carrier: StructuralTypeId,
@@ -358,6 +399,7 @@ pub(crate) mod byte_sequence_predicates {
                 || domain.content_projection.is_some()
                 || domain.establishment_routes.is_some()
                 || !domain.has_no_required_memberships()
+                || !primitive_byte_domain_theory_matches(domain)
             {
                 return None;
             }
@@ -547,6 +589,101 @@ pub(crate) mod byte_sequence_predicates {
         Some(field.field_type.byte_predicates())
     }
 
+    /// Read the predicates of the actual argument, including a stored view
+    /// projection. A write-only argument supplies no observation of its bytes.
+    pub fn byte_sequence_argument_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Option<ByteSequencePredicateSet> {
+        if source.access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        if let Some(predicates) = super::fixed_arrays::argument_predicates(module, machine, source)
+        {
+            return Some(predicates);
+        }
+        if source.path.is_empty() {
+            return byte_sequence_source_predicates(module, machine, source.place);
+        }
+        let (root, access) = byte_field_root(module, machine, source.place)?;
+        if access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
+    }
+
+    /// A transfer must establish its byte qualifications from the source.
+    /// Its own result annotations cannot justify the qualifications they add.
+    pub fn byte_transfer_qualifications_hold(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<Option<bool>, &'static str> {
+        let (source, source_path, access) = match &operation.kind {
+            OperationKind::StructuralLeafCopy { source, path } => {
+                (*source, path.as_slice(), StructuralAccess::SharedBorrow)
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                (source.place, source.path.as_slice(), source.access)
+            }
+            _ => return Ok(None),
+        };
+        let result = operation
+            .result
+            .structural()
+            .ok_or("byte transfer has no structural result")?;
+        let mut checked = false;
+        for (path, id) in result.qualifications.iter().map(|id| (&[][..], id)).chain(
+            result
+                .projected_qualifications
+                .iter()
+                .map(|row| (row.path.as_slice(), &row.domain)),
+        ) {
+            let mut matching = module.structural_domains.iter().filter(|row| row.id == *id);
+            let domain = matching.next().ok_or("byte transfer domain is absent")?;
+            if matching.next().is_some() {
+                return Err("byte transfer domain is ambiguous");
+            }
+            if domain.byte_predicate.is_none() {
+                continue;
+            }
+            let carrier = crate::qualification_path_carrier(
+                module.structural_types.iter(),
+                result.structural_type,
+                path,
+            )
+            .ok_or("byte transfer qualification has no exact carrier")?;
+            if !byte_predicate_carrier(module.structural_types.iter(), carrier) {
+                return Err("byte transfer qualification carrier is not bytes");
+            }
+            let required = byte_qualification_predicates_in(
+                module.structural_domains.iter(),
+                carrier,
+                std::slice::from_ref(id),
+            )
+            .ok_or("byte transfer qualification is not a complete primitive byte domain")?;
+            if source == result.place {
+                return Err("byte transfer cannot use its own result as evidence");
+            }
+            let mut combined_path = Vec::with_capacity(source_path.len() + path.len());
+            combined_path.extend_from_slice(source_path);
+            combined_path.extend_from_slice(path);
+            let argument = terminal_psi::StructuralArgument {
+                place: source,
+                path: combined_path,
+                access,
+            };
+            let supplied = byte_sequence_argument_predicates(module, machine, &argument)
+                .ok_or("byte transfer source predicates are unavailable")?;
+            checked = true;
+            if !supplied.implies(required) {
+                return Ok(Some(false));
+            }
+        }
+        Ok(checked.then_some(true))
+    }
+
     pub fn byte_sequence_concatenation_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -704,7 +841,7 @@ pub(crate) mod byte_sequence_predicates {
                 if source.path.is_empty() {
                     return resolve_whole(source.place);
                 }
-                let (root, _) = byte_field_root(machine, source.place)?;
+                let (root, _) = byte_field_root(module, machine, source.place)?;
                 let selected = runtime_structural_path_tip(
                     module.structural_types.iter(),
                     root,
@@ -726,7 +863,7 @@ pub(crate) mod byte_sequence_predicates {
                 )
             }
             terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
-                let (structural_type, access) = byte_field_root(machine, source.place)?;
+                let (structural_type, access) = byte_field_root(module, machine, source.place)?;
                 if source.access != StructuralAccess::SharedBorrow
                     || !matches!(
                         access,
@@ -769,6 +906,79 @@ pub(crate) mod byte_sequence_predicates {
         }
     }
 
+    /// A whole-window view has the same bytes as its source. Authenticate the
+    /// zero start and the immediately preceding measurement of that exact
+    /// descriptor; equal lengths of unrelated views establish nothing.
+    pub fn byte_subslice_is_whole(machine: &TerminalMachine, operation: &Operation) -> bool {
+        let OperationKind::ByteSequenceSubslice {
+            source,
+            start,
+            end,
+            length,
+            ..
+        } = &operation.kind
+        else {
+            return false;
+        };
+        if end != length {
+            return false;
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let mut locations = machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, candidate)| {
+                    (candidate.id == operation.id).then_some((block, ordinal, candidate))
+                })
+        });
+        let Some((block, ordinal, candidate)) = locations.next() else {
+            return false;
+        };
+        if locations.next().is_some() || candidate != operation {
+            return false;
+        }
+        let Some(measurement) = ordinal
+            .checked_sub(1)
+            .and_then(|ordinal| block.operations.get(ordinal))
+        else {
+            return false;
+        };
+        if !matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
+            if measured == source)
+            || !measurement
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == *length && result.scalar_type == count)
+        {
+            return false;
+        }
+        let mut starts = machine.operations().filter(|producer| {
+            producer
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == *start)
+        });
+        let Some(zero) = starts.next() else {
+            return false;
+        };
+        starts.next().is_none()
+            && zero
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == count)
+            && matches!(
+                zero.kind,
+                OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(0)
+                }
+            )
+    }
+
     pub fn byte_sequence_source_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -793,12 +1003,14 @@ pub(crate) mod byte_sequence_predicates {
                 | StructuralPlaceKind::BlockParameter { .. } => {
                     let parameter =
                         crate::storage::arrival_storage::arrival_parameter(machine, source)?;
-                    let owned_buffer = parameter.access == StructuralAccess::Owned
+                    // A join owns its shared descriptor, whose byte facts
+                    // arrive with the parameter just as a buffer's do.
+                    let owned_readable = parameter.access == StructuralAccess::Owned
                         && module.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
-                                && row.shape.is_bounded_owned_byte_sequence()
+                                && row.shape.is_owned_or_shared_byte_carrier()
                         });
-                    if !owned_buffer
+                    if !owned_readable
                         && !matches!(
                             parameter.access,
                             terminal_psi::reading_borrow_pair_pattern!()
@@ -845,6 +1057,23 @@ pub(crate) mod byte_sequence_predicates {
                     if result.place != source || result.structural_type != structural_type {
                         return None;
                     }
+                    if let OperationKind::EstablishElementView {
+                        source: backing,
+                        region: terminal_psi::ElementViewRegion::WholeCollection,
+                        ..
+                    } = &operation.kind
+                        && backing.access == StructuralAccess::SharedBorrow
+                        && result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.qualification_establishments.is_empty()
+                        && result.claims.is_empty()
+                        && module
+                            .structural_type(structural_type)
+                            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
+                    {
+                        return super::fixed_arrays::argument_predicates(module, machine, backing);
+                    }
                     if let OperationKind::ByteSequenceSubslice {
                         source: backing, ..
                     } = &operation.kind
@@ -861,24 +1090,20 @@ pub(crate) mod byte_sequence_predicates {
                         {
                             return None;
                         }
-                        return Some(
-                            if backing.path.is_empty() {
-                                source_predicates(module, machine, backing.place, work, memo)?
-                            } else {
-                                let (root, access) = byte_field_root(machine, backing.place)?;
-                                if access == StructuralAccess::WriteOnlyBorrow
-                                    || backing.access == StructuralAccess::WriteOnlyBorrow
-                                {
-                                    return None;
-                                }
-                                shared_byte_field_copy_predicates(
-                                    module.structural_types.iter(),
-                                    root,
-                                    &backing.path,
-                                )?
-                            }
-                            .subslice(),
-                        );
+                        let predicates = if let Some(predicates) =
+                            super::fixed_arrays::argument_predicates(module, machine, backing)
+                        {
+                            predicates
+                        } else if backing.path.is_empty() {
+                            source_predicates(module, machine, backing.place, work, memo)?
+                        } else {
+                            byte_sequence_argument_predicates(module, machine, backing)?
+                        };
+                        return Some(if byte_subslice_is_whole(machine, operation) {
+                            predicates
+                        } else {
+                            predicates.subslice()
+                        });
                     }
                     let declared = byte_result_predicates(module, machine, source)?;
                     let copy = match &operation.kind {
@@ -899,7 +1124,7 @@ pub(crate) mod byte_sequence_predicates {
                         let captured = if path.is_empty() {
                             source_predicates(module, machine, backing, work, memo)?
                         } else {
-                            let (root, access) = byte_field_root(machine, backing)?;
+                            let (root, access) = byte_field_root(module, machine, backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
                                 return None;
                             }
@@ -1036,9 +1261,8 @@ pub(crate) mod byte_sequence_predicates {
                     .find(|domain| domain.id == *identity)
                     .is_some_and(|domain| {
                         domain.carrier == carrier
-                            && domain.content_projection.is_none()
-                            && domain.establishment_routes.is_none()
-                            && domain.has_no_required_memberships()
+                            && domain.is_pure_predicate()
+                            && primitive_byte_domain_theory_matches(domain)
                             && domain
                                 .byte_predicate
                                 .is_some_and(|predicate| predicate.holds_for(bytes))
@@ -1535,6 +1759,117 @@ pub(crate) mod byte_sequence_predicates {
                 OperationResult::Scalar(value(raw, scalar_type)),
                 kind,
             )
+        }
+
+        #[test]
+        fn whole_byte_windows_require_zero_and_their_own_immediate_measurement() {
+            let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            let root = PlaceId::new(1).unwrap();
+            let source =
+                terminal_psi::StructuralArgument::whole(root, StructuralAccess::SharedBorrow);
+            let mut entry = Block::plain(
+                BlockId::new(1).unwrap(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            );
+            entry.operations = vec![
+                constant(
+                    1,
+                    count,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                ),
+                constant(
+                    2,
+                    count,
+                    OperationKind::ByteSequenceLength {
+                        source: source.clone(),
+                    },
+                ),
+                Operation::unsuspended(
+                    OperationId::new(3).unwrap(),
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        place: PlaceId::new(2).unwrap(),
+                        structural_type: StructuralTypeId::new(1).unwrap(),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    OperationKind::ByteSequenceSubslice {
+                        source,
+                        start: ValueId::new(1).unwrap(),
+                        end: ValueId::new(2).unwrap(),
+                        length: ValueId::new(2).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    },
+                ),
+            ];
+            let machine = TerminalMachine {
+                assembly_target_requirement: RegisterTargetApplicability::Any,
+                id: MachineId::new(1).unwrap(),
+                attachment: None,
+                ranked_scc: None,
+                structural_places: Vec::new(),
+                call_formations: Vec::new(),
+                block_entry_claims: Vec::new(),
+                loan_completions: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: entry.id,
+                blocks: vec![entry],
+                contract: MachineContract::empty(ContractId::new(1).unwrap()),
+            };
+            let whole = |machine: &TerminalMachine| {
+                byte_subslice_is_whole(machine, &machine.blocks[0].operations[2])
+            };
+            assert!(whole(&machine));
+
+            let mut partial = machine.clone();
+            partial.blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(1),
+            };
+            assert!(!whole(&partial), "a UTF-8 codepoint may cross the cut");
+
+            let mut foreign = machine.clone();
+            let OperationKind::ByteSequenceLength { source } =
+                &mut foreign.blocks[0].operations[1].kind
+            else {
+                unreachable!()
+            };
+            source.place = PlaceId::new(3).unwrap();
+            assert!(
+                !whole(&foreign),
+                "an unrelated equal-sized view is not this source"
+            );
+
+            let mut wrong_width = machine.clone();
+            wrong_width.blocks[0].operations[0].result = OperationResult::Scalar(value(
+                1,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+            ));
+            assert!(!whole(&wrong_width));
+
+            let mut duplicate = machine.clone();
+            let mut extra = duplicate.blocks[0].operations[0].clone();
+            extra.id = OperationId::new(4).unwrap();
+            duplicate.blocks[0].operations.push(extra);
+            assert!(!whole(&duplicate), "the zero must have one actual producer");
+
+            let mut shortened = machine.clone();
+            let OperationKind::ByteSequenceSubslice { end, .. } =
+                &mut shortened.blocks[0].operations[2].kind
+            else {
+                unreachable!()
+            };
+            *end = ValueId::new(1).unwrap();
+            assert!(!whole(&shortened));
         }
 
         #[test]

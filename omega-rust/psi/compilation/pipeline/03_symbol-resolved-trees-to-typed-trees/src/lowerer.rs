@@ -204,11 +204,13 @@ pub(crate) mod progress {
             return None;
         }
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
-        let subject = match custody.subjects.as_slice() {
-            [_, _] => return Some(RankingViewId::NAT_BOUNDED_DISTANCE),
-            [subject] => *subject,
-            _ => return None,
+        // A tuple of subjects is not a carrier, so it declares no default
+        // (termination.md, "Ranking"). Bounded distance and a lexicographic
+        // product both rank a pair; the author names the one they mean.
+        let [subject] = custody.subjects.as_slice() else {
+            return None;
         };
+        let subject = *subject;
         // Only the selected builtin length observation is nat-like. A field
         // named `len` does not acquire a ranking theory from that spelling.
         // All defaults are settled here, after typed subject custody exists;
@@ -864,8 +866,8 @@ pub(crate) mod seeded_continuation {
         let destination_ledger = retained.typed.authored_declaration_selections();
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(destination_ledger.as_slice())
+            .rows()
+            .starts_with(destination_ledger.rows())
         {
             return Err(SeededContinuationError::AuthoredSelectionPrefixChanged);
         }
@@ -881,6 +883,7 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -933,8 +936,8 @@ pub(crate) mod seeded_continuation {
         }
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(retained.typed.authored_declaration_selections().as_slice())
+            .rows()
+            .starts_with(retained.typed.authored_declaration_selections().rows())
         {
             return Err(Diagnostic::error(
                 "authored-body completion did not retain the typed selection ledger prefix",
@@ -957,6 +960,7 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -1601,6 +1605,7 @@ pub fn lower_symbol_resolved_trees(
             ..TypedTrees::default()
         },
         source_trees: symbol_resolved_trees,
+        source_owner: SymbolHandle::invalid(),
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
@@ -1700,6 +1705,7 @@ pub(crate) fn type_resolved_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     let source = lowerer.source_trees;
+    crate::runtime_callables::lower_contracts(lowerer)?;
     for declaration in source
         .const_declarations
         .iter()
@@ -1832,6 +1838,18 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
+    // Result and effect queries must see the signature of the evaluated callee,
+    // including calls in declaration contracts and initializers.
+    let mut callable_admission = crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+        cohort.typed_type_references,
+    )?;
+    let bound_expressions = lowerer.typed_trees.expression_table.expression_count();
+    let bound_types = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
     lowerer
@@ -1849,6 +1867,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::runtime_callables::validate_pending_token_shapes(
+        lowerer.source_trees,
+        &lowerer.typed_trees,
+    )?;
     crate::constructor_applications::prepare(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -1859,6 +1881,7 @@ pub(crate) fn close_typed_cohort(
         .prepare_data_application_views(cohort.typed_type_references)
         .map_err(Diagnostic::error)?;
     let cast_destinations = crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,
@@ -1875,6 +1898,7 @@ pub(crate) fn close_typed_cohort(
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
     crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,
@@ -1904,6 +1928,18 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
+    callable_admission.extend(crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        bound_expressions,
+        bound_types,
+    )?);
+    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    crate::constructor_applications::retain_indexed_operand_types(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    );
+    // Constructor and cast preparation may finish a callee's retained type.
+    // Bind those values before attributing any still-unserved call request.
     crate::typing_queries::defer_unbound_calls(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
@@ -2002,6 +2038,7 @@ pub(crate) fn declaration_exposure(
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
+    pub(crate) source_owner: SymbolHandle,
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     /// Set while the contracts of a machine or one of its states are lowered.
@@ -2125,6 +2162,17 @@ impl Lowerer<'_> {
             crate::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn with_source_owner<T>(
+        &mut self,
+        owner: SymbolHandle,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = std::mem::replace(&mut self.source_owner, owner);
+        let result = operation(self);
+        self.source_owner = previous;
+        result
     }
 
     pub(crate) fn with_type_reference_exposure<T>(

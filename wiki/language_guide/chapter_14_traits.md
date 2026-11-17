@@ -60,8 +60,8 @@ The caller names the implementation. The call is compiled as a direct call to
 
 ```omega
 trait Codec<T> {
-    machine encode(value: &T, out: &mut [u8]) -> u64;
-    machine decode(input: &[u8], out: &mut T) -> bool;
+    machine encode(value: &T, out: &mut [u8]) -> u64 reaches none crashes none;
+    machine decode(input: &[u8], out: &mut T) -> bool reaches none crashes none;
 }
 
 WireCodec satisfies Codec<Message> {
@@ -174,12 +174,14 @@ machine choose<Element, const Order: Ordered<Element>>(
 let selected: bool = choose<Card, Ascending>(first, second);
 ```
 
-Inside `choose`, `<` means `Order`'s. Outside generic code, a type picks its
-one meaning for an operator by declaring it:
+Inside `choose`, `<` means `Order`'s. Outside generic code, an ordinary
+machine binds the operator for its operand types. The machine is free or
+qualified by a module or implementation, never by a data type, because data is
+not a code namespace:
 
 ```omega
-machine < Card::less_by_power(left: Card, right: Card) -> bool {
-    Ranked::compare<Card, PowerOrder>(left, right)
+machine < card_less_by_power(left: Card, right: Card) -> bool {
+    PowerOrder::before(&left, &right)
 }
 ```
 
@@ -235,7 +237,12 @@ A machine-typed field always states `reaches` and `crashes`, so a stored
 machine cannot do more than its type says. There is still no receiver: the
 state is passed as an argument.
 
-A trait works both ways without being declared twice:
+A trait works both ways without being declared twice, provided its
+requirements state `reaches` and `crashes`. `Codec` above writes
+`reaches none crashes none` on each requirement for this reason: a requirement
+that leaves either clause out accepts only a selection made at compile time,
+so `save_dynamic` could not take its record at run time. See
+[open callable contracts](../spec/language/effects.md#open-callable-contracts).
 
 ```omega
 machine save_static<T, const Format: Codec<T>>(value: &T, out: &mut [u8]) -> u64 {

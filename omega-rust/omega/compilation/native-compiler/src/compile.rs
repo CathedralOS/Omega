@@ -1,18 +1,21 @@
 // Compile retained Terminal (`compile`) or stop after runtime admission for
-// Terminal-only execution (`admit_runtime`). Every artifact/proposal group must
-// complete its scalar demand before lowering starts; on any failure, the
-// recoverable `ExecutableImageEmissionRequest` is returned alongside the
-// diagnostics.
+// Terminal-only execution (`admit_runtime`). Each is one call: the request
+// already carries the completed scalar values, so preparation selects the work
+// and Omega 00 to 09 run once, in order. On any failure, the recoverable
+// `ExecutableImageEmissionRequest` is returned alongside the diagnostics.
 
-use crate::PreparedNativeCompilation;
+use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
+use crate::preparation::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
-use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
+use terminal_psi_to_abstract_operations::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 
 pub fn compile(
-    prepared: PreparedNativeCompilation<'_>,
+    retained: &RetainedTerminalArtifact,
+    request: NativeCompileRequest<'_>,
 ) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
+    let prepared = crate::preparation::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::Image)? {
         Produced::Image(product) => Ok(product),
         Produced::Runtime(_) => unreachable!("image production returned runtime admission"),
@@ -20,11 +23,13 @@ pub fn compile(
 }
 
 pub fn admit_runtime(
-    prepared: PreparedNativeCompilation<'_>,
+    retained: &RetainedTerminalArtifact,
+    request: NativeCompileRequest<'_>,
 ) -> Result<
     Option<native_artifact::TerminalRuntimeProvisions>,
     (ExecutableImageEmissionRequest, Vec<Diagnostic>),
 > {
+    let prepared = crate::preparation::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
         Produced::Runtime(provisions) => Ok(provisions),
         Produced::Image(_) => unreachable!("runtime admission emitted an image"),
@@ -50,15 +55,18 @@ fn produce(
         retained,
         request,
         recovery: recoverable_image_request,
-        work,
+        execution,
+        private_entry_ram,
         scalars,
         components: prepared_components,
     } = prepared;
     let result = (|| {
-        let scalar_input = scalars.native_input()?;
-        for component in &prepared_components {
-            component.scalars.native_input()?;
-        }
+        let scalar_input =
+            || {
+                scalars.map(|completed| {
+                    terminal_psi_to_abstract_operations::NativeScalarApplications { completed }
+                })
+            };
         let artifact = retained.shared_artifact();
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -78,6 +86,7 @@ fn produce(
             prepared_components,
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
+            request.retain_native_stage_inputs,
         )?;
         let components = emitted_components
             .iter()
@@ -85,7 +94,12 @@ fn produce(
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
-            work.lower(scalar_input)
+            terminal_psi_to_abstract_operations::lower_native_execution(
+                proposal,
+                execution,
+                &private_entry_ram,
+                scalar_input(),
+            )
         }?;
         let prepared = {
             terminal_psi_to_abstract_operations::prepare_native_providers(
@@ -109,10 +123,11 @@ fn produce(
             request.installation_assumptions,
         );
         let realization = crate::request::NativeRealizationRequest {
+            retain_native_stage_inputs: request.retain_native_stage_inputs,
             observation: &observation,
             proposal,
             execution: &execution,
-            scalar_applications: scalars.native_input()?,
+            scalar_applications: scalar_input(),
             program_entry: proposal.program_entry().as_settlement(),
             admission,
             image_request: request.image_request,

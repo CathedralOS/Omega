@@ -239,3 +239,83 @@ machine main() { let r: u64 = pick(true); }
 ";
     assert_join_subtraction_refused(source);
 }
+
+#[test]
+fn shift_count_literals_retain_their_own_integer_carrier() {
+    for (body, expected) in [
+        (
+            "let value: i64 = 0i64 - 1i64; value >> 63u64",
+            semantic_vocabulary::IntegerValue::Signed(-1),
+        ),
+        (
+            "let value: u64 = 1u64; value << 3u8",
+            semantic_vocabulary::IntegerValue::Unsigned(8),
+        ),
+    ] {
+        let result_type = if matches!(expected, semantic_vocabulary::IntegerValue::Signed(_)) {
+            "i64"
+        } else {
+            "u64"
+        };
+        let source = format!("machine build_entry() -> {result_type} {{ {body} }}");
+        let positive = judge_build(&source).unwrap();
+        let RouteVerdict::Accepted(accepted) = positive else {
+            panic!("{positive:?}")
+        };
+        let publication = accepted.publish_invocation().unwrap();
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+            .unwrap();
+        assert!(
+            matches!(status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer { value, .. }
+                )
+            ) if value == expected),
+            "{status:?}"
+        );
+    }
+    let negative =
+        judge_build("machine build_entry() -> u64 { let value: u64 = 1u64; value << 64u8 }")
+            .unwrap();
+    assert!(
+        matches!(negative, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|proof| matches!(proof.kind, ObligationKind::OperationSafety { .. }))),
+        "{negative:?}"
+    );
+}
+
+#[test]
+fn nested_conjunction_and_disjunction_guards_refute_untaken_boolean_join_arms() {
+    const SOURCE: &str = r#"
+public machine check(word: u64, size: u64, align: u64) -> u64 {
+    transition word < 6u64 && ((size == 4u64 && align == 4u64) || (size == 8u64 && align == 8u64)) {
+        true -> place(word, size, align)
+        _ -> 7u64
+    }
+    machine place(word: u64, size: u64, align: u64) -> u64
+    requires word < 6u64
+    {
+        transition (size == 4u64 || size == 8u64) && align == size {
+            true -> finish(word)
+            _ -> 7u64
+        }
+    }
+    machine finish(word: u64) -> u64 { word }
+}
+machine build_entry() { let v: u64 = check(3u64, 8u64, 8u64); }
+"#;
+    let verdict = judge_build(SOURCE).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = SOURCE.replace("transition word < 6u64", "transition word <= 6u64");
+    let verdict = judge_build(&invalid).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}"
+    );
+}

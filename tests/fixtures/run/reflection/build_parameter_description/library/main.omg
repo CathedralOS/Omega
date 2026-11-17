@@ -1,0 +1,5 @@
+// Two positions differ so neither selector may infer its member by type.
+public data Table { padding: u64; invoke: addr; }
+public boundary trait Query {
+    machine invoke(seed: u64, table: &Table) -> u64 reaches none crashes none;
+}

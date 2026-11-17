@@ -18,7 +18,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
-        let id = self.sources.operations.push(source);
+        let id = self.sources.operations.push(source.into());
         let location = self.operation_locations.push(None);
         debug_assert_eq!(id, location);
         id
@@ -203,6 +203,11 @@ impl Lowering<'_> {
                     .map(Reached::Value)
                 }
             },
+            ExpressionKind::Zero => {
+                let scalar = self.result_type(expression)?;
+                self.zero(scalar, source)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
+            }
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(
@@ -229,6 +234,33 @@ impl Lowering<'_> {
                     OperationKind::BooleanConstant { value: *value },
                 )
                 .map(Reached::Value)
+            }
+            ExpressionKind::MachineValue {
+                contract,
+                descriptor,
+            } => {
+                if result != Some(ScalarType::Callable(*contract))
+                    || self
+                        .callables
+                        .descriptors
+                        .get(*descriptor)
+                        .is_none_or(|selection| selection.contract != *contract)
+                {
+                    return Err(self.internal("machine construction changes its retained contract"));
+                }
+                let operation = self.operation_identity(source);
+                let value = self.emit(
+                    operation,
+                    result,
+                    OperationKind::SelectMachine {
+                        descriptor: *descriptor,
+                    },
+                )?;
+                if let Some((owner, typed_trees::SourceNode::Expression(node))) = source.node() {
+                    self.source_constructions
+                        .push((self.id, operation, owner, node));
+                }
+                Ok(Reached::Value(value))
             }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
@@ -263,6 +295,9 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
+            ExpressionKind::ByteSequencePredicate { base, predicate } => {
+                self.byte_sequence_predicate(base, *predicate, source)
+            }
             ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
                 let operation = self.operation_identity(source);
@@ -278,9 +313,7 @@ impl Lowering<'_> {
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
-            ExpressionKind::CollectionSubslice { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::RepresentationView { .. } => {
+            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::CollectionView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {
@@ -413,16 +446,15 @@ impl Lowering<'_> {
                 callee,
                 required_contract,
                 static_reach_binding,
-                source_call,
                 arguments,
                 designated,
             } => self.call(
-                *callee,
+                callee,
                 *required_contract,
                 arguments,
                 *designated,
                 expression.result,
-                (source, *source_call, *static_reach_binding),
+                (source, *static_reach_binding),
                 expression.call_context.unwrap_or_default(),
             ),
         }
@@ -697,6 +729,13 @@ impl Lowering<'_> {
                 ScalarType::Integer(_) => OperationKind::IntegerEqual { left, right },
                 ScalarType::IeeeFloat(_) => {
                     return Err(self.internal("a float equality reached lowering"));
+                }
+                ScalarType::Callable(_) => {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Operation(operation),
+                        Unserved::Expression("callable equality"),
+                    ));
                 }
             },
             Strict::Less => OperationKind::IntegerLessThan { left, right },

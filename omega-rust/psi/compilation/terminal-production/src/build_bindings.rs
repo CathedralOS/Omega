@@ -21,8 +21,17 @@ mod native_locator {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum TerminalBuildValueShape {
         Scalar(ScalarType),
-        Array { length: u64, element: Arc<Self> },
-        Sum { cases: Vec<TerminalBuildValueCase> },
+        Array {
+            length: u64,
+            element: Arc<Self>,
+        },
+        Sum {
+            cases: Vec<TerminalBuildValueCase>,
+        },
+        Bytes,
+        Record {
+            fields: Vec<TerminalBuildValueField>,
+        },
     }
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildValueCase {
@@ -303,6 +312,14 @@ pub(crate) mod build_queries {
         Provider,
         SchemaPath,
         ProviderPath,
+        Parameter,
+        Field,
+    }
+
+    impl TerminalBuildQueryOperation {
+        pub const fn requires_named_source(self) -> bool {
+            matches!(self, Self::Parameter | Self::Field)
+        }
     }
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
@@ -310,6 +327,11 @@ pub(crate) mod build_queries {
         pub site: language_semantics::build_requests::BuildCallSite,
         pub action: TerminalBuildQueryOperation,
         pub occurrence: source::SourceSpan,
+        pub request: Option<
+            std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>,
+        >,
+        pub selecting_machine: Option<source::SourceSpan>,
+        pub result_shape: Option<std::sync::Arc<super::TerminalBuildValueShape>>,
     }
 }
 

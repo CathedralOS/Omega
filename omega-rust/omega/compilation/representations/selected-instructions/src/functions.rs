@@ -291,8 +291,8 @@ impl SelectedFunctions {
             .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
+    /// Canonical digests retained with these exact immutable function rows.
+    pub fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
         (0..self.len).map(|index| {
             self.pages[index / FUNCTION_PAGE_SIZE].entries[index % FUNCTION_PAGE_SIZE].digest()
         })

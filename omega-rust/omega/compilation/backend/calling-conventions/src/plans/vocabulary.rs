@@ -197,6 +197,7 @@ impl ValueShape {
 
     pub fn for_closed_scalar(scalar_type: ClosedScalarType) -> Option<Self> {
         match scalar_type {
+            ClosedScalarType::Callable(_) => Some(Self::integer(8, 8)),
             ClosedScalarType::Boolean => Some(Self::integer(1, 1)),
             ClosedScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
             ClosedScalarType::Integer(integer) => Self::for_closed_integer(integer),
@@ -470,9 +471,19 @@ pub enum CallingPolicy {
     Aapcs64,
     LinuxSyscallX86_64,
     LinuxSyscallAarch64,
+    /// Apple's arm64 variant of AAPCS64 permits a 16-byte-aligned argument
+    /// to start in an odd x register. Stack scalars sit at their natural
+    /// alignment with no eight-byte minimum slot, so
+    /// `f(x0..x7, b: u32, c: u32)` reads `c` at sp+4.
+    DarwinAapcs64,
 }
 
 impl CallingPolicy {
+    /// True for every AAPCS64 calling policy, generic or Apple's.
+    pub const fn is_aapcs64(self) -> bool {
+        matches!(self, Self::Aapcs64 | Self::DarwinAapcs64)
+    }
+
     pub const fn callback_field_scratch(self) -> MachineRegister {
         match self.architecture() {
             Architecture::X86_64 => MachineRegister::X86R11,
@@ -500,7 +511,9 @@ impl CallingPolicy {
             Self::MicrosoftX64 | Self::SystemVAMD64 | Self::LinuxSyscallX86_64 => {
                 Architecture::X86_64
             }
-            Self::Aapcs64 | Self::LinuxSyscallAarch64 => Architecture::Aarch64,
+            Self::Aapcs64 | Self::DarwinAapcs64 | Self::LinuxSyscallAarch64 => {
+                Architecture::Aarch64
+            }
         }
     }
 
@@ -520,7 +533,7 @@ impl CallingPolicy {
             (Architecture::X86_64, target::ObjectFormat::Elf)
             | (Architecture::X86_64, target::ObjectFormat::MachO) => Self::SystemVAMD64,
             (Architecture::Aarch64, target::ObjectFormat::Elf) => Self::Aapcs64,
-            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::Aapcs64,
+            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::DarwinAapcs64,
             (Architecture::Aarch64, target::ObjectFormat::Coff) => {
                 panic!(
                     "no native calling policy is declared for this (architecture, object-format) pair"
@@ -574,7 +587,7 @@ impl CallingPolicy {
                 .into_iter()
                 .chain((0..=15).map(MachineRegister::X86Xmm)),
             ),
-            Self::Aapcs64 => RegisterSet::new(
+            Self::Aapcs64 | Self::DarwinAapcs64 => RegisterSet::new(
                 (0..=17)
                     .map(MachineRegister::Aarch64X)
                     .chain((0..=7).map(MachineRegister::Aarch64V))

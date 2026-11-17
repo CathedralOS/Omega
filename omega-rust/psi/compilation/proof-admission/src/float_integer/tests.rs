@@ -79,7 +79,7 @@ fn conversion_rule_checks_both_children_and_keeps_only_the_cited_equation() {
     assert!(AcceptedProofRule::FloatIntegerConversion.is_provisional());
     assert!(matches!(
         accepted.mathematical_core,
-        MathematicalCoreDecision::Refused(_)
+        MathematicalCoreDecision::Judged(_)
     ));
     for child in [0, 1] {
         let mut forged = proof.clone();
@@ -503,6 +503,12 @@ fn integer_float_exact_checks_complete_carriers_and_literal_certificates() {
                         .contains(&AcceptedProofRule::IntegerFloatExact)
                 );
                 assert!(AcceptedProofRule::IntegerFloatExact.is_provisional());
+                // The core judges the certificate, with the checked
+                // exactness statement as a named instance in its closure.
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else {
+                    panic!("integer-to-float exactness reaches the mathematical core");
+                };
+                assert!(receipt.assumption_closure >= 1);
             }
         }
     }

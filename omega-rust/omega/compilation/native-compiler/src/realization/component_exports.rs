@@ -14,6 +14,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 
 pub struct ComponentExportRequest<'input> {
+    pub retain_native_stage_inputs: bool,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
     pub terminal_authority_policy: &'input TerminalAuthorityPolicy,
     pub receiving_permissions: &'input Option<TerminalAuthorityPermissionPolicy>,
@@ -127,25 +128,30 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
-    works: Vec<terminal_psi_to_abstract_operations::PreparedNativeWork<'input>>,
+    executions: Vec<terminal_psi_to_abstract_operations::PreparedNativeExecution>,
     scalars: Option<terminal_psi_to_abstract_operations::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
     let artifact = inputs.component().artifact();
     let proposal = inputs.proposal();
     let mut exports = Vec::with_capacity(inputs.exports().len());
-    if works.len() != inputs.exports().len() {
+    if executions.len() != inputs.exports().len() {
         return Err(vec![Diagnostic::error(
-            "component prepared work and export rosters differ",
+            "component prepared execution and export rosters differ",
         )]);
     }
-    for (export, work) in inputs.exports().iter().zip(works) {
+    for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = work.lower(scalars.as_ref().map(|scalars| {
-            terminal_psi_to_abstract_operations::NativeScalarApplications {
-                completed: scalars.completed,
-            }
-        }))?;
+        let (input, execution) = terminal_psi_to_abstract_operations::lower_native_execution(
+            proposal,
+            execution,
+            &[],
+            scalars.as_ref().map(|scalars| {
+                terminal_psi_to_abstract_operations::NativeScalarApplications {
+                    completed: scalars.completed,
+                }
+            }),
+        )?;
         let selections = proposal.post_terminal_optimizations().selections();
         let prepared = terminal_psi_to_abstract_operations::prepare_native_providers(
             proposal,
@@ -172,6 +178,7 @@ pub fn emit_component_exports<'input>(
             selections,
             crate::request::native_optimization_budget(),
             artifact,
+            request.retain_native_stage_inputs,
         )?;
         let runtime = projection.runtime;
         let authority = projection.authority;

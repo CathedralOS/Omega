@@ -124,7 +124,10 @@ registered. It grants no capability. Naming an unregistered group, naming a
 slot twice for one group, or naming a slot the runner does not back rejects
 before any test runs; the runner backs only std's `FilesystemService`, so a
 group that names a raw host slot such as `PosixFilesystemHost` cannot widen
-its backing to the real filesystem. Benign captured output and a private
+its backing to the real filesystem. How the runner identifies std's slot
+without trusting a package name is open:
+[`test-runner-filesystem-slot`](../../../OWNER_QUESTIONS.md#test-runner-filesystem-slot).
+Benign captured output and a private
 in-memory filesystem require no approval ceremony, but are explicitly selected
 rather than inferred from names. Disabled groups create no execution
 grant and are reported as disabled, not passed; their declarations remain

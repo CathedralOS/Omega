@@ -107,6 +107,29 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
     dependency: "omega-rust/psi/compilation/build-time-evaluation",
 }];
 
+/// Libraries that still call into a numbered Omega stage instead of reading the
+/// representation the driver hands them. Each row is a reach around the one
+/// native pipeline: emission rereads an earlier stage's output beside the
+/// final machine form, or runs a stage's helper itself. Remove a row when its
+/// edge goes; the stale-allowance check refuses a row whose edge is gone, so
+/// the list can only shrink. Never add a row.
+const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
+    // Object replay and validation rerun stage 02 preparation and stage 03
+    // geometry helpers on the earlier program an audit request retains.
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
+    },
+];
+
 pub struct Rule {
     pub owners: Vec<&'static str>,
     pub forbidden: Vec<&'static str>,
@@ -238,6 +261,8 @@ pub fn forbidden_rules() -> Vec<Rule> {
             owners: vec![TRUST_MODEL],
             forbidden: vec![
                 "omega-rust/psi/compilation/build-time-evaluation",
+                "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+                "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
                 "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",
                 "omega-rust/omega/compilation/backend/target",
@@ -262,6 +287,17 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
+    // The native driver is the only production caller of the numbered Omega
+    // stages, so the stages run once, in order, as one pipeline. A library
+    // that needs a stage's result reads the representation the driver hands
+    // it; stage-to-stage edges have their own rule below.
+    rules.push(Rule {
+        owners: vec!["omega-rust"],
+        forbidden: OMEGA_STAGES.to_vec(),
+        reason: "only the native driver runs Omega stages (pipeline.md \"Two drivers, one pass\"); read the representation the driver hands you",
+        except_owners: vec![NATIVE_ROOT, OMEGA_PIPELINE],
+        allowed: STAGE_CALL_ALLOWANCES.to_vec(),
+    });
     // Instruction selection is handed the execution plan stage 02 prepared.
     // The abstract program, the optimization unit and its fact tables, and the
     // sealed module's codec are what that plan was prepared from; selection
@@ -427,6 +463,25 @@ const AFTER_PREPARATION: &[&str] = &[
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/codec";
+
+/// Selection and later forms carry shared contracts, not the prepared plan's
+/// instruction graph. Follow indirect production edges as well as direct ones.
+const AFTER_SELECTION: &[&str] = &[
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+const PREPARED_EXECUTION_PLAN: &str =
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
 
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
@@ -675,16 +730,42 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
 ];
 
 /// Stage 02's accessor for its working program.
-const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation("];
+const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
+/// Binding belongs to the driver after preparation, not to setters on the
+/// prepared stage output. Neither the old definitions nor callers may return.
+const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
+    "with_installed_entry_execution",
+    "with_installed_stack_requirements",
+];
 /// Stage 02 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
     "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+];
+
+/// Naming either gateway is restricted, so importing it under another name
+/// cannot give object production access to stage 02's working program.
+const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
+const IMAGE_REPLAY_READERS: &[&str] = &[
+    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/validation.rs",
+];
+const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
+    (
+        "omega-rust/omega/compilation/backend/images/image-emission/src/lib.rs",
+        "mod retained_working_program;",
+    ),
+    (
+        "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+        "pub(super) mod retained_source_validation;",
+    ),
 ];
 
 fn is_test_source(relative: &str) -> bool {
@@ -698,24 +779,52 @@ fn line_calls_any(line: &str, entries: &[&str]) -> bool {
 
 /// Report each line under `omega-rust/omega` that calls one of `entries`
 /// outside the files or directories in `allowed` and outside tests.
-fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str) -> Vec<String> {
+fn call_violations(
+    root: &Path,
+    entries: &[&str],
+    allowed: &[&str],
+    declarations: &[(&str, &str)],
+    reason: &str,
+) -> Vec<String> {
+    call_violations_in(root, OMEGA, entries, allowed, declarations, reason)
+}
+
+fn call_violations_in(
+    root: &Path,
+    scope: &str,
+    entries: &[&str],
+    allowed: &[&str],
+    declarations: &[(&str, &str)],
+    reason: &str,
+) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
-    collect_rs_files(&root.join(OMEGA), &mut files);
+    collect_rs_files(&root.join(scope), &mut files);
     for path in files {
         let rel = path
             .strip_prefix(root)
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        if allowed.iter().any(|owner| rel.starts_with(owner)) || is_test_source(&rel) {
+        if allowed.iter().any(|owner| {
+            if owner.ends_with('/') {
+                rel.starts_with(owner)
+            } else {
+                rel == *owner
+            }
+        }) || is_test_source(&rel)
+        {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
-            if line_calls_any(line, entries) {
+            if line_calls_any(line, entries)
+                && !declarations
+                    .iter()
+                    .any(|(file, declaration)| rel == *file && line.trim() == *declaration)
+            {
                 violations.push(format!("{rel}:{}: {reason}", index + 1));
             }
         }
@@ -723,12 +832,11 @@ fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str
     violations
 }
 
-/// Entry points that read one input form. The frame step and each later stage
-/// keep the form they were computed from in their output,
-/// so the next stage and final assembly reach earlier products through that
-/// one form (omega-rust/pipeline.md, "Representation-to-representation
-/// pipeline"). Each row is a file, the function it defines and how many
-/// parameters it may take; parameters past the first are configuration.
+/// Each ordinary stage reads its current input form, carrying the instructions,
+/// contracts and settled requirements its successor needs, not earlier program
+/// containers. Explicit validator requests borrow original replay owners apart
+/// from the ordinary path. Each row names a file, its entry and allowed arity;
+/// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
         "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
@@ -845,6 +953,7 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
         root,
         PLAN_VALIDATOR_ENTRIES,
         PLAN_VALIDATOR_CALLERS,
+        &[],
         "stage 02's plan validator is called outside the explicit validator request and tests",
     )
 }
@@ -857,7 +966,45 @@ pub fn working_program_read_violations(root: &Path) -> Vec<String> {
         root,
         WORKING_PROGRAM_ACCESSORS,
         WORKING_PROGRAM_READERS,
+        &[],
         "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
+    )
+}
+
+/// Production must not reach stage 02 through a replay helper or its import.
+pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        IMAGE_REPLAY_GATEWAYS,
+        IMAGE_REPLAY_READERS,
+        IMAGE_REPLAY_DECLARATIONS,
+        "image production names a retained-program replay gateway; read the prepared execution plan",
+    )
+}
+
+/// Backend publication reads current callable facts and the carried preparation
+/// root, not the stage 02 execution plan or stage 01 optimization output.
+pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
+    call_violations_in(
+        root,
+        "omega-rust/omega/compilation/backend",
+        &["execution_plan", "pre_physical_manifest("],
+        &[
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+        ],
+        &[],
+        "backend production reads an earlier execution plan; read current execution contracts",
+    )
+}
+
+pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        RETIRED_INSTALLATION_SETTERS,
+        &[],
+        &[],
+        "installation records mutate a prepared stage output; bind one checked receipt in the driver and pass it beside the plan",
     )
 }
 
@@ -925,6 +1072,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
+        violations.extend(image_replay_read_violations(&root));
+        violations.extend(backend_execution_plan_read_violations(&root));
+        violations.extend(installation_mutation_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -936,6 +1086,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             AFTER_PREPARATION,
             STAGE_02_WORKING_FORM,
             "a stage or form after the prepared plan reaches stage 02's working program; name the record from target-vocabulary",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            AFTER_SELECTION,
+            PREPARED_EXECUTION_PLAN,
+            "a selected or later form reaches the prepared instruction graph; name shared records from target-vocabulary",
         )?);
         violations.extend(transitive_exact_violations(
             &metadata,
@@ -1055,6 +1211,46 @@ mod tests {
     }
 
     #[test]
+    fn only_the_native_driver_runs_omega_stages() {
+        const LIBRARY: &str = "omega-rust/omega/compilation/backend/machine-emission";
+        const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
+        for (owner, dependency, kind, permitted) in [
+            (NATIVE_ROOT, OMEGA_STAGES[9], None, true),
+            (LIBRARY, OMEGA_STAGES[3], None, false),
+            (LIBRARY, OMEGA_STAGES[3], Some("build"), false),
+            (LIBRARY, OMEGA_STAGES[3], Some("dev"), true),
+            (PACKAGES, OMEGA_STAGES[0], None, false),
+            (
+                LIBRARY,
+                "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+                None,
+                false,
+            ),
+            // Machine emission reads stage 09's output as a representation.
+            (LIBRARY, OMEGA_STAGES[9], None, false),
+            // A row of the shrinking allowance list stays permitted.
+            (
+                "omega-rust/omega/compilation/backend/images/image-emission",
+                OMEGA_STAGES[3],
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg("consumer", owner, &[("stage", dependency, kind)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
     fn shared_receipt_consumers_preserve_stage_boundaries() {
         for (owner, dependency, permitted) in [
             (OMEGA_STAGES[1], OMEGA_STAGES[0], false),
@@ -1135,6 +1331,48 @@ mod tests {
             transitive_exact_violations(&metadata(working), &[form], working, "no").unwrap(),
             vec!["machine-code -> target-operations: no".to_owned()]
         );
+    }
+
+    #[test]
+    fn every_later_form_refuses_an_indirect_prepared_graph_dependency() {
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        for &form in AFTER_SELECTION {
+            let metadata = |kind| Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![
+                    pkg("later-form", form, &[("helper", helper, None)]),
+                    pkg(
+                        "helper",
+                        helper,
+                        &[("legalized-operations", PREPARED_EXECUTION_PLAN, kind)],
+                    ),
+                    pkg("legalized-operations", PREPARED_EXECUTION_PLAN, &[]),
+                ],
+            };
+            for kind in [None, Some("build")] {
+                assert_eq!(
+                    transitive_exact_violations(
+                        &metadata(kind),
+                        &[form],
+                        PREPARED_EXECUTION_PLAN,
+                        "no"
+                    )
+                    .unwrap(),
+                    vec!["later-form -> helper -> legalized-operations: no".to_owned()],
+                    "{form}"
+                );
+            }
+            assert!(
+                transitive_exact_violations(
+                    &metadata(Some("dev")),
+                    &[form],
+                    PREPARED_EXECUTION_PLAN,
+                    "no"
+                )
+                .unwrap()
+                .is_empty()
+            );
+        }
     }
 
     #[test]
@@ -1231,6 +1469,119 @@ mod tests {
         assert!(!is_test_source(
             "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
         ));
+    }
+
+    #[test]
+    fn prepared_output_installation_setters_stay_retired() {
+        for code in [
+            "let changed = target.with_installed_stack_requirements(rows)?;",
+            "use legacy::with_installed_entry_execution as attach;",
+            "pub fn with_installed_entry_execution(",
+        ] {
+            assert!(line_calls_any(code, RETIRED_INSTALLATION_SETTERS));
+        }
+        for code in [
+            "let receipt = bind_installation_authority(program, cohort, callbacks, entry, stacks)?;",
+            "receipt.installed_stack_requirements()",
+            "// The driver binds installation authority after preparation.",
+        ] {
+            assert!(!line_calls_any(code, RETIRED_INSTALLATION_SETTERS));
+        }
+    }
+
+    #[test]
+    fn image_production_cannot_import_or_call_replay_gateways() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-image-replay-boundary-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let image = "omega-rust/omega/compilation/backend/images/image-emission/src";
+        let files = [
+            (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
+            (
+                format!("{image}/function_fragments.rs"),
+                "pub(super) mod retained_source_validation;\n\
+                 fn produce() { crate::retained_working_program::target_operations(input); }\n",
+            ),
+            (
+                format!("{image}/function_fragments/production.rs"),
+                "use crate::retained_working_program as old;\n\
+                 use super::source::{retained_source_validation as audit};\n\
+                 let read = TargetStageOutput::working_program_for_validation;\n\
+                 let plan = TargetStageOutput::execution_plan;\n\
+                 let earlier = current.pre_physical_manifest();\n",
+            ),
+            (
+                format!("{image}/function_fragments/another_producer.rs"),
+                "mod retained_working_program;\n",
+            ),
+            (
+                format!("{image}/function_fragments/replay/validation.rs"),
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n\
+                 current.pre_physical_manifest();\n",
+            ),
+            (
+                format!("{image}/function_fragments/source/retained_source_validation.rs"),
+                "use crate::retained_working_program as retained;\n",
+            ),
+            (
+                format!("{image}/function_fragments/validation.rs"),
+                "source::retained_source_validation::admit(input)?;\n",
+            ),
+            (
+                format!("{image}/function_fragments/replay/validation.rs_extra.rs"),
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n",
+            ),
+        ];
+        for (relative, text) in files {
+            let path = root.join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let violations = image_replay_read_violations(&root);
+        let raw_accessor_violations = working_program_read_violations(&root);
+        let execution_plan_violations = backend_execution_plan_read_violations(&root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(violations.len(), 5, "{violations:?}");
+        assert_eq!(
+            execution_plan_violations.len(),
+            3,
+            "{execution_plan_violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("function_fragments.rs:2:"))
+        );
+        assert_eq!(
+            violations
+                .iter()
+                .filter(|row| row.contains("production.rs:"))
+                .count(),
+            2
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("another_producer.rs:1:"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("validation.rs_extra.rs:1:"))
+        );
+        assert_eq!(
+            raw_accessor_violations.len(),
+            1,
+            "{raw_accessor_violations:?}"
+        );
+        assert!(raw_accessor_violations[0].contains("production.rs:3:"));
     }
 
     #[test]

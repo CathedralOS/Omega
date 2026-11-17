@@ -638,12 +638,13 @@ fn review_fixture_recording(
             // The ordinary Product check already owns this contract. Require
             // its actual supplier before applying the fixture's consent.
             let program = preliminary.source_inspection().program();
-            let declaration = package_compilation::selected_program_entry_boundary(
-                program,
-                slot,
-                Some(&inputs),
-                preliminary.sources().exact_toolchain_sources(),
-            )?;
+            let catalog = preliminary
+                .source_inspection()
+                .inventory()
+                .services_for(program.as_ref())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let declaration =
+                package_compilation::selected_program_entry_boundary(catalog, slot, Some(&inputs))?;
             if program.symbols.symbol_package_identity(declaration) != Some(owner) {
                 return Err(vec![Diagnostic::error(
                     "fixture Product selected a different entry supplier",

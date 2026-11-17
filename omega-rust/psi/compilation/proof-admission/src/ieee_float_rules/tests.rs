@@ -238,7 +238,7 @@ fn ordered_certificates_keep_actual_premises_and_reject_changed_subjects() {
     assert!(AcceptedProofRule::IeeeFloatOrderChain.is_provisional());
     assert!(matches!(
         accepted.mathematical_core,
-        MathematicalCoreDecision::Refused(_)
+        MathematicalCoreDecision::Judged(_)
     ));
     let mut with_axiom = proof.clone();
     let ProofRule::IeeeFloatOrderChain(children) = &mut with_axiom.rule else {

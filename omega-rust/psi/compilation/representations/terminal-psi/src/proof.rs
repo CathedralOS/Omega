@@ -525,9 +525,15 @@ pub(crate) mod declarations {
         }
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum EvidenceCallableOwner {
+        Machine(MachineId),
+        Runtime(semantic_vocabulary::CallableContractId),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct EvidenceContractLane {
-        pub machine: MachineId,
+        pub owner: EvidenceCallableOwner,
         pub kind: EvidenceContractLaneKind,
         pub position: u32,
         pub term: EvidenceTermId,
@@ -564,7 +570,7 @@ pub(crate) mod outputs {
     pub struct ProofOutputCall {
         pub caller: MachineId,
         pub ordinal: u32,
-        pub target_machine_identity: TerminalIdentityIndex,
+        pub target_identity: TerminalIdentityIndex,
         pub static_requirement_dispatch: Option<StaticRequirementDispatch>,
         pub runtime_result: Option<ProofOutputRuntimeResult>,
         pub runtime_call: Option<ProofOutputRuntimeCall>,
@@ -596,13 +602,42 @@ pub(crate) mod outputs {
     pub enum ProofOutputRuntimeResult {
         Unit,
         Scalar(ScalarType),
+        Structural(semantic_vocabulary::StructuralTypeId),
         NoNormal,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum EvidenceCallableTarget {
+        Machine(MachineId),
+        Runtime {
+            contract: semantic_vocabulary::CallableContractId,
+            callee: semantic_vocabulary::ValueId,
+        },
+    }
+
+    impl EvidenceCallableTarget {
+        pub const fn owner(self) -> super::declarations::EvidenceCallableOwner {
+            match self {
+                Self::Machine(machine) => {
+                    super::declarations::EvidenceCallableOwner::Machine(machine)
+                }
+                Self::Runtime { contract, .. } => {
+                    super::declarations::EvidenceCallableOwner::Runtime(contract)
+                }
+            }
+        }
+        pub const fn machine(self) -> Option<MachineId> {
+            match self {
+                Self::Machine(machine) => Some(machine),
+                Self::Runtime { .. } => None,
+            }
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ProofOutputRuntimeCall {
         pub site: semantic_vocabulary::InvocationSite,
-        pub callee: MachineId,
+        pub target: EvidenceCallableTarget,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -879,7 +914,7 @@ pub use contracts::{
     OutcomeSpecificGuard, PublishedWriteFrame,
 };
 pub use declarations::{
-    EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     EvidenceTermDeclaration, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
@@ -887,8 +922,8 @@ pub use declarations::{
 };
 pub use operation_crash_contracts::TerminalOperationCrashContract;
 pub use outputs::{
-    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, StaticRequirementDispatch,
+    EvidenceCallableTarget, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+    ProofOutputRuntimeCall, ProofOutputRuntimeResult, StaticRequirementDispatch,
 };
 pub use recursion::{
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,

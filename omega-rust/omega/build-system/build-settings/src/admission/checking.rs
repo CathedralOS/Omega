@@ -194,6 +194,8 @@ pub(crate) fn prepare_admitted_build(
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
                 selected: &[],
+                calling: None,
+                providers: None,
                 bindings: &[],
                 supplies: &[],
             };
@@ -368,6 +370,8 @@ mod tests {
                 purpose: source::DependencyScope::Build,
                 selected: &[],
                 bindings: &[],
+                calling: None,
+                providers: None,
                 supplies: &[],
             },
         }

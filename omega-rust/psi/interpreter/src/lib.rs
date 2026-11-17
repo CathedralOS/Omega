@@ -116,7 +116,7 @@ pub use boundary::structural_inputs::contents::TerminalStructuralContents;
 pub use boundary::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use boundary::structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
 pub use boundary::values::{
-    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 pub use embedding::adapters::{

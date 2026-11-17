@@ -20,27 +20,34 @@ pub fn substitute_proposition_values(
     proposition: &Proposition,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Proposition {
+    substitute_proposition_values_with(proposition, &|identity| substitutions.get(&identity))
+}
+
+pub fn substitute_proposition_values_with<'input>(
+    proposition: &Proposition,
+    substitutions: &dyn Fn(ValueId) -> Option<&'input ScalarTerm>,
+) -> Proposition {
     match proposition {
         Proposition::FloatMeaningEqual(clause) => {
             Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
-                substitute_scalar_term_values(source, substitutions)
+                substitute_scalar_term_values_with(source, substitutions)
             }))
         }
         Proposition::FloatIntegerConversion(clause) => {
             let mut mapped = clause.clone();
-            mapped.source = substitute_scalar_term_values(&clause.source, substitutions);
-            mapped.result = substitute_scalar_term_values(&clause.result, substitutions);
+            mapped.source = substitute_scalar_term_values_with(&clause.source, substitutions);
+            mapped.result = substitute_scalar_term_values_with(&clause.result, substitutions);
             Proposition::FloatIntegerConversion(mapped)
         }
         Proposition::IeeeFloatIntegerExact { source, target } => {
             Proposition::IeeeFloatIntegerExact {
-                source: substitute_scalar_term_values(source, substitutions),
+                source: substitute_scalar_term_values_with(source, substitutions),
                 target: *target,
             }
         }
         Proposition::IntegerIeeeFloatExact { source, target } => {
             Proposition::IntegerIeeeFloatExact {
-                source: substitute_scalar_term_values(source, substitutions),
+                source: substitute_scalar_term_values_with(source, substitutions),
                 target: *target,
             }
         }
@@ -48,16 +55,16 @@ pub fn substitute_proposition_values(
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
         Proposition::Equal(left, right) => Proposition::Equal(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_values_with(left, substitutions),
+            substitute_scalar_term_values_with(right, substitutions),
         ),
         Proposition::LessThan(left, right) => Proposition::LessThan(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_values_with(left, substitutions),
+            substitute_scalar_term_values_with(right, substitutions),
         ),
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_values_with(left, substitutions),
+            substitute_scalar_term_values_with(right, substitutions),
         ),
         Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
             substitute_integer_math_term_values(left, substitutions),
@@ -88,8 +95,8 @@ pub fn substitute_proposition_values(
             left,
             right,
         } => {
-            let mut left = substitute_scalar_term_values(left, substitutions);
-            let mut right = substitute_scalar_term_values(right, substitutions);
+            let mut left = substitute_scalar_term_values_with(left, substitutions);
+            let mut right = substitute_scalar_term_values_with(right, substitutions);
             if kind.is_symmetric() && left > right {
                 std::mem::swap(&mut left, &mut right);
             }
@@ -117,21 +124,24 @@ pub fn substitute_proposition_values(
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
-                .map(|conjunct| substitute_proposition_values(conjunct, substitutions))
+                .map(|conjunct| substitute_proposition_values_with(conjunct, substitutions))
                 .collect(),
         ),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
             disjuncts
                 .iter()
-                .map(|disjunct| substitute_proposition_values(disjunct, substitutions))
+                .map(|disjunct| substitute_proposition_values_with(disjunct, substitutions))
                 .collect(),
         ),
         Proposition::Implication {
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_proposition_values(premise, substitutions)),
-            conclusion: Box::new(substitute_proposition_values(conclusion, substitutions)),
+            premise: Box::new(substitute_proposition_values_with(premise, substitutions)),
+            conclusion: Box::new(substitute_proposition_values_with(
+                conclusion,
+                substitutions,
+            )),
         },
         Proposition::ContentConservation(conservation) => {
             Proposition::ContentConservation(conservation.clone())
@@ -142,6 +152,17 @@ pub fn substitute_proposition_values(
 pub fn substitute_proposition_structural_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+) -> Proposition {
+    substitute_proposition_structural_places_with(proposition, &|identity| {
+        substitutions.get(&identity)
+    })
+}
+
+pub fn substitute_proposition_structural_places_with<'input>(
+    proposition: &Proposition,
+    substitutions: &dyn Fn(
+        PlaceId,
+    ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Proposition {
     match proposition {
         Proposition::FloatMeaningEqual(clause) => {
@@ -201,8 +222,7 @@ pub fn substitute_proposition_structural_places(
             right,
         } => {
             let rebase = |field: &semantic_vocabulary::IeeeFloatStructuralField| {
-                substitutions
-                    .get(&field.root())
+                substitutions(field.root())
                     .map(|(root, prefix)| field.rebase(*root, prefix))
                     .unwrap_or_else(|| field.clone())
             };
@@ -233,8 +253,7 @@ pub fn substitute_proposition_structural_places(
         }
         Proposition::ByteSequenceEqual { left, right } => {
             let rebase = |field: &semantic_vocabulary::ByteSequenceStructuralField| {
-                substitutions
-                    .get(&field.root())
+                substitutions(field.root())
                     .map(|(root, prefix)| field.rebase(*root, prefix))
                     .unwrap_or_else(|| field.clone())
             };
@@ -245,8 +264,7 @@ pub fn substitute_proposition_structural_places(
         }
         Proposition::StructuralCaseMembership { subject, case } => {
             Proposition::StructuralCaseMembership {
-                subject: substitutions
-                    .get(&subject.root())
+                subject: substitutions(subject.root())
                     .map(|(root, prefix)| subject.rebase(*root, prefix))
                     .unwrap_or_else(|| subject.clone()),
                 case: *case,
@@ -254,8 +272,7 @@ pub fn substitute_proposition_structural_places(
         }
         Proposition::StructuralIdentity { left, right } => {
             let rebase = |subject: &semantic_vocabulary::StructuralIdentitySubject| {
-                substitutions
-                    .get(&subject.root())
+                substitutions(subject.root())
                     .map(|(root, prefix)| subject.rebase(*root, prefix))
                     .unwrap_or_else(|| subject.clone())
             };
@@ -269,24 +286,28 @@ pub fn substitute_proposition_structural_places(
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
-                .map(|conjunct| substitute_proposition_structural_places(conjunct, substitutions))
+                .map(|conjunct| {
+                    substitute_proposition_structural_places_with(conjunct, substitutions)
+                })
                 .collect(),
         ),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
             disjuncts
                 .iter()
-                .map(|disjunct| substitute_proposition_structural_places(disjunct, substitutions))
+                .map(|disjunct| {
+                    substitute_proposition_structural_places_with(disjunct, substitutions)
+                })
                 .collect(),
         ),
         Proposition::Implication {
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_proposition_structural_places(
+            premise: Box::new(substitute_proposition_structural_places_with(
                 premise,
                 substitutions,
             )),
-            conclusion: Box::new(substitute_proposition_structural_places(
+            conclusion: Box::new(substitute_proposition_structural_places_with(
                 conclusion,
                 substitutions,
             )),
@@ -301,17 +322,16 @@ pub fn substitute_proposition_structural_places(
     }
 }
 
-fn substitute_integer_math_term_values(
+fn substitute_integer_math_term_values<'input>(
     term: &IntegerMathTerm,
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+    substitutions: &dyn Fn(ValueId) -> Option<&'input ScalarTerm>,
 ) -> IntegerMathTerm {
     match term {
         IntegerMathTerm::Embed(scalar) => {
-            IntegerMathTerm::embed(substitute_scalar_term_values(scalar, substitutions))
+            IntegerMathTerm::embed(substitute_scalar_term_values_with(scalar, substitutions))
                 .unwrap_or_else(|| term.clone())
         }
-        IntegerMathTerm::MathValue { source_type, value } => substitutions
-            .get(value)
+        IntegerMathTerm::MathValue { source_type, value } => substitutions(*value)
             .and_then(|replacement| {
                 (replacement.scalar_type().as_integer() == Some(*source_type))
                     .then(|| IntegerMathTerm::embed(replacement.clone()))
@@ -338,9 +358,11 @@ fn substitute_integer_math_term_values(
     }
 }
 
-fn substitute_integer_math_term_places(
+fn substitute_integer_math_term_places<'input>(
     term: &IntegerMathTerm,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    substitutions: &dyn Fn(
+        PlaceId,
+    ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> IntegerMathTerm {
     let mut term = term.clone();
     let mut pending = vec![&mut term];
@@ -354,18 +376,23 @@ fn substitute_integer_math_term_places(
     term
 }
 
-fn substitute_scalar_term_places(
+fn substitute_scalar_term_places<'input>(
     term: &ScalarTerm,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    substitutions: &dyn Fn(
+        PlaceId,
+    ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> ScalarTerm {
     let mut term = term.clone();
-    fn substitute(
+    fn substitute<'input>(
         term: &mut ScalarTerm,
-        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        substitutions: &dyn Fn(
+            PlaceId,
+        )
+            -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
             ScalarTerm::StructuralRead { root, path, .. } => {
-                if let Some((replacement, prefix)) = substitutions.get(root) {
+                if let Some((replacement, prefix)) = substitutions(*root) {
                     *root = *replacement;
                     let mut rebased = prefix
                         .iter()
@@ -382,7 +409,7 @@ fn substitute_scalar_term_places(
                 }
             }
             semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, path, ..) => {
-                if let Some((replacement, prefix)) = substitutions.get(root) {
+                if let Some((replacement, prefix)) = substitutions(*root) {
                     *root = *replacement;
                     if !prefix.is_empty() {
                         let mut rebased = Vec::with_capacity(prefix.len() + path.len());
@@ -410,9 +437,11 @@ fn substitute_scalar_term_places(
     term
 }
 
-fn substitute_content_term_places(
+fn substitute_content_term_places<'input>(
     term: &ContentTerm,
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    substitutions: &dyn Fn(
+        PlaceId,
+    ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> ContentTerm {
     match term {
         ContentTerm::Projection {
@@ -422,8 +451,7 @@ fn substitute_content_term_places(
             projection: *projection,
             subject: ContentStructuralPlace {
                 version: subject.version,
-                root: substitutions
-                    .get(&subject.root)
+                root: substitutions(subject.root)
                     .map(|(root, _)| *root)
                     .unwrap_or(subject.root),
                 segments: subject.segments.clone(),
@@ -483,14 +511,14 @@ pub(crate) fn substitute_scalar_term_values(
     term: &ScalarTerm,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> ScalarTerm {
-    substitute_scalar_term_values_with(term, &|id| substitutions.get(&id))
+    substitute_scalar_term_values_with(term, &|identity| substitutions.get(&identity))
 }
 
-fn substitute_scalar_term_values_with<'a>(
+pub(crate) fn substitute_scalar_term_values_with<'input>(
     term: &ScalarTerm,
-    substitution: &impl Fn(ValueId) -> Option<&'a ScalarTerm>,
+    substitutions: &dyn Fn(ValueId) -> Option<&'input ScalarTerm>,
 ) -> ScalarTerm {
-    let recurse = |term: &ScalarTerm| substitute_scalar_term_values_with(term, substitution);
+    let recurse = |term: &ScalarTerm| substitute_scalar_term_values_with(term, substitutions);
     macro_rules! typed_binary_body {
         ($variant:ident, $scalar_type:ident, $left:ident, $right:ident) => {
             ScalarTerm::$variant {
@@ -528,7 +556,7 @@ fn substitute_scalar_term_values_with<'a>(
         };
     }
     match term {
-        ScalarTerm::Value { id, .. } => substitution(*id).cloned().unwrap_or_else(|| term.clone()),
+        ScalarTerm::Value { id, .. } => substitutions(*id).cloned().unwrap_or_else(|| term.clone()),
         ScalarTerm::StructuralRead {
             root,
             path,

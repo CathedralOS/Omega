@@ -6,11 +6,11 @@ version.workspace = true
 
 [dependencies]
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
+register-environment = { path = "../../backend/register-environment" }
 native-vocabulary = { path = "../native-vocabulary" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 function-identity = { path = "../../../foundation/function-identity" }
-legalized-operations = { path = "../target-operations/legalized-operations" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 target = { path = "../../backend/target" }
 register-model = { path = "../../backend/register-model" }

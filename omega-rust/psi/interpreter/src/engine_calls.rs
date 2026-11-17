@@ -136,7 +136,7 @@ pub(crate) mod frames {
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use crate::storage::runtime_rows::RuntimeRows;
-    use semantic_vocabulary::{MachineId, PlaceId};
+    use semantic_vocabulary::{EdgeId, MachineId, PlaceId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -259,6 +259,7 @@ pub(crate) mod frames {
             parameters: &[StructuralParameterDeclaration],
             arguments: &[StructuralArgument],
             resolved_arguments: &[TerminalStructuralValue],
+            arrival: Option<EdgeId>,
         ) -> Result<RuntimeRows<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
             if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
                 return Err(malformed());
@@ -283,9 +284,9 @@ pub(crate) mod frames {
                 {
                     continue;
                 }
-                if let Some((value, binding)) =
-                    self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
-                {
+                if let Some((value, binding)) = self.prepare_owned_byte_descriptor_argument(
+                    parameter, argument, resolved, arrival,
+                )? {
                     if value != *resolved || values.insert(parameter.place, binding)?.is_some() {
                         return Err(malformed());
                     }
@@ -2028,7 +2029,7 @@ pub(crate) mod component_contents {
                             id: StructuralTypeId::new(offset + ordinal).unwrap(),
                             identity: identities.intern(identity),
                             owns_linear_claim: false,
-                            copyable: true,
+                            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                             no_code_affine_cleanup: true,
                             descriptor_cleanup: false,
                             nominal_cleanup: None,
@@ -2746,6 +2747,66 @@ impl<'artifact> TerminalExecution<'artifact> {
             },
         )?;
         Ok(OperationFlow::Advance)
+    }
+
+    pub(crate) fn execute_call_machine(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        program: &std::sync::Arc<crate::embedding::program::AdmittedTerminalProgram>,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        dispatched_operation!(operation => CallMachine {
+            callee: operand, contract, ref arguments, ref structural_arguments,
+            ref claim_transfers, ..
+        });
+        let crate::boundary::values::TerminalScalarValue::Callable {
+            contract: actual_contract,
+            descriptor,
+        } = self.scalar_value(operand)?
+        else {
+            return Err(malformed());
+        };
+        if actual_contract != contract || program.catalogs.callables.contract(contract).is_none() {
+            return Err(malformed());
+        }
+        let selected = program
+            .catalogs
+            .callables
+            .descriptor(descriptor)
+            .ok_or_else(malformed)?;
+        if selected.contract != contract {
+            return Err(malformed());
+        }
+        let callee = selected.machine;
+        let (scalar_arguments, prepared_arguments) =
+            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
+        match &operation.result {
+            terminal_psi::OperationResult::Unit => self.begin_unit_call(
+                callee,
+                &scalar_arguments,
+                structural_arguments,
+                prepared_arguments,
+                claim_transfers,
+            )?,
+            terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
+                callee,
+                *result,
+                &scalar_arguments,
+                structural_arguments,
+                prepared_arguments,
+                claim_transfers,
+            )?,
+            terminal_psi::OperationResult::Structural(result) => self
+                .begin_structural_result_call(
+                    callee,
+                    result.clone(),
+                    &scalar_arguments,
+                    structural_arguments,
+                    prepared_arguments,
+                    claim_transfers,
+                    crate::engine::execution::ResultClaimOrigin::CalleeReturn,
+                )?,
+        }
+        Ok(OperationFlow::Redispatch)
     }
 
     pub(crate) fn execute_call_dynamic(

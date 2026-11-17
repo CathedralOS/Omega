@@ -21,7 +21,120 @@ use crate::body::{
     Termination, ValueType,
 };
 use crate::outcome::Outcome;
-use crate::{SourceOrigin, Unpositioned};
+use crate::{SourceOrigin, StorageShape, Unpositioned};
+
+mod provider_source_identities {
+    use std::sync::Arc;
+
+    use source::{DependencyScope, SourceMap, SourceOrigin};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    fn typed_sources(bytes: &str, outside_root: bool) -> typed_trees::TypedTrees {
+        let mut sources = SourceMap::default();
+        let root = std::path::PathBuf::from("toolchain/core");
+        sources.add_with_metadata(
+            if outside_root {
+                "another-package/provider.omg".into()
+            } else {
+                root.join("provider.omg")
+            },
+            bytes.to_owned(),
+            root.clone(),
+            None,
+            SourceOrigin::Toolchain,
+        );
+        sources.add_with_metadata(
+            root.join("contract.omg"),
+            "contract bytes".into(),
+            root,
+            None,
+            SourceOrigin::ToolchainContract,
+        );
+        // User sources have no toolchain identity and need no toolchain hash.
+        sources.add_with_metadata(
+            "application/main.omg".into(),
+            "application bytes".into(),
+            "application".into(),
+            None,
+            SourceOrigin::User,
+        );
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn provider_source_identities_share_storage_but_not_source_revisions() {
+        let typed = typed_sources("first revision", false);
+        let shared = crate::shared_reading(&typed);
+        let product = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let witness = crate::read::Program::with_captures(
+            &typed,
+            true,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let build = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Build,
+            shared.clone(),
+        );
+        let sources = product.exact_toolchain_sources().unwrap();
+        assert_eq!(sources.len(), 2);
+        assert_eq!(sources[0].0, source::SourceId(0));
+        assert_eq!(sources[1].0, source::SourceId(1));
+        assert_eq!(
+            sources,
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap(),
+        );
+        for reading in [&product, &witness, &build] {
+            assert!(std::ptr::eq(
+                sources,
+                reading.exact_toolchain_sources().unwrap()
+            ));
+        }
+        let changed = typed_sources("second revision", false);
+        let changed = crate::read::Program::new(&changed, false);
+        let other = changed.exact_toolchain_sources().unwrap();
+        assert_ne!(sources[0].1, other[0].1);
+        assert_eq!(sources[1].1, other[1].1);
+    }
+
+    #[test]
+    fn provider_source_identities_keep_malformed_custody_refused() {
+        let typed = typed_sources("same bytes", true);
+        let shared = crate::shared_reading(&typed);
+        let first = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let second =
+            crate::read::Program::with_captures(&typed, true, DependencyScope::Product, shared);
+        let refusal = first.exact_toolchain_sources().unwrap_err();
+        assert!(refusal.contains("outside its canonical root"), "{refusal}");
+        assert_eq!(
+            refusal,
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap_err(),
+        );
+        assert!(std::ptr::eq(
+            refusal,
+            second.exact_toolchain_sources().unwrap_err()
+        ));
+    }
+}
 
 fn u32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
@@ -58,12 +171,11 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
         },
         result,
     )
@@ -206,19 +318,20 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let boundary_signatures = IdTable::default();
+    let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: signatures,
         boundaries: &boundary_signatures,
-        completions: &IdTable::default(),
     };
     let declared = crate::lower::places::declare(
         id(1),
         records,
         &bodies,
-        signatures,
+        signatures.machines.values(),
+        &[],
+        None,
         terminal_psi::TerminalIdentityTableBuilder::default(),
     )?;
     crate::lower::machine(
@@ -229,6 +342,9 @@ fn lower_records(
         signatures,
         outcomes,
         &declared.records,
+        &declared.structural_types,
+        &crate::callables::CallableNamespace::default(),
+        &crate::boundaries::BoundaryNamespace::default(),
         false,
         &mut crate::qualifications::Qualifications::default(),
     )
@@ -1070,6 +1186,86 @@ fn a_private_crash_outcome_does_not_replace_the_published_call_contract() {
     );
 }
 
+#[test]
+fn a_declared_crash_ceiling_is_kept_when_the_private_body_has_no_route() {
+    let published = routes(&[CrashCause::Trap]);
+    let declared = Signature {
+        crashes: CrashCeiling::Authored(published.clone()),
+        ..signature(Vec::new(), None)
+    };
+    let (machine, tables) = lower_with(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(call(2, Vec::new(), None))],
+        },
+        vec![declared.clone(), declared],
+        vec![
+            Outcome {
+                crash_routes: published.clone(),
+                ..returns_normally()
+            },
+            returns_normally(),
+        ],
+    );
+    let operation = &block(&machine, 1).operations[0];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &operation.kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert_eq!(crash_continuations, &published);
+    assert!(obligations(&tables).iter().any(|kind| matches!(kind,
+        ObligationKind::CrashCoverage { site: CrashSite::Operation(site), cause: CrashCause::Trap }
+            if *site == operation.id
+    )));
+}
+
+#[test]
+fn an_open_crash_ceiling_retains_the_inferred_body_route() {
+    let inferred = routes(&[CrashCause::Trap]);
+    let (machine, tables) = lower_with(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(call(2, Vec::new(), None))],
+        },
+        vec![
+            Signature {
+                crashes: CrashCeiling::Authored(inferred.clone()),
+                ..signature(Vec::new(), None)
+            },
+            Signature {
+                crashes: CrashCeiling::Inferred,
+                ..signature(Vec::new(), None)
+            },
+        ],
+        vec![
+            Outcome {
+                crash_routes: inferred.clone(),
+                ..returns_normally()
+            },
+            Outcome {
+                crash_routes: inferred.clone(),
+                ..returns_normally()
+            },
+        ],
+    );
+    let operation = &block(&machine, 1).operations[0];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &operation.kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert_eq!(crash_continuations, &inferred);
+    assert!(obligations(&tables).iter().any(|kind| matches!(kind,
+        ObligationKind::CrashCoverage { site: CrashSite::Operation(site), cause: CrashCause::Trap }
+            if *site == operation.id
+    )));
+}
+
 /// A call of a machine that may return and may crash stays an operation in
 /// the middle of its block. It carries the callee's routes with formals
 /// replaced by the actuals, and that operation, not the block, is the crash
@@ -1268,8 +1464,8 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1380,8 +1576,8 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1393,10 +1589,9 @@ fn a_never_returning_record_base_stops_its_field_projection() {
         statements: vec![returns(member(
             of_type(
                 ExpressionKind::Call {
-                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     required_contract: None,
                     static_reach_binding: None,
-                    source_call: None,
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1576,8 +1771,8 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1777,10 +1972,10 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &IdTable::default(),
-                completions: &IdTable::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
             &crate::components::discover(&bodies).unwrap(),
@@ -1840,10 +2035,10 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &IdTable::default(),
-                completions: &IdTable::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
             &crate::components::discover(&bodies).unwrap(),
@@ -1917,10 +2112,10 @@ fn a_skipped_operand_cannot_end_the_machine() {
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
-            boundaries: &IdTable::default(),
-            completions: &IdTable::default(),
+            boundaries: &crate::boundaries::BoundaryNamespace::default(),
         },
         &[],
+        &crate::callables::CallableNamespace::default(),
         None,
         &Default::default(),
         &crate::components::discover(&bodies).unwrap(),
@@ -1986,12 +2181,11 @@ fn settle_both(
                 Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
                 Step::Refuse => Statement::discard(expression(
                     ExpressionKind::Call {
-                        callee: semantic_vocabulary::TargetMachineCallable::Boundary(id(1)),
+                        callee: crate::body::CallTarget::Boundary { boundary: id(1) },
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
                     },
                     None,
                 )),
@@ -2010,8 +2204,7 @@ fn settle_both(
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: &signatures,
-        boundaries: &IdTable::default(),
-        completions: &IdTable::default(),
+        boundaries: &crate::boundaries::BoundaryNamespace::default(),
     };
     let run = |by_rounds| {
         crate::outcome::counted_outcomes(
@@ -2287,8 +2480,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
@@ -2299,8 +2491,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
     });
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Line"),
         shape: crate::StorageShape::Record(vec![
@@ -2585,12 +2776,11 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                        callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
                     },
                     point(),
                 ),
@@ -2830,7 +3020,7 @@ fn a_module_with_records_declares_them_and_encodes() {
         module
             .structural_types
             .iter()
-            .all(|declaration| declaration.copyable)
+            .all(|declaration| declaration.is_copyable())
     );
     terminal_codec::encode_module(module).unwrap();
     // A scalar module declares nothing.
@@ -2889,7 +3079,8 @@ fn declare(slot: usize, home: Option<&str>) -> Statement {
 fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
     let mut records = records();
     for raw in 1..=2 {
-        records.get_mut(id(raw)).unwrap().copyable = false;
+        records.get_mut(id(raw)).unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
     }
     let mut bodies = IdTable::default();
     bodies.push(Body {
@@ -2971,11 +3162,11 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
 fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
     let mut records = records();
     for raw in 1..=2 {
-        records.get_mut(id(raw)).unwrap().copyable = false;
+        records.get_mut(id(raw)).unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
     }
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "Envelope".into(),
         shape: crate::StorageShape::Record(vec![
@@ -3149,14 +3340,18 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
 }
 
 #[test]
-fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
+fn a_whole_assignment_constructs_its_value_then_replaces_the_same_root() {
     // f(a: u32) -> u32 { let mut p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
+    // A live loan of `p` must see the replacement, so the assignment stores
+    // into the root `p` already names (structural_access.md: "Root, field,
+    // and indexed destinations do not change construction semantics").
     let body = Body {
         slots: vec![u32_type().into(), point()],
         statements: vec![
             bind(1, literal(vec![(0, integer(1)), (1, integer(2))], point())),
-            bind(
+            store(
                 1,
+                &[],
                 literal(
                     vec![
                         (0, member(place(1, point()), 1, u32_type().into())),
@@ -3173,33 +3368,33 @@ fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
         vec![shaped(vec![u32_type().into()], Some(u32_type().into()))],
     );
     let operations = &block(&machine, 1).operations;
-    let (first, second) = (produced(&operations[2]), produced(&operations[4]));
-    assert_ne!(first, second);
-    // The operand `p.y` reads the old root, before the new one exists.
-    let old_y = operations[3].result.scalar().unwrap().id;
+    let (first, value) = (produced(&operations[2]), produced(&operations[4]));
+    assert_ne!(first, value);
+    // The operand `p.y` reads the old contents, before the new value exists.
     assert!(matches!(
         &operations[3].kind,
         OperationKind::PrimitiveScalarRead { source, path }
             if *source == first && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2))]
     ));
-    // The new root's leaves hold exactly the constructed operands.
-    let after = ProgramPoint::AfterOperation(operations[4].id);
-    assert_eq!(
-        written(&tables, projected(&tables, second, &[1])),
-        [(Content::Value(old_y), after)]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, second, &[2])),
-        [(Content::Value(id(1)), after)]
-    );
-    // From the assignment on, the local names the new root.
+    // The constructed value replaces the whole of the existing root.
     assert!(matches!(
         &operations[5].kind,
-        OperationKind::PrimitiveScalarRead { source, path }
-            if *source == second && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
+        OperationKind::StoreStructuralField { destination, path, field: None, value: stored, .. }
+            if *destination == first && path.is_empty() && stored.place == value
     ));
-    // Nothing was written to the old root after its construction.
-    assert_eq!(written(&tables, projected(&tables, first, &[1])).len(), 1);
+    assert_eq!(
+        written(&tables, *tables.roots.get(first).unwrap()).last(),
+        Some(&(
+            Content::Overwritten,
+            ProgramPoint::AfterOperation(operations[5].id)
+        ))
+    );
+    // From the assignment on, the local still names that root.
+    assert!(matches!(
+        &operations[6].kind,
+        OperationKind::PrimitiveScalarRead { source, path }
+            if *source == first && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
+    ));
 }
 
 #[test]
@@ -3366,8 +3561,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let mut records = IdTable::default();
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
@@ -3375,8 +3569,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
     });
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Shape"),
         shape: crate::StorageShape::Sum(vec![
@@ -4293,3 +4486,104 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
 
 #[path = "tests/array_views.rs"]
 mod array_views;
+
+#[test]
+fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+        cleanup: None,
+        identity: "linear-token".into(),
+        shape: StorageShape::Record(Vec::new()),
+        requires: Vec::new(),
+        authored_layout: false,
+    });
+    let token = ValueType::record(id(1));
+    records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+        cleanup: None,
+        identity: "independent-token-pair".into(),
+        shape: StorageShape::Record(vec![
+            RecordField {
+                id: id(1),
+                identity: "left".into(),
+                value_type: token,
+                byte_predicates: Default::default(),
+            },
+            RecordField {
+                id: id(2),
+                identity: "right".into(),
+                value_type: token,
+                byte_predicates: Default::default(),
+            },
+        ]),
+        requires: Vec::new(),
+        authored_layout: false,
+    });
+    let pair = ValueType::record(id(2));
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: vec![pair],
+        statements: vec![returns(place(0, pair))],
+    });
+    bodies.push(Body {
+        slots: vec![token, token],
+        statements: vec![returns(Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: id::<MachineId>(1).into(),
+                arguments: vec![literal(
+                    vec![(0, place(0, token)), (1, place(1, token))],
+                    pair,
+                )],
+                designated: None,
+                required_contract: None,
+                static_reach_binding: None,
+            },
+            result: Some(pair),
+            source: nowhere(),
+        })],
+    });
+    let mut signatures = IdTable::default();
+    signatures.push(shaped(vec![pair], Some(pair)));
+    signatures.push(shaped(vec![token, token], Some(pair)));
+    let output = crate::lower_bodies(id(2), &bodies, &signatures, &records)
+        .expect("the producer can describe two distinct incoming obligations and their transfer");
+    for machine in &output.module.machines {
+        assert_eq!(machine.entry_claims.len(), 2);
+        terminal_semantics::plain_affine::verify_claims_in(&output.module, machine.id)
+            .expect("receiving reconstructs the actual sibling transports");
+    }
+    let caller = &output.module.machines[1];
+    let operation = caller
+        .operations()
+        .find(|operation| operation.kind.direct_callee() == Some(id(1)))
+        .unwrap();
+    assert_eq!(operation.kind.claim_transfers().len(), 2);
+    assert_ne!(
+        operation.kind.claim_transfers()[0].claim,
+        operation.kind.claim_transfers()[1].claim
+    );
+    let mut forged = output.module.clone();
+    let operation = forged.machines[1]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.kind.direct_callee() == Some(id(1)))
+        .unwrap();
+    match &mut operation.kind {
+        OperationKind::CallStructural {
+            claim_transfers, ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            claim_transfers, ..
+        } => {
+            claim_transfers.pop();
+        }
+        other => panic!("expected ordinary structural call, got {other:?}"),
+    }
+    assert!(
+        terminal_semantics::plain_affine::verify_claims_in(&forged, id(2)).is_err(),
+        "omitting either sibling cannot erase its obligation"
+    );
+}

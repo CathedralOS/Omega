@@ -78,14 +78,14 @@ impl TypedTrees {
                 } if *extent == argument => extents.push((reference, *element_type)),
                 TypeReferenceNode::Generic { arguments, .. }
                     if self.data_application_definition(reference).is_some()
-                        && !self.data_application_is_closed(reference)
-                        && self
-                            .type_reference_table
-                            .type_reference_handles(*arguments)
-                            .iter()
-                            .any(|child| self.mentions(*child, argument, 0)) =>
+                        && !self.data_application_is_closed(reference) =>
                 {
-                    applications.push(reference);
+                    for child in self.type_reference_table.type_reference_handles(*arguments) {
+                        if self.mentions(*child, argument, 0)? {
+                            applications.push(reference);
+                            break;
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -124,19 +124,25 @@ impl TypedTrees {
     }
 
     /// Whether the type `reference` is or contains the reference `argument`.
-    /// Depth is bounded by the nesting a source type can write; a graph
-    /// that is deeper mentions nothing this reading may rely on.
+    /// A malformed or excessively deep dependency cannot establish that an
+    /// application view is independent of the argument being settled.
     fn mentions(
         &self,
         reference: TypeReferenceHandle,
         argument: TypeReferenceHandle,
         depth: usize,
-    ) -> bool {
+    ) -> Result<bool, String> {
         if reference == argument {
-            return true;
+            return Ok(true);
         }
-        if depth > 64 || !self.type_reference_table.contains_type_reference(reference) {
-            return false;
+        if reference == TypeReferenceHandle::invalid() {
+            return Ok(false);
+        }
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return Err("data application has a stale type dependency".into());
+        }
+        if depth > 64 {
+            return Err("data application has an excessively deep type dependency".into());
         }
         let mentions = |child: &TypeReferenceHandle| self.mentions(*child, argument, depth + 1);
         match self.type_reference_table.type_reference(reference) {
@@ -147,17 +153,41 @@ impl TypedTrees {
                 element_type,
                 length,
             } => {
-                matches!(length, FixedArrayLength::Expression(extent) if mentions(extent))
-                    || mentions(element_type)
+                if let FixedArrayLength::Expression(extent) = length
+                    && mentions(extent)?
+                {
+                    return Ok(true);
+                }
+                mentions(element_type)
             }
             TypeReferenceNode::Generic { arguments, .. } => self
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
-                .any(mentions),
+                .try_fold(
+                    false,
+                    |found, child| {
+                        if found { Ok(true) } else { mentions(child) }
+                    },
+                ),
+            TypeReferenceNode::Callable { contract } => {
+                let signature = &self
+                    .declared_callable_contract(*contract)
+                    .map_err(str::to_owned)?
+                    .signature;
+                crate::references::signature_type_inputs(self, signature)
+                    .types
+                    .iter()
+                    .try_fold(
+                        false,
+                        |found, child| {
+                            if found { Ok(true) } else { mentions(child) }
+                        },
+                    )
+            }
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::Unit => false,
+            | TypeReferenceNode::Unit => Ok(false),
         }
     }
 }
@@ -243,6 +273,15 @@ impl<'source> ApplicationPreparation<'source> {
                 length,
             } => Ok(matches!(length, FixedArrayLength::Literal(_)) && self.reference(element_type)?),
             TypeReferenceNode::Constrained { base_type, .. } => self.reference(base_type),
+            TypeReferenceNode::Callable { contract } => {
+                self.source
+                    .declared_callable_contract(contract)
+                    .map_err(str::to_owned)?;
+                self.source
+                    .runtime_callable_contract_identity(contract, &[])
+                    .map_err(|error| error.to_string())?;
+                Ok(true)
+            }
             TypeReferenceNode::Unit => Ok(true),
             TypeReferenceNode::ConstExpression(_) => Ok(false),
         }

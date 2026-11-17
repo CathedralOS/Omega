@@ -12,14 +12,26 @@ The obsolete checked-source production request interfaces have been removed.
 
 mod accepted;
 pub use accepted::{AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement};
+pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 pub use typed_trees_to_terminal_psi::Compilation as TerminalSourceCompilation;
 pub use typed_trees_to_terminal_psi::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use typed_trees_to_terminal_psi::Supply as TerminalSourceSupply;
+pub use typed_trees_to_terminal_psi::provider_selections::{
+    ProviderSelectionInput as TerminalProviderSelectionInput,
+    ProviderSelections as TerminalProviderSelections,
+};
+pub use typed_trees_to_terminal_psi::{
+    CallingPolicySelections as TerminalCallingPolicySelections,
+    ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
+};
 
 mod build_bindings;
 mod build_companions;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
+mod source_selection_publication;
+mod source_selections;
+pub use source_selections::TerminalSourceSelections;
 pub(crate) mod production_selection {
     #[derive(Debug, Clone, Copy)]
     pub enum TerminalMachineSelection<'a> {

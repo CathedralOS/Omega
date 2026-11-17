@@ -234,7 +234,7 @@ reaches AccessLifecycle + ResourceProfileSupply
 invokes AccessLifecycle
 {
     transition AccessLifecycle<P, T>::move_out(storage) {
-        AccessExtraction::Moved { storage, value } ->
-            AccessReturn { source: storage, custody: value }
+        AccessExtraction::Moved { storage as vacant, value } ->
+            AccessReturn { source: vacant, custody: value }
     }
 }

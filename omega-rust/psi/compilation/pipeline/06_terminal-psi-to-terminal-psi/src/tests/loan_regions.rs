@@ -70,6 +70,8 @@ fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, Stri
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -259,7 +261,8 @@ machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
     assert!(
         joined.starts_with("reference use without exact live backing correspondence for machine ")
             && joined.contains("checking StructuralScalarFieldStore")
-            && joined.contains("path(journey)"),
+            && joined.contains("declaration named-callable(")
+            && joined.contains("journey"),
         "{joined}"
     );
 }

@@ -3,9 +3,11 @@
 // compile error, not a fall-through. Transitions and value-position matches
 // share the judgement. Arms cover a dispatch when one is `_` or the guard
 // `true`; over a subject, when they name both Booleans of a Boolean subject
-// or every case of its data; over guards, when two compare one expression
-// with `true` and with `false`, or one pair of expressions with `==` and
-// with `!=`, the two sides structurally the same (`same_tree`). Any
+// or every case of its data, each by an arm that tests none of its fields;
+// over guards, when two compare one expression with `true` and with `false`,
+// or one pair of expressions with `==` and with `!=`, the two sides
+// structurally the same (`same_tree`), and no guard from the first of the
+// pair to the second may write storage (`guard_may_change_storage`). Any
 // other ladder of literals, comparisons or predicates closes with `_`.
 public machine covers(
     typer: &Typer,
@@ -215,7 +217,8 @@ crashes Trap
     ) -> bool {
         let binding: ValueBinding = value_binding(resolution, arm.pattern);
         let named: u64 in Trapping = typer_named_case(binding);
-        transition named == data_case + 1 {
+        let whole: bool = named == data_case + 1 && !tests_a_field(syntax, arm);
+        transition whole {
             true -> answer(true)
             _ -> arm(syntax, resolution, range, kind, flag, data_case, offset + 1)
         }
@@ -223,6 +226,35 @@ crashes Trap
 
     machine answer(present: bool) -> bool {
         present
+    }
+}
+
+// Whether a case arm tests one of its fields. `field: value` is projected
+// equality (wiki/spec/language/patterns.md#pattern-subjects-and-bindings), so
+// `Reading::Value { level: 0 }` selects only some `Value` readings and cannot
+// close the case; binders, renames, `as _` waivers and `..` match any value.
+machine tests_a_field(syntax: &SyntaxTrees, arm: TransitionArm) -> bool
+crashes Trap
+{
+    transition { _ -> field(syntax, arm, 0) }
+
+    machine field(syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) -> bool {
+        transition offset < arm.field_count {
+            true -> candidate(syntax, arm, offset)
+            _ -> answer(false)
+        }
+    }
+
+    machine candidate(syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) -> bool {
+        let pattern_field: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + offset);
+        transition pattern_field.has_value {
+            true -> answer(true)
+            _ -> field(syntax, arm, offset + 1)
+        }
+    }
+
+    machine answer(tests: bool) -> bool {
+        tests
     }
 }
 
@@ -290,13 +322,142 @@ crashes Trap
         let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
         let complementary: bool = arm.kind == ArmPatternKind::Guard && typer_complementary(typer, sources, syntax, equal, pattern);
         transition complementary {
-            true -> answer(true)
+            true -> unchanged(typer, sources, syntax, range, offset, equal, other)
             _ -> second(typer, sources, syntax, range, offset, equal, other + 1)
+        }
+    }
+
+    // The pair covers only over the same unchanged subjects
+    // (wiki/spec/language/patterns.md#coverage-and-domain-tests): a guard
+    // evaluated from the first of the pair to the second may change what the
+    // later one reads.
+    machine unchanged(
+        typer: &Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        range: ArmRange,
+        offset: u64 in Trapping,
+        equal: Expression,
+        other: u64 in Trapping
+    ) -> bool {
+        let low: u64 in Trapping = lower_offset(offset, other);
+        let high: u64 in Trapping = offset + other - low;
+        let changed: bool = arms_may_change_storage(typer, syntax, range, low, high);
+        transition changed {
+            true -> second(typer, sources, syntax, range, offset, equal, other + 1)
+            _ -> answer(true)
         }
     }
 
     machine answer(opposed: bool) -> bool {
         opposed
+    }
+}
+
+machine lower_offset(first: u64 in Trapping, second: u64 in Trapping) -> u64 in Trapping {
+    transition first < second {
+        true -> pick(first)
+        _ -> pick(second)
+    }
+
+    machine pick(lower: u64 in Trapping) -> u64 in Trapping {
+        lower
+    }
+}
+
+// Whether any guard of the arms `low` through `high` may write storage: an
+// arm's guard expression, or its `if` guard.
+machine arms_may_change_storage(typer: &Typer, syntax: &SyntaxTrees, range: ArmRange, low: u64 in Trapping, high: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> arm(typer, syntax, range, low, high) }
+
+    machine arm(typer: &Typer, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, high: u64 in Trapping) -> bool {
+        let arm: TransitionArm = range_arm(syntax, range, offset);
+        let pattern: bool = arm.kind == ArmPatternKind::Guard && guard_may_change_storage(typer, syntax, arm.pattern);
+        let guard: bool = arm.has_guard && guard_may_change_storage(typer, syntax, arm.guard);
+        transition pattern || guard || offset >= high {
+            true -> answer(pattern || guard)
+            _ -> arm(typer, syntax, range, offset + 1, high)
+        }
+    }
+
+    machine answer(changed: bool) -> bool {
+        changed
+    }
+}
+
+// Whether evaluating the guard expression `root` may write storage
+// (wiki/spec/language/expressions.md: an effectful guard "cannot be replayed
+// as a fact about operands it may have changed"). A node that runs a machine
+// (a call, or an operator, conversion or index that selected one), a match or
+// a block may; so may any node not known to only read. A tree's nodes are
+// contiguous and children precede parents, so the walk visits rows from the
+// tree's lowest node to its root.
+machine guard_may_change_storage(typer: &Typer, syntax: &SyntaxTrees, root: u64 in Trapping) -> bool
+crashes Trap
+{
+    let tree: Expression = syntax_trees_expression(syntax, root);
+    transition { _ -> node(typer, syntax, tree.first_row, root) }
+
+    machine node(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, root: u64 in Trapping) -> bool {
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let selection: Selection = typing_selection(&typer.output, handle);
+        let changes: bool = node_may_change_storage(expression, selection);
+        transition changes || handle >= root {
+            true -> answer(changes)
+            _ -> node(typer, syntax, handle + 1, root)
+        }
+    }
+
+    machine answer(changes: bool) -> bool {
+        changes
+    }
+}
+
+// Whether one expression node may write storage when evaluated.
+machine node_may_change_storage(expression: Expression, selection: Selection) -> bool {
+    transition selection {
+        Selection::Machine { handle } -> answer(true)
+        Selection::Binder { parameter } -> answer(true)
+        _ -> kind(expression)
+    }
+
+    machine kind(expression: Expression) -> bool {
+        transition expression.kind {
+            ExpressionKind::Name -> answer(false)
+            ExpressionKind::Path -> answer(false)
+            ExpressionKind::Integer -> answer(false)
+            ExpressionKind::Float -> answer(false)
+            ExpressionKind::Boolean -> answer(false)
+            ExpressionKind::String -> answer(false)
+            ExpressionKind::Field -> answer(false)
+            ExpressionKind::Index -> answer(false)
+            ExpressionKind::Binary -> answer(false)
+            ExpressionKind::Cast -> answer(false)
+            ExpressionKind::Membership -> answer(false)
+            ExpressionKind::Range -> answer(false)
+            ExpressionKind::Array -> answer(false)
+            ExpressionKind::Construct -> answer(false)
+            ExpressionKind::Unary -> unary(expression.operator)
+            _ -> answer(true)
+        }
+    }
+
+    // A borrow only names its place; a suspension or block runs code.
+    machine unary(operator: OperatorKind) -> bool {
+        transition operator {
+            OperatorKind::Not -> answer(false)
+            OperatorKind::Negate -> answer(false)
+            OperatorKind::BitNot -> answer(false)
+            OperatorKind::Borrow -> answer(false)
+            OperatorKind::BorrowMutable -> answer(false)
+            _ -> answer(true)
+        }
+    }
+
+    machine answer(changes: bool) -> bool {
+        changes
     }
 }
 

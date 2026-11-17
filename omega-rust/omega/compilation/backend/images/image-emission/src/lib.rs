@@ -38,6 +38,8 @@ verifiers that `image.rs` and `object.rs` orchestrate.
 
 #![forbid(unsafe_code)]
 
+mod callable_calls;
+
 mod codec_bytes {
     pub(crate) use optimization_core::codec_bytes::u32_at;
 
@@ -91,7 +93,10 @@ pub use object::object_artifact::{
 };
 pub use object::private_object_composition::compose_private_function_objects;
 
-pub use object::function_fragments::replay::verify_retained_target_operations;
+pub use object::function_fragments::replay::{
+    RetainedTargetOperations, verify_retained_fixed_frame, verify_retained_selected_optimization,
+    verify_retained_target_operations,
+};
 
 pub use object::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object::object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;

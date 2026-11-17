@@ -95,7 +95,7 @@ fn case_plan() -> AbstractOperationPlan {
             id: StructuralTypeId::new(1).unwrap(),
             identity: sum_identity,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,
@@ -107,6 +107,7 @@ fn case_plan() -> AbstractOperationPlan {
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         dynamic_dispatch: Default::default(),
+        callables: Default::default(),
         identities: identities.build(),
         functions: vec![AbstractFunction {
             machine: MachineId::new(1).unwrap(),

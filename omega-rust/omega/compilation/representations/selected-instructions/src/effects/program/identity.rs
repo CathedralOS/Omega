@@ -321,15 +321,32 @@ mod instruction {
     mod port_write_tests {
         use super::*;
         #[test]
-        fn port_write_identity_retains_both_operands_and_an_append_only_tag() {
+        fn port_write_identity_retains_service_and_both_operands() {
             for (port, value) in [(0, 0), (0x3f8, 0x41), (u16::MAX, u8::MAX)] {
                 let mut bytes = Vec::new();
+                let service = semantic_vocabulary::ServiceId::new(1).unwrap();
                 encode_kind(
                     &mut bytes,
-                    SelectedInstructionKind::PortWrite { port, value },
+                    SelectedInstructionKind::PortWrite {
+                        service,
+                        port,
+                        value,
+                    },
                 );
                 let [low, high] = port.to_le_bytes();
-                assert_eq!(bytes, [239, low, high, value]);
+                let mut expected = vec![239, low, high, value];
+                expected.extend_from_slice(&service.get().to_le_bytes());
+                assert_eq!(bytes, expected);
+                let mut changed = Vec::new();
+                encode_kind(
+                    &mut changed,
+                    SelectedInstructionKind::PortWrite {
+                        service: semantic_vocabulary::ServiceId::new(2).unwrap(),
+                        port,
+                        value,
+                    },
+                );
+                assert_ne!(bytes, changed);
             }
         }
     }
@@ -518,7 +535,7 @@ pub use values::encode_ids;
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v37\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v38\0")
 }
 
 fn identity_with_domain(

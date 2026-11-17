@@ -549,3 +549,121 @@ fn one_more_than_a_value_below_another_is_at_most_that_value() {
         "{refused:?}"
     );
 }
+
+#[test]
+fn an_exact_polynomial_multiple_has_zero_remainder_and_refuses_odd_twins() {
+    use super::build_purpose::judge_build;
+    for (name, positive, negative) in [
+        (
+            "local",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/local/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_local/main.omg"
+            ),
+        ),
+        (
+            "field",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/field/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_field/main.omg"
+            ),
+        ),
+        (
+            "parameter",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/parameter/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_parameter/main.omg"
+            ),
+        ),
+        (
+            "match_join",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/match_join/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_match_join/main.omg"
+            ),
+        ),
+        (
+            "const_name",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/const_name/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_const_name/main.omg"
+            ),
+        ),
+        (
+            "other_state",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/other_state/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_state/main.omg"
+            ),
+        ),
+        (
+            "other_machine",
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/other_machine/main.omg"
+            ),
+            include_str!(
+                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_machine/main.omg"
+            ),
+        ),
+    ] {
+        let accepted = judge_build(&format!(
+            "{positive}\nmachine build_entry() crashes Trap {{ main(); }}\n"
+        ))
+        .unwrap();
+        assert!(
+            matches!(accepted, super::RouteVerdict::Accepted(_)),
+            "{name} positive failed: {accepted:?}"
+        );
+        let rejected = judge_build(&format!(
+            "{negative}\nmachine build_entry() crashes Trap {{ main(); }}\n"
+        ))
+        .unwrap();
+        assert!(
+            matches!(rejected, super::RouteVerdict::Rejected { .. }),
+            "{name} negative twin was not rejected: {rejected:?}"
+        );
+    }
+
+    // Signed negative/positive multiples also have remainder zero, while
+    // signed divisor `-1` and wrapping multiples are rejected.
+    let signed_even = judge_build(
+        r#"
+data MultipleOfThree requires value % 3 == 0 { value: i16; }
+machine build_entry(step: i32) requires step >= -100 && step <= 100 {
+    let scaled: i16 = (step * 3 - 6) as i16;
+    let _: MultipleOfThree = MultipleOfThree { value: scaled };
+}
+"#,
+    )
+    .unwrap();
+    assert!(
+        matches!(signed_even, super::RouteVerdict::Accepted(_)),
+        "{signed_even:?}"
+    );
+    let signed_bad = judge_build(
+        r#"
+data NotMultiple requires value % 3 == 0 { value: i16; }
+machine build_entry(step: i32) requires step >= -100 && step <= 100 {
+    let scaled: i16 = (step * 3 - 5) as i16;
+    let _: NotMultiple = NotMultiple { value: scaled };
+}
+"#,
+    )
+    .unwrap();
+    assert!(
+        matches!(signed_bad, super::RouteVerdict::Rejected { .. }),
+        "{signed_bad:?}"
+    );
+}

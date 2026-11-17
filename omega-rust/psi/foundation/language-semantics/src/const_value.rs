@@ -48,6 +48,26 @@ mod encoding {
                 _ => return None,
             },
             DecodedCanonicalConstValue::Float { .. } => return None,
+            DecodedCanonicalConstValue::StaticCallable {
+                declaration,
+                application,
+                requirement,
+            } => {
+                if declaration.is_empty()
+                    || application.as_ref().is_some_and(String::is_empty)
+                    || requirement.as_ref().is_some_and(String::is_empty)
+                {
+                    return None;
+                }
+                framed(
+                    "static-callable",
+                    [
+                        declaration.as_str(),
+                        application.as_deref().unwrap_or(""),
+                        requirement.as_deref().unwrap_or(""),
+                    ],
+                )
+            }
             DecodedCanonicalConstValue::Array { type_name, values } => {
                 let mut pieces = vec![type_name.clone()];
                 for value in values {
@@ -107,6 +127,13 @@ pub enum DecodedCanonicalConstValue {
     Float {
         format: FloatFormat,
         bits: u64,
+    },
+    /// Exact static selection only. These identities grant no execution or
+    /// source authority; the receiving owner authenticates their association.
+    StaticCallable {
+        declaration: String,
+        application: Option<String>,
+        requirement: Option<String>,
     },
     Array {
         type_name: String,
@@ -253,6 +280,37 @@ impl CanonicalConstValue {
         )
     }
 
+    /// The closed static-value profile includes structural values and exact
+    /// callable atoms; diagnostic display never contributes semantic evidence.
+    pub fn is_canonical_static_value(&self) -> bool {
+        !self.type_name.is_empty()
+            && self.decode_encoding().is_some_and(|value| {
+                encoding::encode(&value).as_deref() == Some(self.encoding.as_str())
+            })
+    }
+
+    /// Keep scalar keys unchanged; aggregates use the existing raw index
+    /// production rather than the named application-identity wrapper.
+    pub fn index_identity(&self) -> Option<String> {
+        use crate::type_identity::{
+            encoding::{atom, compound},
+            vocabulary::{IndexForm, Label},
+        };
+        if !self.is_canonical_static_value() {
+            return None;
+        }
+        if let Some(identity) = self.scalar_index_identity() {
+            return Some(identity);
+        }
+        Some(compound(
+            IndexForm::CanonicalConst,
+            [
+                atom(Label::Type, &self.type_name),
+                atom(Label::Encoding, &self.encoding),
+            ],
+        ))
+    }
+
     pub fn scalar_index_identity(&self) -> Option<String> {
         use crate::type_identity::{encoding::atom, vocabulary::IndexForm};
         match self.decode_encoding()? {
@@ -276,11 +334,23 @@ impl CanonicalConstValue {
             | DecodedCanonicalConstValue::Record { type_name, .. }
             | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name.clone(),
             DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
-            DecodedCanonicalConstValue::Float { .. } => return None,
+            DecodedCanonicalConstValue::Float { .. }
+            | DecodedCanonicalConstValue::StaticCallable { .. } => return None,
         };
+        Self::from_decoded_in_type(type_name, value, display)
+    }
+
+    /// The actual typed owner supplies a callable atom's carrier. Framing its
+    /// value does not infer that carrier or authenticate the selected body.
+    pub fn from_decoded_in_type(
+        type_name: impl Into<String>,
+        value: &DecodedCanonicalConstValue,
+        display: impl Into<String>,
+    ) -> Option<Self> {
         let encoding = encoding::encode(value)?;
         let result = Self::new(type_name, encoding, display);
-        (result.decode_encoding().as_ref() == Some(value)).then_some(result)
+        (!result.type_name.is_empty() && result.decode_encoding().as_ref() == Some(value))
+            .then_some(result)
     }
 
     pub fn boolean(value: bool) -> Self {
@@ -423,6 +493,20 @@ fn decode_node(
         return boolean_literal_spelling(spelling).map(DecodedCanonicalConstValue::Boolean);
     }
 
+    if let Some(mut rest) = encoding.strip_prefix("static-callable") {
+        let declaration = take_canonical_piece(&mut rest)?;
+        let application = take_canonical_piece(&mut rest)?;
+        let requirement = take_canonical_piece(&mut rest)?;
+        if declaration.is_empty() || !rest.is_empty() {
+            return None;
+        }
+        return Some(DecodedCanonicalConstValue::StaticCallable {
+            declaration: declaration.to_owned(),
+            application: (!application.is_empty()).then(|| application.to_owned()),
+            requirement: (!requirement.is_empty()).then(|| requirement.to_owned()),
+        });
+    }
+
     if let Some(mut rest) = encoding.strip_prefix("array") {
         let type_name = take_canonical_piece(&mut rest)?;
         if type_name.is_empty() {
@@ -562,6 +646,127 @@ mod tests {
                 .application_identity()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn static_callable_records_round_trip_exact_selections_and_field_order() {
+        let selected = DecodedCanonicalConstValue::StaticCallable {
+            declaration: "named-callable(path(pkg::write),parameters(),result-dispatch())".into(),
+            application: Some("application(type(u8),value(7))".into()),
+            requirement: Some("closed-requirement(pkg::Writer::write)".into()),
+        };
+        assert!(CanonicalConstValue::from_decoded(&selected, "no inferred carrier").is_none());
+        let atom =
+            CanonicalConstValue::from_decoded_in_type("callable-contract", &selected, "write")
+                .unwrap();
+        assert_eq!(atom.decode_encoding(), Some(selected.clone()));
+        assert!(atom.is_canonical_static_value());
+        assert!(!atom.is_scalar());
+        let record = DecodedCanonicalConstValue::Record {
+            type_name: "Operations".into(),
+            fields: vec![
+                ("write".into(), selected.clone()),
+                ("enabled".into(), DecodedCanonicalConstValue::Boolean(true)),
+            ],
+        };
+        let canonical = CanonicalConstValue::from_decoded(&record, "source spelling").unwrap();
+        assert_eq!(canonical.decode_encoding(), Some(record.clone()));
+        assert_eq!(
+            canonical.index_identity(),
+            CanonicalConstValue::from_decoded(&record, "different display")
+                .unwrap()
+                .index_identity()
+        );
+        let mut reordered = record.clone();
+        let DecodedCanonicalConstValue::Record { fields, .. } = &mut reordered else {
+            unreachable!()
+        };
+        fields.swap(0, 1);
+        assert_ne!(
+            canonical.index_identity(),
+            CanonicalConstValue::from_decoded(&reordered, "same value fields")
+                .unwrap()
+                .index_identity()
+        );
+        for ordinal in 0..3 {
+            let mut changed = selected.clone();
+            let DecodedCanonicalConstValue::StaticCallable {
+                declaration,
+                application,
+                requirement,
+            } = &mut changed
+            else {
+                unreachable!()
+            };
+            match ordinal {
+                0 => declaration.push_str("::other-overload"),
+                1 => *application = Some("application(type(u16),value(7))".into()),
+                _ => *requirement = Some("closed-requirement(pkg::Other::write)".into()),
+            }
+            assert_ne!(
+                atom.identity(),
+                CanonicalConstValue::from_decoded_in_type("callable-contract", &changed, "write")
+                    .unwrap()
+                    .identity()
+            );
+        }
+        for invalid in [
+            DecodedCanonicalConstValue::StaticCallable {
+                declaration: "".into(),
+                application: None,
+                requirement: None,
+            },
+            DecodedCanonicalConstValue::StaticCallable {
+                declaration: "selected".into(),
+                application: Some("".into()),
+                requirement: None,
+            },
+            DecodedCanonicalConstValue::StaticCallable {
+                declaration: "selected".into(),
+                application: None,
+                requirement: Some("".into()),
+            },
+        ] {
+            assert!(
+                CanonicalConstValue::from_decoded_in_type("callable-contract", &invalid, "")
+                    .is_none()
+            );
+        }
+        let absent = DecodedCanonicalConstValue::StaticCallable {
+            declaration: "selected".into(),
+            application: None,
+            requirement: None,
+        };
+        let absent =
+            CanonicalConstValue::from_decoded_in_type("callable-contract", &absent, "").unwrap();
+        assert_eq!(
+            absent.decode_encoding(),
+            Some(DecodedCanonicalConstValue::StaticCallable {
+                declaration: "selected".into(),
+                application: None,
+                requirement: None,
+            })
+        );
+        for invalid in [
+            CanonicalConstValue::new("", "boolean4:true", ""),
+            CanonicalConstValue::new("u8", framed("integer", ["u8", "256"]), ""),
+            CanonicalConstValue::new("u8", framed("integer", ["u8", "01"]), ""),
+            CanonicalConstValue::new(
+                "callable-contract",
+                framed("static-callable", ["", "", ""]),
+                "",
+            ),
+            CanonicalConstValue::new("callable-contract", format!("{}junk", atom.encoding), ""),
+        ] {
+            assert!(!invalid.is_canonical_static_value());
+            assert!(invalid.index_identity().is_none());
+        }
+        for scalar in [
+            CanonicalConstValue::boolean(true),
+            CanonicalConstValue::new("u8", framed("integer", ["u8", "7"]), "7"),
+        ] {
+            assert_eq!(scalar.index_identity(), scalar.scalar_index_identity());
+        }
     }
 
     #[test]

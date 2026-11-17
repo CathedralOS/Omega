@@ -58,21 +58,7 @@ pub(super) struct ClauseScope<'s> {
     /// selects the input observation. Crash guards retain their separate
     /// admission rule.
     pub(super) formal_fields: bool,
-    /// Whether a comparison in this clause may be between mathematical
-    /// integers (`embed(a) + embed(b) <= 99`).
-    pub(super) mathematical: MathematicalTerms,
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
-}
-
-/// Whether a clause may compare mathematical integers. A machine's
-/// `requires`, `ensures` and crash guards may: elaboration and the checker
-/// restate them using the same checked semantic substitution. A data
-/// `requires` still needs its own mathematical domain-establishment goals.
-#[derive(Clone, Copy)]
-pub(super) enum MathematicalTerms {
-    Served,
-    /// The refusal that names the clause kind.
-    Refused(&'static str),
 }
 
 /// The stored value a `requires` clause is about: the value of a data
@@ -166,6 +152,53 @@ impl Program<'_> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
     // conjunction or disjunction of those. Terms name formal `i` as value `i + 1`.
 
+    /// Source-free models have no authored operator to complete. An authored
+    /// data clause keeps its record declaration; callable clauses keep the
+    /// exact contract owner, independently of the reserved result identity.
+    fn complete_contract_operator(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operands: [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<()> {
+        if self
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_none()
+        {
+            return Ok(());
+        }
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_builtin_operator(id, owner, expression, &operands)
+    }
+
+    fn contract_operator_owner(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+    ) -> Checked<SymbolHandle> {
+        Ok(
+            if let Some(subject) = scope.subject
+                && subject.bare_fields
+            {
+                let ValueType::Record(record, _, _) = subject.value_type else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("data predicate subject without its record declaration"),
+                    ));
+                };
+                terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?
+                    .declaration
+            } else {
+                scope.owner
+            },
+        )
+    }
+
     /// A contract fact that is an expression; memberships and named
     /// propositions are outside the subset.
     pub(super) fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
@@ -227,13 +260,16 @@ impl Program<'_> {
         fact: &ProofFact,
         requirement: bool,
     ) -> Checked<Option<(Proposition, ClauseText)>> {
-        if let Some(logical) = scope.logical
-            && let ProofFact::Membership(membership) = fact
-        {
-            return logical.membership_clause(self, scope, membership).map(Some);
+        if let ProofFact::Membership(membership) = fact {
+            return match scope.logical {
+                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                None => self.runtime_membership_clause(id, scope, membership),
+            };
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
+            let owner = self.contract_operator_owner(id, scope)?;
+            let _ = self.read_static_truth(id, owner, expression, super::types::Reading::Clause)?;
             return Ok(None);
         }
         Ok(Some((
@@ -248,13 +284,26 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Proposition> {
+        let mut operands = [None, None];
+        let read = self.read_clause(id, scope, expression, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
+        Ok(read)
+    }
+
+    fn read_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<Proposition> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
-        if let Some((predicate, argument)) =
-            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
         {
             return self.byte_predicate_clause(id, scope, predicate, argument);
         }
@@ -300,6 +349,9 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
+            *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
+        }
         // A machine clause over a type equation the machine being read
         // decides: a conjunct decided true states nothing and the rest is
         // the clause, and a disjunct decided false contributes nothing and
@@ -335,9 +387,8 @@ impl Program<'_> {
                 };
             }
         }
-        // `self in S::C`, in a data clause only. Stage 01 writes a case test
-        // as `CaseMembership` or as `Equal` against a case name; in both the
-        // right operand names a case, which is what makes it one.
+        // `self in S::C`, in a data clause only. `self == S::C` is the same
+        // test only on a payload-free sum (`require_intrinsic_tag_equality`).
         if matches!(
             operator,
             BinaryOperator::CaseMembership | BinaryOperator::Equal
@@ -352,6 +403,9 @@ impl Program<'_> {
             let Some(sum) = self.opened(id, Some(tested), Access::Read)? else {
                 return unserved("case test of something that is not a sum");
             };
+            if operator == BinaryOperator::Equal {
+                self.require_intrinsic_tag_equality(id, sum)?;
+            }
             let case = self.case_position(id, sum, case)?;
             let case = self.data_type(id, sum.record())?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {
@@ -400,6 +454,7 @@ impl Program<'_> {
         // A comparison with an `embed` on either side is between
         // mathematical integers, which no carrier bounds.
         if self.mathematical(binary.left) || self.mathematical(binary.right) {
+            *operands = self.mathematical_operator_operands();
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
         }
         // A wholly anonymous operand lands in its partner's type; an
@@ -419,6 +474,7 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
+        *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
         // Core policy comparisons have the same exact declared signatures
         // as executable comparisons. Plain cross-carrier comparisons keep
         // their separately specified mathematical-value relation below.
@@ -452,9 +508,6 @@ impl Program<'_> {
         if left_type != right_type
             && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
         {
-            if let MathematicalTerms::Refused(why) = scope.mathematical {
-                return Err(refuse(id, Construct::Machine, Unserved::Contract(why)));
-            }
             let embedded = |term| {
                 IntegerMathTerm::embed(term).ok_or_else(|| {
                     refuse(
@@ -520,13 +573,9 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<Proposition> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let Some((root, path, value_type)) = self.projected(id, scope, argument)? else {
-            return Err(unserved("byte predicate of something that is not storage"));
-        };
+        let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
-            return Err(unserved(
-                "byte predicate of something that is not a byte view or a byte array",
-            ));
+            unreachable!("validated byte carrier")
         };
         match self.data_type(id, row)?.shape {
             StorageShape::ByteSequence(_) => {}
@@ -546,6 +595,113 @@ impl Program<'_> {
             ScalarTerm::Boolean(true),
             id,
         )
+    }
+
+    fn byte_predicate_subject(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject =
+            typed_trees::byte_predicates::whole_byte_observation_subject(self.typed, argument)
+                .ok_or_else(|| {
+                    unserved("logical byte observation requires a shared exact whole view")
+                })?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte carrier",
+            ));
+        };
+        let explicit_loan = matches!(
+            self.typed.expression_table.expression(argument),
+            ExpressionNode::Borrow(_)
+        );
+        let valid = match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StorageShape::ByteSequence(_) if explicit_loan => true,
+            StorageShape::FixedArray { .. } if explicit_loan => {
+                let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                    return Err(unserved("byte array is not readable"));
+                };
+                let (element, qualification, _) = self.array_element(id, array)?;
+                matches!(self.storage_value_type(id, element, qualification)?,
+                    ValueType::Scalar(ScalarType::Integer(integer), _) if integer.bits() == Some(8)
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(unserved(
+                "byte predicate requires a byte view or fixed u8 array",
+            ));
+        }
+        let collection = if let ExpressionNode::Borrow(borrow) =
+            self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+        {
+            // A domain's `self` names the declared logical carrier, which
+            // may be unsized. Its actual source type is retained by that
+            // declaration; reading it is not executable slice materialization.
+            if let Some(subject) = scope.subject
+                && let Some(definition) = self.typed.domain_definition(scope.owner)
+                && subject.symbol == definition.subject_symbol
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(definition.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+                && typed_trees::domain::domain_subject_reference(
+                    self.typed,
+                    definition,
+                    indexed.collection,
+                )
+            {
+                Some(definition.target_type)
+            } else {
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            }
+        } else {
+            None
+        };
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_byte_observation_range(id, owner, argument, collection)?;
+        Ok((root, path, value_type))
+    }
+
+    /// Form the source range of a logical byte observation. The declaration
+    /// reader supplies its exact logical carrier; instantiated clauses supply
+    /// the actual checked structural operand. Neither call grants membership.
+    pub(super) fn complete_byte_observation_range(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        argument: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+            && matches!(
+                self.typed.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            return self.complete_collection_range_operator(id, owner, borrow.target, collection);
+        }
+        Ok(())
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its
@@ -654,7 +810,13 @@ impl Program<'_> {
             }
             ExpressionNode::Unary(unary) => {
                 text.push_text(unary.operator.display_name());
+                let grouped = matches!(
+                    table.expression(unary.operand),
+                    ExpressionNode::Binary(_)
+                );
+                if grouped { text.push_text("("); }
                 self.write_clause_text(slots, unary.operand, text);
+                if grouped { text.push_text(")"); }
             }
             ExpressionNode::Member(member) => {
                 self.write_clause_text(slots, member.receiver, text);
@@ -720,10 +882,33 @@ impl Program<'_> {
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
+        let mut operands = [None, None];
+        let read = self.read_term(id, scope, expression, expected, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
+        Ok(read)
+    }
+
+    fn read_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<(ScalarTerm, ValueType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            let (root, path, _) = self.byte_predicate_subject(id, scope, argument)?;
+            return Ok((
+                ScalarTerm::byte_sequence_predicate(predicate, root, path),
+                ValueType::plain(ScalarType::Boolean),
+            ));
         }
         if let Some(logical) = &scope.logical
             && let Some((term, scalar)) = logical.term(typed, expression)?
@@ -739,7 +924,8 @@ impl Program<'_> {
                 | ExpressionNode::Unary(_)
                 | ExpressionNode::Binary(_)
         ) {
-            match self.clause_truth(expression) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            match self.read_static_truth(id, owner, expression, super::types::Reading::Clause)? {
                 Some(TypeTruth::Known(truth)) => {
                     return Ok((
                         ScalarTerm::Boolean(truth),
@@ -833,6 +1019,7 @@ impl Program<'_> {
                             ScalarTerm::ieee_float_field_path(root, Vec::new(), format),
                             ValueType::Scalar(scalar_type, qualification),
                         )),
+                        ScalarType::Callable(_) => unserved("callable field in a clause"),
                     };
                 }
                 // A record formal is a place, not a scalar value: a clause
@@ -843,6 +1030,9 @@ impl Program<'_> {
                 else {
                     return unserved("record formal named whole in a clause");
                 };
+                if matches!(scalar_type, ScalarType::Callable(_)) {
+                    return unserved("callable value in a clause");
+                }
                 // Contracts name the supplied scalar value in every clause.
                 // Lowering initializes the body's working slot from this
                 // formal ValueId; assignments and writable loans can change
@@ -968,13 +1158,17 @@ impl Program<'_> {
                 ))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
-                let (value, integer) = self.anonymous_value(id, expression, expected)?;
+                let evaluated = self.anonymous_value(id, expression, expected)?;
+                if !evaluated.operators.is_empty() {
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                }
                 Ok((
                     ScalarTerm::Integer {
-                        scalar_type: integer,
-                        value,
+                        scalar_type: evaluated.integer,
+                        value: evaluated.value,
                     },
-                    ValueType::plain(ScalarType::Integer(integer)),
+                    ValueType::plain(ScalarType::Integer(evaluated.integer)),
                 ))
             }
             ExpressionNode::Boolean(value) => Ok((
@@ -985,7 +1179,7 @@ impl Program<'_> {
                 // The shared declaration phase forms this canonical term
                 // before any containing clause becomes proof knowledge.
                 crate::policy::Suffix::Unwritten => {
-                    self.arithmetic_term(id, scope, binary, None, expected)
+                    self.arithmetic_term(id, scope, binary, None, expected, operands)
                 }
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
@@ -998,7 +1192,7 @@ impl Program<'_> {
                      mathematical arithmetic",
                 )),
                 crate::policy::Suffix::Total(policy) => {
-                    self.arithmetic_term(id, scope, binary, Some(policy), expected)
+                    self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
                 }
             },
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
@@ -1219,6 +1413,7 @@ impl Program<'_> {
         binary: &typed_trees::expression::TableBinaryExpression,
         suffix: Option<Policy>,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let anonymous = (
@@ -1260,6 +1455,9 @@ impl Program<'_> {
             crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
+        // Source selection must see the operands this reader actually
+        // checked; unknown operands would leave unrelated overloads eligible.
+        *operands = [left_type, right_type].map(|value| self.operator_operand_reference(value));
         Ok((term, selected))
     }
 
@@ -1313,6 +1511,8 @@ impl Program<'_> {
     /// Terminal Psi keeps for one (`IntegerMathEqual`, `IntegerMathLessThan`,
     /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
     /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
+    /// Domain and data clauses retain the same terms; the lowered-form checker
+    /// still proves their formation and establishment in each subject scope.
     fn mathematical_comparison(
         &mut self,
         id: MachineId,
@@ -1321,10 +1521,6 @@ impl Program<'_> {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-        if let MathematicalTerms::Refused(why) = scope.mathematical {
-            return unserved(why);
-        }
         let left = self.mathematical_term(id, scope, left)?;
         let right = self.mathematical_term(id, scope, right)?;
         mathematical_relation(comparison, left, right, id)
@@ -1361,6 +1557,22 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<IntegerMathTerm> {
+        let read = self.read_mathematical_term(id, scope, expression)?;
+        self.complete_contract_operator(
+            id,
+            scope,
+            expression,
+            self.mathematical_operator_operands(),
+        )?;
+        Ok(read)
+    }
+
+    fn read_mathematical_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<IntegerMathTerm> {
         if scope.logical.is_some() {
             return self.logical_mathematical_term(id, scope, expression);
         }
@@ -1375,11 +1587,7 @@ impl Program<'_> {
                     return unserved("embed of other than one value");
                 };
                 let (term, value_type) = self.term(id, scope, *argument, None)?;
-                self.clause_operand_type(id, value_type)?;
-                match IntegerMathTerm::embed(term) {
-                    Some(embedded) => Ok(embedded),
-                    None => unserved("embed of a value that is not an integer"),
-                }
+                super::mathematics::integer_embedding(id, term, value_type)
             }
             ExpressionNode::Call(_) => unserved("call in a mathematical term"),
             ExpressionNode::Integer(literal) if literal.landing().is_none() => {
@@ -1467,16 +1675,13 @@ impl Program<'_> {
             ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
             // counts_and_addresses.md: valid geometry proves `embed(base) +
             // embed(length) <= addr::Bound` "in unbounded proof integers".
-            // The bound is one past the largest address. Here an address is
-            // the one carrier the lowered form gives `addr`
-            // (`read/types.rs`), so the bound is that carrier's. A clause
-            // judged against a binding's own address model is read by
-            // `logical_mathematical_term` instead.
+            // The bound is one past the largest address. Its interpretation
+            // follows this clause: the ordinary lowered carrier, or the exact
+            // retained model of a bound callable.
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                let address =
-                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
                 match 1_u128.checked_shl(u32::from(address.bits())) {
                     Some(bound) => Ok(IntegerMathTerm::literal(
                         semantic_vocabulary::IntegerValue::Unsigned(bound),
@@ -1495,7 +1700,7 @@ impl Program<'_> {
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
     fn field_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1527,6 +1732,7 @@ impl Program<'_> {
                 ScalarTerm::ieee_float_field_path(root, path, format),
                 ValueType::Scalar(ScalarType::IeeeFloat(format), qualification),
             )),
+            ValueType::Scalar(ScalarType::Callable(_), _) => unserved("callable field in a clause"),
             ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
         }
     }
@@ -1537,8 +1743,8 @@ impl Program<'_> {
     /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
-    fn projected(
-        &self,
+    pub(super) fn projected(
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1678,10 +1884,19 @@ impl Program<'_> {
                         ),
                     ));
                 };
+                // A contract's checked index is the same primitive collection
+                // operation as a body read. Retain its actual collection type
+                // before publishing the source selection; bounds alone cannot
+                // resolve a competing declared operator.
+                let operands = self.collection_index_operand_types(id, array.record());
+                self.complete_contract_operator(id, scope, expression, operands)?;
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
                 let value_type = self.storage_value_type(id, element, qualification)?;
+                let operands = self.collection_index_operand_types(id, array.record());
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.complete_builtin_operator(id, owner, expression, &operands)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)
@@ -1696,6 +1911,7 @@ impl Program<'_> {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
+            | ExpressionNode::MachineValue(_)
             | ExpressionNode::Borrow(_)
             | ExpressionNode::Range(_)
             | ExpressionNode::String(_)
@@ -1763,29 +1979,30 @@ impl Program<'_> {
 }
 
 impl Program<'_> {
-    /// The alternatives of a finite type family, each as the type its one
-    /// type parameter is fixed to: the machine `symbol` has exactly one type
-    /// parameter and one `requires` clause that is a disjunction of type
-    /// equations between that parameter and a closed scalar or record type, `requires
-    /// T == u32 || T == u64`. generics.md, "Static type equality": "Checking
+    /// Complete alternatives for one type binder. A finite family names
+    /// them in a requirement such as `requires T == u32 || T == u64`.
+    /// generics.md, "Static type equality": "Checking
     /// the body once per listed alternative, each with `T` fixed to that
     /// type, satisfies this rule for a finite family; the list is closed".
-    /// Refused for anything else, an open `T` included: that is the opaque
-    /// check form's.
+    /// Other binders remain opaque under their own bounds. An open binder
+    /// instead checks every closed type named by its static guards and one
+    /// opaque remainder that excludes those types; this remains a linear
+    /// partition rather than a Cartesian product of independent families.
     pub fn family_alternatives(
         &self,
         id: MachineId,
         symbol: SymbolHandle,
-    ) -> Checked<Vec<Vec<TypeReferenceHandle>>> {
+    ) -> Checked<Vec<super::TypeAlternative>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         let (machine, _) = self.declaration(id, symbol)?;
-        let Some([parameter]) = self.typed.machine_type_parameters(machine).as_array() else {
-            return unserved("finite family over other than one type parameter");
-        };
-        if parameter.kind != typed_trees::data::TypeParameterKind::Type
-            || !parameter.symbol.is_valid()
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                parameter.kind != typed_trees::data::TypeParameterKind::Type
+                    || !parameter.symbol.is_valid()
+            })
         {
-            return unserved("finite family over other than a type parameter");
+            return unserved("finite family needs an exact type-parameter roster");
         }
         let table = &self.typed.expression_table;
         let types = &self.typed.type_reference_table;
@@ -1801,7 +2018,9 @@ impl Program<'_> {
         // One alternative per disjunct `T == X`, either way round, with `X`
         // a closed scalar or record type. Keep its source reference here;
         // a record identity belongs to the reader that materializes it.
-        let alternative = |disjunct: ExpressionHandle| -> Option<TypeReferenceHandle> {
+        let alternative = |parameter: &typed_trees::data::TypeParameter,
+                           disjunct: ExpressionHandle|
+         -> Option<TypeReferenceHandle> {
             let ExpressionNode::Binary(binary) = table.expression(disjunct) else {
                 return None;
             };
@@ -1822,7 +2041,7 @@ impl Program<'_> {
             super::source_records::source_application(self.typed, data, other, id).ok()?;
             Some(other)
         };
-        let mut found: Option<Vec<Vec<TypeReferenceHandle>>> = None;
+        let mut found: Option<Vec<Vec<Option<TypeReferenceHandle>>>> = None;
         let contracts = super::span(
             |span| self.typed.signature_contracts.span(span),
             machine.contracts,
@@ -1842,32 +2061,139 @@ impl Program<'_> {
                 let expression = self.fact(id, fact)?;
                 let mut disjuncts = Vec::new();
                 self.disjuncts(expression, &mut disjuncts);
-                let listed: Option<Vec<TypeReferenceHandle>> = disjuncts
+                let listed = parameters
                     .iter()
-                    .map(|disjunct| disjunct.is_valid().then(|| alternative(*disjunct))?)
-                    .collect();
-                let Some(listed) = listed else {
+                    .enumerate()
+                    .find_map(|(position, parameter)| {
+                        disjuncts
+                            .iter()
+                            .map(|disjunct| {
+                                disjunct
+                                    .is_valid()
+                                    .then(|| alternative(parameter, *disjunct))?
+                            })
+                            .collect::<Option<Vec<_>>>()
+                            .map(|listed| (position, listed))
+                    });
+                let Some((position, listed)) = listed else {
                     continue;
                 };
                 if found.is_some() {
                     return unserved("finite family listed by two clauses");
                 }
-                let mut alternatives: Vec<Vec<TypeReferenceHandle>> = Vec::new();
+                let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
                 for reference in listed {
                     let identity = self.typed.normalized_type_identity(reference);
-                    if !alternatives
-                        .iter()
-                        .any(|known| self.typed.normalized_type_identity(known[0]) == identity)
-                    {
-                        alternatives.push(vec![reference]);
+                    if !alternatives.iter().any(|known| {
+                        known[position].is_some_and(|reference| {
+                            self.typed.normalized_type_identity(reference) == identity
+                        })
+                    }) {
+                        let mut arguments = vec![None; parameters.len()];
+                        arguments[position] = Some(reference);
+                        alternatives.push(arguments);
                     }
                 }
                 found = Some(alternatives);
             }
         }
         match found {
-            Some(alternatives) => Ok(alternatives),
-            None => unserved("type parameter that is not a finite family"),
+            Some(alternatives) => Ok(alternatives
+                .into_iter()
+                .map(|arguments| super::TypeAlternative {
+                    arguments,
+                    remainder: None,
+                })
+                .collect()),
+            None => {
+                // Static guards partition one open binder into their closed
+                // cases and an opaque remainder. All cases are checked, even
+                // when no current consumer selects one of them.
+                let (_, state) = self.declaration(id, symbol)?;
+                let statements = self.typed.statement_table.statements(state.statement_nodes);
+                let mut pending = statements
+                    .iter()
+                    .filter_map(|statement| {
+                        let typed_trees::statement::StatementNode::Transition(transition) =
+                            statement
+                        else {
+                            return None;
+                        };
+                        match transition.guard {
+                            typed_trees::statement::TransitionGuardNode::When(guard) => Some(guard),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let mut selected = None;
+                let mut listed = Vec::new();
+                while let Some(expression) = pending.pop() {
+                    match table.expression(expression) {
+                        ExpressionNode::Unary(unary)
+                            if unary.operator == UnaryOperator::LogicalNot =>
+                        {
+                            pending.push(unary.operand)
+                        }
+                        ExpressionNode::Binary(binary)
+                            if matches!(
+                                binary.operator,
+                                BinaryOperator::And | BinaryOperator::Or
+                            ) =>
+                        {
+                            pending.push(binary.left);
+                            pending.push(binary.right);
+                        }
+                        ExpressionNode::Binary(binary)
+                            if binary.operator == BinaryOperator::Equal
+                                && operand(binary.left).is_some()
+                                && operand(binary.right).is_some() =>
+                        {
+                            let Some((position, reference)) = parameters
+                                .iter()
+                                .enumerate()
+                                .find_map(|(position, parameter)| {
+                                    alternative(parameter, expression)
+                                        .map(|reference| (position, reference))
+                                })
+                            else {
+                                return unserved(
+                                    "static partition needs a binder and a closed type",
+                                );
+                            };
+                            if selected.is_some_and(|selected| selected != position) {
+                                return unserved("static partition over independent type binders");
+                            }
+                            selected = Some(position);
+                            let identity = self.typed.normalized_type_identity(reference);
+                            if !listed.iter().any(|known| {
+                                self.typed.normalized_type_identity(*known) == identity
+                            }) {
+                                listed.push(reference);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let Some(position) = selected else {
+                    return unserved("type parameter that has no complete static partition");
+                };
+                let mut alternatives = listed
+                    .iter()
+                    .map(|reference| {
+                        let mut arguments = vec![None; parameters.len()];
+                        arguments[position] = Some(*reference);
+                        super::TypeAlternative {
+                            arguments,
+                            remainder: None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                alternatives.push(super::TypeAlternative {
+                    arguments: vec![None; parameters.len()],
+                    remainder: Some((position, listed)),
+                });
+                Ok(alternatives)
+            }
         }
     }
 }

@@ -21,10 +21,12 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 
 #![forbid(unsafe_code)]
 
+pub mod declaration_selection;
 mod evaluation_and_synchronous_calls;
 mod producer_trust;
 mod provider_and_target_installation;
 mod scalar_applications;
+pub mod selection_questions;
 
 pub use producer_trust::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
@@ -49,21 +51,45 @@ pub(crate) mod entry_values {
             value: IntegerValue,
         },
         IeeeFloat(IeeeFloatValue),
+        Callable {
+            contract: semantic_vocabulary::CallableContractId,
+            descriptor: semantic_vocabulary::MachineDescriptorId,
+        },
+        /// A non-null `addr` a native import returned. Its number is a real
+        /// host pointer, not an interpreter storage identity, so it carries
+        /// its provenance here: the interpreter may store, copy and compare
+        /// it with other host addresses and pass it back to native imports,
+        /// but refuses arithmetic, casts and comparison against its own
+        /// addresses (spec: terminal-psi/boundary_calls.md#host-result-validation).
+        HostAddress {
+            scalar_type: IntegerType,
+            address: u64,
+        },
     }
 
     impl TerminalScalarValue {
         pub fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
-            terminal_semantics::scalar_field_accepts_literal(field, &self.literal())
+            if let Self::Callable { contract, .. } = self {
+                return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Callable(expected)) if *expected == contract);
+            }
+            if let Self::HostAddress { scalar_type, .. } = self {
+                return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(expected)) if *expected == scalar_type);
+            }
+            self.literal().is_some_and(|literal| {
+                terminal_semantics::scalar_field_accepts_literal(field, &literal)
+            })
         }
 
-        pub fn literal(self) -> semantic_vocabulary::ScalarTerm {
-            match self {
+        /// Opaque code selections have no mathematical literal.
+        pub fn literal(self) -> Option<semantic_vocabulary::ScalarTerm> {
+            Some(match self {
                 Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
                 Self::Integer { scalar_type, value } => {
                     semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
                 }
                 Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-            }
+                Self::Callable { .. } | Self::HostAddress { .. } => return None,
+            })
         }
 
         pub const fn scalar_type(self) -> ScalarType {
@@ -71,6 +97,8 @@ pub(crate) mod entry_values {
                 Self::Boolean(_) => ScalarType::Boolean,
                 Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
                 Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
+                Self::Callable { contract, .. } => ScalarType::Callable(contract),
+                Self::HostAddress { scalar_type, .. } => ScalarType::Integer(scalar_type),
             }
         }
     }

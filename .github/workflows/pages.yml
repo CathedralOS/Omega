@@ -1,12 +1,14 @@
 name: Pages
 
-# The site holds the Omega book (wiki/learn). GitHub Pages replaces the whole
-# site on every deploy.
+# The site holds the Omega book (wiki/learn) and, under /atlas/, the codebase
+# atlas (atlas/). GitHub Pages replaces the whole site on every deploy, so
+# both are staged here together.
 on:
   push:
     branches: [main]
     paths:
       - "wiki/learn/**"
+      - "atlas/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,6 +32,7 @@ jobs:
         with:
           sparse-checkout: |
             wiki/learn
+            atlas
       - id: pages
         uses: actions/configure-pages@v5
       - name: Stage Pages site
@@ -39,6 +42,11 @@ jobs:
             cp -r "wiki/learn/$item" "_site/$item"
             cp -r "wiki/learn/$item" "_site/learn/$item"
           done
+          # The atlas is static already: its landing page, its pages and the
+          # design kit they load (tokens, fonts, component styles).
+          mkdir -p _site/atlas
+          cp atlas/index.html _site/atlas/
+          cp -r atlas/pages atlas/design _site/atlas/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

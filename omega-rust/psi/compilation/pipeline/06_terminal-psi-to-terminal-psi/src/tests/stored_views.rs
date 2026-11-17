@@ -215,17 +215,16 @@ machine entry() crashes Trap {{
     );
 }
 
-/// Only the shared view is a storable descriptor: "Qualified mutable,
-/// write-only, and access-unspecified view fields remain unsupported".
+/// Exclusive byte views retain affine descriptor custody as structural fields;
+/// only shared views use the inline byte-field representation.
 #[test]
-fn an_exclusive_view_is_not_a_field() {
-    assert_eq!(
-        refusal(
-            r#"
-data Session<'storage> { ready: bool; name: &'storage mut [u8]; }
-machine build_entry(session: &mut Session) { session.ready = true; }
-"#
-        ),
-        "type stored view that is not a shared byte view"
+fn an_exclusive_view_is_a_structural_field() {
+    let accepted = accepted(
+        r#"
+        data Session<'storage> { ready: bool; name: &'storage mut [u8]; }
+        machine build_entry(session: &mut Session) { session.ready = true; }
+    "#,
     );
+    assert_eq!(stored_fields(&accepted), [false]);
+    accepted.publish_invocation().unwrap();
 }

@@ -483,6 +483,20 @@ pub(crate) mod scalar_applications {
                 operation.id,
             ))?;
         Ok(match value {
+            TerminalScalarValue::Callable { .. } => {
+                // Source scalar applications currently publish primitive results.
+                // Callable results also need retained code and call dependencies.
+                return Err(LoweringError::UnadmittedCallableScalarApplication {
+                    operation: operation.id,
+                    application,
+                });
+            }
+            TerminalScalarValue::HostAddress { .. } => {
+                return Err(LoweringError::HostAddressScalarApplication {
+                    operation: operation.id,
+                    application,
+                });
+            }
             TerminalScalarValue::Boolean(value) => AbstractOperation::BooleanConstant {
                 psi_operation: operation.id,
                 result: result.id,

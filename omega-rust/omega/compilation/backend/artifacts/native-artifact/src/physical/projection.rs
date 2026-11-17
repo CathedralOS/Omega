@@ -318,6 +318,7 @@ mod tests {
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             dynamic_dispatch: Default::default(),
+            callables: Default::default(),
             functions: vec![AbstractFunction {
                 machine,
                 attachment: None,

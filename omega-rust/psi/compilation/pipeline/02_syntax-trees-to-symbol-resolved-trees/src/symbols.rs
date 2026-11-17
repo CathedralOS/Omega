@@ -14,6 +14,8 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
 
+#[path = "symbols_runtime_callable_types.rs"]
+mod runtime_callable_types;
 #[path = "symbols_symbol_table.rs"]
 mod symbol_table;
 
@@ -61,6 +63,21 @@ mod contracts {
         symbols: &SymbolTable,
     ) -> Result<(), Vec<Diagnostic>> {
         let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
+        let runtime_scopes = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, declaration)| {
+                super::runtime_callable_types::lexical_parameters(
+                    program,
+                    &conformance_scopes,
+                    declaration.lexical_owner,
+                )
+                .map(|parameters| (handle, parameters))
+                .map_err(|error| vec![error])
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let attached_machines = super::scope::attached_machines(program);
         let binder_roles = super::scope::BinderRoles::of(program);
         let trait_scopes = super::scope::TraitLexicalScopes::of(program);
@@ -264,6 +281,31 @@ mod contracts {
                 child_type_references,
             );
         }
+        for (handle, parameters) in &runtime_scopes {
+            let declaration = tables.declarations.runtime_callable_contracts.get(*handle);
+            let signature = &declaration.signature;
+            let scope = scope_context.scope(
+                signature.symbol,
+                super::scope::LexicalRequirements::none(),
+                parameters,
+                SymbolHandle::invalid(),
+                None,
+                &[],
+            );
+            assign_callable_value_symbols(
+                symbols,
+                &scope,
+                data_type_parameters.span_or_empty(signature.type_parameters),
+                state_parameters.span_or_empty(signature.parameters),
+                signature.return_type.as_ref(),
+                signature.symbol,
+                signature.contracts,
+                signature_contracts,
+                proof_facts,
+                expression_table,
+                child_type_references,
+            );
+        }
         Ok(())
     }
 
@@ -430,6 +472,7 @@ mod contracts {
                 }
             }
             ExpressionNode::Call(call) => {
+                assign_calls!(call.callee);
                 if call.requirement_application.is_valid() {
                     super::type_references::reassign_type_reference_symbols_and_values(
                         symbols,
@@ -1164,14 +1207,54 @@ mod domain_facts {
         else {
             return None;
         };
-        if call.receiver.is_valid() {
+        if !call.target_symbol.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+        {
             return None;
         }
-        let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+        let target = if program.symbols.get(call.target_symbol).kind == symbols::SymbolKind::State {
+            program.symbols.get(call.target_symbol).parent
+        } else {
+            call.target_symbol
+        };
+        let Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+            language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
+        )) = program
+            .symbols
+            .sealed_declaration(target, program.symbols.name(target))
+        else {
+            return None;
+        };
         let [argument] = body_expressions(program).expression_handles(call.arguments) else {
             return None;
         };
-        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(*argument)
+        let mut argument = *argument;
+        if !matches!(
+            program.tables.bodies.expressions.expression(argument),
+            ExpressionNode::Borrow(_)
+        ) {
+            return None;
+        }
+        if let ExpressionNode::Borrow(borrow) =
+            program.tables.bodies.expressions.expression(argument)
+        {
+            if borrow.access != language_core::ReferenceAccess::Shared {
+                return None;
+            }
+            argument = borrow.target;
+            if let ExpressionNode::Indexed(indexed) =
+                program.tables.bodies.expressions.expression(argument)
+                && let ExpressionNode::Range(range) =
+                    program.tables.bodies.expressions.expression(indexed.index)
+            {
+                if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
+                    return None;
+                }
+                argument = indexed.collection;
+            }
+        }
+        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(argument)
         else {
             return None;
         };
@@ -1387,7 +1470,17 @@ mod domain_facts {
                     {
                         self.assign(argument);
                     }
-                    if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
+                    // A declaration predicate takes the same source-scoped
+                    // static namespace as an ordinary body or callable clause.
+                    let normalized = super::targets::normalize_expression_module_call(
+                        self.symbols,
+                        self.expression_table,
+                        expression,
+                    );
+                    if normalized.is_none()
+                        && !call.receiver.is_valid()
+                        && !call.target_symbol.is_valid()
+                    {
                         let mut lexical_matches = self
                             .local_symbols
                             .iter()
@@ -1753,30 +1846,6 @@ mod lookup {
         reference: source::SourceSpan,
     ) -> bool {
         symbols.domain_name_reaches(domain_symbol, authored, reference)
-    }
-
-    /*
-        A domain declared in the reference's own module outranks same-spelled
-        foreign or root candidates, mirroring local-binding precedence.
-    */
-    pub(crate) fn prefer_module_local_domain(
-        symbols: &SymbolTable,
-        candidates: Vec<SymbolHandle>,
-        reference: source::SourceSpan,
-    ) -> Vec<SymbolHandle> {
-        if reference.span.start == reference.span.end {
-            return candidates;
-        }
-        let reference_module = symbols.source_module(reference.source_id);
-        if !reference_module.is_valid() {
-            return candidates;
-        }
-        let local = candidates
-            .iter()
-            .copied()
-            .filter(|candidate| symbols.symbol_module(*candidate) == reference_module)
-            .collect::<Vec<_>>();
-        if local.is_empty() { candidates } else { local }
     }
 
     /*
@@ -2169,7 +2238,6 @@ mod lookup {
                 candidates.push(symbol);
             }
         }
-        let candidates = prefer_module_local_domain(symbols, candidates, reference);
         let mut distinct = Vec::new();
         for candidate in candidates {
             if !distinct.contains(&candidate) {
@@ -2485,23 +2553,34 @@ mod measures {
 }
 mod repeated_locals {
     /*
-        Refuse a `let` that declares a name its body already declares.
+        Refuse a `let` or a pattern binding that reuses a name its body already
+        declares.
 
-        A local name is declared at most once in a machine body, and parameters
-        and locals share that namespace (`wiki/spec/language/state_contracts.md`,
-        "Bindings"): "Refusal compares declared binder identities, not spellings
-        rendered as text." This is where each binder gets its identity, so the
-        rule is applied here, once, for both checkers: a body that breaks it
-        never reaches typing. Each binder is compared by the name its
-        declaration gave its symbol, so two binders are never merged and no
-        expression rendering is read. The binders are the state's parameters
-        and the runtime bindings among its statements, the same set the rule
-        covered when Psi 05 applied it.
+        A name is declared at most once among a machine's parameters and the
+        locals of its own body, and pattern bindings within one arm follow the
+        same rule (`wiki/spec/language/state_contracts.md`, "Bindings").
+        This is where each binder gets its identity, so the rule is applied
+        here, once, for both checkers: a body that breaks it never reaches
+        typing. Parameters and `let` locals are compared by the name their
+        declaration gave their symbol.
+
+        Match and transition arm bindings get no symbol: the parser rewrites
+        each use into a projection of the subject and checks only repeats
+        inside one arm. Their names survive in the pattern fields and outcome
+        proof selectors, so this pass walks each state's statements and
+        expressions and compares every arm binding with the parameters, the
+        locals declared before that statement, and the bindings of the arms
+        enclosing it. Different arms of one match may reuse a name.
     */
 
     use diagnostics::Diagnostic;
+    use source::SourceSpan;
     use symbol_resolved_trees::SymbolResolvedTrees;
-    use symbol_resolved_trees::statement::Statement;
+    use symbol_resolved_trees::expression::{
+        ExpressionHandle, ExpressionNode, ExpressionTable, MatchFieldAction, MatchPattern,
+        TableDestructurePattern,
+    };
+    use symbol_resolved_trees::statement::{Statement, TransitionGuard, TransitionTarget};
     use symbols::SymbolHandle;
 
     pub(super) fn reject_repeated_local_names(
@@ -2509,11 +2588,14 @@ mod repeated_locals {
     ) -> Result<(), Vec<Diagnostic>> {
         let symbols = &program.symbols;
         let declarations = &program.tables.declarations;
+        let expressions = &program.tables.bodies.expressions;
         let mut diagnostics = Vec::new();
         for (_, state) in declarations.machine_states.iter() {
             if !state.symbol.is_valid() {
                 continue;
             }
+            let machine = symbols.name(symbols.get(state.symbol).parent);
+            let state_name = symbols.name(state.symbol);
             let parameters: Vec<SymbolHandle> = declarations
                 .state_parameters
                 .span_or_empty(state.parameters)
@@ -2521,11 +2603,22 @@ mod repeated_locals {
                 .map(|parameter| parameter.symbol)
                 .filter(|symbol| symbol.is_valid())
                 .collect();
+            let mut arms = ArmBindings {
+                expressions,
+                declared: parameters
+                    .iter()
+                    .map(|parameter| symbols.name(*parameter).to_owned())
+                    .collect(),
+                machine,
+                state_name,
+                diagnostics: &mut diagnostics,
+            };
             let mut locals: Vec<SymbolHandle> = Vec::new();
             for statement in declarations
                 .state_statements
                 .span_or_empty(state.statements)
             {
+                arms.statement(statement);
                 let Statement::LocalData(local) = statement else {
                     continue;
                 };
@@ -2544,11 +2637,10 @@ mod repeated_locals {
                     None
                 };
                 locals.push(local.symbol);
+                arms.declared.push(name.to_owned());
                 let Some(rule) = rule else {
                     continue;
                 };
-                let machine = symbols.name(symbols.get(state.symbol).parent);
-                let state_name = symbols.name(state.symbol);
                 let message = if rule == "duplicate" {
                     format!(
                         "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
@@ -2561,16 +2653,191 @@ mod repeated_locals {
                     )
                 };
                 let diagnostic = Diagnostic::error(message);
-                diagnostics.push(match symbols.symbol_source_span(local.symbol) {
-                    Some(span) => diagnostic.with_source_span(span),
-                    None => diagnostic,
-                });
+                arms.diagnostics
+                    .push(match symbols.symbol_source_span(local.symbol) {
+                        Some(span) => diagnostic.with_source_span(span),
+                        None => diagnostic,
+                    });
             }
         }
         if diagnostics.is_empty() {
             Ok(())
         } else {
             Err(diagnostics)
+        }
+    }
+
+    /// One state's walk over its arm bindings. `declared` holds the names in
+    /// scope: parameters, earlier locals, then the bindings of each enclosing
+    /// arm, pushed on entry to the arm and popped on exit.
+    struct ArmBindings<'walk> {
+        expressions: &'walk ExpressionTable,
+        declared: Vec<String>,
+        machine: &'walk str,
+        state_name: &'walk str,
+        diagnostics: &'walk mut Vec<Diagnostic>,
+    }
+
+    impl ArmBindings<'_> {
+        fn statement(&mut self, statement: &Statement) {
+            match statement {
+                Statement::Assembly(_) | Statement::AssemblyFact(_) => {}
+                Statement::RootBinding(binding) => {
+                    self.expression(binding.receiver);
+                    self.expression(binding.implementation_operand);
+                }
+                Statement::Assignment(assignment) => {
+                    self.expression(assignment.target);
+                    self.expression(assignment.value);
+                }
+                Statement::Call(call) => {
+                    self.expression(call.callee);
+                    self.expressions_in(call.arguments);
+                }
+                Statement::ProofOutputBindingStatement(binding) => self.expression(binding.call),
+                Statement::Expression(expression) => self.expression(*expression),
+                Statement::LocalData(local) => self.expression(local.initial_value),
+                Statement::Transition(transition) => {
+                    let scope = self.declared.len();
+                    let mut names = Vec::new();
+                    for pattern in &transition.patterns {
+                        self.expression(pattern.subject);
+                        names.extend(self.field_bindings(&pattern.pattern));
+                    }
+                    names.extend(
+                        transition
+                            .proof_selectors
+                            .iter()
+                            .map(|selector| selector.binding.as_str().to_owned()),
+                    );
+                    self.bind(names, transition.source_span);
+                    // The resolved guard already joins each pattern's
+                    // condition with the authored guard.
+                    if let TransitionGuard::When(guard) = &transition.guard {
+                        self.expression(*guard);
+                    }
+                    for target in
+                        std::iter::once(&transition.target).chain(transition.continuation.as_ref())
+                    {
+                        match target {
+                            TransitionTarget::Named(named) => self.expressions_in(named.arguments),
+                            TransitionTarget::Value(value) => self.expression(*value),
+                            TransitionTarget::Terminal => {}
+                        }
+                    }
+                    self.declared.truncate(scope);
+                }
+            }
+        }
+
+        fn expressions_in(&mut self, span: arena::HandleSpan<ExpressionHandle>) {
+            for expression in self.expressions.expression_handles(span) {
+                self.expression(*expression);
+            }
+        }
+
+        fn expression(&mut self, expression: ExpressionHandle) {
+            if !expression.is_valid() {
+                return;
+            }
+            let expressions = self.expressions;
+            match expressions.expression(expression) {
+                ExpressionNode::Match(dispatch) => {
+                    self.expression(dispatch.subject);
+                    for arm in expressions.match_arms(dispatch.arms) {
+                        let scope = self.declared.len();
+                        match arm.pattern {
+                            MatchPattern::Value(value) => self.expression(value),
+                            MatchPattern::Destructure(pattern) => {
+                                let mut names = self.field_bindings(&pattern);
+                                names.extend(
+                                    expressions
+                                        .match_proof_selectors(pattern.proof_selectors)
+                                        .iter()
+                                        .map(|selector| selector.binding.as_str().to_owned()),
+                                );
+                                self.bind(names, arm.source_span);
+                                self.expression(pattern.condition);
+                            }
+                            MatchPattern::Wildcard => {}
+                        }
+                        self.expression(arm.value);
+                        self.declared.truncate(scope);
+                    }
+                }
+                ExpressionNode::SavedSubject(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::TypeExpression(_)
+                | ExpressionNode::ZeroValue(_) => {}
+                ExpressionNode::ArrayLiteral(values) => self.expressions_in(*values),
+                ExpressionNode::Atomic(atomic) => {
+                    self.expression(atomic.value);
+                    self.expression(atomic.result);
+                }
+                ExpressionNode::Binary(binary) => {
+                    self.expression(binary.left);
+                    self.expression(binary.right);
+                }
+                ExpressionNode::Cast(cast) => self.expression(cast.value),
+                ExpressionNode::Call(call) => {
+                    self.expression(call.callee);
+                    self.expression(call.receiver);
+                    self.expressions_in(call.arguments);
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    self.expression(indexed.collection);
+                    self.expression(indexed.index);
+                }
+                ExpressionNode::Membership(membership) => self.expression(membership.value),
+                ExpressionNode::Member(member) => self.expression(member.receiver),
+                ExpressionNode::Borrow(borrow) => self.expression(borrow.target),
+                ExpressionNode::Range(range) => {
+                    self.expression(range.start);
+                    self.expression(range.end);
+                }
+                ExpressionNode::StructLiteral(literal) => {
+                    for field in expressions.struct_fields(literal.fields) {
+                        self.expression(field.value);
+                    }
+                }
+                ExpressionNode::Unary(unary) => self.expression(unary.operand),
+            }
+        }
+
+        fn field_bindings(&self, pattern: &TableDestructurePattern) -> Vec<String> {
+            self.expressions
+                .match_fields(pattern.fields)
+                .iter()
+                .filter_map(|field| match &field.action {
+                    MatchFieldAction::Bind(binding) => Some(binding.as_str().to_owned()),
+                    MatchFieldAction::Equal(_) | MatchFieldAction::Waive => None,
+                })
+                .collect()
+        }
+
+        /// Refuse each of one arm's bindings whose name is already in scope,
+        /// then bring them into scope for the arm's body. Repeats inside one
+        /// arm were refused by the parser.
+        fn bind(&mut self, names: Vec<String>, arm: SourceSpan) {
+            for name in names {
+                if self.declared.contains(&name) {
+                    let (machine, state_name) = (self.machine, self.state_name);
+                    self.diagnostics.push(
+                        Diagnostic::error(format!(
+                            "machine `{machine}` state `{state_name}` pattern binding `{name}` \
+                             conflicts with an existing name: parameters, locals and the \
+                             bindings of one arm share one namespace"
+                        ))
+                        .with_source_span(arm),
+                    );
+                }
+                self.declared.push(name);
+            }
         }
     }
 }
@@ -5870,8 +6137,20 @@ fn assign_program_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     generic_origin_frontier: usize,
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
+    runtime_callable_contracts: &[symbol_resolved_trees::callable_values::RuntimeCallableContractHandle],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = assign_top_level_symbols(program, symbols);
+    if let Err(error) = runtime_callable_scopes.bind_program(program) {
+        diagnostics.push(error);
+        return diagnostics;
+    }
+    if let Err(errors) =
+        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts)
+    {
+        diagnostics.extend(errors);
+        return diagnostics;
+    }
     assign_generic_application_origin_symbols(program, symbols, generic_origin_frontier);
     assign_type_reference_symbols(program, symbols);
     type_references::assign_declaration_type_value_expression_symbols(program, symbols);
@@ -5985,6 +6264,7 @@ pub(crate) fn assign_symbols(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
     integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
@@ -6000,9 +6280,16 @@ pub(crate) fn assign_symbols(
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = assign_program_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+        runtime_callable_scopes,
+        &runtime_callable_contracts,
+    );
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -6023,6 +6310,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
     integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
@@ -6040,9 +6328,16 @@ pub(crate) fn assign_symbols_against_resolved_base(
     let mut symbols = program.symbols.clone();
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = assign_program_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+        runtime_callable_scopes,
+        &runtime_callable_contracts,
+    );
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -6112,7 +6407,7 @@ pub(crate) fn assign_constant_expression_symbols(
 pub(crate) use lookup::{
     DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
     constructor_prefix_is_value, constructor_type, domain_name_reaches, membership_domain_lookup,
-    membership_selection, prefer_module_local_domain, qualified_payload_free_case_type,
+    membership_selection, qualified_payload_free_case_type,
 };
 
 /*
@@ -6154,6 +6449,7 @@ pub(crate) fn assign_declarations(
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
             &operand_bindings,
+            &mut lowerer.runtime_callable_scopes,
             &integers,
         )?,
         Some(roots) => {
@@ -6171,6 +6467,7 @@ pub(crate) fn assign_declarations(
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
                 &operand_bindings,
+                &mut lowerer.runtime_callable_scopes,
                 &integers,
             )?;
         }
@@ -6199,7 +6496,18 @@ pub(crate) fn assign_body_symbols(
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
+    let runtime_callable_contracts =
+        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
+    lowerer
+        .runtime_callable_scopes
+        .bind_program(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    runtime_callable_types::assign_signatures(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+    )?;
     assign_generic_application_origin_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
@@ -6245,7 +6553,18 @@ pub(crate) fn assign_lexical_inputs(
             &mut input.locals,
         );
     }
+    let runtime_callable_contracts =
+        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
+    lowerer
+        .runtime_callable_scopes
+        .bind_program(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    runtime_callable_types::assign_signatures(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+    )?;
     statements::assign_lexical_input_reference_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,

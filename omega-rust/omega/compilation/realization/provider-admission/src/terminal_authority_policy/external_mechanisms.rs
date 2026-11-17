@@ -204,7 +204,7 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
             .closed_types()
             .scalar(*scalar)
             .map_err(|cause| format!("syscall scalar descriptor is not retained: {cause}"))?;
-        encode_scalar(&mut digest, scalar);
+        encode_scalar(&mut digest, scalar)?;
     }
     push_count(&mut digest, declaration.structural_parameters.len())?;
     for (ordinal, parameter) in declaration.structural_parameters.iter().enumerate() {
@@ -259,8 +259,13 @@ fn push_count(digest: &mut DomainDigestEncoder, count: usize) -> Result<(), Stri
     Ok(())
 }
 
-fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ClosedScalarType) {
+fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ClosedScalarType) -> Result<(), String> {
     match scalar {
+        ClosedScalarType::Callable(_) => {
+            return Err(
+                "direct syscall arguments cannot contain local callable descriptors".to_owned(),
+            );
+        }
         ClosedScalarType::Boolean => digest.byte(0),
         ClosedScalarType::Integer(integer) => {
             digest.byte(1);
@@ -282,6 +287,7 @@ fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ClosedScalarType) {
             });
         }
     }
+    Ok(())
 }
 
 const fn multiplicity_tag(multiplicity: StructuralMultiplicity) -> u8 {
@@ -320,7 +326,7 @@ mod closed_width_tests {
             (ClosedIntegerType::address(48).unwrap(), [1, 1, 1, 0, 48]),
         ] {
             let mut actual = DomainDigestEncoder::new(b"closed-width-wire-test\0");
-            encode_scalar(&mut actual, ClosedScalarType::Integer(integer));
+            encode_scalar(&mut actual, ClosedScalarType::Integer(integer)).unwrap();
             let mut legacy = DomainDigestEncoder::new(b"closed-width-wire-test\0");
             legacy.raw(&bytes);
             assert_eq!(actual.finish(), legacy.finish());

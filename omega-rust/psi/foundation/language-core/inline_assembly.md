@@ -70,7 +70,7 @@ Unknown mnemonics fail separately. Service-admission candidates
 (`cl*`/`tlbi`/`ic`/`dc`) stay unrecognized until each has its own contract.
 Target gates never substitute another ISA's instruction.
 
-[Parsing](../../compilation/pipeline/01_tokens-to-syntax-trees/src/statements_and_assembly.rs)
+[Parsing](../../compilation/pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
 lowers known forms and checks separators, transfer position and the exact
 clobber union. Requires and ensures clauses become assertions around the
 instructions, with a proof-neutral entry marker for an ensures-only block.

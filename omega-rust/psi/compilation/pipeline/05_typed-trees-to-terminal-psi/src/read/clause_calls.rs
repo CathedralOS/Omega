@@ -65,7 +65,7 @@ impl Program<'_> {
         }
         let body = unfolded.body;
         self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(scope, &unfolded.bound);
+            let callee = callee_scope(&unfolded.bound, unfolded.machine);
             program.clause(id, &callee, body)
         })
     }
@@ -81,7 +81,7 @@ impl Program<'_> {
         let body = unfolded.body;
         let result = unfolded.result;
         let (term, value_type) = self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(scope, &unfolded.bound);
+            let callee = callee_scope(&unfolded.bound, unfolded.machine);
             program.term(id, &callee, body, Some(result))
         })?;
         if value_type.scalar() != Some(result) {
@@ -105,6 +105,10 @@ impl Program<'_> {
         self.unfolding_calls.push(machine);
         let read = body(self);
         self.unfolding_calls.pop();
+        if read.is_ok() {
+            self.admitted_declarations.include(machine);
+            self.admitted_bodies.include(machine);
+        }
         read
     }
 
@@ -203,7 +207,7 @@ impl Program<'_> {
         }
         let mut bound = Vec::with_capacity(parameters.len());
         for (parameter, &argument) in parameters.iter().zip(arguments) {
-            let (value_type, erased, borrowed) = self.formal(id, parameter)?;
+            let (value_type, erased, borrowed) = self.formal(id, parameter, None)?;
             if erased || borrowed.is_some() || parameter.is_mutable {
                 return unserved("called machine in a clause takes a non-value parameter");
             }
@@ -229,21 +233,19 @@ impl Program<'_> {
 }
 
 /// The scope the callee's body is read in: its parameters, each bound to the
-/// caller's argument term, and nothing of the caller's own names. Mathematical
-/// terms keep the caller's permission.
+/// caller's argument term, and nothing of the caller's own names.
 fn callee_scope<'b>(
-    caller: &ClauseScope<'_>,
     bound: &'b [(SymbolHandle, ScalarTerm)],
+    owner: SymbolHandle,
 ) -> ClauseScope<'b> {
     ClauseScope {
         slots: &[],
         values: &[],
         bound,
-        owner: SymbolHandle::invalid(),
+        owner,
         result: ResultTerm::Absent("result in a called machine's body"),
         subject: None,
         formal_fields: false,
-        mathematical: caller.mathematical,
         logical: None,
     }
 }

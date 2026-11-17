@@ -103,7 +103,7 @@ fn roundtrip_certificate_cites_only_the_live_equation_and_refuses_forged_childre
     assert!(AcceptedProofRule::FloatMeaningNormalization.is_provisional());
     assert!(matches!(
         accepted.mathematical_core,
-        MathematicalCoreDecision::Refused(_)
+        MathematicalCoreDecision::Judged(_)
     ));
     let missing = certificate(&desired, &[]);
     assert!(accept_certificate(&context(), &desired, &[], &axioms, &missing).is_err());

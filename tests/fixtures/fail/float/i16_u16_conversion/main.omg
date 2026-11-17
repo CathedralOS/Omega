@@ -1,0 +1,137 @@
+// Expected error: missing ordinary-conversion upper bound
+// Named 16-bit conversions retain toward-zero results, policy and guarded failures.
+use omega::language::core::I16;
+use omega::language::core::U16;
+use omega::language::core::I16::from_f32;
+use omega::language::core::I16::from_f64;
+use omega::language::core::U16::from_f32;
+use omega::language::core::U16::from_f64;
+machine signed32_plain(value: f32) -> i16
+requires value == value && value > -32769.0f32
+crashes none {
+    let converted: i16 = I16::from_f32(value);
+    converted
+}
+machine signed64_plain(value: f64) -> i16
+requires value == value && value > -32769.0f64 && value < 32768.0f64
+crashes none {
+    let converted: i16 = I16::from_f64(value);
+    converted
+}
+machine unsigned32_plain(value: f32) -> u16
+requires value == value && value > -1.0f32 && value < 65536.0f32
+crashes none {
+    let converted: u16 = U16::from_f32(value);
+    converted
+}
+machine unsigned64_plain(value: f64) -> u16
+requires value == value && value > -1.0f64 && value < 65536.0f64
+crashes none {
+    let converted: u16 = U16::from_f64(value);
+    converted
+}
+machine signed32_trapping(value: f32) -> i16
+requires value == value && value > -32769.0f32 && value < 32768.0f32
+crashes none {
+    let converted: i16 in Trapping = I16::from_f32(value);
+    converted as -Trapping
+}
+machine signed64_trapping(value: f64) -> i16
+requires value == value && value > -32769.0f64 && value < 32768.0f64
+crashes none {
+    let converted: i16 in Trapping = I16::from_f64(value);
+    converted as -Trapping
+}
+machine unsigned32_trapping(value: f32) -> u16
+requires value == value && value > -1.0f32 && value < 65536.0f32
+crashes none {
+    let converted: u16 in Trapping = U16::from_f32(value);
+    converted as -Trapping
+}
+machine unsigned64_trapping(value: f64) -> u16
+requires value == value && value > -1.0f64 && value < 65536.0f64
+crashes none {
+    let converted: u16 in Trapping = U16::from_f64(value);
+    converted as -Trapping
+}
+machine signed32_saturating(value: f32) -> i16
+requires true
+crashes none {
+    let converted: i16 in Saturating = I16::from_f32(value);
+    converted as -Saturating
+}
+machine signed64_saturating(value: f64) -> i16
+requires true
+crashes none {
+    let converted: i16 in Saturating = I16::from_f64(value);
+    converted as -Saturating
+}
+machine unsigned32_saturating(value: f32) -> u16
+requires true
+crashes none {
+    let converted: u16 in Saturating = U16::from_f32(value);
+    converted as -Saturating
+}
+machine unsigned64_saturating(value: f64) -> u16
+requires true
+crashes none {
+    let converted: u16 in Saturating = U16::from_f64(value);
+    converted as -Saturating
+}
+machine main() crashes Trap {
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let nan64: f64 = 0.0f64 / 0.0f64;
+    let infinity32: f32 = 1.0f32 / 0.0f32;
+    let infinity64: f64 = 1.0f64 / 0.0f64;
+    transition signed32_plain(-32768.75f32) == -32768i16
+        && signed32_plain(32767.75f32) == 32767i16
+        && unsigned32_plain(-0.75f32) == 0u16
+        && unsigned32_plain(65535.75f32) == 65535u16
+        && signed32_trapping(-32768.75f32) == -32768i16
+        && signed32_trapping(32767.75f32) == 32767i16
+        && unsigned32_trapping(-0.75f32) == 0u16
+        && unsigned32_trapping(65535.75f32) == 65535u16
+        && signed32_saturating(-32768.75f32) == -32768i16
+        && signed32_saturating(32767.75f32) == 32767i16
+        && signed32_saturating(-32769.75f32) == -32768i16
+        && signed32_saturating(32768.75f32) == 32767i16
+        && signed32_saturating(nan32) == 0i16
+        && signed32_saturating(infinity32) == 32767i16
+        && signed32_saturating(-1.0f32 / 0.0f32) == -32768i16
+        && unsigned32_saturating(32768.75f32) == 32768u16
+        && unsigned32_saturating(65536.75f32) == 65535u16
+        && unsigned32_saturating(-0.75f32) == 0u16
+        && unsigned32_saturating(-1.0f32) == 0u16
+        && unsigned32_saturating(nan32) == 0u16
+        && unsigned32_saturating(infinity32) == 65535u16
+        && unsigned32_saturating(-1.0f32 / 0.0f32) == 0u16
+        && unsigned32_saturating(-0.0f32) == 0u16
+        && signed64_plain(-32768.75f64) == -32768i16
+        && signed64_plain(32767.75f64) == 32767i16
+        && unsigned64_plain(-0.75f64) == 0u16
+        && unsigned64_plain(65535.75f64) == 65535u16
+        && signed64_trapping(-32768.75f64) == -32768i16
+        && signed64_trapping(32767.75f64) == 32767i16
+        && unsigned64_trapping(-0.75f64) == 0u16
+        && unsigned64_trapping(65535.75f64) == 65535u16
+        && signed64_saturating(-32768.75f64) == -32768i16
+        && signed64_saturating(32767.75f64) == 32767i16
+        && signed64_saturating(-32769.75f64) == -32768i16
+        && signed64_saturating(32768.75f64) == 32767i16
+        && signed64_saturating(nan64) == 0i16
+        && signed64_saturating(infinity64) == 32767i16
+        && signed64_saturating(-1.0f64 / 0.0f64) == -32768i16
+        && unsigned64_saturating(32768.75f64) == 32768u16
+        && unsigned64_saturating(65536.75f64) == 65535u16
+        && unsigned64_saturating(-0.75f64) == 0u16
+        && unsigned64_saturating(-1.0f64) == 0u16
+        && unsigned64_saturating(nan64) == 0u16
+        && unsigned64_saturating(infinity64) == 65535u16
+        && unsigned64_saturating(-1.0f64 / 0.0f64) == 0u16
+        && unsigned64_saturating(-0.0f64) == 0u16 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

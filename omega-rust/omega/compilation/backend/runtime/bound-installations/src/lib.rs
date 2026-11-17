@@ -1,22 +1,22 @@
-//! The installation authority instruction selection reads, as plain data.
+//! Shared installation facts for instruction selection and image publication.
 //!
 //! Provider admission checks every installed interrupt, its handler entries
 //! and its arrival-token helpers, and only admission can construct the sealed
-//! records that say so. Instruction selection needs a handful of answers from
-//! those records, but depending on admission would let it reach every earlier
-//! program form admission itself reads. The native driver therefore projects
-//! the admitted authority into this record once, after it has resolved the
-//! handler stacks and the installed entry, and hands it to selection beside
-//! the prepared execution plan.
+//! records that say so. Their shared data lives here so selection can read it
+//! without reaching the program forms admission checks. After measuring handler
+//! stacks, the driver binds one checked receipt. Selection reads its plain facts;
+//! image publication retains those same facts and sealed entry evidence.
 //!
-//! The record holds only what selection reads. Selection refuses a record
-//! that names another program, target or entry than the plan it is bound to.
+//! Admission keeps its sealed wrappers and checked issuance. These immutable
+//! leaf records carry the same scope and callback data to both native consumers;
+//! they do not retain admission's program inputs or grant new authority.
 
-use calling_conventions::{BoundaryEntryPlan, PrivateCallbackPlacements};
+use calling_conventions::{BoundaryEntryPlan, NativePlace, PrivateCallbackPlacements};
 use function_identity::MachineFunctionIdentity;
 use installation_evidence::InstalledInterruptStackRequirement;
 use language_core::static_interrupts::StaticInterruptOperation;
-use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId, StructuralTypeId};
+use std::sync::Arc;
 use target::NativeTarget;
 use terminal_psi::{StructuralArgument, TerminalPsiIdentity};
 
@@ -26,7 +26,7 @@ pub struct BoundInstallations {
     /// The program the installations were admitted for.
     pub psi: TerminalPsiIdentity,
     /// One row per admitted installation request.
-    pub installations: Vec<BoundInterruptInstallation>,
+    pub installations: Vec<Arc<BoundInterruptInstallation>>,
     /// The handler entries every installation writes into its table.
     pub entries: Vec<BoundInterruptEntry>,
     /// What admission answered for each arrival-token helper operation.
@@ -41,13 +41,81 @@ pub struct BoundInstallations {
 /// One installation request and the table it fills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundInterruptInstallation {
+    pub service: ServiceId,
     pub operation: OperationId,
+    pub boundary: BoundaryMachineId,
     pub arguments: [StructuralArgument; 6],
     pub table_type: StructuralTypeId,
+    pub context_type: StructuralTypeId,
+    pub validator: MachineId,
+    pub work: MachineId,
     pub acknowledgement_application: u32,
     pub fatal_entries: Vec<BoundFatalInterruptEntry>,
     pub context_anchor: Option<BoundInterruptContextAnchor>,
     pub completion: MachineId,
+    pub installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
+}
+
+impl BoundInterruptInstallation {
+    pub fn bootstrap_assumption(
+        &self,
+    ) -> Option<&installation_evidence::BootstrapEnvironmentAssumption> {
+        self.installation_assumptions
+            .iter()
+            .find_map(|row| row.bootstrap())
+    }
+
+    pub fn interrupt_delivery_assumption(
+        &self,
+    ) -> Option<&installation_evidence::X86InterruptDeliveryAssumption> {
+        self.installation_assumptions
+            .iter()
+            .find_map(|row| row.interrupt_delivery())
+    }
+
+    pub fn installation_assumptions(
+        &self,
+    ) -> &[installation_evidence::InstallationEnvironmentAssumption] {
+        &self.installation_assumptions
+    }
+
+    pub fn context_anchor(&self) -> Option<&BoundInterruptContextAnchor> {
+        self.context_anchor.as_ref()
+    }
+
+    pub const fn service(&self) -> ServiceId {
+        self.service
+    }
+    pub const fn operation(&self) -> OperationId {
+        self.operation
+    }
+    pub const fn boundary(&self) -> BoundaryMachineId {
+        self.boundary
+    }
+    pub const fn arguments(&self) -> &[StructuralArgument; 6] {
+        &self.arguments
+    }
+    pub const fn table_type(&self) -> StructuralTypeId {
+        self.table_type
+    }
+    pub const fn context_type(&self) -> StructuralTypeId {
+        self.context_type
+    }
+    pub const fn validator(&self) -> MachineId {
+        self.validator
+    }
+    pub const fn work(&self) -> MachineId {
+        self.work
+    }
+    pub const fn completion(&self) -> MachineId {
+        self.completion
+    }
+    pub const fn acknowledgement_application(&self) -> u32 {
+        self.acknowledgement_application
+    }
+    pub fn fatal_entries(&self) -> &[BoundFatalInterruptEntry] {
+        &self.fatal_entries
+    }
 }
 
 /// A fatal handler entry an installation admits, and the gate it occupies.
@@ -58,13 +126,44 @@ pub struct BoundFatalInterruptEntry {
     pub machine: MachineId,
 }
 
+impl BoundFatalInterruptEntry {
+    pub const fn application(&self) -> u32 {
+        self.application
+    }
+    pub const fn gate_byte_offset(&self) -> u32 {
+        self.gate_byte_offset
+    }
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+}
+
 /// Where the acknowledgement entry finds its installation context.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundInterruptContextAnchor {
     pub application: u32,
     pub function: MachineFunctionIdentity,
+    pub destination: NativePlace,
     pub gate_byte_offset: u32,
     pub table_bytes: u32,
+}
+
+impl BoundInterruptContextAnchor {
+    pub const fn application(&self) -> u32 {
+        self.application
+    }
+    pub const fn function(&self) -> MachineFunctionIdentity {
+        self.function
+    }
+    pub fn destination(&self) -> &NativePlace {
+        &self.destination
+    }
+    pub const fn gate_byte_offset(&self) -> u32 {
+        self.gate_byte_offset
+    }
+    pub const fn table_bytes(&self) -> u32 {
+        self.table_bytes
+    }
 }
 
 /// One handler entry an installation writes into its table.
@@ -77,7 +176,7 @@ pub struct BoundInterruptEntry {
     /// The table field the entry address is written to; `None` when the
     /// entry is not materialized into a private table field.
     pub table_placements: Option<PrivateCallbackPlacements>,
-    pub callback: BoundCallbackEntry,
+    pub callback: Arc<BoundCallbackEntry>,
 }
 
 /// The admitted callback body behind a handler entry.
@@ -87,6 +186,25 @@ pub struct BoundCallbackEntry {
     pub target: NativeTarget,
     pub machine: MachineId,
     pub inbound: BoundaryEntryPlan,
+    pub inbound_ordinals: Vec<u32>,
+}
+
+impl BoundCallbackEntry {
+    pub const fn psi(&self) -> TerminalPsiIdentity {
+        self.psi
+    }
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+    pub fn inbound(&self) -> &BoundaryEntryPlan {
+        &self.inbound
+    }
+    pub fn inbound_ordinals(&self) -> &[u32] {
+        &self.inbound_ordinals
+    }
 }
 
 /// Admission's answer for one arrival-token helper operation: the kind it

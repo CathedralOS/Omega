@@ -140,14 +140,16 @@ pub(crate) mod atomic_operations {
                             )]
                         }
                     };
-                    self.publish_scalar_aggregate(
-                        result,
-                        crate::boundary::values::TerminalScalarAggregateValue {
-                            structural_type: result.structural_type,
-                            result_case: Some(result_case),
-                            fields,
-                        },
+                    let mut value = crate::boundary::values::TerminalAggregateValue::from_scalars(
+                        result.structural_type,
+                        Some(result_case),
+                        fields,
+                    );
+                    value.set_declared_scalar_storage(
+                        self.structural_declaration(result.structural_type)?,
+                        |identity| self.structural_types().get(&identity),
                     )?;
+                    self.publish_aggregate(result, value)?;
                 }
                 (Some(prior), OperationResult::Scalar(result))
                     if result.scalar_type == scalar_type =>
@@ -281,6 +283,12 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
+        let callable_values = terminal_semantics::callable_values::terminal_callable_values(
+            program.catalogs.as_ref().as_ref(),
+        )
+        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+        let mut callable_roots = BTreeSet::from([entry]);
+        let mut callable_invocations = None;
         let mut pending = vec![entry];
         let mut visited = BTreeSet::new();
         while let Some(machine_id) = pending.pop() {
@@ -427,6 +435,44 @@ pub(crate) mod capabilities {
                                 },
                             ));
                         }
+                        OperationKind::CallMachine { .. } => {
+                            if callable_invocations.is_none() {
+                                callable_invocations = Some(
+                                    terminal_semantics::callable_values::reachable_callable_invocations(
+                                        &callable_values, callable_roots.iter().copied(),
+                                    ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?,
+                                );
+                            }
+                            let Some(invocation) = callable_invocations
+                                .as_ref()
+                                .ok_or_else(malformed)?
+                                .checked_operation(&callable_values, machine_id, operation.id)
+                                .map_err(|reason| {
+                                    TerminalInterpretError::ScalarApplicationEvaluation(
+                                        reason.into(),
+                                    )
+                                })?
+                            else {
+                                continue;
+                            };
+                            let terminal_semantics::callable_values::ReachedCallableTarget::Callable(values) = &invocation.target else {
+                                return Err(malformed());
+                            };
+                            if !values.is_resolved() {
+                                return Err(TerminalInterpretError::ScalarApplicationEvaluation(
+                                    "execution capabilities require the actual callable inputs for this entry".into(),
+                                ));
+                            }
+                            for descriptor in &values.descriptors {
+                                let selected = program
+                                    .catalogs
+                                    .callables
+                                    .descriptor(*descriptor)
+                                    .ok_or_else(malformed)?;
+                                pending.push(selected.machine);
+                            }
+                            None
+                        }
                         OperationKind::CallDynamic {
                             interface, slot, ..
                         } => {
@@ -441,8 +487,13 @@ pub(crate) mod capabilities {
                             }
                             for table in &catalog.tables {
                                 if table.interface == *interface {
-                                    let row = table.rows.get(slot_index).ok_or(malformed())?;
-                                    pending.extend(*row);
+                                    let row = table.rows.get(slot_index).ok_or_else(malformed)?;
+                                    if let Some(target) = row {
+                                        if callable_roots.insert(*target) {
+                                            callable_invocations = None;
+                                        }
+                                        pending.push(*target);
+                                    }
                                 }
                             }
                             None
@@ -763,7 +814,7 @@ pub(crate) mod capabilities {
                 id: StructuralTypeId::new(id).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(0),
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -911,7 +962,7 @@ pub(crate) mod capabilities {
                 id,
                 identity: terminal_psi::TerminalIdentityIndex(0),
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -2508,10 +2559,26 @@ pub(crate) mod execution {
             &self,
             value: ValueId,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            self.values
+            let scalar = self
+                .values
                 .get(&value)
                 .copied()
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
+                .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+            if let TerminalScalarValue::Callable {
+                contract,
+                descriptor,
+            } = scalar
+                && (self.program.catalogs.callables.contract(contract).is_none()
+                    || self
+                        .program
+                        .catalogs
+                        .callables
+                        .descriptor(descriptor)
+                        .is_none_or(|selected| selected.contract != contract))
+            {
+                return Err(malformed());
+            }
+            Ok(scalar)
         }
 
         pub(crate) fn unsigned_integer_value(
@@ -2859,8 +2926,20 @@ pub(crate) mod execution {
                                         OperationKind::Call { .. } => {
                                             self.execute_call(operation, &program)?
                                         }
+                                        OperationKind::SelectMachine { descriptor } => {
+                                            let selected = program.catalogs.callables.descriptor(descriptor).ok_or_else(malformed)?;
+                                            let result = operation.result.scalar().ok_or_else(malformed)?;
+                                            if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                                                || program.catalogs.callables.contract(selected.contract).is_none() {
+                                                return Err(malformed());
+                                            }
+                                            self.store_scalar(operation, TerminalScalarValue::Callable { contract: selected.contract, descriptor })?
+                                        }
                                         OperationKind::SelectImplementation { table } => {
                                             self.execute_select_implementation(operation, table, &program)?
+                                        }
+                                        OperationKind::CallMachine { .. } => {
+                                            self.execute_call_machine(operation, &program)?
                                         }
                                         OperationKind::CallDynamic { .. } => {
                                             self.execute_call_dynamic(operation, &program)?
@@ -3021,7 +3100,7 @@ pub(crate) mod execution {
 pub(crate) mod native_code_layouts {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{
-        StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarAggregateValue,
+        StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalAggregateValue,
         TerminalScalarValue, TerminalStructuralValue,
     };
     use crate::engine::execution::TerminalExecution;
@@ -3130,10 +3209,10 @@ pub(crate) mod native_code_layouts {
             let elements = ImmutableStructuralSequence::from_values(
                 layout.regions.len(),
                 layout.regions.iter().map(|region| {
-                    let aggregate = TerminalScalarAggregateValue {
-                        structural_type: element_type,
-                        result_case: None,
-                        fields: vec![
+                    let mut aggregate = TerminalAggregateValue::from_scalars(
+                        element_type,
+                        None,
+                        vec![
                             (
                                 vec![CanonicalStructuralPathSegment::Field(base_field)],
                                 number(base_type, region.base),
@@ -3143,8 +3222,8 @@ pub(crate) mod native_code_layouts {
                                 number(length_type, region.length),
                             ),
                         ],
-                    };
-                    aggregate.validate_against(
+                    );
+                    aggregate.set_declared_scalar_storage(
                         self.structural_declaration(element_type)?,
                         |identity| self.structural_types().get(&identity),
                     )?;
@@ -3153,11 +3232,15 @@ pub(crate) mod native_code_layouts {
                         element_type,
                         Vec::new(),
                     );
-                    storage.stage_scalar_aggregate(
-                        self,
-                        &aggregate,
-                        &StructuralRuntimePlace::from(&element),
+                    let mut cursor = self.local_structural_identities.cursor();
+                    self.stage_structural_result_contents(
+                        result.place,
+                        &element,
+                        &aggregate.canonical_contents(),
+                        &mut storage,
+                        &mut cursor,
                     )?;
+                    self.local_structural_identities.commit_cursor(cursor);
                     Ok(element)
                 }),
                 account.as_ref(),
@@ -3234,6 +3317,10 @@ pub(crate) mod scalar_operations {
                 let result = operation.result.expect_scalar();
                 let source = self.scalar_value(operand)?;
                 let (source_type, source_value) = match source {
+                    TerminalScalarValue::Callable { .. } => return Err(malformed()),
+                    TerminalScalarValue::HostAddress { .. } => {
+                        return Err(crate::boundary::errors::host_address_mixed());
+                    }
                     TerminalScalarValue::Boolean(value) => {
                         (ScalarType::Boolean, ScalarViewValue::Boolean(value))
                     }
@@ -3428,7 +3515,7 @@ pub(crate) mod scalar_operations {
         }
     }
     pub(crate) mod integer {
-        use crate::boundary::errors::{TerminalInterpretError, malformed};
+        use crate::boundary::errors::{TerminalInterpretError, host_address_mixed, malformed};
         use crate::boundary::values::TerminalScalarValue;
         use crate::engine::execution::{OperationFlow, TerminalExecution, dispatched_operation};
         use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
@@ -3442,6 +3529,41 @@ pub(crate) mod scalar_operations {
                 return Err(malformed());
             };
             Ok(scalar_type)
+        }
+
+        // A host-returned address is comparable only with another host address
+        // or with null. Anything else would order a real host pointer against
+        // an interpreter storage identity, a comparison whose answer means
+        // nothing in either the Psi or the native run. `None` means neither
+        // operand is a host address, so the ordinary integer rules apply.
+        pub(crate) fn host_address_ordering(
+            left: TerminalScalarValue,
+            right: TerminalScalarValue,
+        ) -> Result<Option<std::cmp::Ordering>, TerminalInterpretError> {
+            let host = |value| matches!(value, TerminalScalarValue::HostAddress { .. });
+            if !host(left) && !host(right) {
+                return Ok(None);
+            }
+            let side = |value| match value {
+                TerminalScalarValue::HostAddress {
+                    scalar_type,
+                    address,
+                } => Some((scalar_type, Some(address))),
+                TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(0),
+                } if scalar_type.is_address() => Some((scalar_type, None)),
+                _ => None,
+            };
+            let (Some((left_type, left)), Some((right_type, right))) = (side(left), side(right))
+            else {
+                return Err(host_address_mixed());
+            };
+            if left_type != right_type {
+                return Err(malformed());
+            }
+            // Null sorts below every host address, which is never null.
+            Ok(Some(left.cmp(&right)))
         }
 
         macro_rules! saturating_integer_op {
@@ -3474,8 +3596,17 @@ pub(crate) mod scalar_operations {
             ) -> Result<(IntegerType, IntegerValue), TerminalInterpretError> {
                 match self.scalar_value(operand)? {
                     TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
+                    TerminalScalarValue::HostAddress { .. } => Err(host_address_mixed()),
                     _ => Err(malformed()),
                 }
+            }
+
+            fn host_address_ordering(
+                &self,
+                left: semantic_vocabulary::ValueId,
+                right: semantic_vocabulary::ValueId,
+            ) -> Result<Option<std::cmp::Ordering>, TerminalInterpretError> {
+                host_address_ordering(self.scalar_value(left)?, self.scalar_value(right)?)
             }
 
             fn integer_operands(
@@ -3517,6 +3648,10 @@ pub(crate) mod scalar_operations {
             ) -> Result<OperationFlow, TerminalInterpretError> {
                 dispatched_operation!(operation => IntegerEqual { left, right });
                 self.require_boolean_result(operation)?;
+                if let Some(ordering) = self.host_address_ordering(left, right)? {
+                    return self
+                        .store_scalar(operation, TerminalScalarValue::Boolean(ordering.is_eq()));
+                }
                 let (left_type, left) = self.integer_operand(left)?;
                 let (right_type, right) = self.integer_operand(right)?;
                 let ordering = left_type
@@ -3533,11 +3668,16 @@ pub(crate) mod scalar_operations {
                     unreachable!("dispatched execute_integer_less_than")
                 };
                 self.require_boolean_result(operation)?;
-                let (left_type, left_value) = self.integer_operand(left)?;
-                let (right_type, right_value) = self.integer_operand(right)?;
-                let ordering = left_type
-                    .compare_with(left_value, right_type, right_value)
-                    .ok_or(malformed())?;
+                let ordering = match self.host_address_ordering(left, right)? {
+                    Some(ordering) => ordering,
+                    None => {
+                        let (left_type, left_value) = self.integer_operand(left)?;
+                        let (right_type, right_value) = self.integer_operand(right)?;
+                        left_type
+                            .compare_with(left_value, right_type, right_value)
+                            .ok_or(malformed())?
+                    }
+                };
                 let result = match operation.kind {
                     OperationKind::IntegerLessThan { .. } => ordering.is_lt(),
                     OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
@@ -3824,9 +3964,13 @@ pub(crate) mod scalar_operations {
 
         #[cfg(test)]
         mod tests {
+            use super::host_address_ordering;
             use crate::boundary::errors::{TerminalInterpretError, malformed};
+            use crate::boundary::values::TerminalScalarValue;
             use crate::engine::execution::TerminalExecution;
-            use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, ScalarType, ValueId,
+            };
             use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
             fn operation(kind: OperationKind) -> Operation {
@@ -3895,6 +4039,53 @@ pub(crate) mod scalar_operations {
                     error,
                     TerminalInterpretError::VerifiedOperationMalformed { .. }
                 ));
+            }
+
+            #[test]
+            fn host_addresses_compare_only_with_host_addresses_and_null() {
+                let address = IntegerType::address(64).unwrap();
+                let host = |value| TerminalScalarValue::HostAddress {
+                    scalar_type: address,
+                    address: value,
+                };
+                let interpreter = |value| TerminalScalarValue::Integer {
+                    scalar_type: address,
+                    value: IntegerValue::Unsigned(value),
+                };
+                assert_eq!(
+                    host_address_ordering(host(0x7000), host(0x7000)),
+                    Ok(Some(std::cmp::Ordering::Equal))
+                );
+                assert_eq!(
+                    host_address_ordering(host(0x7000), host(0x8000)),
+                    Ok(Some(std::cmp::Ordering::Less))
+                );
+                assert_eq!(
+                    host_address_ordering(host(0x7000), interpreter(0)),
+                    Ok(Some(std::cmp::Ordering::Greater))
+                );
+                assert_eq!(
+                    host_address_ordering(interpreter(0x7001), interpreter(0x7001)),
+                    Ok(None)
+                );
+                // Same number, different provenance: no defined answer.
+                assert_eq!(
+                    host_address_ordering(host(0x7001), interpreter(0x7001)),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
+                assert_eq!(
+                    host_address_ordering(interpreter(0x7001), host(0x7001)),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
+                let count = TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                        .unwrap(),
+                    value: IntegerValue::Unsigned(0),
+                };
+                assert_eq!(
+                    host_address_ordering(host(0x7000), count),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
             }
 
             #[test]
@@ -4011,8 +4202,18 @@ pub(crate) mod scalar_operations {
 
     pub(crate) fn terminal_scalar_belongs_to_type(value: TerminalScalarValue) -> bool {
         match value {
-            TerminalScalarValue::Boolean(_) => true,
+            TerminalScalarValue::Callable { .. } | TerminalScalarValue::Boolean(_) => true,
             TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
+            TerminalScalarValue::HostAddress {
+                scalar_type,
+                address,
+            } => {
+                address != 0
+                    && scalar_type.is_address()
+                    && scalar_type.admits(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                        address,
+                    )))
+            }
             TerminalScalarValue::IeeeFloat(_) => true,
         }
     }

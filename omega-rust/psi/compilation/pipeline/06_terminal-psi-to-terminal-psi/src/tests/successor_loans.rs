@@ -245,12 +245,13 @@ machine entry(first: bool) -> bool {
         .cloned()
         .collect();
     assert!(!when_true.cleanup_actions.is_empty());
-    let mut scope = crate::prepare_replay(&mut input).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
     let (formed, domains, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
-    let references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.structural_types);
     let machine = module.machine(identity).unwrap();
     let storage = crate::places::Storage::new(
         identity,
@@ -260,10 +261,10 @@ machine entry(first: bool) -> bool {
         &prepared.graph,
         tables,
         &prepared.types,
-        &references,
+        &mut references,
     )
     .unwrap();
-    let (_, conflicts) = storage.loans(module, tables).unwrap();
+    let (_, conflicts) = storage.loans(&mut references, module, tables).unwrap();
     assert!(
         conflicts
             .iter()
@@ -340,6 +341,8 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[checksum],
             subjects: &[],
@@ -432,6 +435,8 @@ fn permission_inputs(text: &str) -> typed_trees_to_terminal_psi::Elaboration {
     let program = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

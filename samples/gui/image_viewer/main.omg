@@ -547,7 +547,7 @@ machine Main::main(main: &mut Main) reaches
         transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
     machine pace(main: &mut Main, window: Window) {
-        Clock::sleep(15);
+        block Clock::sleep(15);
         transition { _ -> pump_init(main, window) }
     }
 

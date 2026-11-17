@@ -25,6 +25,10 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    pub const fn target_profile(&self) -> TargetProfile {
+        self.target
+    }
+
     pub fn source_completion_accounting(&self) -> &crate::SourceCompletionAccounting {
         &self.prepared.built.build_accounting
     }

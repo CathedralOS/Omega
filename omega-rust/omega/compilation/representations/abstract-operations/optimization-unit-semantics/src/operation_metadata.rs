@@ -48,6 +48,7 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
             ..
         }
         | O::SelectImplementation { result, .. }
+        | O::SelectMachine { result, .. }
         | O::StorageAddress { result, .. }
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
@@ -366,6 +367,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
@@ -491,6 +493,7 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::EstablishStructuralLocal { .. }
         | O::EstablishRecord { .. }
         | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
         | O::PortWrite { .. }
         | O::RegisterAccess { .. }
         | O::Call { .. }

@@ -370,6 +370,7 @@ declares_no_crash_route: contract.declares_no_crash_route,
                             Some((
                                 lowered_contract.service_reach_keyword_source_spans,
                                 lowered_contract.service_reaches,
+                                lowered_contract.callable_scope,
                             )),
                         )
                     }
@@ -452,11 +453,17 @@ declares_no_crash_route: contract.declares_no_crash_route,
         }
         if !span.is_empty() {
             for (index, authored) in pending_service_reaches.into_iter().enumerate() {
-                let Some((keyword_source_spans, authored)) = authored else {
+                let Some((keyword_source_spans, authored, callable_scope)) = authored else {
                     continue;
                 };
                 let handle =
                     span.handle_at(u32::try_from(index).expect("type-parameter span fits u32"));
+                lowerer.runtime_callable_scopes.bind(
+                    callable_scope,
+                    crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                        PendingSignatureLocation::MachineParameter(handle),
+                    ),
+                );
                 let owner = lowerer
                     .symbol_resolved_trees
                     .tables
@@ -1380,6 +1387,12 @@ pub(crate) mod expression {
                 )
             }
             syntax::expression::ExpressionNode::Call(call) => {
+                let callee = call
+                    .callee
+                    .is_valid()
+                    .then(|| lower_expression_into_table(lowerer, syntax_trees, call.callee))
+                    .transpose()?
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 let (receiver, requirement_application) = match call
                     .receiver
                     .is_valid()
@@ -1420,6 +1433,7 @@ pub(crate) mod expression {
                     .into_boxed_slice();
                 Ok(
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                        callee,
                         target_is_static: call.target_is_static,
                         authored_call_binding: None,
                         receiver,
@@ -1624,6 +1638,7 @@ pub(crate) mod expression {
                 Ok(
                     expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                         TableStructLiteral {
+                            zero_omitted_fields: struct_literal.zero_omitted_fields,
                             application_type,
                             type_name: lower_name(syntax_trees, &struct_literal.constructor_name),
                             type_symbol: SymbolHandle::invalid(),
@@ -1693,6 +1708,8 @@ pub(crate) mod expression {
             arena::Handle::invalid()
         };
         Ok(StaticMachineArgument {
+            authored_selection: None,
+            authored_selection_target: None,
             type_reference,
             path: argument
                 .path
@@ -1826,8 +1843,39 @@ pub(crate) mod item {
         let conformance_ordinal = lowerer.symbol_resolved_trees.conformances.len();
         let trait_ordinal = lowerer.symbol_resolved_trees.traits.len();
         let data_ordinal = lowerer.symbol_resolved_trees.data_definitions.len();
-        lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
-            lower_item_with_exposure(lowerer, syntax_trees, item)
+        use crate::runtime_callable_scopes::CallableScopeOwner;
+        let owner = match item {
+            Item::Data(_) => CallableScopeOwner::Data(data_ordinal),
+            Item::TypeAlias(_) => {
+                CallableScopeOwner::Alias(lowerer.symbol_resolved_trees.type_aliases.len())
+            }
+            Item::Domain(_) => {
+                CallableScopeOwner::Domain(lowerer.symbol_resolved_trees.domain_definitions.len())
+            }
+            Item::Trait(_) => CallableScopeOwner::Trait(trait_ordinal),
+            Item::Conformance(_) => CallableScopeOwner::Conformance(conformance_ordinal),
+            Item::Operator(_) => {
+                CallableScopeOwner::Operator(lowerer.symbol_resolved_trees.operators.len())
+            }
+            Item::Machine(machine)
+                if machine.target.is_none()
+                    && !machine.target_family_interface
+                    && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
+            {
+                CallableScopeOwner::Operator(lowerer.symbol_resolved_trees.operators.len())
+            }
+            Item::Proposition(_) => {
+                CallableScopeOwner::Proposition(lowerer.symbol_resolved_trees.propositions.len())
+            }
+            Item::Measure(_) => {
+                CallableScopeOwner::Measure(lowerer.symbol_resolved_trees.measures.len())
+            }
+            _ => CallableScopeOwner::Root,
+        };
+        lowerer.with_runtime_callable_scope(owner, |lowerer| {
+            lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
+                lower_item_with_exposure(lowerer, syntax_trees, item)
+            })
         })?;
         let input = match item {
             Item::Conformance(_) => Some(
@@ -2288,12 +2336,18 @@ pub(crate) mod mathematical {
     ) -> Result<(), Vec<Diagnostic>> {
         for handle in syntax.root_mathematical_definition_handles() {
             let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
-            let definition = lower_mathematical_definition(
-                lowerer,
-                syntax,
-                syntax.root_mathematical_definition(*handle),
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            let owner = crate::runtime_callable_scopes::CallableScopeOwner::Mathematical(
+                lowerer.symbol_resolved_trees.mathematical_definitions.len(),
+            );
+            let definition = lowerer
+                .with_runtime_callable_scope(owner, |lowerer| {
+                    lower_mathematical_definition(
+                        lowerer,
+                        syntax,
+                        syntax.root_mathematical_definition(*handle),
+                    )
+                })
+                .map_err(|diagnostic| vec![diagnostic])?;
             lowerer
                 .symbol_resolved_trees
                 .roots
@@ -2516,6 +2570,7 @@ pub(crate) mod operator {
     use crate::resolution::lowerer::Lowerer;
     use diagnostics::Diagnostic;
     use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
+    use language_core::byte_predicates::ByteSequencePredicate;
     use language_core::sealed_intrinsics::{
         CollectionPrimitive, CompilerPrimitive, SealedIntrinsic,
     };
@@ -2610,6 +2665,9 @@ pub(crate) mod operator {
             Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence)) => {
                 Some(CatalogFamily::AtomicFence)
             }
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+                predicate,
+            ))) => Some(CatalogFamily::ByteObservation(predicate)),
             _ => CatalogFamily::naming(namespace, leaf),
         };
         let sealed_source = family.is_some_and(|family| {
@@ -2650,6 +2708,9 @@ pub(crate) mod operator {
             // binder, lifetime relation and contract before a use is served.
             CatalogFamily::Collection(_) => {}
             CatalogFamily::FloatProjection => {}
+            CatalogFamily::ByteObservation(_) => {
+                require_exact_byte_observation_row(syntax_trees, machine, entry)?;
+            }
             CatalogFamily::AtomicFence => {
                 require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
             }
@@ -2672,6 +2733,7 @@ pub(crate) mod operator {
     #[derive(Clone, Copy)]
     enum CatalogFamily {
         Collection(CollectionPrimitive),
+        ByteObservation(ByteSequencePredicate),
         /* Place-free portable fence (`atomic.omg`). */
         AtomicFence,
         /* `Float::meaning32` / `Float::meaning64` (`float_operations.omg`). */
@@ -2710,6 +2772,7 @@ pub(crate) mod operator {
         fn primitive(self) -> CompilerPrimitive {
             match self {
                 Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+                Self::ByteObservation(predicate) => CompilerPrimitive::ByteObservation(predicate),
                 Self::AtomicFence => CompilerPrimitive::AtomicFence,
                 Self::FloatProjection => CompilerPrimitive::FloatProjection,
                 Self::FloatSemantics => CompilerPrimitive::FloatSemantics,
@@ -2865,6 +2928,101 @@ pub(crate) mod operator {
             })
     }
 
+    // Catalog custody selects the operation. Its one ordinary machine header
+    // still has to be the complete pure shared-byte observation declaration.
+    fn require_exact_byte_observation_row(
+        syntax_trees: &SyntaxTrees,
+        machine: &syntax::item::Machine,
+        entry: &syntax::item::State,
+    ) -> Result<(), Diagnostic> {
+        let drift = || {
+            Diagnostic::error(
+            "the sealed byte-observation declaration requires one explicit input lifetime, one relevant shared byte-view input, a bool result, reaches none, crashes none and unconditional terminates, with no additional header or body",
+        ).with_source_span(machine.name.source_span())
+        };
+        if !machine.is_public
+            || !machine.bodyless
+            || machine.boundary
+            || !machine
+                .generic_data_template
+                .as_str(syntax_trees)
+                .is_empty()
+            || !machine.default_body_trait.as_str(syntax_trees).is_empty()
+            || machine.attached_data.is_some()
+            || machine.spelling.is_some()
+            || machine.target_family_interface
+            || machine.target.is_some()
+            || machine.authored_target.is_some()
+            || machine.type_parameters != arena::HandleSpan::empty()
+            || machine.satisfies != arena::HandleSpan::empty()
+            || !machine.conformance_bounds.is_empty()
+            || !machine.terminates_guarantee
+            || machine.ranking_subjects != arena::HandleSpan::empty()
+            || machine.ranking_view != arena::HandleSpan::empty()
+            || machine.ranking_view_arguments != arena::HandleSpan::empty()
+            || machine.ranking_range.is_valid()
+            || machine.service_reach_keyword_source_spans.len() != 1
+            || machine.service_reaches != arena::HandleSpan::empty()
+            || machine.service_reach_is_installation_bound
+            || machine.invokes != arena::HandleSpan::empty()
+            || machine.suspends
+            || machine.blocks
+            || !machine.suspends_keyword_source_spans.is_empty()
+            || !machine.blocks_keyword_source_spans.is_empty()
+            || machine.admitted_same_stack_bytes != 0
+            || !machine.declares_no_crash_route
+            || machine.contracts != arena::HandleSpan::empty()
+            || machine.states.len() != 1
+            || syntax_trees.items.state_handles(machine.states).len() != 1
+            || machine.nested_machines != arena::HandleSpan::empty()
+            || entry.contracts != arena::HandleSpan::empty()
+            || entry.statements != arena::HandleSpan::empty()
+            || entry.parameters.len() != 1
+        {
+            return Err(drift());
+        }
+        let [lifetime] = machine.lifetime_parameters.as_slice() else {
+            return Err(drift());
+        };
+        if lifetime.as_str(syntax_trees).is_empty() {
+            return Err(drift());
+        }
+        let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
+            return Err(drift());
+        };
+        let parameter = syntax_trees.items.state_parameter(*parameter);
+        if parameter.is_const
+            || parameter.is_mutable
+            || parameter.relevance != language_core::BindingRelevance::Relevant
+        {
+            return Err(drift());
+        }
+        let types = &syntax_trees.tables.type_references;
+        let TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: Some(input_lifetime),
+        } = types.type_reference(parameter.type_reference)
+        else {
+            return Err(drift());
+        };
+        if input_lifetime.as_str(syntax_trees) != lifetime.as_str(syntax_trees) {
+            return Err(drift());
+        }
+        let TypeReferenceNode::Slice { element_type } = types.type_reference(*referee) else {
+            return Err(drift());
+        };
+        if !matches!(types.type_reference(*element_type), TypeReferenceNode::Named(name)
+            if name.as_str(syntax_trees) == "u8")
+            || !entry.return_type.is_valid()
+            || !matches!(types.type_reference(entry.return_type), TypeReferenceNode::Named(name)
+                if name.as_str(syntax_trees) == "bool")
+        {
+            return Err(drift());
+        }
+        Ok(())
+    }
+
     fn require_exact_atomic_fence_row(
         syntax_trees: &SyntaxTrees,
         machine: &syntax::item::Machine,
@@ -2928,7 +3086,7 @@ pub(crate) mod operator {
                     DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::lexer::Lexer::new(text)
+            let tokens = source_files_to_tokens::Lexer::new(text)
                 .tokenize()
                 .expect("the test source must tokenize");
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
@@ -2990,6 +3148,105 @@ pub(crate) mod operator {
                 trees.operators.is_empty(),
                 "no partial operator header survives"
             );
+        }
+
+        const BYTE_OBSERVATION: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/byte_observation.omg"
+        ));
+
+        #[test]
+        fn bundled_byte_observations_retain_one_complete_machine_header() {
+            let trees = resolved(
+                BYTE_OBSERVATION,
+                "byte_observation.omg",
+                SourceOrigin::Toolchain,
+            )
+            .expect("the exact bundled observations must resolve");
+            assert_eq!(trees.machines.len(), 4);
+            for machine in &trees.machines {
+                assert_eq!(
+                    machine.supply_mode,
+                    language_semantics::MachineSupplyMode::CompilerProvided
+                );
+                assert!(!machine.body_is_present);
+                assert_eq!(machine.lifetime_parameters.len(), 1);
+                assert!(matches!(machine.termination_plan.interface,
+                    language_semantics::TerminationInterface::Published(
+                        language_semantics::TerminationGuarantee::Terminates { ref premises }
+                    ) if premises.is_empty()));
+            }
+            assert!(trees.operators.is_empty());
+        }
+
+        #[test]
+        fn byte_observation_shape_does_not_replace_catalog_custody() {
+            let edited = format!("{BYTE_OBSERVATION}\n// local edit\n");
+            for (text, path, origin) in [
+                (BYTE_OBSERVATION, "byte_observation.omg", SourceOrigin::User),
+                (
+                    BYTE_OBSERVATION,
+                    "copied/byte_observation.omg",
+                    SourceOrigin::Toolchain,
+                ),
+                (
+                    edited.as_str(),
+                    "byte_observation.omg",
+                    SourceOrigin::Toolchain,
+                ),
+            ] {
+                let errors = resolved(text, path, origin).expect_err("no primitive supply");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("has no body")),
+                    "{errors:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn byte_observation_header_checker_refuses_each_changed_admission_axis() {
+            const HEADER: &str = "public machine valid_utf8<'input>(bytes: &'input [u8]) -> bool reaches none crashes none terminates;";
+            let check = |text: &str| {
+                // Directly exercise shape checking; these edited bytes receive
+                // no catalog custody, as the separate source-origin test pins.
+                let (syntax, _) = parsed(text, "byte_observation.omg", SourceOrigin::Toolchain);
+                let machine = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        syntax_trees::item::Item::Machine(machine) => Some(machine),
+                        _ => None,
+                    })
+                    .unwrap();
+                let [entry] = syntax.items.state_handles(machine.states) else {
+                    panic!("one entry");
+                };
+                super::require_exact_byte_observation_row(
+                    &syntax,
+                    machine,
+                    syntax.items.state(*entry),
+                )
+            };
+            check(HEADER).expect("the exact pure header");
+            for changed in [
+                HEADER.replace("public machine", "machine"),
+                HEADER.replace("&'input [u8]", "&'input mut [u8]"),
+                HEADER.replace("&'input [u8]", "&[u8]"),
+                HEADER.replace("[u8]", "[u16]"),
+                HEADER.replace("-> bool", "-> u64"),
+                HEADER.replace("<'input>", "<'input, 'other>"),
+                HEADER.replace("reaches none ", ""),
+                HEADER.replace("crashes none ", ""),
+                HEADER.replace("terminates;", ";"),
+                HEADER.replace("terminates;", "terminates requires true;"),
+                HEADER.replace("bytes: &'input [u8]", "bytes: &'input [u8], extra: u64"),
+            ] {
+                assert!(
+                    check(&changed).is_err(),
+                    "header unexpectedly admitted: {changed}"
+                );
+            }
         }
 
         #[test]
@@ -3646,6 +3903,18 @@ pub(crate) mod state {
         syntax_trees: &SyntaxTrees,
         inputs: StateSignatureParts<'_>,
     ) -> Result<LoweredStateSignature, Diagnostic> {
+        let scope = lowerer.runtime_callable_scopes.begin(None);
+        let result = lower_state_signature_contents(lowerer, syntax_trees, inputs, scope);
+        lowerer.runtime_callable_scopes.end(scope);
+        result
+    }
+
+    fn lower_state_signature_contents(
+        lowerer: &mut Lowerer,
+        syntax_trees: &SyntaxTrees,
+        inputs: StateSignatureParts<'_>,
+        callable_scope: crate::runtime_callable_scopes::CallableScopeHandle,
+    ) -> Result<LoweredStateSignature, Diagnostic> {
         let StateSignatureParts {
             name,
             spelling,
@@ -3685,6 +3954,7 @@ pub(crate) mod state {
         let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
         Ok(LoweredStateSignature {
+            callable_scope,
             signature: StateSignature {
                 symbol: SymbolHandle::invalid(),
                 name: crate::lowering::name::lower_name(syntax_trees, name),
@@ -3725,6 +3995,7 @@ pub(crate) mod state {
     }
 
     pub(crate) struct LoweredStateSignature {
+        pub(crate) callable_scope: crate::runtime_callable_scopes::CallableScopeHandle,
         pub(crate) signature: StateSignature,
         pub(crate) service_reach_keyword_source_spans: Vec<source::SourceSpan>,
         pub(crate) service_reaches: Vec<DiagnosticName>,
@@ -4352,6 +4623,12 @@ pub(crate) mod trait_definition {
                 .declarations
                 .trait_machine_signatures
                 .append_to_span(&mut span, lowered.signature);
+            lowerer.runtime_callable_scopes.bind(
+                lowered.callable_scope,
+                crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                    crate::resolution::lowerer::PendingSignatureLocation::Trait(handle),
+                ),
+            );
             lowerer.pending_signature_service_reaches.push(
                 crate::resolution::lowerer::PendingSignatureServiceReach {
                     location: crate::resolution::lowerer::PendingSignatureLocation::Trait(handle),
@@ -4453,6 +4730,18 @@ pub(crate) mod type_reference {
             lowerer.current_authored_expression_exposure = exposure;
         }
         let mut lowered = result?;
+        if let TypeReference::Callable { contract, .. } = &lowered {
+            let definition_references = &mut lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .get_mut(*contract)
+                .definition_references;
+            for alias in &aliases {
+                definition_references.extend_from_slice(&alias.definition_references);
+            }
+        }
         for alias in aliases {
             let application = lower_alias_application(lowerer, syntax_trees, alias.application)?;
             let expanded_owner = lowered.supplied_operand_owner();
@@ -4801,6 +5090,53 @@ pub(crate) mod type_reference {
                 Ok(TypeReference::ConstExpression(
                     symbol_resolved_trees::types::ConstExpressionTypeReference::new(expression),
                 ))
+            }
+            TypeReferenceNode::Callable { signature } => {
+                let contract = lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .append(Default::default());
+                lowerer.runtime_callable_scopes.retain(contract);
+                let lowered = crate::lowering::state::lower_state_signature_node(
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.items.state_signature(*signature),
+                )?;
+                lowerer.runtime_callable_scopes.bind(
+                    lowered.callable_scope,
+                    crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                        crate::resolution::lowerer::PendingSignatureLocation::RuntimeCallable(
+                            contract,
+                        ),
+                    ),
+                );
+                let owner = lowered.signature.name.clone();
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .get_mut(contract)
+                    .signature = lowered.signature;
+                lowerer
+                    .pending_signature_service_reaches
+                    .push(crate::resolution::lowerer::PendingSignatureServiceReach {
+                    location: crate::resolution::lowerer::PendingSignatureLocation::RuntimeCallable(
+                        contract,
+                    ),
+                    owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
+                    reaches:
+                        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
+                            keyword_source_spans: lowered.service_reach_keyword_source_spans,
+                            authored: lowered.service_reaches,
+                        },
+                });
+                Ok(TypeReference::Callable {
+                    contract,
+                    supplied_operand_owner: Default::default(),
+                })
             }
             TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
                 supplied_operand_owner: Default::default(),

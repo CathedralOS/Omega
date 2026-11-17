@@ -5,7 +5,8 @@
 // graphs. Mounting those dependency graphs into `SourceStorage` verifies that all
 // shared packages agree on exact source custody (`require_same_shared_product_sources`)
 // and that no query dependency overrides an already-admitted product alias, without
-// settling the root `Build` or assigning a package identity to an unbound root capture.
+// settling the root `Build`. Anonymous roots remain unbound; an already-issued
+// named declaration supplies the acquired owner for its exact captured source.
 
 use super::LogicalSourceDiscovery as _;
 use super::bindings::{ImportOccurrence, ResolvedSourceImport};
@@ -155,11 +156,64 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn named_build_stage_keeps_dependency_product_and_build_authority_distinct() {
+        let root = graph(1, package(1, "root_app", "root"));
+        let helper = PackageCompilationInputs::new_package(
+            identity(2),
+            vec![
+                package(2, "helper", "helper"),
+                package(3, "private_build_tool", "build"),
+                package(4, "library", "product"),
+            ],
+            vec![
+                PackageDependencyBinding::for_purpose(
+                    identity(2),
+                    "tool",
+                    identity(3),
+                    DependencyPurpose::Build,
+                ),
+                PackageDependencyBinding::new(identity(2), "library", identity(4)),
+            ],
+        )
+        .unwrap();
+        let inputs = ProductQueryInputs::for_build_stage(None, vec![dependency("helper", helper)])
+            .unwrap()
+            .with_named_source(Some(root))
+            .unwrap()
+            .build_stage_authority_inputs()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            inputs.dependency_target_for_purpose(identity(1), DependencyPurpose::Build, "helper"),
+            Some(identity(2))
+        );
+        assert_eq!(
+            inputs.dependency_target_for_purpose(identity(1), DependencyPurpose::Product, "helper"),
+            None
+        );
+        assert_eq!(
+            inputs.dependency_target_for_purpose(
+                identity(2),
+                DependencyPurpose::Product,
+                "library"
+            ),
+            Some(identity(4))
+        );
+        assert_eq!(
+            inputs.package_root(identity(3)),
+            None,
+            "the helper's Build activation grants this stage no source"
+        );
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProductQueryInputs {
     original: Option<PackageCompilationInputs>,
+    /// Only the named root's acquired source. Dependency visibility still
+    /// comes from the original graph or the requests joined for this query.
+    named_source: Option<PackageCompilationInputs>,
     dependencies: Vec<ProductQueryDependency>,
     /// The build dependencies a staged Build has prepared, by the alias its
     /// Build sources import them under (`for_build_stage`). A Product query
@@ -197,6 +251,7 @@ impl ProductQueryInputs {
         }
         Self {
             original,
+            named_source: None,
             dependencies,
             build_dependencies: Vec::new(),
         }
@@ -215,6 +270,40 @@ impl ProductQueryInputs {
         build_dependencies: Vec<ProductQueryDependency>,
     ) -> Result<Self, String> {
         Self::new(original, Vec::new())?.with_prepared_build_dependencies(build_dependencies)
+    }
+
+    /// Reuse an existing complete graph when supplied. Otherwise a named
+    /// capture and the exact prepared Build dependencies define this stage's
+    /// source selections; they make no claim about later Product requests.
+    pub fn build_stage_authority_inputs(&self) -> Result<Option<PackageCompilationInputs>, String> {
+        if let Some(original) = &self.original {
+            return Ok(Some(original.clone()));
+        }
+        self.named_source
+            .as_ref()
+            .map(|root| root.with_prepared_build_sources(&self.build_dependencies))
+            .transpose()
+    }
+
+    /// A named root receives only the owner supplied by acquired-source
+    /// admission. Its exact capture is joined at mounting; this data neither
+    /// completes Build nor adds an unrequested dependency to its namespace.
+    pub fn with_named_source(
+        mut self,
+        source: Option<PackageCompilationInputs>,
+    ) -> Result<Self, String> {
+        let Some(source) = source else {
+            return Ok(self);
+        };
+        if let Some(original) = &self.original {
+            if original.root() != source.root() || original.root_role() != source.root_role() {
+                return Err("named query source differs from its admitted owner or role".into());
+            }
+            original.require_same_shared_product_sources(&source)?;
+            return Ok(self);
+        }
+        self.named_source = Some(source);
+        self.with_consistent_sources()
     }
 
     /// The same routing with `build_dependencies` also mounted for the
@@ -261,7 +350,10 @@ impl ProductQueryInputs {
     }
 
     fn with_consistent_sources(self) -> Result<Self, String> {
-        let graphs = self.graphs().collect::<Vec<_>>();
+        let graphs = self
+            .graphs()
+            .chain(self.named_source.iter())
+            .collect::<Vec<_>>();
         for (position, graph) in graphs.iter().enumerate() {
             for previous in &graphs[..position] {
                 graph.require_same_shared_product_sources(previous)?;
@@ -310,7 +402,30 @@ impl ProductQueryInputs {
         )
     }
 
+    pub(crate) fn admit_source_owner(
+        &self,
+        storage: &mut SourceStorage,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(named) = &self.named_source {
+            // Source ownership is joined before the new consumer is selected.
+            // Visibility is installed afterward, once, on that fresh cohort.
+            storage.join_package_inputs(named)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn mount(&self, storage: &mut SourceStorage) -> Result<(), Vec<Diagnostic>> {
+        if let Some(named) = &self.named_source {
+            storage
+                .sources
+                .retain_product_dependency_scope(self.dependencies.iter().map(|dependency| {
+                    (
+                        named.root(),
+                        dependency.alias.as_str(),
+                        dependency.inputs.root(),
+                    )
+                }));
+        }
         for graph in self.graphs() {
             storage.require_disjoint_contract_packages(graph)?;
         }

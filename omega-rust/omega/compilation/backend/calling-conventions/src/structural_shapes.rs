@@ -164,6 +164,11 @@ fn collect_field_leaves(
         .field_shape(field, owner)
         .map_err(|_| InvalidStructuralShape)?;
     match field {
+        StructuralFieldType::RefinedScalar(refinement)
+            if matches!(refinement.carrier(), ScalarType::IeeeFloat(_)) =>
+        {
+            leaves.push((base_offset, leaf.byte_size, true));
+        }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
         | StructuralFieldType::IeeeFloat(_) => {
             leaves.push((base_offset, leaf.byte_size, true));
@@ -188,7 +193,7 @@ fn collect_field_leaves(
     Ok(())
 }
 
-fn classify_scalar_leaves(
+pub(crate) fn classify_scalar_leaves(
     leaves: &[(u32, u32, bool)],
     referent: ValueShape,
     policy: CallingPolicy,
@@ -197,7 +202,7 @@ fn classify_scalar_leaves(
         return Ok(ValueClass::Integer);
     }
     if let Some(members) = homogeneous_float_leaves(leaves, referent) {
-        if policy == CallingPolicy::Aapcs64
+        if policy.is_aapcs64()
             || (policy == CallingPolicy::SystemVAMD64 && members > 1 && referent.byte_size <= 16)
         {
             return Ok(ValueClass::HomogeneousFloatAggregate { members });
@@ -293,7 +298,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,

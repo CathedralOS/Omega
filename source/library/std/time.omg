@@ -392,7 +392,7 @@ public machine duration_divide(duration: &Duration, divisor: u32) -> DurationRes
 public machine duration_saturating_add(duration: &Duration, other: Duration) -> Duration {
     let sum: DurationResult = duration_checked_add(duration, other);
     transition sum {
-        DurationResult::Ok { duration } -> saturate_add_value(duration)
+        DurationResult::Ok { duration as clamped } -> saturate_add_value(clamped)
         DurationResult::Overflow -> saturate_add_max()
     }
     machine saturate_add_value(duration: Duration) -> Duration { duration }
@@ -404,7 +404,7 @@ public machine duration_saturating_add(duration: &Duration, other: Duration) -> 
 public machine duration_saturating_subtract(duration: &Duration, other: Duration) -> Duration {
     let difference: DurationResult = duration_checked_subtract(duration, other);
     transition difference {
-        DurationResult::Ok { duration } -> saturate_value(duration)
+        DurationResult::Ok { duration as clamped } -> saturate_value(clamped)
         DurationResult::Overflow -> saturate_zero()
     }
     machine saturate_value(duration: Duration) -> Duration { duration }
@@ -621,7 +621,7 @@ public machine instant_checked_duration_since(instant: &Instant, earlier: Instan
 public machine instant_saturating_add(instant: &Instant, duration: Duration) -> Instant {
     let sum: InstantResult = instant_checked_add(instant, duration);
     transition sum {
-        InstantResult::Ok { instant } -> saturate_add_value(instant)
+        InstantResult::Ok { instant as clamped } -> saturate_add_value(clamped)
         InstantResult::Overflow -> saturate_add_max()
     }
     machine saturate_add_value(instant: Instant) -> Instant { instant }
@@ -633,7 +633,7 @@ public machine instant_saturating_add(instant: &Instant, duration: Duration) -> 
 public machine instant_saturating_subtract(instant: &Instant, duration: Duration) -> Instant {
     let difference: InstantResult = instant_checked_subtract(instant, duration);
     transition difference {
-        InstantResult::Ok { instant } -> saturate_value(instant)
+        InstantResult::Ok { instant as clamped } -> saturate_value(clamped)
         InstantResult::Overflow -> saturate_epoch()
     }
     machine saturate_value(instant: Instant) -> Instant { instant }
@@ -886,7 +886,7 @@ public machine system_time_checked_subtract(time: &SystemTime, duration: Duratio
 public machine system_time_saturating_add(time: &SystemTime, duration: Duration) -> SystemTime {
     let sum: SystemTimeResult = system_time_checked_add(time, duration);
     transition sum {
-        SystemTimeResult::Ok { time } -> saturate_add_value(time)
+        SystemTimeResult::Ok { time as clamped } -> saturate_add_value(clamped)
         SystemTimeResult::Overflow -> saturate_add_max()
     }
     machine saturate_add_value(time: SystemTime) -> SystemTime { time }
@@ -899,7 +899,7 @@ public machine system_time_saturating_add(time: &SystemTime, duration: Duration)
 public machine system_time_saturating_subtract(time: &SystemTime, duration: Duration) -> SystemTime {
     let difference: SystemTimeResult = system_time_checked_subtract(time, duration);
     transition difference {
-        SystemTimeResult::Ok { time } -> saturate_value(time)
+        SystemTimeResult::Ok { time as clamped } -> saturate_value(clamped)
         SystemTimeResult::Overflow -> saturate_min()
     }
     machine saturate_value(time: SystemTime) -> SystemTime { time }

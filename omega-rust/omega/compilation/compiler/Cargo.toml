@@ -66,6 +66,7 @@ image = { path = "../backend/images/image" }
 isa-aarch64 = { path = "../backend/isa/isa-aarch64" }
 isa-x86_64 = { path = "../backend/isa/isa-x86_64" }
 machine-emission = { path = "../backend/machine-emission" }
+register-homes = { path = "../representations/register-homes" }
 machine-code = { path = "../representations/machine-code" }
 selected-instructions = { path = "../representations/selected-instructions" }
 register-model = { path = "../backend/register-model" }
@@ -93,8 +94,8 @@ platform-custody = { path = "../../foundation/platform-custody" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object-file" }
 mimalloc = { version = "0.1", default-features = false }
-# tests/target_supply.rs types its programs from source before the
-# lowered-form checker judges them.
+# Provider-choice owner tests type their programs before the lowered-form
+# checker judges them.
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
@@ -243,6 +244,11 @@ path = "tests/lowered_route_float_contracts.rs"
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"
 
+# `==` against a case is a tag test only on a payload-free sum.
+[[test]]
+name = "lowered_route_case_equality"
+path = "tests/lowered_route_case_equality.rs"
+
 # A store into one field keeps a `requires` clause over several fields when
 # the unwritten fields still hold the values the record arrived with.
 [[test]]
@@ -257,6 +263,11 @@ path = "tests/package_review.rs"
 name = "executed_fixture_discovery"
 path = "tests/executed_fixture_discovery.rs"
 
+# Omega 05 allocates after every Omega 04 history through one entrance.
+[[test]]
+name = "selected_allocation_handoff"
+path = "tests/selected_allocation_handoff.rs"
+
 # Independent receiver admission of the existing Windows filesystem customer.
 [[test]]
 name = "filesystem_receiver"
@@ -268,8 +279,12 @@ path = "tests/filesystem_receiver.rs"
 name = "lowered_route_ownership"
 path = "tests/lowered_route_ownership.rs"
 
-# Target preparation and provider settlement decide a target's supply from
-# the accepted Terminal module of programs typed from source.
+# A selected callable must prove its public precondition for the actual input.
+[[test]]
+name = "runtime_callable_precondition"
+path = "tests/runtime_callable_precondition.rs"
+
+# Source provider choice and recursive chosen-supply closure controls.
 [[test]]
 name = "target_supply"
 path = "tests/target_supply.rs"

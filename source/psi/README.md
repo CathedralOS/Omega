@@ -230,9 +230,10 @@ Data
 declarations, traits and named conformances share one type namespace per
 module, constants (by owner and name) and propositions their own; a later root
 repeating an earlier one's path in its module rejects (as duplicate data when
-both are data), and a type name spelling a builtin type, or a domain name a
-compiler-known domain, rejects. It then rejects duplicate generic parameter
-names of any kind within a declaration, duplicate proposition parameters, and
+both are data), and a type name spelling a builtin type (including the
+open-ended integer family, such as `u7`), or a domain name a compiler-known
+domain, rejects. It then rejects a generic type binder spelling a builtin
+type, duplicate generic parameter names of any kind within a declaration, duplicate proposition parameters, and
 duplicate members: fields and cases share one namespace; each case's payload
 fields share another with the common fields. Stable identities
 ([`pipeline/02_syntax-trees-to-symbol-resolved-trees/identities.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/identities.omg)) number all or none of a

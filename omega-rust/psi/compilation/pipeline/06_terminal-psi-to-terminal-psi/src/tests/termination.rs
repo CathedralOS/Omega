@@ -95,7 +95,7 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     // machine countdown(remaining: u32) -> u32 terminates by remaining
     //   { remaining > 0 -> countdown(remaining - 1); 0 }
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let rows = verdicts(&elaboration, &result, 1, ranked);
     // One shared well-foundedness question and one comparison on each of
     // the cycle's two edges: the edge beneath the head and the jump back.
@@ -278,6 +278,15 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
         refused(&program("")),
         "contract termination promise over a call cycle"
     );
+    let ranked = program("\nterminates by remaining");
+    assert_unchanged_measure_refuses(
+        &ranked.replace("count_down(remaining - 1)", "count_down(remaining)"),
+    );
+    assert!(
+        refused(&ranked.replacen("machine count_down", "public machine count_down", 1))
+            .contains("termination promise invokes a callable without a termination guarantee"),
+        "a private witness cannot publish progress for a silent export"
+    );
 }
 
 #[test]
@@ -299,13 +308,20 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         refused(&looping(scalars, "remaining -> Nat::Descending in 0..=16")),
         "contract ranking view arguments and bounded ranges while reading the body of `spend`",
     );
-    // A pair is ranked, not refused: termination.md, "Ranking", reads
+    // A pair without a view is refused: a tuple is not a carrier, so it
+    // declares no canonical default (termination.md, "Ranking"), and
+    // bounded distance and a lexicographic product would both fit it.
+    assert_eq!(
+        refused(&looping(scalars, "(remaining, limit)")),
+        "contract ranking view has no admitted resolved selection while reading the body of `spend`",
+    );
+    // The same pair naming `Nat::BoundedDistance` is ranked: the view reads
     // `(cursor, limit)` as the distance from cursor to limit. Counting
     // `remaining` down widens that distance, so the comparison at the
     // recursive call is the one thing left unproved. The distance is a
     // saturating subtraction, a form the rules do not decide
     // (`prove::reach::within_rules`), so the verdict is `Incomplete`.
-    let pair = looping(scalars, "(remaining, limit)");
+    let pair = looping(scalars, "(remaining, limit) -> Nat::BoundedDistance");
     match judged(&pair) {
         RouteVerdict::Incomplete(unproved) => assert!(
             matches!(
@@ -375,6 +391,28 @@ fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
         relations > 0 && comparisons >= 2,
         "the joint cycle must carry its finite relation and both members' comparisons"
     );
+}
+
+#[test]
+fn one_authored_measure_can_decrease_inside_the_helper() {
+    let program = r#"
+        machine count(remaining: u64) -> u64
+        requires remaining > 0u64
+        terminates by remaining
+        {
+            transition remaining > 1u64 {
+                true -> step(remaining)
+                false -> 0u64
+            }
+            machine step(remaining: u64) -> u64
+            requires remaining > 1u64
+            {
+                count(remaining - 1u64)
+            }
+        }
+    "#;
+    accepted(program);
+    assert_unchanged_measure_refuses(&program.replace("remaining - 1u64", "remaining"));
 }
 
 #[test]
@@ -483,7 +521,7 @@ fn tampered(change: impl FnOnce(&mut terminal_psi::TerminalNaturalCycle)) -> Ref
         panic!("the loop is ranked");
     };
     change(&mut cycles[0]);
-    discharge(&mut elaboration).unwrap_err()
+    discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err()
 }
 
 #[test]
@@ -528,11 +566,18 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     // The loop lowered with no clause is a productive cycle that owes no
     // rank. The same graph under a contract that publishes `Terminates`
     // has nothing that shows it ends.
-    assert!(discharge(&mut lower_ranked(less_one(), None)).is_ok());
+    assert!(
+        discharge(
+            &mut lower_ranked(less_one(), None),
+            &mut crate::ProofSearchActivity::default()
+        )
+        .is_ok()
+    );
     let mut elaboration = lower_ranked(less_one(), None);
     elaboration.module.machines[0].contract.termination =
         semantic_vocabulary::Termination::Terminates;
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,

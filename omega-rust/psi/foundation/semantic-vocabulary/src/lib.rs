@@ -28,6 +28,8 @@ projections; `proof_applications.rs` owns proof-application verification.
 
 mod declaration_descriptions;
 pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+pub mod identity_encoding;
+pub mod structural_path_encoding;
 
 // Call obligations and runtime lowering use the same two declaration
 // namespaces. Keeping this existing target identity in the shared vocabulary
@@ -55,12 +57,13 @@ impl From<MachineId> for TargetMachineCallable {
 }
 
 mod source_review;
+pub mod source_selections;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
 mod float_integer_conversions;
 pub use float_integer_conversions::{
     FloatIntegerConversion, FloatIntegerConversionError, fixed_integer_type,
-    float_integer_preconditions,
+    float_integer_failure_condition, float_integer_preconditions,
 };
 
 mod float_meaning_clauses;
@@ -651,75 +654,7 @@ pub use boundary::callback_identities::{
     nominal_callback_native_parameter_id,
 };
 pub mod byte_predicates {
-    #[derive(
-        Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum ByteSequencePredicate {
-        ValidUtf8,
-        NoNul,
-        AsciiOnly,
-        NonEmpty,
-    }
-
-    impl ByteSequencePredicate {
-        pub const ALL: [Self; 4] = [
-            Self::ValidUtf8,
-            Self::NoNul,
-            Self::AsciiOnly,
-            Self::NonEmpty,
-        ];
-
-        pub fn from_name(name: &str) -> Option<Self> {
-            match name {
-                "valid_utf8" => Some(Self::ValidUtf8),
-                "no_nul" => Some(Self::NoNul),
-                "ascii_only" => Some(Self::AsciiOnly),
-                "non_empty" => Some(Self::NonEmpty),
-                _ => None,
-            }
-        }
-
-        pub fn holds_for(self, bytes: &[u8]) -> bool {
-            match self {
-                Self::ValidUtf8 => std::str::from_utf8(bytes).is_ok(),
-                Self::NoNul => !bytes.contains(&0),
-                Self::AsciiOnly => bytes.iter().all(|byte| *byte < 128),
-                Self::NonEmpty => !bytes.is_empty(),
-            }
-        }
-
-        pub fn is_concat_preserving(self) -> bool {
-            match self {
-                Self::ValidUtf8 | Self::NoNul | Self::AsciiOnly | Self::NonEmpty => true,
-            }
-        }
-
-        pub fn is_subslice_preserving(self) -> bool {
-            match self {
-                Self::NoNul | Self::AsciiOnly => true,
-                Self::ValidUtf8 | Self::NonEmpty => false,
-            }
-        }
-
-        pub fn implies(self, other: Self) -> bool {
-            self == other || (self == Self::AsciiOnly && other == Self::ValidUtf8)
-        }
-
-        pub fn mask_bit(self) -> u8 {
-            match self {
-                Self::ValidUtf8 => 1 << 0,
-                Self::NoNul => 1 << 1,
-                Self::AsciiOnly => 1 << 2,
-                Self::NonEmpty => 1 << 3,
-            }
-        }
-
-        pub fn in_mask(mask: u8) -> impl Iterator<Item = Self> {
-            Self::ALL
-                .into_iter()
-                .filter(move |predicate| mask & predicate.mask_bit() != 0)
-        }
-    }
+    pub use language_core::byte_predicates::ByteSequencePredicate;
 
     #[derive(
         Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
@@ -1249,6 +1184,12 @@ mod id_table {
             self.values.iter()
         }
 
+        /// Return the identity at one row ordinal without traversing earlier rows.
+        pub fn identity_at(&self, position: usize) -> Option<Id> {
+            self.values.get(position)?;
+            Id::new(self.first.checked_add(u64::try_from(position).ok()?)?)
+        }
+
         pub fn keys(&self) -> impl DoubleEndedIterator<Item = Id> + ExactSizeIterator + '_ {
             (0..self.values.len()).map(|offset| {
                 Id::new(self.first + offset as u64).expect("table identities are nonzero")
@@ -1389,6 +1330,17 @@ mod id_table {
             assert_eq!(table.get(id(5)), Some(&'b'));
             assert_eq!(table.get(id(7)), None);
             assert_eq!(table.keys().collect::<Vec<_>>(), [id(4), id(5), id(6)]);
+            assert_eq!(table.identity_at(0), Some(id(4)));
+            assert_eq!(table.identity_at(2), Some(id(6)));
+            assert_eq!(table.identity_at(3), None);
+            assert_eq!(table.identity_at(usize::MAX), None);
+            assert_eq!(
+                IdTable::<StructuralTypeId, ()>::default().identity_at(0),
+                None
+            );
+            let high = IdTable::from_rows([(id(u64::MAX), ())]).unwrap();
+            assert_eq!(high.identity_at(0), Some(id(u64::MAX)));
+            assert_eq!(high.identity_at(1), None);
             assert_eq!(
                 table.map(|_, value| value.to_ascii_uppercase()).get(id(6)),
                 Some(&'C')
@@ -1482,14 +1434,15 @@ pub use fnv1a::Fnv1a;
 pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
-    CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,
-    CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
-    CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
-    ExternalCompletionKind, InvocationSite, MachineId, ObligationId, OperationId,
-    PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
-    RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
-    ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId, WorkScheduleIdentity,
+    CallableContractId, CallableInvocationSite, CallingAbiIdentity, CallingDeclarationOwner,
+    CallingGenericFormal, CallingOperandKind, CallingSignatureId, CallingStaticOperand, ClaimId,
+    ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity,
+    EvidenceTermId, ExternalCompletionKind, InvocationSite, MachineDescriptorId, MachineId,
+    ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId,
+    PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
+    ScalarQualificationSetId, SelectionDeclarationId, SelectionQuestionId, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    SuspensionCrossingId, ValueId, WorkScheduleIdentity,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
@@ -1519,6 +1472,14 @@ pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocato
 pub enum Termination {
     Terminates,
     NoGuarantee,
+}
+
+/// Whether a callable publishes its complete crash routes. An open static
+/// requirement grants no closed runtime crash promise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallableCrashPolicy {
+    Closed,
+    Open,
 }
 
 /// The exact target's mathematical interpretation of address inputs. This

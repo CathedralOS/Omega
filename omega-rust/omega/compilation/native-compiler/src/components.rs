@@ -1,6 +1,7 @@
 // Independent component image preparation, emission, and receiver-call custody.
 // `prepare_components` admits each component's native calls against the
-// receiver artifact and prepares callable execution + scalar completion demand;
+// receiver artifact, prepares callable execution and keeps the completed scalar
+// values its exports read;
 // `emit_components` emits shared component images and verifies that the emitted
 // export roster matches the admitted call roster 1-for-1.
 
@@ -20,13 +21,16 @@ pub struct ComponentCompilation<'input> {
     pub plan: &'input ProviderPlan,
     pub receiving_identities: &'input TerminalIdentityTable,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
+    /// The scalar values the exports read, completed before compiling
+    /// (`build_settings::scalar_completion::complete_native_callables`).
+    pub scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
 }
 
 pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
-    pub(crate) scalars: crate::NativeScalarCompletion<'input>,
-    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeWork<'input>>,
+    pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
+    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeExecution>,
 }
 
 pub(crate) fn prepare_components<'input>(
@@ -45,21 +49,20 @@ pub(crate) fn prepare_components<'input>(
             .exports()
             .iter()
             .map(|export| {
-                terminal_psi_to_abstract_operations::prepare_native_callable_execution(
-                    proposal,
-                    input.authorization(),
-                    terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
-                )?
-                .with_evidence(input.evidence().cloned())
+                proposal
+                    .prepare_native_callable_execution(
+                        input.authorization(),
+                        terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
+                    )?
+                    .with_operation_evidence(artifact, input.evidence().cloned())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let scalars = crate::NativeScalarCompletion::new(
-            artifact,
-            proposal,
-            exports
-                .iter()
-                .flat_map(|work| work.scalar_application_demand().iter().copied()),
-        );
+        let mut demand = Vec::new();
+        for execution in &exports {
+            demand.extend(execution.scalar_application_demand(proposal.target_profile())?);
+        }
+        let scalars =
+            crate::scalar_completion::required_scalars(artifact, &demand, compilation.scalars)?;
         prepared.push(PreparedComponent {
             compilation,
             calls,
@@ -99,6 +102,7 @@ pub(crate) fn emit_components<'input>(
     components: Vec<PreparedComponent<'input>>,
     terminal_authority_policy: &TerminalAuthorityPolicy,
     receiving_permissions: &Option<TerminalAuthorityPermissionPolicy>,
+    retain_native_stage_inputs: bool,
 ) -> Result<Vec<EmittedComponent<'input>>, Vec<Diagnostic>> {
     let mut emitted = Vec::new();
     for component in components {
@@ -111,8 +115,11 @@ pub(crate) fn emit_components<'input>(
         let exports = crate::realization::emit_component_exports(
             &component.input,
             work,
-            scalars.native_input()?,
+            scalars.map(|completed| {
+                terminal_psi_to_abstract_operations::NativeScalarApplications { completed }
+            }),
             ComponentExportRequest {
+                retain_native_stage_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,
                 terminal_authority_policy,
                 receiving_permissions,

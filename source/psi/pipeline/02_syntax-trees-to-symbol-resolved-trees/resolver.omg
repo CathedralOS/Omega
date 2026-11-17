@@ -286,10 +286,10 @@ crashes Trap
     }
 
     machine builtin_shadow(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
-        let builtin: TypeBinding = builtin_type(sources, declared.name.source_span);
+        let builtin: bool = builtin_type_spelling(sources, declared.name.source_span);
         transition builtin {
-            TypeBinding::Unresolved -> earlier(resolver, sources, syntax, index, declared, 0)
-            _ -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, declared.name)
+            true -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, declared.name)
+            _ -> earlier(resolver, sources, syntax, index, declared, 0)
         }
     }
 
@@ -854,7 +854,10 @@ crashes Trap
 }
 
 // The generic parameters of one declaration share one namespace, whatever
-// their kinds.
+// their kinds. A type binder introduces a type name, so like a data
+// declaration it may not use a builtin type spelling: `machine pick<u32>`
+// would otherwise make `u32` in its signature mean the binder. A value,
+// machine or proposition binder may, because it never competes with a type.
 public machine check_generic_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
 crashes Trap
 {
@@ -869,7 +872,22 @@ crashes Trap
 
     machine named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
-        transition { _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0) }
+        transition parameter.kind == GenericParameterKind::Type {
+            true -> type_binder(resolver, sources, syntax, scope, offset, parameter.name)
+            _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0)
+        }
+    }
+
+    machine type_binder(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan) {
+        let builtin: bool = builtin_type_spelling(sources, name.source_span);
+        transition builtin {
+            true -> shadow(resolver, name)
+            _ -> prior(resolver, sources, syntax, scope, offset, name, 0)
+        }
+    }
+
+    machine shadow(resolver: &mut Resolver, name: IdentifierSpan) {
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::ShadowsBuiltin, name.source_span);
     }
 
     machine prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
@@ -1462,6 +1480,53 @@ crashes Trap
 
     machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
         name_resolution_reject(&mut resolver.output, code, source_span);
+    }
+}
+
+// Whether a name is spelled like a builtin type
+// (wiki/spec/language/modules.md#builtin-type-names): an installed builtin,
+// or the open-ended integer family `i`, `u`, and either letter followed by
+// decimal digits, whether or not the digits form a valid width. `u7` and
+// `u128` install no type, yet no declaration may introduce a type with
+// those spellings, so this test is wider than `builtin_type`.
+public machine builtin_type_spelling(sources: &SourceSet, name: SourceSpan) -> bool
+crashes Trap
+{
+    let installed: TypeBinding = builtin_type(sources, name);
+    transition installed {
+        TypeBinding::Unresolved -> family(sources, name)
+        _ -> yes()
+    }
+
+    machine family(sources: &SourceSet, name: SourceSpan) -> bool {
+        let first: u8 = source_set_byte_or_nul(sources, name.source, name.span.start);
+        transition name.span.end > name.span.start && (first == 105 || first == 117) {
+            true -> digits(sources, name, name.span.start + 1)
+            _ -> no()
+        }
+    }
+
+    machine digits(sources: &SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
+        transition index < name.span.end {
+            true -> digit(sources, name, index)
+            _ -> yes()
+        }
+    }
+
+    machine digit(sources: &SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
+        let byte: u8 = source_set_byte_or_nul(sources, name.source, index);
+        transition byte >= 48 && byte <= 57 {
+            true -> digits(sources, name, index + 1)
+            _ -> no()
+        }
+    }
+
+    machine yes() -> bool {
+        true
+    }
+
+    machine no() -> bool {
+        false
     }
 }
 

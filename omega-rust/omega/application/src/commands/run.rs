@@ -31,11 +31,11 @@ established native failure wording.
 
 /*
 
-Why `omega run` uses exit codes 200..=203 for harness and interpreter outcomes:
+Why `omega run` uses exit codes 200..=204 for harness and interpreter outcomes:
 
 A guest program can legitimately exit with small positive statuses (including
 1, 2, or 3). To keep `omega run` statuses unambiguous when a caller inspects
-`$?`, we reserve 200..=203 for outcomes that are not a normal guest exit code:
+`$?`, we reserve 200..=204 for outcomes that are not a normal guest exit code:
 - `200`: compile rejection, launch failure, output-forwarding failure, empty or
   unreadable `--inputs`, or Terminal Psi execution stopping without a process
   exit (unavailable host capability, sponsor work exhaustion, or pending host
@@ -48,6 +48,10 @@ A guest program can legitimately exit with small positive statuses (including
   the interpreter cannot present a guest trap as an OS termination signal
   without raising that signal on `omega` itself, so it reports the crash on
   stderr and exits 203.
+- `204`: `--both` could not compare the runs (`InterpreterComparison::Declined`:
+  the Psi run ran out of work, waited on the host, returned no process result,
+  hit an unsupported construct, or exited with a status the host shows only
+  truncated). The native status alone is not agreement, so it is not reused.
 
 */
 
@@ -58,6 +62,8 @@ use crate::execution::{
 };
 use compiler::CompilerRequestOutcome;
 use std::io::Write;
+
+const COMPARISON_DECLINED: i32 = 204;
 use std::path::PathBuf;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
@@ -116,7 +122,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                 InterpreterComparison::NotRequested => native_code,
                 InterpreterComparison::Declined(reason) => {
                     eprintln!("interp: DECLINED ({reason})");
-                    native_code
+                    COMPARISON_DECLINED
                 }
                 InterpreterComparison::Agrees { exit_code } => {
                     eprintln!("interp exit: {exit_code}");
@@ -251,7 +257,13 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
     for case in &outcome.cases {
         let interpreter = match &case.comparison {
             InterpreterComparison::NotRequested => String::new(),
-            InterpreterComparison::Declined(reason) => format!("; interp DECLINED ({reason})"),
+            InterpreterComparison::Declined(reason) => {
+                // A divergence in another case (201) outranks an unchecked one.
+                if status == 0 {
+                    status = COMPARISON_DECLINED;
+                }
+                format!("; interp DECLINED ({reason})")
+            }
             InterpreterComparison::Agrees { exit_code } => format!("; interp exit {exit_code}"),
             InterpreterComparison::AgreesCrash { cause } => format!("; interp crash {cause:?}"),
             InterpreterComparison::Disagrees {

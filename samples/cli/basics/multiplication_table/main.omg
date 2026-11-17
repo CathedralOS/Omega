@@ -1,3 +1,4 @@
+use omega::language::core::byte_observation;
 use omega::language::core::ProcessExit;
 // A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
 // Every other sample renders glyphs or animation frames; this one converts computed
@@ -13,10 +14,10 @@ use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 domain [u8; 28]::Utf8
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Main {
     line: [u8; 28] in Utf8;
     i: i32 in Wrapping;   // row factor 1..9
@@ -34,8 +35,8 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
-    main.line = "                            ";
-    main.i = 1;
+    main.line = "                            " as +Utf8;
+    main.i = 1 as +Wrapping;
     transition { _ -> block row_loop(main) }
 
     machine row_loop(main: &mut Main) {
@@ -43,7 +44,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
     // clear the row buffer to spaces
     machine clear_init(main: &mut Main) {
-        main.k = 0;
+        main.k = 0 as +Wrapping;
         transition { _ -> block clear(main) }
     }
     machine clear(main: &mut Main) {
@@ -55,7 +56,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block clear(main) }
     }
     machine col_init(main: &mut Main) {
-        main.j = 1;
+        main.j = 1 as +Wrapping;
         transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: &mut Main) {
@@ -65,11 +66,11 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
-        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
+        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as -Wrapping);
         transition main.tens > 0 { true -> block cell_tens(main) _ -> block cell_space(main) }
     }
     machine cell_tens(main: &mut Main) {
-        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
+        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as -Wrapping);
         transition { _ -> block cell_write(main) }
     }
     machine cell_space(main: &mut Main) {
@@ -91,7 +92,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.i = main.i + 1;
         transition { _ -> block row_loop(main) }
     }

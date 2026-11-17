@@ -5,8 +5,9 @@ interpreted dependency requests. [Acceptance](acceptance.md) is separate from
 source resolution. A resolver supplies immutable source custody, not approval of
 the package or certification of anything compiled from it.
 
-The application coordinator forwards each exact `depend*` or `build_depend*`
-request when the package's one Build activation emits it. The resolver may begin
+The application coordinator forwards each exact `Build::dependency` or
+`Build::build_dependency` registration when the package's one Build activation
+makes it. The resolver may begin
 immutable acquisition immediately, but no requested code executes before its
 source, review, checking, and admission complete. A package's further requests
 remain unknown until its own Build activation runs. The graph becomes closed
@@ -21,8 +22,9 @@ profile and requested product target under
 ## Requester-local graph
 
 A dependency declares its own canonical snake_case package name. Default aliases
-preserve that spelling; `depend_as` and `build_depend_as` supply validated aliases
-in their respective product and build scopes. Aliases are unique within a scope,
+preserve that spelling; a description configured with `dependency::with_alias`
+supplies a validated alias in the scope of the call that registers it,
+`Build::dependency` for product and `Build::build_dependency` for build. Aliases are unique within a scope,
 not across both; there is no cross-scope fallback. Distinct requesters may use
 different aliases for the same key; an ancestor cannot rename dependencies
 inside another package.

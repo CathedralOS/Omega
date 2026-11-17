@@ -1,6 +1,6 @@
 /*
 We lower allocated post-allocation machine plans (`PostAllocationMachinePlan`) and their stage 07–09 encodings and layouts into placed native function text (`StagedOptimizedFixedFrameTextSection`), and we emit the target-owned native entry and foreign C calling bridges (`native_entry_bridge`, `native_foreign_bridge`) that sit outside the ordinary function compilation route. Native realization drives our four route stages in sequence:
-1. `stage_function_frame` and `assemble_fixed_frame_realization` (`function_realization`) compute per-function callee-save storage and frame geometry (`frame_layout`), encode target prologue and epilogue byte spans (`frame_protocol`), produce the framed machine program stage 07 reads, and, from stage 09's output alone, stage whole-function exit evidence (`exit_contract`).
+1. `stage_function_frame` and `assemble_fixed_frame_realization` (`function_realization`) compute per-function callee-save storage and frame geometry (`frame_layout`), encode target prologue and epilogue byte spans (`frame_protocol`), produce the framed machine program stage 07 reads, and, from stage 09's output alone (`machine_code::OptimizedMachineLayout`), stage whole-function exit evidence (`exit_contract`). Stage validators reach this library only through the `FunctionStageAudit` the native driver attaches (`stage_audit`); it names no Omega stage.
 2. `stage_optimized_function_fragment_emission` (`fragment_emission`) projects the fixed-frame realization into unplaced function fragments while preserving maximal source-attributed byte intervals and unresolved call or image-address fixup records.
 3. `stage_function_fragment_frame_application` (`frame_application`) inserts each function's prologue at block entry and epilogue before every retained return, reflows block, instruction, and fixup offsets, and re-encodes any relative branches whose displacements cross an inserted frame sequence.
 4. `stage_optimized_fixed_frame_text_section` (`text_placement`) places the framed function fragments into one aligned text section and resolves internal machine calls.
@@ -30,6 +30,7 @@ pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 
 pub mod code_layout;
+mod emission_facts;
 mod exit_contract;
 mod fragment_emission;
 mod frame_application;
@@ -39,14 +40,10 @@ mod function_realization;
 mod native_bridge_encoding;
 pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
+mod stage_audit;
 mod text_placement;
 
-/// Stage 06's machine plan keeps the allocation that frame planning reads.
-pub type AllocatedMachinePlan =
-    register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan<
-        selected_instructions_to_register_homes::RetainedAllocation,
-    >;
-
+pub use emission_facts::{EmissionFacts, OptimizedProgramProjection};
 pub use exit_contract::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
@@ -71,11 +68,10 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 pub use function_realization::{
-    EncodedFunction, FramedFunction, FunctionRelativeFrame,
-    FunctionRelativeOptimizationRealizationError, LaidOutFunction, OptimizedFunctionLayout,
-    StagedFixedFrameFunctionRelativeRealization, assemble_fixed_frame_realization,
-    stage_function_frame,
+    FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,
+    assemble_fixed_frame_realization, stage_function_frame,
 };
+pub use stage_audit::{FunctionStageAudit, StageAuditError};
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,

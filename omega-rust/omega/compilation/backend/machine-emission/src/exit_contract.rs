@@ -1,16 +1,15 @@
 /*
 We construct whole-function exit contracts from the current machine layout, checking ABI preservation, stack disposition and exit effects while recording their evidence. The producer joins exact input identities and computes the contract once; it does not replay layout stages or the record it just produced.
 
-Retained-artifact validation calls `validate_exit_record_for_replayed_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Production and replay retain distinct entrypoints.
+Artifact validation calls `validate_exit_record_for_current_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Original-input correspondence is checked separately from these current-output obligations.
 */
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::AllocatedMachinePlan;
-use crate::function_realization::{EncodedFunction, OptimizedFunctionLayout};
 use isa_aarch64::aarch64_preservation_convention_for_target;
 use isa_x86_64::x86_64_preservation_convention_for_target;
+use machine_code::OptimizedMachineLayout;
 #[cfg(test)]
 use machine_code::SelectedFormDecodedFootprint;
 use machine_code::{
@@ -29,14 +28,12 @@ use register_model::{
     PreservationConvention, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
     ValidatedPhysicalRegisterModel,
 };
-use resolved_layout_to_resolved_layout::OptimizedX86BranchRelaxationError;
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     SelectedBlockId, SelectedCallTarget, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedTerminator,
 };
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -61,7 +58,6 @@ impl StagedWholeFunctionExitContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
-    Relaxation(OptimizedX86BranchRelaxationError),
     OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,
@@ -107,10 +103,10 @@ enum EntryAssumptionKind {
 }
 
 struct ValidationInputs<'a> {
-    selected: &'a selected_instructions::SelectedInstructionPlan,
+    selected: &'a post_allocation_machine::PostAllocationMachineProgram,
     machine: &'a post_allocation_machine::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
-    encoding: &'a EncodedFunction,
+    encoding: &'a SelectedFormEncoding,
     layout: &'a ResolvedMachineLayout,
     frame: Option<(
         &'a ValidatedTargetFrameLayout,
@@ -128,90 +124,67 @@ struct ValidationContext {
     callee_saved: BTreeSet<RegisterUnitId>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &AllocatedMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &EncodedFunction,
-    layout: &OptimizedFunctionLayout,
-    frame: Option<(
-        &ValidatedTargetFrameLayout,
-        &ValidatedTargetFrameProtocolEncoding,
-    )>,
+pub(crate) fn stage_whole_function_exit_contract_for_layout(
+    layout: &OptimizedMachineLayout,
 ) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let custody = layout_custody(layout);
-    let contract = compute_inner(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.layout(),
-        custody,
-        frame,
-    )?;
+    let contract = compute_inner(&layout.program, layout_custody(layout))?;
     Ok(StagedWholeFunctionExitContract {
         contract: Arc::new(contract),
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &AllocatedMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &EncodedFunction,
-    layout: &OptimizedFunctionLayout,
+pub(crate) fn validate_exit_record_for_current_layout(
+    layout: &OptimizedMachineLayout,
     frame: Option<(
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
-    validate_exit_record(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.layout(),
-        layout_custody(layout),
+    let program = &layout.program;
+    let custody = layout_custody(layout);
+    validate_layout_custody(&program.encoding, &program.layout, custody)?;
+    let inputs = ValidationInputs {
+        selected: &program.instructions,
+        machine: &program.instructions.machine,
+        physical: program.instructions.physical(),
+        encoding: &program.encoding,
+        layout: &program.layout,
         frame,
-        contract.contract(),
-    )
+        contract: contract.contract(),
+    };
+    let context = check_validation_context(&inputs, custody)?;
+    check_ordinary_exit_roster(&inputs, &context)?;
+    require_artifact(contract.identity() == contract.contract().recomputed_identity())
 }
 
-fn layout_custody(layout: &OptimizedFunctionLayout) -> WholeFunctionExitLayoutCustody {
-    if let Some(relaxation) = layout.relaxation() {
+fn layout_custody(layout: &OptimizedMachineLayout) -> WholeFunctionExitLayoutCustody {
+    if let Some(relaxation) = layout.relaxation {
         WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-            relaxation: relaxation.identity(),
+            relaxation: relaxation.identity,
         }
     } else {
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
     }
 }
 
-fn compute_inner<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged_machine: &AllocatedMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &EncodedFunction,
-    layout: &ResolvedMachineLayout,
+fn compute_inner(
+    program: &machine_code::ResolvedMachineProgram,
     layout_custody: WholeFunctionExitLayoutCustody,
-    frame_inputs: Option<(
-        &ValidatedTargetFrameLayout,
-        &ValidatedTargetFrameProtocolEncoding,
-    )>,
 ) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
+    let selected_plan = &program.instructions;
+    let machine = &*program.instructions.machine;
+    let physical = program.instructions.physical();
+    let encoding = &*program.encoding;
+    let layout = &*program.layout;
+    let frame_inputs = Some((&*program.frame, &*program.protocol));
     use WholeFunctionExitContractError::{
         BlockRosterMismatch, FunctionRosterMismatch, InstructionRosterMismatch, InvalidConvention,
         MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
         RootMismatch,
     };
-    validate_layout_custody(staged_machine, encoding, layout, layout_custody)?;
-    let selected_plan = selected.selected_plan();
-    let machine = staged_machine.machine().plan();
-    if selected.selected_identity() != machine.selected
-        || encoding.selected() != machine.selected
+    validate_layout_custody(encoding, layout, layout_custody)?;
+    if encoding.selected() != machine.selected
         || layout.selected() != machine.selected
         || encoding.machine() != machine.identity
         || layout.machine() != machine.identity
@@ -223,7 +196,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
         return Err(RootMismatch);
     }
 
-    if encoding.program().frame.as_ref() != frame_inputs.map(|(frame, _)| frame.plan()) {
+    if encoding.frame.as_ref() != frame_inputs.map(|(frame, _)| frame) {
         return Err(RootMismatch);
     }
     let target = machine.target;
@@ -232,12 +205,12 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
     let (ordinary_policy, frame_disposition) = match frame_inputs {
         None => (frameless_policy, WholeFunctionFrameDisposition::FramelessV1),
         Some((frame, protocol)) => {
-            if frame.receipt().post_allocation_machine() != machine.identity
-                || frame.plan().register_environment != machine.register_environment
-                || frame.plan().physical_register_model != machine.physical_register_model
-                || frame.receipt().target() != target
-                || protocol.receipt().frame_layout() != frame.receipt().identity()
-                || protocol.receipt().target() != target
+            if frame.post_allocation_machine != machine.identity
+                || frame.register_environment != machine.register_environment
+                || frame.physical_register_model != machine.physical_register_model
+                || frame.target != target
+                || protocol.frame_layout != program.frame_identity
+                || protocol.target != target
             {
                 return Err(RootMismatch);
             }
@@ -259,8 +232,8 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
             (
                 policy,
                 WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-                    layout: frame.receipt().identity(),
-                    protocol: protocol.receipt().identity(),
+                    layout: program.frame_identity,
+                    protocol: program.protocol_identity,
                 },
             )
         }
@@ -283,7 +256,13 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
         _ => return Err(InvalidConvention),
     };
 
-    let encoding_rows = unique_encoding_rows(selected_plan, encoding.program())?;
+    let encoding_rows = unique_encoding_rows(
+        selected_plan
+            .functions
+            .iter()
+            .map(|function| (function.machine, &function.blocks)),
+        encoding,
+    )?;
     let encoded = encoding.encoded();
     let layout_rows = unique_layout_rows(layout)?;
     let machine_functions = machine
@@ -320,7 +299,6 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
     let frame_functions = frame_inputs
         .map(|(frame, _)| {
             frame
-                .plan()
                 .functions
                 .iter()
                 .map(|function| (function.machine, function))
@@ -330,7 +308,6 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
     let protocol_functions = frame_inputs
         .map(|(_, protocol)| {
             protocol
-                .plan()
                 .functions
                 .iter()
                 .map(|function| (function.machine, function))
@@ -344,7 +321,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
         return Err(RootMismatch);
     }
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
-    for function in &selected_plan.functions {
+    for function in selected_plan.functions.iter() {
         let function_frame = frame_inputs
             .map(|_| {
                 frame_functions
@@ -653,38 +630,6 @@ fn require_artifact(condition: bool) -> Result<(), WholeFunctionExitContractErro
         .ok_or(WholeFunctionExitContractError::ArtifactMismatch)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn validate_exit_record<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &AllocatedMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &EncodedFunction,
-    layout: &ResolvedMachineLayout,
-    custody: WholeFunctionExitLayoutCustody,
-    frame: Option<(
-        &ValidatedTargetFrameLayout,
-        &ValidatedTargetFrameProtocolEncoding,
-    )>,
-    contract: &WholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_layout_custody(machine, encoding, layout, custody)?;
-    if selected.selected_identity() != machine.machine().plan().selected {
-        return Err(WholeFunctionExitContractError::RootMismatch);
-    }
-    let inputs = ValidationInputs {
-        selected: selected.selected_plan(),
-        machine: machine.machine().plan(),
-        physical,
-        encoding,
-        layout,
-        frame,
-        contract,
-    };
-    let context = check_validation_context(&inputs, custody)?;
-    check_ordinary_exit_roster(&inputs, &context)?;
-    require_artifact(contract.identity == contract.recomputed_identity())
-}
-
 fn check_validation_context(
     inputs: &ValidationInputs<'_>,
     custody: WholeFunctionExitLayoutCustody,
@@ -709,7 +654,7 @@ fn check_validation_context(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
-    if encoding.program().frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
+    if encoding.frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
     let (mut policy, convention, stack_name, link_name, entry) =
@@ -818,7 +763,13 @@ fn check_ordinary_exit_roster(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
-    let encoding_rows = unique_encoding_rows(selected, encoding.program())?;
+    let encoding_rows = unique_encoding_rows(
+        selected
+            .functions
+            .iter()
+            .map(|function| (function.machine, &function.blocks)),
+        encoding,
+    )?;
     let encoded = encoding.encoded();
     let layout_rows = unique_layout_rows(layout)?;
     let mut seen = BTreeSet::new();
@@ -1275,8 +1226,7 @@ fn check_claimed_return(
 }
 
 fn validate_layout_custody(
-    _machine: &AllocatedMachinePlan,
-    encoding: &EncodedFunction,
+    encoding: &SelectedFormEncoding,
     layout: &ResolvedMachineLayout,
     custody: WholeFunctionExitLayoutCustody,
 ) -> Result<(), WholeFunctionExitContractError> {
@@ -1382,7 +1332,10 @@ fn validate_internal_call(
                 && layout.internal_machine_fixup() == Some(**fixup)
                 && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
         }
-        (SelectedCallTarget::Dynamic { .. }, SelectedFormEncodingState::Encoded) => {
+        (
+            SelectedCallTarget::Dynamic { .. } | SelectedCallTarget::Callable { .. },
+            SelectedFormEncodingState::Encoded,
+        ) => {
             layout.internal_machine_fixup.is_none()
                 && footprint.encoded.control
                     == MachineEncodedControlEffect::IndirectTableCallOrTrapV1
@@ -1541,7 +1494,7 @@ fn call_memory_stack_effects_match(
 #[allow(clippy::too_many_arguments)]
 fn validate_process_exit(
     physical: &ValidatedPhysicalRegisterModel,
-    function: &selected_instructions::SelectedFunction,
+    function: &selected_instructions::SelectedFunctionContracts,
     block: &selected_instructions::SelectedBlock,
     completion_edge: EdgeId,
     instruction: &SelectedInstruction,
@@ -1820,8 +1773,8 @@ fn scalar_return_view(
     Ok(expected.id)
 }
 
-fn unique_encoding_rows<'a>(
-    selected: &selected_instructions::SelectedInstructionPlan,
+fn unique_encoding_rows<'a, 'function>(
+    functions: impl Iterator<Item = (MachineId, &'function selected_instructions::SelectedBlocks)>,
     encoding: &'a SelectedFormEncoding,
 ) -> Result<
     BTreeMap<(MachineId, SelectedInstructionId), &'a SelectedFormEncodingRow>,
@@ -1830,16 +1783,14 @@ fn unique_encoding_rows<'a>(
     use WholeFunctionExitContractError::{DuplicateInstruction, MissingInstruction};
     let mut rows = BTreeMap::new();
     let mut encoded = encoding.rows().iter();
-    for function in &selected.functions {
-        for block in &function.blocks {
+    for (machine, blocks) in functions {
+        for block in blocks {
             for instruction in block.instructions.iter().chain(std::iter::once(
                 selected_instructions::terminator_instruction(&block.terminator),
             )) {
                 let row = encoded.next().ok_or(MissingInstruction(instruction.id))?;
                 if row.instruction != instruction.id
-                    || rows
-                        .insert((function.machine, row.instruction), row)
-                        .is_some()
+                    || rows.insert((machine, row.instruction), row).is_some()
                 {
                     return Err(DuplicateInstruction(row.instruction));
                 }

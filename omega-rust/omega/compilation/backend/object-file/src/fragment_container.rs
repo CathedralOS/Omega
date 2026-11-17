@@ -200,14 +200,9 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         self.custody
     }
 
-    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
-        self.source.source().source().lowering_facts()
-    }
-
-    pub fn provider_installation(
-        &self,
-    ) -> Option<&provider_admission::AdmittedProviderInstallation> {
-        self.source.source().source().provider_installation()
+    /// The facts the native driver carried from before instruction selection.
+    pub fn emission_facts(&self) -> &machine_emission::EmissionFacts {
+        self.source.source().source().facts()
     }
 }
 

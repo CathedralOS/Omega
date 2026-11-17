@@ -46,27 +46,7 @@ pub(super) fn bound_program_entry_shapes(
                     })
                     .collect(),
             };
-            let mut implementation = binding.implementation_symbol;
-            if let Some(family) = typed.target_machine_families.iter().find(|family| {
-                family.canonical == implementation
-                    || family
-                        .members
-                        .iter()
-                        .any(|member| member.machine == implementation)
-            }) {
-                implementation = family
-                    .members
-                    .iter()
-                    .find(|member| member.target.as_str() == profile.target_name())
-                    .ok_or_else(|| {
-                        Diagnostic::error(format!(
-                            "entry family `{}` has no body for target `{}`",
-                            family.name,
-                            profile.target_name()
-                        ))
-                    })?
-                    .machine;
-            }
+            let implementation = binding.implementation_symbol;
             Ok(BoundCallableShape {
                 slot: binding.slot.clone(),
                 arrival_description: match slot.source_contract().visible_parameters {

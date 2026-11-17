@@ -9,6 +9,7 @@ name = "semantic_vocabulary"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../language-core" }
 compiler-storage = { path = "../compiler-storage" }
 numerics = { path = "../numerics" }
 arena = { path = "../arena" }

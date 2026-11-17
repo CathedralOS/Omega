@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 283`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 286`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -652,7 +652,7 @@ pub(crate) mod canonical_order {
             module
                 .evidence_contract_lanes
                 .iter()
-                .map(|lane| (lane.machine, lane.kind, lane.position)),
+                .map(|lane| (lane.owner, lane.kind, lane.position)),
             "evidence contract lanes by machine, kind, and position",
         )?;
         require_increasing(
@@ -1324,7 +1324,7 @@ pub(crate) mod external_provider_wire {
     use super::CodecError;
     use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{ExternalPackage, Field};
+    use super::wire_fields::{ExternalPackage, Field, Optional};
     use language_semantics::ExternalBindingIdentity;
     use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
@@ -1352,6 +1352,10 @@ pub(crate) mod external_provider_wire {
                 ),
             )?);
         }
+        Optional::<crate::service_schema_wire::SealedIntrinsic>::write(
+            writer,
+            &candidate.sealed_intrinsic,
+        )?;
         writer.boolean(candidate.target.is_some());
         if let Some(target) = &candidate.target {
             writer.string("external provider target membership", target)?;
@@ -1404,6 +1408,8 @@ pub(crate) mod external_provider_wire {
         } else {
             None
         };
+        let sealed_intrinsic =
+            Optional::<crate::service_schema_wire::SealedIntrinsic>::read(reader)?;
         let target = if reader.boolean()? {
             Some(reader.string("external provider target membership")?)
         } else {
@@ -1442,6 +1448,7 @@ pub(crate) mod external_provider_wire {
             requirement_package,
             requirement_schema,
             numeric_intrinsic,
+            sealed_intrinsic,
             target,
             realization,
             realization_package,
@@ -1622,7 +1629,7 @@ pub(crate) mod machine_wire {
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 scalar_restriction: None,
                 id: structural_type,
                 identity: TerminalIdentityIndex(3),
@@ -1848,7 +1855,7 @@ pub(crate) mod machine_wire {
         ClaimBinding, Field, Id, List, Multiplicity, OptionalId, Path, QualificationSet, Scalar,
         delegated_fields, wire_enum, wire_record,
     };
-    use crate::sections::semantic_module::wire::decode_counted;
+    use crate::semantic_module::wire::decode_counted;
 
     use super::wire_fields::Flag;
     use terminal_psi::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
@@ -2060,7 +2067,9 @@ pub(crate) mod machine_wire {
         Ok(())
     }
 
-    fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
+    pub(crate) fn decode_ranked_scc(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<TerminalRankedScc>, CodecError> {
         match reader.u8()? {
             0 => Ok(None),
             3 => {
@@ -2292,7 +2301,7 @@ pub(crate) mod reach_application_wire {
     use super::CodecError;
     use super::structural_signature_wire::encode_service_ceiling;
     use super::wire::{Reader, Writer};
-    use crate::sections::semantic_module::wire::{
+    use crate::semantic_module::wire::{
         decode_counted, decode_ids, decode_optional_id, encode_optional_id,
     };
     use terminal_psi::TerminalIdentityIndex;
@@ -2409,8 +2418,10 @@ pub(crate) mod reach_application_wire {
                     }
                     writer.boolean(binding.upper_bound_may_suspend);
                     writer.boolean(binding.upper_bound_may_block);
+                    writer.boolean(binding.upper_bound_crashes_none);
                     writer.boolean(binding.selected_may_suspend);
                     writer.boolean(binding.selected_may_block);
+                    writer.boolean(binding.selected_may_crash);
                     writer.u32(binding.selected_identity.0);
                     writer.bytes(&binding.selected_contract_commitment);
                     encode_service_ceiling(writer, &binding.selected_reach)?;
@@ -2497,7 +2508,9 @@ pub(crate) mod reach_application_wire {
         }))
     }
 
-    fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParameter>, CodecError> {
+    pub(crate) fn decode_telescope(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ClosedReachParameter>, CodecError> {
         decode_counted(reader, |reader| {
             Ok(match reader.u8()? {
                 0 => ClosedReachParameter::Type {
@@ -2533,8 +2546,10 @@ pub(crate) mod reach_application_wire {
                         },
                         upper_bound_may_suspend: reader.boolean()?,
                         upper_bound_may_block: reader.boolean()?,
+                        upper_bound_crashes_none: reader.boolean()?,
                         selected_may_suspend: reader.boolean()?,
                         selected_may_block: reader.boolean()?,
+                        selected_may_crash: reader.boolean()?,
                         selected_identity: TerminalIdentityIndex(reader.u32()?),
                         selected_contract_commitment: reader.array()?,
                         selected_reach: decode_ids(reader, "ServiceId")?,
@@ -2957,6 +2972,7 @@ mod external_provider_tests {
         ));
         module.identities = identity_table(8);
         module.external_providers = vec![ExternalProviderConformance {
+            sealed_intrinsic: None,
             requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
             requirement_identity: TerminalIdentityIndex(3),
             requirement_package: None,
@@ -3297,7 +3313,7 @@ mod reference_transport_tests {
             identity: TerminalIdentityIndex(2),
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
             nominal_cleanup: None,
@@ -3351,7 +3367,7 @@ mod reference_transport_tests {
                 identity: TerminalIdentityIndex(3),
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -3412,7 +3428,7 @@ mod reference_transport_tests {
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,
@@ -4124,6 +4140,29 @@ mod routed_scalar_tests {
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
         public.termination = semantic_vocabulary::Termination::Terminates;
+        // Receiving validation refuses a public declaration without its own
+        // operational envelope, so publish one that repeats what the contract
+        // already promises: no services, no suspension, guaranteed termination.
+        module
+            .callables
+            .declaration_envelopes
+            .push(terminal_psi::TerminalDeclarationEnvelope {
+                contract: required,
+                envelope: terminal_psi::TerminalCallableEnvelope {
+                    service_reach: public.published_service_ceiling.clone(),
+                    invocations: public
+                        .published_synchronous_entries
+                        .iter()
+                        .copied()
+                        .map(terminal_psi::TerminalCallableInvocation::Service)
+                        .collect(),
+                    suspends: public.published_may_suspend,
+                    blocks: public.published_may_block,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+            });
         module.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
@@ -4281,6 +4320,163 @@ mod routed_scalar_tests {
     }
 
     #[test]
+    fn const_telescope_wire_round_trips_static_callable_records_and_refuses_bad_profiles() {
+        use language_semantics::conformance_identity::MachineApplicationCommitment;
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use terminal_psi::ClosedReachParameter;
+
+        let mut module = module();
+        let template = module.identities.text(TerminalIdentityIndex(3)).unwrap();
+        let argument = CanonicalConstValue::from_decoded(
+            &DecodedCanonicalConstValue::Record {
+                type_name: "Operations".into(),
+                fields: vec![
+                    (
+                        "write".into(),
+                        DecodedCanonicalConstValue::StaticCallable {
+                            declaration: template.to_owned(),
+                            application: None,
+                            requirement: None,
+                        },
+                    ),
+                    ("enabled".into(), DecodedCanonicalConstValue::Boolean(true)),
+                ],
+            },
+            "Operations { write, enabled: true }",
+        )
+        .unwrap();
+        let mut commitment = MachineApplicationCommitment::new(template).unwrap();
+        commitment.const_argument(&argument).unwrap();
+        let commitment = commitment.finish();
+        let declaration = module.machines[0].declaration.as_mut().unwrap();
+        declaration.callable = TerminalIdentityIndex(2);
+        declaration.specialization = Some(CheckedMachineSpecialization {
+            capture: None,
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template_callable: TerminalIdentityIndex(3),
+            template_semantic_declaration: TerminalIdentityIndex(1),
+            commitment,
+        });
+        let mut application = ClosedReachApplication {
+            template_identity: TerminalIdentityIndex(1),
+            template_base_commitment: [7; 32],
+            template_commitment: [0; 32],
+            suspension_dependency: false.into(),
+            blocking_dependency: false.into(),
+            conditional_carry: Vec::new(),
+            specialization_commitment: commitment,
+            parameter_kinds: vec![1],
+            telescope: vec![ClosedReachParameter::Const {
+                argument: argument.clone(),
+            }],
+            capture: None,
+            fixed: Vec::new(),
+            dependencies: Vec::new(),
+            calls: Vec::new(),
+        };
+        application.template_commitment = terminal_psi::closed_reach_template_commitment(
+            application.template_base_commitment,
+            application.parameters(),
+            &application.suspension_dependency,
+            &application.blocking_dependency,
+            &application.conditional_carry,
+            |_| None,
+        )
+        .unwrap();
+        module.machines[0].closed_reach_application = Some(application);
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
+        let ClosedReachParameter::Const {
+            argument: transported,
+        } = &decoded.machines[0]
+            .closed_reach_application
+            .as_ref()
+            .unwrap()
+            .telescope[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(transported, &argument);
+        assert_eq!(transported.decode_encoding(), argument.decode_encoding());
+
+        for encoding in [
+            "unknown-static-atom0:".to_owned(),
+            format!("{}junk", argument.encoding),
+            argument.encoding.replacen("record", "record0", 1),
+        ] {
+            let mut malformed = module.clone();
+            let ClosedReachParameter::Const { argument } = &mut malformed.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[0]
+            else {
+                unreachable!()
+            };
+            argument.encoding = encoding;
+            let error = decode_module(&encode_raw(&malformed).unwrap()).unwrap_err();
+            assert_eq!(
+                error,
+                crate::CodecError::MalformedStructuralFoundation(
+                    "closed reach telescope has no canonical static carrier and value",
+                )
+            );
+        }
+        for mutation in 0..5 {
+            let mut changed = argument.decode_encoding().unwrap();
+            let DecodedCanonicalConstValue::Record { type_name, fields } = &mut changed else {
+                unreachable!()
+            };
+            if mutation == 0 {
+                fields[1].1 = DecodedCanonicalConstValue::Boolean(false);
+            } else if mutation == 4 {
+                type_name.push_str("Other");
+            } else {
+                let DecodedCanonicalConstValue::StaticCallable {
+                    declaration,
+                    application,
+                    requirement,
+                } = &mut fields[0].1
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    1 => declaration.push_str("::another-selected-declaration"),
+                    2 => *application = Some("another-selected-application".into()),
+                    _ => *requirement = Some("another-required-callable".into()),
+                }
+            }
+            let changed =
+                CanonicalConstValue::from_decoded(&changed, argument.display.clone()).unwrap();
+            assert!(
+                changed.is_canonical_static_value(),
+                "the replay forgery is well formed"
+            );
+            let mut stale = module.clone();
+            let ClosedReachParameter::Const { argument } = &mut stale.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[0]
+            else {
+                unreachable!()
+            };
+            *argument = changed;
+            let error = decode_module(&encode_raw(&stale).unwrap()).unwrap_err();
+            assert_eq!(
+                error,
+                crate::CodecError::MalformedStructuralFoundation(
+                    "machine application arguments differ from their retained commitment",
+                ),
+                "mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
     fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
         // Even an empty application commits to its original callable. A
@@ -4397,8 +4593,10 @@ mod routed_scalar_tests {
                     upper_bound: Some(Vec::new()),
                     upper_bound_may_suspend: true,
                     upper_bound_may_block: false,
+                    upper_bound_crashes_none: false,
                     selected_may_suspend: false,
                     selected_may_block: false,
+                    selected_may_crash: false,
                     selected_identity: TerminalIdentityIndex(2),
                     selected_contract_commitment: [3; 32],
                     selected_reach: Vec::new(),
@@ -4454,6 +4652,56 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+        // effects.md: a binder's `crashes none` admits only crash-free
+        // selections, so a selected callee that publishes a crash route,
+        // authored or inferred, is refused. The bound is committed, so a
+        // record cannot drop it without changing its template commitment.
+        {
+            let crash_bound = |bound: bool, crashes: bool, recommit: bool| {
+                let mut changed = module.clone();
+                let application = changed.machines[0]
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap();
+                let terminal_psi::ClosedReachParameter::Machine(binding) =
+                    &mut application.telescope[0]
+                else {
+                    panic!("the telescope holds one machine binder");
+                };
+                binding.upper_bound_crashes_none = bound;
+                binding.selected_may_crash = crashes;
+                if recommit {
+                    application.template_commitment =
+                        terminal_psi::closed_reach_template_commitment(
+                            application.template_base_commitment,
+                            application.parameters(),
+                            &application.suspension_dependency,
+                            &application.blocking_dependency,
+                            &application.conditional_carry,
+                            |_| None,
+                        )
+                        .unwrap();
+                }
+                changed
+            };
+            let crash_free = crash_bound(true, false, true);
+            assert_eq!(
+                decode_module(&encode_module(&crash_free).unwrap()).unwrap(),
+                crash_free
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, true, true)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "selected callback may crash, and its requirement declares `crashes none`",
+                ))
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, false, false)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+                ))
+            );
+        }
         // A captured helper still uses the callback supplied to its method.
         // The guard names that method slot after the capture's type slot.
         let capture_commitment = {
@@ -4589,7 +4837,7 @@ mod routed_scalar_tests {
 #[cfg(test)]
 pub(crate) mod entry_tests {
 
-    use crate::sections::semantic_module::module_wire::encode_raw;
+    use crate::semantic_module::module_wire::encode_raw;
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
     use terminal_psi::{
@@ -4751,46 +4999,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 275 changes retained compiler-evaluation invocation refusals.
-// Marker 274 adds authenticated hosted-primitive requirement links to the
-// machine contract layout retained by marker 273. A 273 artifact has no such
-// execution link and cannot be read as this declaration grammar.
-// Marker 273 moves a public requirement's declared result lifetime groups
-// from each static method tuple onto the machine contract both selected and
-// rigid calls read. A 272 artifact keeps them on the method tuple instead.
-// Marker 271 retains boundary logical result lifetimes independently of spatial regions.
-// Marker 270 removes executable target-family catalogs and portable family heads.
-// Marker 269 retains complete primitive scalar storage types and predicate
-// establishment completions. Earlier catalogs cannot express either judgment.
-// Marker 268 retains the declared public result lifetime groups separately from body origins.
-// Marker 267 lets the existing record-invariant wrapper retain any record
-// storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
-// Marker 266 retains the integer carrier in float semantic conversion identities.
-// A finite catalog ordinal from an earlier artifact cannot express that identity.
-// Marker 265 distinguishes entry field observations from current observations.
-// A 264 artifact cannot be read as that schema. Marker 264 retains each selected
-// call's public contract and closed application
-// separately from its executable body. Marker 263 operational ceilings and call
-// acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
-// numeric and finite-family identities remain part of the same format.
-// Marker 272 retains each structural value's explicit qualification changes
-// (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
-// row a qualified structural parameter could have arrived through.
-// Marker 278 retains typed integer operands in canonical float-result equations,
-// alongside 277's installation-bound service rows. A 277 reader cannot
-// authenticate a from-integer result contract.
-// Marker 279 also retains complete domain access rules and source identities
-// for their subject, cases and fields. A 278 artifact lacks these receiving
-// checks; the prior float and installation data remain part of this format.
-// Marker 280 retains transparent scalar predicate bodies and their own formals.
-// A 279 artifact cannot state declaration-time arithmetic formation for them.
-// Marker 281 adds total integer-result conversion and exact-cast predicates.
-// Marker 282 adds exact integer-to-float predicates.
-// Marker 283 combines those predicates with owned nominal cleanup selections,
-// ordinary owned cleanup actions, and consuming decomposition. Both preceding
-// layouts used 282; neither supplies this combined schema, and borrowed cleanup
-// action tags cannot acquire owned-transfer meaning.
-pub(crate) const FORMAT_MARKER: u16 = 283;
+// Marker 286 replaces the structural type copy bit with its declared three-way
+// multiplicity. Earlier payloads cannot supply Linear and reject before decoding.
+// The source and callable identity schema from main remains unchanged.
+pub(crate) const FORMAT_MARKER: u16 = 286;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4814,7 +5026,9 @@ pub fn encode_closed_execution_module(
 ) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
-    module_wire::encode_raw_closed(module)
+    let (bytes, mut types) = module_wire::encode_raw_closed(module)?;
+    types.record_callables(module);
+    Ok((bytes, types))
 }
 
 /// The complete domain declaration has one encoding for artifact transport
@@ -4871,12 +5085,12 @@ pub fn decode_closed_parts(
     // checker does; an artifact cannot carry a domain the checker would refuse.
     terminal_semantics::structural_qualifications::validate(&module)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
-    crate::identity_formations::validate_identity_formations(
-        &module,
-        &mut proof_admission::Budget::default(),
-    )?;
+    // Canonical shape only; source-bound `verify_identity_formations` replays
+    // the kernel. Decoding does not re-decide a carried judgment.
+    crate::identity_formations::validate_identity_formations(&module)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
-    let (canonical, types) = module_wire::encode_raw_closed(&module)?;
+    let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
+    types.record_callables(&module);
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
@@ -5038,7 +5252,7 @@ mod normal_qualification_tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: position != 2,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -5149,7 +5363,7 @@ mod normal_qualification_tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -5390,7 +5604,7 @@ mod global_descriptor_table_tests {
             identity: TerminalIdentityIndex(3),
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             nominal_cleanup: None,
@@ -5547,7 +5761,7 @@ mod descriptor_operation_tests {
                 identity: TerminalIdentityIndex(index as u32 + 3),
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -5811,7 +6025,7 @@ mod opaque_value_tests {
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,
@@ -5866,15 +6080,28 @@ mod format_marker_tests {
     use super::*;
 
     #[test]
+    fn predecessor_vocabularies_are_refused_before_payload_interpretation() {
+        for vocabulary in [136u16, 137, 138, 139, 140, 141] {
+            for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
+                let mut bytes = MAGIC.to_vec();
+                bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+                bytes.extend_from_slice(&vocabulary.to_le_bytes());
+                bytes.extend_from_slice(payload);
+                assert!(matches!(
+                    decode_module(&bytes),
+                    Err(CodecError::UnsupportedVocabularyMarker(marker)) if marker == vocabulary
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // Independent Id and interrupt layouts both used 252 (and earlier
-        // independent Id and relocation layouts both used 251).
-        // Neither body may be interpreted as the combined layout, regardless
-        // of which payload follows their shared legacy marker. Marker 260's finite
-        // float conversion ordinal also cannot supply the retained carrier identity.
+        // The independent predecessors both used 284 for different grammars.
+        // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281, 282,
+            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

@@ -1,15 +1,6 @@
-// A product of one target reads two settled things: which target it is for
-// and which checked plans or evaluated native bindings supply the boundary
-// requirements its accepted Terminal module reaches. Its only
-// constructor takes them from provider settlement, so a product cannot be
-// formed for a target whose supply was never settled.
-//
-// It deliberately carries nothing a product can derive. The selected program
-// entry, native provider declarations, calling applications, callback roots
-// and review provenance belong to the products that use them and are formed
-// there from the selected supplies and the accepted artifact. Native binding
-// receipts remain here because their completed Build evaluations cannot be
-// reconstructed from the Product's accepted artifact.
+// Selected execution owns one realized provider closure. Native and Psi
+// consumers borrow its canonical plan roster and exact row execution data;
+// choosing a provider never reconstructs declarations from source later.
 
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -17,14 +8,26 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
-    plans: Arc<effects::SelectedProviderPlanFacts>,
-    native_bindings: Arc<provider_planning::target_supply::NormalizedNativeSupplies>,
+    realization: Arc<provider_planning::target_supply::RealizedTargetSupply>,
 }
 
 impl SelectedExecution {
-    /// Forms the selected execution from its settled supply. An absent profile
-    /// retains unscoped checking, without selecting host providers. A chosen supply
-    /// whose provider plan cannot be formed refuses here, by requirement.
+    /// Retains the provider realization already formed for this exact target.
+    pub fn from_realization(
+        target_profile: Option<target::TargetProfile>,
+        realization: provider_planning::target_supply::RealizedTargetSupply,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if realization.target() != target_profile.map(|profile| profile.target_name()) {
+            return Err(vec![Diagnostic::error(
+                "selected execution and realized provider supply name different targets",
+            )]);
+        }
+        Ok(Self {
+            target_profile,
+            realization: Arc::new(realization),
+        })
+    }
+
     pub fn settle(
         target_profile: Option<target::TargetProfile>,
         supply: &provider_planning::target_supply::SettledTargetSupply,
@@ -35,21 +38,11 @@ impl SelectedExecution {
                 "selected execution and settled provider supply name different deployments",
             )]);
         }
-        let native_bindings = supply.native_bindings(planning.module)?;
-        let plans =
-            effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans(planning)?)
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "provider settlement for `{}`: {reason}",
-                        supply.target().unwrap_or("<unscoped>")
-                    ))]
-                })?;
-        let plans = planning.resolve_installation_reach(plans)?;
-        Ok(Self {
-            target_profile,
-            plans: Arc::new(plans),
-            native_bindings: Arc::new(native_bindings),
-        })
+        Self::from_realization(target_profile, supply.realize(planning)?)
+    }
+
+    pub fn realization(&self) -> &provider_planning::target_supply::RealizedTargetSupply {
+        &self.realization
     }
 
     /// The deployment profile the request named. Profiles that share a
@@ -64,26 +57,14 @@ impl SelectedExecution {
     }
 
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
-        &self.plans
+        self.realization.plans()
     }
 
     pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
-        &self.plans
+        self.realization.shared_plans()
     }
 
-    pub fn native_bindings(&self) -> &provider_planning::target_supply::NormalizedNativeSupplies {
-        &self.native_bindings
-    }
-
-    /// The provider proposal this target's conditions are checked against:
-    /// its settled plans joined to one produced Terminal artifact.
-    ///
-    /// Each plan's checked adapter rows are joined to the provider
-    /// candidates the artifact states for the plan's provider declaration
-    /// (`TerminalTargetProviderSelection::from_plans`); a row the artifact
-    /// states no candidate for refuses the selection, and the refusal
-    /// travels in the proposal like any other. A target with no plan
-    /// proposes the empty selection of that artifact.
+    /// Rejoin the actual selected declarations to this canonical artifact.
     pub fn provider_proposal(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -91,11 +72,11 @@ impl SelectedExecution {
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
         let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
-            self.plans.plans().to_vec(),
+            self.realization.provider_declarations().to_vec(),
             artifact,
         )
         .map(|mut selection| {
-            selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
+            selection.assumed_bindings = self.plans().assumed_bindings().to_vec();
             selection
         })
         .map_err(|reason| vec![format!("provider proposal for `{target}`: {reason}")]);

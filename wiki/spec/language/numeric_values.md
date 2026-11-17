@@ -11,9 +11,11 @@ does not introduce another authored type form.
 
 ## Library numeric helpers
 
-`min`, `max`, `abs`, `clamp` and `sqrt` are ordinary standard-library machines,
+`min`, `max`, `abs`, `clamp` and `sqrt` are ordinary bundled-library machines,
 not language functions or compiler-known source builtins. They belong in
-`std`'s math surface, resolve through ordinary imports and declaration identity,
+`core`'s math surface (`source/library/core/math.omg`), which holds
+foundational language-facing mechanisms; `std` holds only adapters to the
+execution environment. They resolve through ordinary imports and declaration identity,
 and publish their types, preconditions and guarantees as ordinary contracts.
 This settles `executable-numeric-builtins` against the builtin route. A missing
 library declaration is a name-resolution failure, not permission to recognize
@@ -21,7 +23,7 @@ its spelling in the compiler.
 
 Checking learns result bounds and mathematical meaning from those contracts
 and checked bodies, not name-specific proof rules or source-call expansions.
-The standard library must make signed-minimum `abs`, inverted clamp bounds,
+The `core` library must make signed-minimum `abs`, inverted clamp bounds,
 floating NaNs and signed zeros, and square-root domain and rounding behavior
 explicit in its contracts. Existing implementations are not definitions of
 unspecified behavior; in particular `abs(x)` is not universally `max(x, 0 - x)`.

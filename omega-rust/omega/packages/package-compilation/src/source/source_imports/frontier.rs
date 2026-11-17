@@ -28,7 +28,7 @@ pub(crate) struct SourceStorage {
     pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
     default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
-    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Unbound standalone source capture tree.
+    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
     toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
@@ -259,6 +259,14 @@ impl SourceStorage {
         inputs: &crate::PackageCompilationInputs,
     ) -> Result<(), Vec<Diagnostic>> {
         let refuse = |reason| vec![Diagnostic::error(reason)];
+        if self
+            .default_package_identity
+            .is_some_and(|owner| owner != inputs.root())
+        {
+            return Err(refuse(
+                "captured Build source already has another named owner".to_owned(),
+            ));
+        }
         let capture = self
             .anonymous_capture
             .as_ref()
@@ -277,17 +285,26 @@ impl SourceStorage {
                     "cannot retain source captures at Product join: {error}"
                 ))
             })?;
-        for file in self
-            .sources
-            .selected_files()
-            .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
-        {
+        for file in self.sources.selected_files().filter(|file| {
+            file.origin == SourceOrigin::User
+                && (file.package_identity.is_none()
+                    || file.package_root == self.default_package_root)
+        }) {
             let path = filesystem.canonicalize(&file.path).map_err(|error| {
                 refuse(format!(
                     "cannot resolve anonymous source {} at Product join: {error}",
                     file.path.display()
                 ))
             })?;
+            if file.package_root == self.default_package_root
+                && file
+                    .package_identity
+                    .is_some_and(|owner| owner != inputs.root())
+            {
+                return Err(refuse(
+                    "resumed Build source has another named owner at Product join".to_owned(),
+                ));
+            }
             if inputs.package_for_source(&path) != Some(inputs.root()) {
                 return Err(refuse(format!(
                     "anonymous source {} belongs to a different reconciled package at Product join",
@@ -305,7 +322,8 @@ impl SourceStorage {
         }
         self.sources
             .retain_product_dependency_scope(inputs.dependencies());
-        self.anonymous_capture = None;
+        // Naming the root does not settle its dependency graph. Keep the
+        // same capture so the completed join must prove these bytes again.
         Ok(())
     }
 
@@ -1022,8 +1040,32 @@ mod tests {
             );
         }
         storage
-            .join_package_inputs(&graph(application.clone(), authored))
+            .join_package_inputs(&graph(application.clone(), authored.clone()))
             .unwrap();
+        storage
+            .join_package_inputs(&graph(application.clone(), authored.clone()))
+            .unwrap();
+        let another = semantic_vocabulary::PackageKeyIdentity::from_digest([98; 32]).unwrap();
+        let another_owner = PackageCompilationInputs::new_package(
+            another,
+            vec![
+                PackageSourceBinding::new(another, "fixture", application.clone())
+                    .with_captured_source(authored.clone())
+                    .unwrap(),
+            ],
+            Vec::new(),
+        )
+        .unwrap();
+        assert!(
+            storage.join_package_inputs(&another_owner).is_err(),
+            "a later named source cannot replace its admitted owner"
+        );
+        assert!(
+            storage
+                .join_package_inputs(&graph(application.clone(), tree("changed")))
+                .is_err(),
+            "the completed join still checks the original captured bytes"
+        );
         assert!(storage.capture_toolchain_contract(&application).is_err());
         assert_eq!(
             storage

@@ -283,7 +283,7 @@ impl ObservedFieldKind {
         match scalar_type {
             ScalarType::Boolean => Some(Self::Boolean),
             ScalarType::Integer(_) => Some(Self::Integer),
-            ScalarType::IeeeFloat(_) => None,
+            ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => None,
         }
     }
 }

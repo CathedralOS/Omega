@@ -2313,6 +2313,11 @@ pub(crate) mod scalar_graph {
                         }
                     }
 
+                    AbstractOperation::SelectMachine { descriptor, .. } => {
+                        LegalizedScalarInstructionKind::SelectMachine {
+                            descriptor: *descriptor,
+                        }
+                    }
                     AbstractOperation::SelectImplementation { table, .. } => {
                         LegalizedScalarInstructionKind::SelectImplementation { table: *table }
                     }
@@ -3523,7 +3528,7 @@ pub(crate) mod scalar_graph {
                 Ok(LegalizedScalarBlock {
                     id: targeted.block,
                     parameters,
-                    structural_parameters: targeted.structural_parameters.clone(),
+                    structural_parameters: targeted.structural_parameters.clone().into(),
                     instructions,
                     terminator: crate::legalization_control::project(
                         target.machine,
@@ -3572,12 +3577,12 @@ pub(crate) fn derive_source_function_rosters(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),
     )
-    .map_err(|_| LegalizationError::custody())?;
+    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let unit_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &unit.structural_types,
         unit.structural_types.owned_sequence_bounds(),
     )
-    .map_err(|_| LegalizationError::custody())?;
+    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let abstract_plan = &crate::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,
@@ -3611,7 +3616,7 @@ pub(crate) fn derive_target_function_rosters(
                 function.graph.structural_types.owned_sequence_bounds(),
             )
         }))
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let mut scalar_functions = Vec::with_capacity(target.functions.len());
     for function in &target.functions {
         let geometry = geometries
@@ -3660,7 +3665,7 @@ pub(crate) fn derive_target_function_rosters(
                         definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
                             block: block.block,
                             position: u32::try_from(position)
-                                .map_err(|_| LegalizationError::custody())?,
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                         },
                     })
                 })
@@ -3668,7 +3673,7 @@ pub(crate) fn derive_target_function_rosters(
             blocks.push(legalized_operations::LegalizedScalarBlock {
                 id: block.block,
                 parameters,
-                structural_parameters: block.structural_parameters.clone(),
+                structural_parameters: block.structural_parameters.clone().into(),
                 instructions,
                 terminator: crate::legalization_control::project(
                     function.machine,

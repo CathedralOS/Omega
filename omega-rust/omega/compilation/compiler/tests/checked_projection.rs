@@ -117,8 +117,4 @@ fn the_product_publishes_its_accepted_module_and_selected_entry() {
         .is_err(),
         "the same entry leaf from another owner cannot join this artifact",
     );
-    assert!(
-        publication.for_other_roots().accepted().is_err(),
-        "another root selection needs its own judgment",
-    );
 }

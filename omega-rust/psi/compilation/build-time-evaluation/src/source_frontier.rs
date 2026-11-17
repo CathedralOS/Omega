@@ -10,18 +10,7 @@ use typed_trees::TypedTrees;
 use typed_trees::declaration_authority::RecordedDeclarationAuthority;
 use typed_trees::deferred_refusals::DeferredRequest;
 
-/// Selection of private source in one captured Build context. This consent
-/// grants neither a declaration owner nor package edges or execution effects.
-/// The invocation bridge still admits the complete produced call separately.
-pub trait InvocationSourceConsent: Send + Sync {
-    fn allows_selection(
-        &self,
-        sources: &Arc<source::SourceMap>,
-        requester: source::SourceSpan,
-        declaration: source::SourceSpan,
-        purpose: source::DependencyScope,
-    ) -> bool;
-}
+pub use source::InvocationSourceConsent;
 
 fn unavailable() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -185,6 +174,7 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::Unit => {}
         }
     }

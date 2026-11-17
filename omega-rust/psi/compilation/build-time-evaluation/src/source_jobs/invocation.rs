@@ -412,6 +412,7 @@ fn materialize_argument(
                 });
             }
             ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: destination,
                 type_name: data.definition.name,
                 type_symbol: data.definition.symbol,
@@ -438,6 +439,8 @@ pub(crate) fn declaration_call(
     name: typed_trees::name::Identifier,
 ) -> TableCallExpression {
     TableCallExpression {
+        // The retained declaration is the callee; there is no runtime value.
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),

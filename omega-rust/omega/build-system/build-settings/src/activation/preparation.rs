@@ -2,9 +2,9 @@
 Prepare an `AdmittedBuildProgram` for Terminal execution and settle its
 normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 
-`PreparedBuildExecution::prepare` lowers the checked `Build` program into an
-invocation-scoped Terminal Psi artifact (`TerminalPublication::Invocation`),
-admits its `BuildProviderPlans` against the produced artifact view, and opens a
+`PreparedBuildExecution::prepare` takes the one invocation-scoped program whose
+source selections were admitted by `admit_build_program`, admits its
+`BuildProviderPlans` against that same produced artifact view, and opens a
 `100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
@@ -46,6 +46,7 @@ impl PreparedBuildExecution {
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            produced,
             providers,
             machine,
             filesystem_scope,
@@ -56,10 +57,6 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let produced = prepared.produce(
-            Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
-        )?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
@@ -88,8 +85,8 @@ impl PreparedBuildExecution {
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,
-            produced: Arc::new(produced),
             accepted: prepared,
+            produced,
             providers: Arc::new(providers),
             account,
             evaluation_sponsor: supplied_sponsor,
@@ -112,6 +109,7 @@ impl PreparedBuildExecution {
         machine: symbols::SymbolHandle,
         source: package_compilation::BuildSourceSelection,
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+        anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
         crate::admit_build_program(
             prepared,
@@ -123,6 +121,7 @@ impl PreparedBuildExecution {
             false,
             source,
             package_inputs,
+            anonymous_source,
         )
     }
 
@@ -135,6 +134,7 @@ impl PreparedBuildExecution {
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            produced,
             providers,
             mut machine,
             filesystem_scope,
@@ -147,14 +147,10 @@ impl PreparedBuildExecution {
         // Files an earlier stage staged are settled when the last one
         // returns, whether or not that stage reaches the filesystem itself.
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
-        let produced = prepared.produce(
-            Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
-        )?;
         let providers = providers.admit(produced.view())?;
         Ok(Self {
             execution_purpose: self.execution_purpose,
-            produced: Arc::new(produced),
+            produced,
             providers: Arc::new(providers),
             // Package review reads the contracts of the accepted program
             // this execution holds: for a staged Build, its last stage.
@@ -240,10 +236,12 @@ impl PreparedBuildExecution {
             ));
         }
         let artifact_only = matches!(declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
-        if artifact_only && !completed.root_bindings.is_empty() {
-            return Err(
-                self.refuse("artifact-only Build cannot select executable entries or providers")
-            );
+        // Artifact-only mode builds no product, so an entry, provider or
+        // native binding would have nothing to apply to. The spec
+        // (scoped_execution.md, "Staged products and failure") requires a
+        // refusal rather than silently dropping the selection.
+        if artifact_only && let Some(reason) = executable_selection_in_artifact_only(&completed) {
+            return Err(self.refuse(reason));
         }
         let mut observations =
             package_compilation::CapturedBuildObservations::new(&self.filesystem_scope);
@@ -305,6 +303,33 @@ impl PreparedBuildExecution {
     fn refuse(&self, reason: &str) -> Vec<Diagnostic> {
         failed(&self.machine.name, reason)
     }
+}
+
+/// The first executable root or provider selection an artifact-only Build
+/// made, described for its refusal. Provider selections and `Build::bind`
+/// native bindings choose implementations for the executable product, which
+/// artifact-only mode never builds.
+fn executable_selection_in_artifact_only(completed: &crate::ReturnedBuild) -> Option<&'static str> {
+    use language_semantics::declaration_selection::BuildOperation;
+    if !completed.root_bindings.is_empty() {
+        return Some("artifact-only Build cannot bind executable entries");
+    }
+    if completed
+        .product_selections
+        .iter()
+        .any(|selection| selection.request.operation == BuildOperation::ProviderSelection)
+    {
+        return Some("artifact-only Build cannot select providers");
+    }
+    if !completed.native_bindings.is_empty()
+        || completed
+            .product_selections
+            .iter()
+            .any(|selection| selection.request.operation == BuildOperation::NativeBinding)
+    {
+        return Some("artifact-only Build cannot bind native implementations");
+    }
+    None
 }
 
 fn failed(name: &str, reason: &str) -> Vec<Diagnostic> {

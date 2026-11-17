@@ -92,8 +92,14 @@ fn judge(
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )
@@ -237,6 +243,158 @@ fn trapping_primitives_retain_their_crash_predicate() {
                 "{name}/{case}"
             );
         }
+    }
+}
+
+/// A literal shift count has no carrier of its own, so it lands in the
+/// shifted value's carrier (`wiki/spec/language/numeric_values.md`, "Policy
+/// operators": "the other lands to that carrier"). Landing does not discharge
+/// the Exact count law: a count of 32 on a `u32` value is still refused, and a
+/// typed count keeps its own carrier.
+#[test]
+fn a_literal_shift_count_lands_in_the_shifted_carrier() {
+    for (name, expression, expected) in [
+        ("literal_left", "left << 3", "accepted"),
+        ("literal_right", "left >> 31", "accepted"),
+        ("anonymous_tree", "left >> (8 + 8)", "accepted"),
+        ("typed_count", "left << 3u8", "accepted"),
+        ("count_at_width", "left >> 32", "rejected"),
+        ("left_overflow", "(left + 1) << 31", "rejected"),
+    ] {
+        let source = format!(
+            "machine spare(left: u32) -> u32 requires left <= 10 {{ {expression} }}\n\
+             machine main() {{ }}"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
+/// A `&&` guard lowers to a join. Its facts reach the taken edge only through
+/// the join's inferred predicate. A local read after a call that wrote the
+/// field (`let mid = main.pout` after `fill(main, v)`) is defined as the
+/// field's contents after that call, which the predicate cannot name. The
+/// read itself dominates the join, so the guard is stated over it. A guard
+/// that is too weak, or a `||`, still leaves the requirement unproved.
+/// state_contracts.md, "Private entry inference": a helper that omits
+/// `requires` may rely on what every arrival establishes. In a call cycle
+/// each member's copy of the cycle reads `main.i` once per block, and the
+/// guard in `mark` is stated over an earlier, equal read. The arrival at
+/// `bump` still passes the guard's bound, so its write keeps the data clause.
+#[test]
+fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
+    for (name, bound, expected) in [
+        ("guarded_bump", "31", "accepted"),
+        ("bump_past_the_clause", "32", "rejected"),
+    ] {
+        let source = format!(
+            "data Main requires self.i >= 0 && self.i <= 31 {{ i: i32; }}\n\
+             machine cycle(main: &mut Main) {{\n\
+                 main.i = 0;\n\
+                 transition {{ _ -> block head(main) }}\n\
+                 machine head(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < 31 {{ true -> block mark(main) _ -> block done(main) }}\n\
+                 }}\n\
+                 machine mark(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main) _ -> block head(main) }}\n\
+                 }}\n\
+                 machine bump(main: &mut Main) {{\n\
+                     main.i = main.i + 1;\n\
+                     transition {{ _ -> block head(main) }}\n\
+                 }}\n\
+                 machine done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; block cycle(&mut storage); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
+/// state_contracts.md, "Private entry inference", for the two places a
+/// caller's fact can live that are not its own read of an input field: an
+/// array element another block read (`sc_verdict` tests `main.wires[4]`, so
+/// every copied head of `sc_stop` names that element), and a value stored
+/// into a field and then guarded (`check` stores `main.plug[main.x]` into
+/// `main.t` and its `&&` passes `main` on through a block formal of its
+/// own). Each twin drops the bound its helper needs and stays rejected.
+#[test]
+fn a_caller_fact_reaches_its_helper_through_elements_and_stores() {
+    let element = |bound: &str| {
+        format!(
+            "data Main {{ wires: [i32; 8]; n: i32; r: i32; }}\n\
+             machine fill(main: &mut Main) {{ main.wires[4] = main.r; }}\n\
+             machine scan(main: &mut Main) {{\n\
+                 main.n = 0;\n\
+                 main.r = 0;\n\
+                 transition {{ _ -> sc_pos(main) }}\n\
+                 machine sc_pos(main: &mut Main) {{ fill(main); transition {{ _ -> sc_verdict(main) }} }}\n\
+                 machine sc_verdict(main: &mut Main) {{\n\
+                     transition main.wires[4] == 3 {{ true -> sc_next(main) _ -> sc_stop(main) }}\n\
+                 }}\n\
+                 machine sc_stop(main: &mut Main) {{\n\
+                     transition main.n >= 0{bound} {{ true -> sc_ct(main) _ -> sc_next(main) }}\n\
+                 }}\n\
+                 machine sc_ct(main: &mut Main) {{ main.n = main.n + 1; transition {{ _ -> sc_next(main) }} }}\n\
+                 machine sc_next(main: &mut Main) {{\n\
+                     transition main.r >= 0 && main.r < 25 {{ true -> sc_inc(main) _ -> sc_done(main) }}\n\
+                 }}\n\
+                 machine sc_inc(main: &mut Main) {{ main.r = main.r + 1; transition {{ _ -> sc_pos(main) }} }}\n\
+                 machine sc_done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; scan(&mut storage); }}\n"
+        )
+    };
+    let stored = |bound: &str| {
+        format!(
+            "data Main {{ plug: [i32; 26]; x: i32; t: i32; }}\n\
+             machine involution(main: &mut Main) {{\n\
+                 main.x = 0;\n\
+                 transition {{ _ -> head(main) }}\n\
+                 machine head(main: &mut Main) {{\n\
+                     transition main.x >= 0 && main.x < 26 {{ true -> check(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine check(main: &mut Main) {{\n\
+                     main.t = main.plug[main.x];\n\
+                     transition main.t >= 0 && main.t < {bound} {{ true -> pair(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine pair(main: &mut Main) {{\n\
+                     transition main.plug[main.t] == main.x && main.x < 26 {{ true -> next(main) _ -> done(main) }}\n\
+                 }}\n\
+                 machine next(main: &mut Main) {{ main.x = main.x + 1; transition {{ _ -> head(main) }} }}\n\
+                 machine done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; involution(&mut storage); }}\n"
+        )
+    };
+    for (name, source, expected) in [
+        ("element_guarded", element(" && main.n < 100"), "accepted"),
+        ("element_unbounded", element(""), "rejected"),
+        ("stored_guarded", stored("26"), "accepted"),
+        ("stored_past_the_array", stored("27"), "rejected"),
+    ] {
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
+#[test]
+fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
+    for (name, guard, expected) in [
+        ("both_bounds", "mid >= 0 && mid < 26", "accepted"),
+        ("weak_bound", "mid >= 0 && mid < 27", "rejected"),
+        ("disjunction", "mid >= 0 || mid < 26", "rejected"),
+    ] {
+        let source = format!(
+            "data Main {{ pout: i32; }}\n\
+             machine fill(main: &mut Main, v: i32) {{ main.pout = v; }}\n\
+             machine use_it(main: &mut Main, mid: i32) requires 0 <= mid && mid < 26 {{ main.pout = mid; }}\n\
+             machine step(main: &mut Main, v: i32) {{\n\
+                 fill(main, v);\n\
+                 let mid: i32 = main.pout;\n\
+                 transition {guard} {{ true -> use_it(main, mid) _ -> done(main) }}\n\
+             }}\n\
+             machine done(main: &mut Main) {{ }}\n\
+             machine main() {{ let mut storage: Main; step(&mut storage, 3); step(&mut storage, 300); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
     }
 }
 
@@ -669,6 +827,115 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
     }
 }
 
+/// A nested machine's inferred requirement may name the length of a
+/// `&mut [u8]` formal: `write_byte` stores `out[index]`, so it owes
+/// `index < out.len`, which its caller's guard `index + 1 < out.len`
+/// supplies. A borrowed byte view is a descriptor with a count, like an
+/// element view (`wiki/spec/terminal-psi/byte_views.md`), so the checker
+/// forms that length in the requirement instead of refusing it.
+///
+/// The twin differs only in the guard: `index < path.len` says nothing about
+/// `out`, so the store is rejected.
+#[test]
+fn a_nested_requirement_names_a_mutable_byte_views_length() {
+    let program = |guard: &str| {
+        format!(
+            "machine put(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+             transition index < path.len {{ true -> byte(path, out, index) _ -> done() }}\n    \
+             machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    }}\n    \
+             machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             out[index] = path[index];\n        transition {{ _ -> done() }}\n    }}\n    \
+             machine done() {{ }}\n}}\n\
+             machine main() {{\n    let mut out: [u8; 4];\n    put(\"abc\", &mut out[..], 1);\n}}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("guarded_by_out_len", &program("index + 1 < out.len")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("guarded_by_path_len", &program("index < path.len")),
+        ["rejected"]
+    );
+}
+
+/// When a `terminates by` recursion forwards `&mut [u8]` to a nested byte
+/// writer, `index` varies across recursive calls and `out` can have different
+/// lengths at different call sites, so constant bounds cannot discharge
+/// `out[index]`: the checker proves `index < out.len` from `byte`'s guard
+/// `index + 1 < out.len` while `terminator` writes the trailing zero under
+/// `index < out.len`.
+///
+/// The two negative twins each change one token: guarding `byte` by
+/// `index < path.len` leaves `out` unchecked, and writing `out[index + 1]`
+/// under `index < out.len` overruns `out` by one byte.
+#[test]
+fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
+    let program = |guard: &str, write_index: &str| {
+        format!(
+            "machine copy_path_from(path: &[u8], out: &mut [u8], index: u64, remaining: u64)\n\
+             terminates by remaining\n\
+             {{\n    \
+                 put_path_byte(path, out, index);\n    \
+                 transition index < path.len && remaining > 0 {{\n        \
+                     true -> copy_path_from(path, out, index + 1, remaining - 1)\n        \
+                     _ -> done()\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine put_path_byte(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+                 transition index < path.len {{\n        \
+                     true -> byte(path, out, index)\n        \
+                     _ -> terminator(out, index)\n    \
+                 }}\n    \
+                 machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     out[{write_index}] = path[index];\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine terminator(out: &mut [u8], index: u64) {{\n        \
+                     transition index < out.len {{ true -> write_terminator(out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_terminator(out: &mut [u8], index: u64) {{\n        \
+                     out[index] = 0;\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine main() {{\n    \
+                 let mut short: [u8; 2];\n    \
+                 let mut full: [u8; 4];\n    \
+                 copy_path_from(\"a\", &mut short[..], 0, 1);\n    \
+                 copy_path_from(\"abc\", &mut full[..], 0, 3);\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_out_len",
+            &program("index + 1 < out.len", "index"),
+        ),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_path_len",
+            &program("index < path.len", "index"),
+        ),
+        ["rejected"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_store_past_guarded_extent",
+            &program("index < out.len", "index + 1"),
+        ),
+        ["rejected"]
+    );
+}
+
 /// A case payload in a domain with predicates owes them of a value in that
 /// case (`wiki/spec/language/data_and_literals.md`: "case-dependent
 /// projections require established case knowledge"), exactly as if the sum's
@@ -837,6 +1104,31 @@ fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
         ),
         ["rejected", "accepted", "rejected"]
     );
+}
+
+/// An open classifier checks both named types and the opaque remainder.
+/// Its sole caller selects u8; neither an unused bool arm nor the fallback
+/// may violate the authored result contract.
+#[test]
+fn an_open_type_classifier_checks_unused_cases_and_the_remainder() {
+    let source = "machine classify<T>() -> u8 ensures result <= 2u8 {\n\
+        transition { T == u8 -> 0u8 T == bool -> 1u8 _ -> 2u8 }\n\
+        }\n machine main() { let value: u8 = classify<u8>(); }\n";
+    assert_eq!(verdicts("open_type_classifier", source), ["accepted"; 4]);
+    for (name, broken) in [
+        (
+            "unused_type_classifier_case",
+            source.replace("bool -> 1u8", "bool -> 3u8"),
+        ),
+        (
+            "type_classifier_remainder",
+            source.replace("_ -> 2u8", "_ -> 3u8"),
+        ),
+    ] {
+        let results = verdicts(name, &broken);
+        assert!(results.contains(&"rejected"), "{name}: {results:?}");
+        assert!(!results.contains(&"not-supported"), "{name}: {results:?}");
+    }
 }
 
 /// A finite family: `pick<T>` admits `u8` and `u16` and is applied at both.

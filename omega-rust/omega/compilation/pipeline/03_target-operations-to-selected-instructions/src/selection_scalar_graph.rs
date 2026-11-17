@@ -1732,7 +1732,9 @@ pub(crate) mod byte_output {
         builder: &mut Builder<'_>,
     ) -> Result<bool, SelectedInstructionError> {
         let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-            boundary, source, ..
+            boundary,
+            execution,
+            source,
         } = row.kind
         else {
             return Ok(false);
@@ -1772,6 +1774,7 @@ pub(crate) mod byte_output {
                 instruction_index,
                 settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                     operation: row.operation,
+                    execution,
                     boundary,
                     source,
                 },
@@ -6187,7 +6190,7 @@ pub(crate) mod scalar_call {
             super::call_arguments::marshal(source, operation, call, builder, invalid)?;
         if let Some(selector) = call.target.selector() {
             let (_, input, site, scalar_type) = builder.resolve(selector).ok_or_else(invalid)?;
-            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
+            if call.target.operand_type() != Some(scalar_type.as_checking()) {
                 return Err(invalid());
             }
             operands.push(builder.copy(input, selector, site, scalar_type)?);
@@ -6949,7 +6952,7 @@ pub(crate) mod unit_call {
             let (_, input, site, scalar_type) = builder
                 .resolve(selector)
                 .ok_or(SelectedInstructionError::custody())?;
-            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
+            if call.target.operand_type() != Some(scalar_type.as_checking()) {
                 return Err(SelectedInstructionError::custody());
             }
             let dispatch = builder.copy(input, selector, site, scalar_type)?;
@@ -7191,6 +7194,7 @@ pub(crate) fn select_function(
         };
         if *byte_size
             != match parameter.scalar_type {
+                semantic_vocabulary::ClosedScalarType::Callable(_) => 8,
                 semantic_vocabulary::ClosedScalarType::Boolean => 1,
                 semantic_vocabulary::ClosedScalarType::IeeeFloat(
                     semantic_vocabulary::IeeeFloatFormat::Binary32,
@@ -7330,13 +7334,22 @@ pub(crate) fn select_function(
             {
                 continue;
             }
-            if let LegalizedScalarInstructionKind::PortWrite { port, value, .. } = operation.kind {
+            if let LegalizedScalarInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = operation.kind
+            {
                 if operation.result.is_some() {
                     return Err(invalid());
                 }
                 let key = builder.constraints.keys.port_write.ok_or_else(invalid)?;
                 builder.emit(
-                    SelectedInstructionKind::PortWrite { port, value },
+                    SelectedInstructionKind::PortWrite {
+                        service,
+                        port,
+                        value,
+                    },
                     key,
                     &[],
                     SelectedInstructionProvenance {
@@ -7402,6 +7415,7 @@ pub(crate) fn select_function(
             } else {
                 match &operation.kind {
                     LegalizedScalarInstructionKind::ProgramImageAddress { .. }
+                    | LegalizedScalarInstructionKind::SelectMachine { .. }
                     | LegalizedScalarInstructionKind::SelectImplementation { .. } => {
                         let (reference, expected_type) = match &operation.kind {
                             LegalizedScalarInstructionKind::ProgramImageAddress { .. } => (
@@ -7409,6 +7423,12 @@ pub(crate) fn select_function(
                                 semantic_vocabulary::ScalarType::Integer(
                                     semantic_vocabulary::IntegerType::address(64).map_err(|_| invalid())?),
                             ),
+                            LegalizedScalarInstructionKind::SelectMachine { descriptor } => {
+                                if !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Callable(_)) {
+                                    return Err(invalid());
+                                }
+                                (selected_instructions::SelectedImageAddressReference::MachineDescriptor { descriptor: *descriptor }, scalar_type.as_checking())
+                            }
                             LegalizedScalarInstructionKind::SelectImplementation { table } => (
                                 selected_instructions::SelectedImageAddressReference::ImplementationTable { table: *table },
                                 target_vocabulary::selector_carrier_type(),
@@ -7659,6 +7679,24 @@ pub(crate) fn select_function(
             attachment: source.attachment,
             provenance: source.provenance.clone(),
             structural: source.structural.clone(),
+            structural_block_parameters: {
+                let mut rows: Vec<_> = source
+                    .blocks
+                    .iter()
+                    .filter(|block| !block.structural_parameters.is_empty())
+                    .map(|block| {
+                        (
+                            block.id,
+                            std::sync::Arc::clone(&block.structural_parameters),
+                        )
+                    })
+                    .collect();
+                rows.sort_by_key(|(block, _)| *block);
+                if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                    return Err(invalid());
+                }
+                rows
+            },
             outgoing_arguments: builder.transport.slots,
             local_storage_slots: builder.transport.local_slots,
             calls: builder.transport.calls,
@@ -7986,7 +8024,10 @@ impl Builder<'_> {
                 )
             } else if matches!(
                 kind.call_target(),
-                Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+                Some(
+                    selected_instructions::SelectedCallTarget::Dynamic { .. }
+                        | selected_instructions::SelectedCallTarget::Callable { .. }
+                )
             ) {
                 std::borrow::Cow::Owned(
                     selected_instructions::calls::dynamic::instantiate_constraint(

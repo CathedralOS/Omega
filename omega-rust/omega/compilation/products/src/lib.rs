@@ -27,12 +27,13 @@ construction remain with `native_artifact`, and filesystem staging mechanics
 remain with `platform_custody`.
 */
 
-pub use terminal_psi_to_abstract_operations::{
+pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
-pub use terminal_psi_to_abstract_operations::{
+pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
+    recover_native_derivation_inputs,
 };
 
 mod checked_compilation;
@@ -45,16 +46,24 @@ mod package_build;
 mod prepared_build;
 pub use typed_trees::ProductSourceIdentity;
 mod prepared_source;
+mod program_entry;
 mod provider_instances;
 pub use provider_instances::SelectedProviderSource;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
-pub use terminal_publication::{ProductRoster, ProductTerminalPublication};
+pub use terminal_publication::{
+    ProductRoster, ProductTerminalPublication, SourceCallingContext, SourceCallingInputs,
+    SourceNormalizationInputs, SourceProgramEntryInput,
+};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
 
+pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
+pub use boundary_applications::{
+    TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
+};
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
     ProductReportPlan, ProductReportRequest,
@@ -96,12 +105,13 @@ pub use prepared_source::{
     BuildStage, DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
     SourcePreparation, TypedCompilationFrontier,
 };
+pub use provider_admission::provider_admission::TerminalCompilerBuiltinProposal;
 pub use terminal_installation::PrivateEntryRamInitialization;
-pub use terminal_psi_to_abstract_operations::{
-    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
-    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
-    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
+pub use verified_optimization_input::native_proposal::{
+    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProviders,
+};
+pub use verified_optimization_input::{
+    RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 
 // The actual invocation records retained by source and failure reports.

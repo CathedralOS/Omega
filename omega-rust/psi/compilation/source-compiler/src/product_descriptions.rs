@@ -230,3 +230,63 @@ pub(crate) fn describe_entry(
         slot: slot.to_owned(),
     })
 }
+
+pub(crate) fn describe_parameter(
+    program: &TypedTrees,
+    occurrence: SourceSpan,
+    selecting: SourceSpan,
+    path: &[u8],
+) -> Result<semantic_vocabulary::ParameterDescription, String> {
+    let declarations = typed_trees::product_operand::product_candidates(
+        program,
+        language_semantics::declaration_selection::ProductOperandRole::Formal,
+    );
+    let selected = select_declaration(
+        program,
+        occurrence,
+        path,
+        "parameter",
+        "names no formal in",
+        "is not a formal visible from",
+        declarations.into_iter(),
+    )?;
+    let author =
+        typed_trees::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    typed_trees::reflection::construction::product_parameter_description_identity(
+        program,
+        selected,
+        author,
+        occurrence,
+        path_text(path, "parameter")?,
+    )
+}
+
+pub(crate) fn describe_field(
+    program: &TypedTrees,
+    occurrence: SourceSpan,
+    selecting: SourceSpan,
+    path: &[u8],
+) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+    let declarations = typed_trees::product_operand::product_candidates(
+        program,
+        language_semantics::declaration_selection::ProductOperandRole::Field,
+    );
+    let selected = select_declaration(
+        program,
+        occurrence,
+        path,
+        "field",
+        "names no field in",
+        "is not a field visible from",
+        declarations.into_iter(),
+    )?;
+    let author =
+        typed_trees::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    typed_trees::reflection::construction::product_field_description_identity(
+        program,
+        selected,
+        author,
+        occurrence,
+        path_text(path, "field")?,
+    )
+}

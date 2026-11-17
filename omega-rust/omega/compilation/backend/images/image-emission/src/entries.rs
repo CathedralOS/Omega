@@ -9,7 +9,7 @@ standalone native foreign-call adapter images.
 
 pub(crate) mod callable_entry_transport {
     mod body_footprint {
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeSet;
 
         use calling_conventions::{
             MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
@@ -95,11 +95,13 @@ pub(crate) mod callable_entry_transport {
                 "interrupt body lacks retained emission custody",
             ))?;
             let source = replay.0.source().source().source().source();
+            let callable_invocations = crate::callable_calls::prepare_from(source, entry)
+                .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
             let model = source.register_environment().physical().model();
             let encoding = source.encoding();
             let encoded_rows = index_encoded_rows(
                 source
-                    .program()
+                    .physical_program()
                     .machine
                     .functions
                     .iter()
@@ -118,8 +120,9 @@ pub(crate) mod callable_entry_transport {
                 MachineStateSet::empty(),
                 MachineStateSet::empty(),
             );
-            let mut visited = BTreeSet::new();
+            let mut visited = semantic_vocabulary::IdSet::<MachineId>::default();
             let mut pending = vec![entry];
+            pending.extend(callable_invocations.roots.iter().copied());
             let mut frame_floating_control = false;
             let mut opaque_control = false;
             while let Some(machine) = pending.pop() {
@@ -131,7 +134,7 @@ pub(crate) mod callable_entry_transport {
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
                 let selected = source
-                    .selected_plan()
+                    .physical_program()
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
                 let protocols = source.frame_protocol();
@@ -203,13 +206,37 @@ pub(crate) mod callable_entry_transport {
                         footprint.effects(model, effects)?;
                         continue;
                     }
-                    let encoded = encoded_rows
-                        .get(&(machine, row.instruction))
+                    let encoded = encoded_row(&encoded_rows, machine, row.instruction)
                         .and_then(|row| encoding.encoded().footprint(row.footprint))
                         .ok_or(Error::Mismatch(
                             "interrupt instruction lacks retained encoded effects",
                         ))?;
                     if is_call(encoded.encoded.control) {
+                        let instruction = selected
+                            .instructions()
+                            .find(|instruction| instruction.id == row.instruction)
+                            .ok_or(Error::Mismatch(
+                                "native call has no exact selected instruction",
+                            ))?;
+                        if matches!(
+                            instruction.kind.call_target(),
+                            Some(selected_instructions::SelectedCallTarget::Callable { .. })
+                        ) {
+                            let call = selected_instructions::calls::dynamic::call_record(
+                                selected,
+                                instruction,
+                            )
+                            .ok_or(Error::Mismatch(
+                                "callable CPU footprint lost its selected call contract",
+                            ))?;
+                            if let Some(callees) =
+                                callable_cpu_targets(source, callable_invocations, machine, call)?
+                            {
+                                pending.extend(callees.iter().copied());
+                            }
+                            footprint.decoded(model, encoded)?;
+                            continue;
+                        }
                         let call = selected
                             .normalized_foreign_calls
                             .iter()
@@ -337,13 +364,98 @@ pub(crate) mod callable_entry_transport {
             Ok(collected)
         }
 
+        fn callable_cpu_targets<'a>(
+            source: &machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+            invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+            machine: MachineId,
+            call: &selected_instructions::SelectedCallContract,
+        ) -> Result<Option<&'a [MachineId]>, Error> {
+            let target_operations::NativeCallTarget::Callable { callee, contract } =
+                call.call.target
+            else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another native call target",
+                ));
+            };
+            let target_operations::CallSiteOwner::Operation(operation) = call.owner else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another source invocation route",
+                ));
+            };
+            let body = source
+                .physical_program()
+                .contracts
+                .publication()
+                .function(machine)
+                .ok_or(Error::Mismatch(
+                    "callable CPU footprint has no current caller publication facts",
+                ))?;
+            authenticated_callable_cpu_targets(
+                body,
+                invocations,
+                machine,
+                operation,
+                callee,
+                contract,
+            )
+        }
+
+        fn authenticated_callable_cpu_targets<'a>(
+            body: &target_vocabulary::NativeFunctionPublication,
+            invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+            machine: MachineId,
+            operation: semantic_vocabulary::OperationId,
+            callee: semantic_vocabulary::ValueId,
+            contract: semantic_vocabulary::CallableContractId,
+        ) -> Result<Option<&'a [MachineId]>, Error> {
+            if body.call_target(operation)
+                != Some(target_operations::NativeCallTarget::Callable { callee, contract })
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its evaluated source callee",
+                ));
+            }
+            let Some(invocation) = invocations
+                .operation(machine, operation)
+                .map_err(Error::Mismatch)?
+            else {
+                if invocations
+                    .reached_machines
+                    .binary_search(&machine)
+                    .is_err()
+                {
+                    return Err(Error::Unsupported(
+                        "callable CPU footprint lacks an admitted invocation context for its native caller",
+                    ));
+                }
+                // This authenticated source occurrence is outside every
+                // feasible execution path from the observed entry.
+                return Ok(None);
+            };
+            if invocation.invocation.target
+                != terminal_semantics::callable_values::CallableInvocationTarget::Value(
+                    callee, contract,
+                )
+                || invocation.invocation.boundary.is_some()
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its retained invocation",
+                ));
+            }
+            if !invocation.targets_are_resolved() {
+                return Err(Error::Unsupported(
+                    "callable CPU footprint has unresolved code and no admitted physical state ceiling",
+                ));
+            }
+            Ok(Some(invocation.selected_machines.as_slice()))
+        }
+
         fn index_encoded_rows(
             owners: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
             rows: &[SelectedFormEncodingRow],
-        ) -> Result<BTreeMap<(MachineId, SelectedInstructionId), &SelectedFormEncodingRow>, Error>
-        {
+        ) -> Result<Vec<(MachineId, &SelectedFormEncodingRow)>, Error> {
             let mut encoded = rows.iter();
-            let mut indexed = BTreeMap::new();
+            let mut indexed = Vec::with_capacity(rows.len());
             for owner in owners {
                 let row = encoded.next().ok_or(Error::Mismatch(
                     "interrupt encoding omits a physical instruction",
@@ -353,18 +465,34 @@ pub(crate) mod callable_entry_transport {
                         "interrupt encoding differs from physical instruction order",
                     ));
                 }
-                if indexed.insert(owner, row).is_some() {
-                    return Err(Error::Mismatch(
-                        "interrupt function repeats a physical instruction identity",
-                    ));
-                }
+                indexed.push((owner.0, row));
             }
             if encoded.next().is_some() {
                 return Err(Error::Mismatch(
                     "interrupt encoding has an unowned physical instruction",
                 ));
             }
+            indexed.sort_unstable_by_key(|(machine, row)| (*machine, row.instruction));
+            if indexed.windows(2).any(|pair| {
+                pair[0].0 == pair[1].0 && pair[0].1.instruction == pair[1].1.instruction
+            }) {
+                return Err(Error::Mismatch(
+                    "interrupt function repeats a physical instruction identity",
+                ));
+            }
             Ok(indexed)
+        }
+
+        fn encoded_row<'a>(
+            rows: &[(MachineId, &'a SelectedFormEncodingRow)],
+            machine: MachineId,
+            instruction: SelectedInstructionId,
+        ) -> Option<&'a SelectedFormEncodingRow> {
+            rows.binary_search_by_key(&(machine, instruction), |(owner, row)| {
+                (*owner, row.instruction)
+            })
+            .ok()
+            .map(|position| rows[position].1)
         }
 
         fn check_mask_operation(
@@ -641,6 +769,115 @@ pub(crate) mod callable_entry_transport {
             use super::*;
 
             #[test]
+            fn callable_cpu_targets_need_the_exact_source_occurrence_and_resolved_context() {
+                use semantic_vocabulary::{
+                    BlockId, CallableContractId, CallableInvocationSite, InvocationSite,
+                    MachineDescriptorId, OperationId, ValueId,
+                };
+                use terminal_semantics::callable_values::{
+                    CallableInvocation, CallableInvocationTarget, CallableValuePossibilities,
+                    ReachableCallableInvocation, ReachableCallableInvocations,
+                    ReachedCallableTarget,
+                };
+                let machine = MachineId::new(1).unwrap();
+                let target = MachineId::new(2).unwrap();
+                let operation = OperationId::new(3).unwrap();
+                let callee = ValueId::new(4).unwrap();
+                let contract = CallableContractId::new(5).unwrap();
+                let body = target_vocabulary::NativeFunctionPublication {
+                    machine,
+                    operation_count: 1,
+                    sites: vec![(
+                        target_vocabulary::publication::PsiProvenance::Operation(operation),
+                        0,
+                    )],
+                    byte_literals: Vec::new(),
+                    call_targets: vec![(
+                        operation,
+                        target_operations::NativeCallTarget::Callable { callee, contract },
+                    )],
+                };
+                let context = ReachableCallableInvocations {
+                    roots: vec![machine],
+                    reached_machines: vec![machine, target],
+                    inputs: Vec::new(),
+                    invocations: vec![ReachableCallableInvocation {
+                        caller: machine,
+                        invocation: CallableInvocation {
+                            site: CallableInvocationSite::Invocation(InvocationSite::Operation(
+                                operation,
+                            )),
+                            operation: Some(operation),
+                            boundary: None,
+                            position: (BlockId::new(1).unwrap(), 0),
+                            successor: None,
+                            target: CallableInvocationTarget::Value(callee, contract),
+                            scalar_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            structural_actual_types: Vec::new(),
+                        },
+                        target: ReachedCallableTarget::Callable(CallableValuePossibilities {
+                            descriptors: vec![MachineDescriptorId::new(1).unwrap()],
+                            inputs: Vec::new(),
+                            unresolved_ceilings: Vec::new(),
+                        }),
+                        selected_machines: vec![target],
+                    }],
+                };
+                let query = |body: &_, context: &ReachableCallableInvocations| {
+                    authenticated_callable_cpu_targets(
+                        body, context, machine, operation, callee, contract,
+                    )
+                    .map(|targets| targets.map(<[MachineId]>::to_vec))
+                };
+                assert_eq!(query(&body, &context).unwrap(), Some(vec![target]));
+                let mut foreign = body.clone();
+                foreign.call_targets[0].1 = target_operations::NativeCallTarget::Callable {
+                    callee: ValueId::new(6).unwrap(),
+                    contract,
+                };
+                assert!(matches!(
+                    query(&foreign, &context),
+                    Err(Error::Mismatch(
+                        "callable CPU footprint changed its evaluated source callee"
+                    ))
+                ));
+                foreign.call_targets.clear();
+                assert!(query(&foreign, &context).is_err());
+                let mut unresolved = context.clone();
+                let ReachedCallableTarget::Callable(values) = &mut unresolved.invocations[0].target
+                else {
+                    panic!("the test uses callable values")
+                };
+                values.unresolved_ceilings.push(contract);
+                assert!(matches!(
+                    query(&body, &unresolved),
+                    Err(Error::Unsupported(
+                        "callable CPU footprint has unresolved code and no admitted physical state ceiling"
+                    ))
+                ));
+                let mut unreachable = context.clone();
+                unreachable.invocations.clear();
+                assert_eq!(query(&body, &unreachable).unwrap(), None);
+                unreachable.reached_machines.clear();
+                assert!(matches!(
+                    query(&body, &unreachable),
+                    Err(Error::Unsupported(
+                        "callable CPU footprint lacks an admitted invocation context for its native caller"
+                    ))
+                ));
+                let mut foreign = context;
+                foreign.invocations[0].invocation.target =
+                    CallableInvocationTarget::Value(ValueId::new(6).unwrap(), contract);
+                assert!(matches!(
+                    query(&body, &foreign),
+                    Err(Error::Mismatch(
+                        "callable CPU footprint changed its retained invocation"
+                    ))
+                ));
+            }
+
+            #[test]
             fn masked_handlers_cannot_enable_interrupts_or_restore_unknown_flags() {
                 use terminal_psi::{InterruptControlKind, RegisterOperation, SystemRegister};
                 assert!(
@@ -798,7 +1035,11 @@ pub(crate) mod callable_entry_transport {
                     .decoded(
                         model,
                         store
-                            .footprint(indexed[&(first, SelectedInstructionId(0))].footprint)
+                            .footprint(
+                                encoded_row(&indexed, first, SelectedInstructionId(0))
+                                    .unwrap()
+                                    .footprint,
+                            )
                             .unwrap(),
                     )
                     .unwrap();
@@ -814,7 +1055,11 @@ pub(crate) mod callable_entry_transport {
                     .decoded(
                         model,
                         store
-                            .footprint(indexed[&(second, SelectedInstructionId(0))].footprint)
+                            .footprint(
+                                encoded_row(&indexed, second, SelectedInstructionId(0))
+                                    .unwrap()
+                                    .footprint,
+                            )
                             .unwrap(),
                     )
                     .unwrap();
@@ -829,6 +1074,19 @@ pub(crate) mod callable_entry_transport {
                 assert!(index_encoded_rows([owners[0], owners[2], owners[3]], &rows).is_err());
                 assert!(index_encoded_rows(owners, &rows[..3]).is_err());
                 assert!(index_encoded_rows(owners[..3].iter().copied(), &rows).is_err());
+                assert!(
+                    index_encoded_rows([owners[0], owners[1], owners[0], owners[1]], &rows)
+                        .is_err()
+                );
+                assert!(encoded_row(&indexed, first, SelectedInstructionId(2)).is_none());
+                assert!(
+                    encoded_row(
+                        &indexed,
+                        MachineId::new(21).unwrap(),
+                        SelectedInstructionId(0)
+                    )
+                    .is_none()
+                );
             }
         }
     }
@@ -840,7 +1098,7 @@ pub(crate) mod callable_entry_transport {
     use crate::{
         FunctionFragmentObjectArtifactError as Error, ObjectArtifact, PrivateFunctionObject,
     };
-    use calling_conventions::{BoundaryEntryPlan, ValueClass};
+    use calling_conventions::BoundaryEntryPlan;
     use function_identity::MachineFunctionIdentity;
     use machine_emission::native_entry_bridge::{
         InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
@@ -995,25 +1253,11 @@ pub(crate) mod callable_entry_transport {
         inbound: &BoundaryEntryPlan,
         inbound_ordinals: &[u32],
     ) -> Result<NativeEntryBridgeRequest, Error> {
-        let replay = body
-            .fragment_replay
-            .as_ref()
-            .ok_or(Error::Mismatch("callable entry lacks body custody"))?;
-        let targeted = replay
-            .0
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .execution_plan()
-            .plan();
-        let internal = &targeted
-            .scalar_functions
-            .iter()
-            .find(|function| function.machine == body.entry)
-            .ok_or(Error::Mismatch("callable body entry plan missing"))?
-            .call_plan;
+        let abi = body
+            .program_contracts
+            .function_abi(body.entry)
+            .ok_or(Error::Mismatch("callable body entry plan missing"))?;
+        let internal = &abi.call_plan;
         if inbound_ordinals.len() != internal.parameters.len()
             || inbound.call.parameters.len() != internal.parameters.len()
         {
@@ -1021,20 +1265,14 @@ pub(crate) mod callable_entry_transport {
         }
         let mut used = Vec::with_capacity(inbound_ordinals.len());
         let mut parameters = arena::Arena::with_capacity(inbound_ordinals.len());
-        let module = replay.terminal_module();
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == body.entry)
-            .ok_or(Error::Mismatch("callable Terminal entry missing"))?;
-        if entry.parameters.len() + entry.structural_parameters.len() != internal.parameters.len() {
+        if abi.scalar_parameters.len() + abi.structural_parameters.len()
+            != internal.parameters.len()
+        {
             return Err(Error::Mismatch(
-                "callable body lanes differ from Terminal signature",
+                "callable body parameters differ from its retained ABI",
             ));
         }
-        for (internal_ordinal, (placement, ordinal)) in
-            internal.parameters.iter().zip(inbound_ordinals).enumerate()
-        {
+        for (internal_ordinal, ordinal) in inbound_ordinals.iter().enumerate() {
             let ordinal_index = usize::try_from(*ordinal).map_err(|_| Error::Overflow)?;
             if used.contains(&ordinal_index) || inbound.call.parameters.get(ordinal_index).is_none()
             {
@@ -1043,36 +1281,13 @@ pub(crate) mod callable_entry_transport {
                 ));
             }
             used.push(ordinal_index);
-            let scalar_codec = if placement.shape.class == ValueClass::BorrowedScalarReference {
-                let structural_ordinal = internal_ordinal
-                    .checked_sub(entry.parameters.len())
-                    .ok_or(Error::Mismatch(
-                        "scalar descriptor does not name a structural parameter",
-                    ))?;
-                let parameter = entry
-                    .structural_parameters
-                    .get(structural_ordinal)
-                    .ok_or(Error::Mismatch("scalar descriptor referent missing"))?;
-                let declaration = module
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == parameter.structural_type)
-                    .ok_or(Error::Mismatch("scalar descriptor declaration missing"))?;
-                let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) =
-                    declaration.shape
-                else {
-                    return Err(Error::Mismatch(
-                        "scalar descriptor referent is not primitive",
-                    ));
-                };
-                runtime_abi::ScalarStorageCodec::from_scalar(scalar_type)
-                    .and_then(|codec| codec.encode())
-                    .ok_or(Error::Unsupported(
-                        "callable scalar referent has no native codec",
-                    ))?
-            } else {
-                0
-            };
+            let scalar_codec = abi
+                .entry_scalar_codecs
+                .get(internal_ordinal)
+                .ok_or(Error::Mismatch("callable entry conversion is missing"))?
+                .ok_or(Error::Unsupported(
+                    "callable scalar referent has no native codec",
+                ))?;
             parameters.insert(NativeEntryParameter {
                 inbound_ordinal: *ordinal,
                 scalar_codec,
@@ -3101,14 +3316,7 @@ pub(crate) mod hosted_receiver {
             || !function.entry_claims.is_empty()
             || !source.visible_parameters().is_empty()
             || function.attachment.is_some()
-            || abi.call_plan.policy
-                != if artifact.target.architecture == target::Architecture::Aarch64 {
-                    CallingPolicy::Aapcs64
-                } else if artifact.target == target::NativeTarget::windows_x64() {
-                    CallingPolicy::MicrosoftX64
-                } else {
-                    CallingPolicy::SystemVAMD64
-                }
+            || abi.call_plan.policy != CallingPolicy::native_for_target(artifact.target)
             || function.structural_parameters.len() != private_entry_ram.len()
             || abi.structural_parameters.len() != private_entry_ram.len()
             || abi.call_plan.parameters.len() != private_entry_ram.len()
@@ -4813,29 +5021,20 @@ pub(crate) mod physical_entry {
             )?;
             let source = artifact.composition_source.as_deref().unwrap_or(artifact);
             let mut installed_scopes = Vec::new();
-            if let Some(replay) = &source.fragment_replay {
-                let target = replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target();
-                for requirement in target.installed_stack_requirements() {
-                    let Some(arrival) = &requirement.arrival else {
-                        continue;
-                    };
-                    if arrival.physical_entry.semantic_entry != semantic_entry
-                        || arrival.physical_entry.adapter != artifact.entry()
-                        || requirement.psi != artifact.psi()
-                        || requirement.target != artifact.target()
-                    {
-                        return Err(invalid(
-                            "physical memory requirement changed its installed occurrence",
-                        ));
-                    }
-                    installed_scopes.push(requirement.operation);
+            for requirement in source.installation_authority.installed_stack_requirements() {
+                let Some(arrival) = &requirement.arrival else {
+                    continue;
+                };
+                if arrival.physical_entry.semantic_entry != semantic_entry
+                    || arrival.physical_entry.adapter != artifact.entry()
+                    || requirement.psi != artifact.psi()
+                    || requirement.target != artifact.target()
+                {
+                    return Err(invalid(
+                        "physical memory requirement changed its installed occurrence",
+                    ));
                 }
+                installed_scopes.push(requirement.operation);
             }
             installed_scopes.sort_unstable();
             installed_scopes.dedup();
@@ -5843,10 +6042,7 @@ pub(crate) mod private_entry_origin {
         body: &'a ObjectArtifact,
         entries: &mut Vec<EntryOrigin<'a>>,
     ) -> Result<(), Error> {
-        let source = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-            "private entry origins require retained admission input",
-        ))?;
-        let facts = source.0.lowering_facts();
+        let facts = &body.installation_authority;
         let ordinary = facts.native_callbacks();
         let installed = facts.installed_interrupts();
         if ordinary.psi() != body.psi() || installed.psi() != body.psi() {

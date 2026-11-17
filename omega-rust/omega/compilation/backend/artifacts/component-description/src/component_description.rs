@@ -465,7 +465,8 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralScalar { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::CallDynamic { .. } => {}
+                    | OperationKind::CallDynamic { .. }
+                    | OperationKind::CallMachine { .. } => {}
                     OperationKind::EstablishAccessReference { .. }
                     | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
@@ -513,6 +514,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ElementViewSubslice { .. } => {}
                     OperationKind::IntegerConstant { .. }
                     | OperationKind::SelectImplementation { .. }
+                    | OperationKind::SelectMachine { .. }
                     | OperationKind::BooleanConstant { .. }
                     | OperationKind::IeeeFloatConstant { .. }
                     | OperationKind::IeeeFloatCompare { .. }

@@ -5,7 +5,55 @@ use terminal_check_tables::values::ValueOrigin;
 
 use super::*;
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
+    /// A byte formal's declared qualifications nominate destination facts.
+    /// They become knowledge only through the join's ordinary checked
+    /// arrivals, where the subject is replaced by each incoming actual.
+    pub(crate) fn byte_arrival_predicates(
+        &self,
+        block: &terminal_psi::Block,
+    ) -> Checked<Vec<Proposition>> {
+        let mut predicates = Vec::new();
+        let concerns = Construct::Block(block.id);
+        for (position, formal) in block.structural_parameters.iter().enumerate() {
+            if !terminal_psi::structural_access_covers(
+                formal.access,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ) || !self
+                .declaration(formal.structural_type, concerns)?
+                .shape
+                .is_shared_readable_byte_view()
+            {
+                continue;
+            }
+            if usize::try_from(formal.position).ok() != Some(position)
+                || self.root_kind(formal.place, concerns)?
+                    != (StructuralPlaceKind::BlockParameter {
+                        block: block.id,
+                        position: formal.position,
+                    })
+            {
+                return Err(self.foreign(concerns, "a byte arrival has another structural owner"));
+            }
+            let Some(required) = terminal_semantics::byte_parameter_predicates(self.module, formal)
+            else {
+                // A non-primitive domain has no template in this theory.
+                // Its ordinary contract obligations remain unchanged.
+                continue;
+            };
+            let predicate = terminal_semantics::byte_predicate_requirement(
+                required,
+                terminal_psi::ByteSequencePredicateSet::EMPTY,
+                formal.place,
+                &[],
+            );
+            if predicate != Proposition::Truth {
+                predicates.push(predicate);
+            }
+        }
+        Ok(predicates)
+    }
+
     /// The callee establishes only its result and the exact subtrees borrowed
     /// exclusively. A caller's enclosing record is outside that guarantee.
     pub(super) fn call_content_boundary(
@@ -103,7 +151,11 @@ impl Storage<'_> {
         })
     }
 
-    pub(super) fn initial_contents_are_declared(&mut self, tables: &MachineTables) -> Checked<()> {
+    pub(super) fn initial_contents_are_declared(
+        &mut self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+    ) -> Checked<()> {
         for (value, row) in tables.values.iter() {
             let ValueOrigin::StorageContent { place, after } = row.origin else {
                 continue;
@@ -151,7 +203,7 @@ impl Storage<'_> {
             if let Some(block) = block_entry {
                 // A borrowed formal has the same backing as its incoming
                 // loan. Use that backing for reads and overlapping writes.
-                let backed = self.backing(&leaf, block, 0, concerns)?;
+                let backed = self.backing(references, &leaf, block, 0, concerns)?;
                 self.observations[index(block.get())]
                     .entry(backed)
                     .or_default()
@@ -198,6 +250,7 @@ impl Storage<'_> {
     /// use its post-call versions, never the caller's earlier observations.
     pub(crate) fn returned_type_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
@@ -231,6 +284,7 @@ impl Storage<'_> {
                 let mut held = Held {
                     point: Some(ProgramPoint::AfterOperation(operation.id)),
                     storage: self,
+                    references,
                     tables,
                     place: &owner,
                     block,
@@ -249,7 +303,7 @@ impl Storage<'_> {
     }
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     /// What a machine and each block that binds record formals knows at
     /// its entry about the values those formals hold there, returned with
     /// the block it holds at. A formal arrives as a valid value of its
@@ -287,6 +341,7 @@ impl Storage<'_> {
     /// The passes can state one clause twice; the copy is dropped.
     pub(crate) fn entry_type_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
     ) -> Checked<Vec<(BlockId, Proposition)>> {
         let entry = self.graph.entry();
@@ -310,6 +365,7 @@ impl Storage<'_> {
                 continue;
             }
             for premise in self.premises(
+                references,
                 tables,
                 &leaf,
                 (value, row.scalar_type),

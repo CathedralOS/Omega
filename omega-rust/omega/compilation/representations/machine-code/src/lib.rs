@@ -22,7 +22,7 @@ Why this crate separates representation data from stage admission:
 Every struct and canonical SHA-256 identity digest (`SelectedFormEncodingIdentity`,
 `ResolvedSelectedFormLayoutIdentity`, `WholeFunctionExitContractIdentity`,
 `FunctionFragmentEmissionIdentity`, `TerminalRelocationFreeTextSectionIdentity`) describes
-the current machine-code artifact and its replay inputs so downstream stages and independent
+the current machine-code artifact and its retained roots so downstream stages and independent
 object/artifact verifiers can audit exact byte, fixup, and provenance correspondence without
 importing producer transformation passes. Constructing or decoding a record checks wire and
 digest consistency only; it never grants lowering, optimization, or publication authority.
@@ -306,6 +306,15 @@ pub mod image_addresses {
             }
         }
 
+        pub fn machine_descriptor(&self) -> Option<semantic_vocabulary::MachineDescriptorId> {
+            match self.reference {
+                selected_instructions::SelectedImageAddressReference::MachineDescriptor {
+                    descriptor,
+                } => Some(descriptor),
+                _ => None,
+            }
+        }
+
         pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
             crate::codec_bytes::push_encoded(bytes, self.machine.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, self.block.0.to_le_bytes());
@@ -418,7 +427,6 @@ pub mod encoding;
 pub mod fragments;
 pub mod functions;
 pub mod layout;
-mod machine_forms;
 pub mod storage;
 
 #[doc(hidden)]
@@ -482,14 +490,12 @@ pub use layout::text_section::{
     TextSectionRelocationRequirements, relocation_free_text_section_identity,
 };
 pub use layout::{
-    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedJumpEvidence, ResolvedMachineLayout, ResolvedMachineProgram,
+    EncodedMachineProgram, FramedMachineProgram, OptimizedMachineLayout, ResolvedBranchEvidence,
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
+    ResolvedLayoutRoots, ResolvedMachineLayout, ResolvedMachineProgram,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
-    resolved_machine_layout_identity,
-};
-pub use machine_forms::{
-    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, ResolvedLayoutSource,
+    X86BranchRelaxationRoots, resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

@@ -13,6 +13,7 @@ boundary trait LinuxArmClockWait {
     machine nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
     reaches
         Clock
+    blocks
     crashes none;
 }
 
@@ -24,11 +25,12 @@ public LinuxArm64Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
     invokes LinuxArmClockWait
+    blocks
     {
         let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
             seconds: widen_u32_to_i64(milliseconds / 1000),
             nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
         };
-        LinuxArmClockWait::nanosleep(&request, 0);
+        block LinuxArmClockWait::nanosleep(&request, 0);
     }
 }

@@ -114,6 +114,29 @@ fn an_operation_whose_safety_obligation_has_no_row_is_refused() {
 }
 
 #[test]
+fn an_arrival_obligation_without_a_parameterized_successor_is_refused() {
+    let verdict = with_fault(
+        || lower(vec![add_of_formals(Vec::new())]).unwrap(),
+        |elaboration| {
+            let Terminator::Return { edge, .. } =
+                &elaboration.module.machines[0].blocks[0].terminator
+            else {
+                panic!("the arithmetic fixture returns its scalar result");
+            };
+            let edge = *edge;
+            entry_tables(elaboration).obligations.push(ObligationRow {
+                kind: ObligationKind::ArrivalInvariant { edge },
+                created_at: ProgramPoint::Edge(edge),
+            });
+        },
+    );
+    assert_refused(
+        verdict,
+        "an obligation row that nothing in the lowered form owes",
+    );
+}
+
+#[test]
 fn a_return_whose_guarantee_has_no_row_is_refused() {
     // f(a) ensures a <= 10 { a }: the return does not establish the clause.
     let program = || lower(vec![guaranteeing(Vec::new(), at_most(1, 10))]).unwrap();

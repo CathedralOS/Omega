@@ -264,6 +264,7 @@ crashes Trap
             name: identifier_span(parser, parser.member_name_start, parser.member_name_end),
             has_identity: parser.member_has_identity,
             identity: parser_source_span(parser, parser.member_identity_start, parser.member_identity_end),
+            identity_literal: parser.member_identity_literal,
             type_reference: type_reference,
             source_span: span
         };
@@ -505,6 +506,7 @@ crashes Trap
             name: identifier_span(parser, start, end),
             has_identity: parser.identity_present,
             identity: parser_source_span(parser, parser.identity_start, parser.identity_end),
+            identity_literal: parser.identity_literal,
             type_reference: type_reference,
             source_span: parser_source_span(parser, parser.payload_field_start, field_end)
         };
@@ -562,6 +564,7 @@ crashes Trap
             name: identifier_span(parser, parser.member_name_start, parser.member_name_end),
             has_identity: parser.member_has_identity,
             identity: parser_source_span(parser, parser.member_identity_start, parser.member_identity_end),
+            identity_literal: parser.member_identity_literal,
             first_payload_field: parser.case_first_payload_field,
             payload_field_count: (parser.output.payload_field_count as u64 in Trapping) - parser.case_first_payload_field,
             first_clause: first_clause,
@@ -775,6 +778,7 @@ crashes Trap
             owner_kind: owner_kind,
             owner: owner,
             identity: parser_source_span(parser, parser.identity_start, parser.identity_end),
+            identity_literal: parser.identity_literal,
             source_span: parser_source_span(parser, start, parser.token_end)
         };
         parser.output.retired_identity_count = parser.output.retired_identity_count + 1;
@@ -789,13 +793,15 @@ crashes Trap
 
 // `[#N]`: an optional stable schema identity before a member's kind/name, entered
 // at the member's first token. `#` must be followed by an integer literal;
-// its span lands in `identity_start`/`identity_end` and `identity_present`.
+// its span lands in `identity_start`/`identity_end` and `identity_present`,
+// and its decoded value's handle in `identity_literal`.
 machine parse_stable_identity(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.identity_present = false;
     parser.identity_start = 0;
     parser.identity_end = 0;
+    parser.identity_literal = 0;
     let numbered: bool = at_punctuation(parser, input, PunctuationKind::Hash);
     transition numbered {
         true -> hash(parser, input)
@@ -812,7 +818,8 @@ crashes Trap
     }
 
     machine identity(parser: &mut Parser, input: &TokenStream) {
-        take_current(parser, input);
+        let literal_handle: u64 in Trapping = take_integer_literal(parser, input);
+        parser.identity_literal = literal_handle;
         parser.identity_present = true;
         parser.identity_start = parser.token_start;
         parser.identity_end = parser.token_end;
@@ -831,4 +838,5 @@ machine retain_member_identity(parser: &mut Parser) {
     parser.member_has_identity = parser.identity_present;
     parser.member_identity_start = parser.identity_start;
     parser.member_identity_end = parser.identity_end;
+    parser.member_identity_literal = parser.identity_literal;
 }

@@ -29,6 +29,7 @@ See `build_admission.rs` for machine selection and service-reach checks,
 */
 
 mod build_admission;
+mod build_receiver;
 #[doc(hidden)]
 pub mod build_record_codec;
 pub mod build_value;

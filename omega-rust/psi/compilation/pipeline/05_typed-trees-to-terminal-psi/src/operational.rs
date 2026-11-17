@@ -102,10 +102,12 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
         | ExpressionKind::ScalarApplication { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)
-        | ExpressionKind::SavedSubject(_) => {}
+        | ExpressionKind::SavedSubject(_)
+        | ExpressionKind::MachineValue { .. } => {}
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Referent(operand)
@@ -114,18 +116,24 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
-        | ExpressionKind::RepresentationView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
+        | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
         | ExpressionKind::Borrow { place: operand, .. } => expression(machine, operand)?,
-        ExpressionKind::Array { elements }
-        | ExpressionKind::Call {
-            arguments: elements,
-            ..
+        ExpressionKind::Call {
+            callee, arguments, ..
         } => {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
+                expression(machine, callable)?;
+            }
+            for argument in arguments {
+                expression(machine, argument)?;
+            }
+        }
+        ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(machine, element)?;
             }

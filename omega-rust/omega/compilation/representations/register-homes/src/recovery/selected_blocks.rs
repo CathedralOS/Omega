@@ -468,7 +468,7 @@ fn decode_case(
     let payloads = decode_list(cursor, |cursor| {
         let field = decode_id(cursor, semantic_vocabulary::StructuralFieldId::new)?;
         let field_byte_offset = cursor.u32()?;
-        let parameter = legalized_operations::LegalizedValueDefinition {
+        let parameter = target_vocabulary::LegalizedValueDefinition {
             value: decode_id(cursor, ValueId::new)?,
             // A payload parameter is a value of the prepared plan, which carries closed types.
             scalar_type: semantic_vocabulary::ClosedScalarType::try_from(decode_scalar(cursor)?)
@@ -487,7 +487,7 @@ fn decode_case(
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
         Ok(::selected_instructions::SelectedCasePayloadBinding {
-            semantic: legalized_operations::LegalizedStructuralCasePayload {
+            semantic: target_vocabulary::LegalizedStructuralCasePayload {
                 field,
                 field_byte_offset,
                 parameter,
@@ -574,7 +574,7 @@ mod tests {
         original
             .structural_bindings
             .push(SelectedStructuralBinding {
-                source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
                     operand: native_vocabulary::values::AbstractResult {
                         value: ValueId::new(14).unwrap(),
                         scalar_type: ScalarType::Integer(
@@ -1051,10 +1051,10 @@ mod tests {
             case: StructuralCaseId::new(2).unwrap(),
             case_tag: 1,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                semantic: target_vocabulary::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(3).unwrap(),
                     field_byte_offset: 4,
-                    parameter: legalized_operations::LegalizedValueDefinition {
+                    parameter: target_vocabulary::LegalizedValueDefinition {
                         value: ValueId::new(9).unwrap(),
                         scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
                         definition_site:

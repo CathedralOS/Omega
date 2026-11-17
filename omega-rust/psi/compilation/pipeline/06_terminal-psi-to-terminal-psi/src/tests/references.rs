@@ -50,8 +50,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Pair"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -102,7 +101,10 @@ pub(super) fn lower_lending(
             ranking: None,
         });
     }
-    typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records())
+    let mut elaboration =
+        typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records())?;
+    declare_body_models(&mut elaboration, &signatures);
+    Ok(elaboration)
 }
 
 fn of(kind: ExpressionKind, result: ValueType) -> Expression {
@@ -147,8 +149,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         kind: ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
         },
@@ -670,8 +671,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                         kind: ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
-                            source_call: None,
-                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                            callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,
                                 named(1, u32_type().into()),
@@ -730,6 +730,8 @@ machine entry() crashes none {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -786,7 +788,7 @@ machine entry() crashes none {
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refused.detail,
-        "an invocation row names another callee in machine `relay`"
+        "invocation row and lowered call name different targets"
     );
 
     let mut missing_lifetimes = prepare();
@@ -873,6 +875,8 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         typed_trees_to_terminal_psi::elaborate_for(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -1031,7 +1035,10 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     );
     assert_eq!(conflicts.len(), 1);
     assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
-    assert!(matches!(conflicts[0].site, SourceOrigin::Authored(_)));
+    assert!(matches!(
+        conflicts[0].site,
+        terminal_check_tables::program::SourceOrigin::Authored(_)
+    ));
     assert_eq!(
         conflicts[0].statement,
         "storage is changed while a conflicting reference remains live"
@@ -1084,7 +1091,7 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
             .iter()
             .find(|declaration| declaration.id == result.structural_type)
             .unwrap()
-            .copyable,
+            .is_copyable(),
         "the shared reference type retains copy permission"
     );
     assert_eq!(
@@ -1231,6 +1238,46 @@ fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
     assert!(
         !conflicts.is_empty(),
         "the live reference must retain its loan conflict"
+    );
+}
+
+/// `cell = Cell { .. }` replaces the record a live `&cell` observes, so the
+/// checker must see that write. The positive twin uses the reference before
+/// the assignment and also reassigns a local, a declared local and an owned
+/// parameter after a whole move, a `[copy]` record, and a record whose
+/// replacement reads its old contents.
+#[test]
+fn a_whole_record_assignment_writes_the_storage_its_references_observe() {
+    let negative = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/ownership/reference_live_across_whole_record_assignment/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    let verdict = super::build_purpose::judge_build(&negative).unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("the live reference must exclude the whole assignment: {verdict:?}");
+    };
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
+    let positive = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/ownership/whole_record_assignment/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    let verdict = super::build_purpose::judge_build(&positive).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("assignments after the last use must be accepted: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
     );
 }
 
@@ -1553,7 +1600,9 @@ fn rigid_relay_with(
         .symbol;
     let mut form = typed_trees_to_terminal_psi::elaborate_generic(&typed, symbol).unwrap();
     edit(&mut form);
-    let discharged = crate::discharge(&mut form).map_err(|refusal| format!("{refusal:?}"));
+    let mut activity = crate::ProofSearchActivity::default();
+    let discharged =
+        crate::discharge(&mut form, &mut activity).map_err(|refusal| format!("{refusal:?}"));
     (form, discharged)
 }
 
@@ -1685,6 +1734,8 @@ fn returned_relay(entry: &str) -> crate::RouteVerdict {
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

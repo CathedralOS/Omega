@@ -209,8 +209,9 @@ impl PackageBuildInvocation {
     pub fn prepare_next_stage(
         &mut self,
         prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
     ) -> Result<(), CompileFailure> {
-        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared))
+        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared, named_source))
     }
 }
 
@@ -366,11 +367,12 @@ impl CompilationSession {
         declaration_path: &str,
     ) -> Result<source_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
-            let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
+            let (_, target, inputs, rollback, prepared) = build.source.into_continuation();
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
             let checked = super::checking::check_product_source(
                 source,
                 Some(&inputs),
+                std::slice::from_ref(&target),
                 &rollback,
                 None,
                 None,
@@ -485,6 +487,7 @@ impl CompilationSession {
                     crate::CompilationProduct::Native(request) => {
                         Some(crate::CompilationProduct::Native(NativeProductRequest {
                             retain_native_inputs: false,
+                            retain_native_stage_inputs: false,
                             image: products::NativeImageDemand::Emit,
                             private_entry_ram: Vec::new(),
                             ..request.clone()

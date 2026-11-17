@@ -295,7 +295,8 @@ pub(crate) mod callable_identity {
             // it does not describe the result's reference or lifetime. Keep
             // the declaration's complete types here before that distinction
             // is erased, so a receiver can check the derived loan groups.
-            let types = self.requirement_definition_types(owner, requirement);
+            let scope = crate::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let types = self.requirement_definition_types(&scope, requirement);
             bytes.push(u8::from(types.is_some()));
             if let Some((parameters, result, elided)) = types {
                 length(&mut bytes, owner.lifetime_parameters.len())?;
@@ -312,28 +313,39 @@ pub(crate) mod callable_identity {
         }
 
         /// Normalize a requirement's parameter and result types in one
-        /// signature so every occurrence keeps its declared lifetime.
+        /// signature so every occurrence keeps its declared lifetime. The
+        /// retained scope supplies the exact type and lifetime application.
         pub fn requirement_definition_types(
             &self,
-            owner: &TraitDefinition,
+            scope: &crate::trait_definition::AppliedTraitScope<'_>,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            let owner = scope.declaration;
             let mut type_parameters = self.trait_type_parameters(owner).to_vec();
             type_parameters.extend(
                 self.state_signature_type_parameters(requirement)
                     .iter()
                     .cloned(),
             );
-            self.signature_definition_types(
-                super::callable_type_binders(owner.symbol, (&type_parameters).into()),
-                (requirement.symbol, requirement.symbol),
-                &[
-                    (owner.symbol, owner.lifetime_parameters.len()),
-                    (requirement.symbol, requirement.lifetime_parameters.len()),
-                ],
-                self.state_signature_parameters(requirement),
-                requirement.return_type,
-            )
+            scope.with_identity_scopes(self, |application_scopes| {
+                self.signature_definition_types(
+                    super::callable_type_binders(owner.symbol, (&type_parameters).into()),
+                    (requirement.symbol, requirement.symbol),
+                    &[
+                        (owner.symbol, owner.lifetime_parameters.len()),
+                        (requirement.symbol, requirement.lifetime_parameters.len()),
+                    ],
+                    self.state_signature_parameters(requirement),
+                    requirement.return_type,
+                    &super::identity_context::TypeIdentityContext {
+                        substitutions: &scope.substitutions,
+                        substitution_scope_starts: &scope.substitution_scope_starts,
+                        application_scopes,
+                        application_argument_owner: scope.argument_owner,
+                        ..Default::default()
+                    },
+                )
+            })
         }
 
         /// Keep a machine's declared lifetime relation in its published type
@@ -352,17 +364,60 @@ pub(crate) mod callable_identity {
                 &[(lifetime_owner, declared)],
                 self.state_parameters(entry),
                 entry.return_type,
+                &super::identity_context::TypeIdentityContext {
+                    application_argument_owner: machine.symbol,
+                    ..Default::default()
+                },
             )?;
             Some((parameters, result))
         }
 
         fn signature_definition_types(
             &self,
-            mut binders: Vec<(symbols::SymbolHandle, String)>,
+            binders: Vec<(symbols::SymbolHandle, String)>,
             signature: (symbols::SymbolHandle, symbols::SymbolHandle),
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
             parameters: arena::RootRows<'_, crate::signature::StateParameter>,
             result: crate::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
+        ) -> Option<(Vec<String>, String, usize)> {
+            self.signature_types_in_context(
+                super::identity_context::SignatureTypeIdentityContext {
+                    binders,
+                    signature,
+                    lifetime_owners,
+                    substitutions: application.substitutions,
+                    region_projection: None,
+                },
+                parameters,
+                result,
+                application,
+            )
+        }
+
+        pub(crate) fn signature_types(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
+            result: crate::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
+            let application = super::identity_context::TypeIdentityContext {
+                substitutions: scope.substitutions,
+                substitution_semantics:
+                    super::identity_context::SubstitutionSemantics::Simultaneous,
+                require_owned_substitution_regions: true,
+                application_argument_owner: scope.signature.0,
+                ..Default::default()
+            };
+            self.signature_types_in_context(scope, parameters, result, &application)
+        }
+
+        fn signature_types_in_context(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
+            result: crate::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
         ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
@@ -371,6 +426,13 @@ pub(crate) mod callable_identity {
             };
             use std::cell::Cell;
 
+            let super::identity_context::SignatureTypeIdentityContext {
+                mut binders,
+                signature,
+                lifetime_owners,
+                substitutions: _,
+                region_projection,
+            } = scope;
             binders.extend(
                 parameters
                     .iter()
@@ -396,15 +458,16 @@ pub(crate) mod callable_identity {
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
+                signature_region_projection: region_projection,
                 signature_elision: Some(&elision),
                 application_owner: signature.0,
-                application_argument_owner: signature.0,
+                application_argument_owner: application.application_argument_owner,
                 signature_owners: Some(signature),
                 qualification: TypeIdentityQualification::PackageQualified,
                 invalid_application: Some(&invalid),
                 invalid_index_argument: Some(&invalid),
                 encountered_elided_regions: Some(&invalid),
-                ..Default::default()
+                ..*application
             };
             let declared_type = |reference| {
                 self.contains_type_reference(reference)
@@ -431,7 +494,7 @@ pub(crate) mod callable_identity {
             &self,
             operator: &OperatorDefinition,
         ) -> CallableIdentityId {
-            self.intern_callable_identity(Some(self.operator_callable_identity_parts(operator)))
+            self.intern_callable_identity(self.operator_callable_identity_parts(operator))
         }
 
         pub fn boundary_operator_requirement_callable_identity(
@@ -1458,6 +1521,7 @@ pub(crate) mod identity_context {
                         operand: IndexIdentityArgument::TypeArgument(reference),
                         lexical_owner: owner,
                         binders: &[],
+                        exact_toolchain_sources: &[],
                         lifetime_binders: &[
                             (region(owner), 0),
                             (
@@ -1627,6 +1691,40 @@ pub(crate) mod identity_context {
             let remembered_policy =
                 application(&mut program, policy, "Policy", vec![remembered_seven]);
             let authored_policy = application(&mut program, policy, "Policy", vec![authored_seven]);
+            // A retained Generic reference still denotes the supplied value
+            // application. Its type description is a separate operand role.
+            let explicit = program
+                .static_operand_from_type_reference(authored_policy)
+                .expect("the exact generic implementation operand");
+            let mut retained = explicit.clone();
+            retained.type_reference = authored_policy;
+            let value = crate::type_identity::applied_index_identity(
+                &program,
+                crate::type_identity::IndexIdentityArgument::StaticArgument(&explicit),
+                caller,
+                &[],
+            )
+            .expect("the explicit value application has an identity");
+            assert_eq!(
+                crate::type_identity::applied_index_identity(
+                    &program,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(&retained),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "a retained generic reference must preserve its explicit value application",
+            );
+            assert_ne!(
+                crate::type_identity::applied_index_identity(
+                    &program,
+                    crate::type_identity::IndexIdentityArgument::TypeArgument(authored_policy),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "an explicit type description keeps its separate nominal role",
+            );
             let wrong_value_policy = application(&mut program, policy, "Policy", vec![eight]);
             let wrong_declaration_policy = application(
                 &mut program,
@@ -1720,6 +1818,29 @@ pub(crate) mod identity_context {
         }
     }
 
+    /// A callable's own regions are universally instantiated at each call.
+    /// Captured regions retain the exact declaration that supplied them.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum SignatureRegion {
+        Bound(usize),
+        Captured(LifetimeParameterIdentity),
+        /// An omitted region of one fixed enclosing type argument. Its source
+        /// application may choose any region; the callback must accept all of
+        /// them while repeated uses of that type argument keep the same choice.
+        Argument {
+            binding: usize,
+            ordinal: usize,
+        },
+    }
+
+    pub(crate) struct SignatureTypeIdentityContext<'scope> {
+        pub(crate) binders: Vec<(SymbolHandle, String)>,
+        pub(crate) signature: (SymbolHandle, SymbolHandle),
+        pub(crate) lifetime_owners: &'scope [(SymbolHandle, usize)],
+        pub(crate) substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+        pub(crate) region_projection: Option<&'scope dyn Fn(SignatureRegion) -> SignatureRegion>,
+    }
+
     #[derive(Default)]
     pub(crate) struct TypeIdentityContext<'binders> {
         pub(crate) portable_machine_applications:
@@ -1736,6 +1857,12 @@ pub(crate) mod identity_context {
         pub(crate) resolved_lifetimes:
             &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
         pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
+        pub(crate) active_runtime_call_expressions: &'binders [ExpressionHandle],
+        pub(crate) active_callable_signatures:
+            &'binders [&'binders crate::signature::StateSignature],
+        pub(crate) callable_scope_owners: &'binders [(SymbolHandle, SymbolHandle)],
+        pub(crate) callable_operand_shape: bool,
+        pub(crate) structural_callable_identity: bool,
         // A complete declaration schema gives `result` one exact header owner.
         // Other identity requests keep their existing descriptive behavior.
         pub(crate) signature_owners: Option<(SymbolHandle, SymbolHandle)>,
@@ -1748,8 +1875,14 @@ pub(crate) mod identity_context {
         // position the lifetime stage 05 gives it, so a receiver can derive
         // the same loan groups from the schema alone.
         pub(crate) signature_elision: Option<&'binders SignatureElision>,
+        pub(crate) signature_region_projection:
+            Option<&'binders dyn Fn(SignatureRegion) -> SignatureRegion>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+        // Caller type arguments retain their supplying regions. They must not
+        // acquire a lifetime from the receiving signature's same-spelled tag.
+        pub(crate) require_owned_substitution_regions: bool,
+        pub(crate) signature_argument: Option<usize>,
         pub(crate) substitution_scope_starts: &'binders [usize],
         pub(crate) substitution_semantics: SubstitutionSemantics,
         pub(crate) active_const_substitutions: &'binders [SymbolHandle],
@@ -1948,6 +2081,48 @@ pub(crate) mod identity_context {
         }
 
         pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
+            if self.structural_callable_identity {
+                let mut owner = program.lifetime_declaration_owner(self.application_owner);
+                let mut visited = Vec::new();
+                while owner.is_valid() && !visited.contains(&owner) {
+                    visited.push(owner);
+                    let parameters = self
+                        .active_callable_signatures
+                        .iter()
+                        .rev()
+                        .find(|signature| signature.symbol == owner)
+                        .map(|signature| signature.lifetime_parameters.as_slice())
+                        .or_else(|| super::declaration_lifetime_parameters(program, owner));
+                    if let Some(ordinal) = parameters.and_then(|parameters| {
+                        parameters
+                            .iter()
+                            .position(|parameter| parameter.as_str() == name)
+                    }) {
+                        let region = LifetimeParameterIdentity {
+                            declaration: owner,
+                            ordinal,
+                        };
+                        if self
+                            .lifetime_binders
+                            .iter()
+                            .any(|(bound, _)| *bound == region)
+                        {
+                            return self.encode_lifetime(program, region);
+                        }
+                        return self.resolved_lifetime(program, region);
+                    }
+                    let parent = self
+                        .callable_scope_owners
+                        .iter()
+                        .rev()
+                        .find(|(signature, _)| *signature == owner)
+                        .map_or_else(
+                            || program.declaration_scope_parent(owner),
+                            |(_, lexical)| *lexical,
+                        );
+                    owner = program.lifetime_declaration_owner(parent);
+                }
+            }
             if let Some((region, _)) = super::applied_lifetime_parameter_identity_with_supplier(
                 program,
                 self.application_owner,
@@ -2017,7 +2192,7 @@ pub(crate) mod identity_context {
             self.encode_lifetime(program, region)
         }
 
-        fn encode_lifetime(
+        pub(crate) fn encode_lifetime(
             &self,
             program: &TypedTrees,
             region: LifetimeParameterIdentity,
@@ -2027,15 +2202,61 @@ pub(crate) mod identity_context {
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
                 .map_or(region, |(_, argument)| *argument);
-            if let Some((_, binder)) = self
+            // A stored callable's own binders are universal inside its type.
+            // Callback comparison may instantiate the surrounding machine's
+            // regions, but must not instantiate or exchange these inner binders
+            // with captured outer regions. Keep their frame coordinates rigid.
+            if self.require_owned_substitution_regions
+                && let Some(depth) = self
+                    .active_callable_signatures
+                    .iter()
+                    .rposition(|signature| signature.symbol == region.declaration)
+            {
+                return compound(
+                    RegionForm::Region,
+                    [
+                        atom(Label::Owner, &format!("callable:{depth}")),
+                        atom(Label::Ordinal, &region.ordinal.to_string()),
+                    ],
+                );
+            }
+            let region = self
                 .lifetime_binders
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
+                .map_or(SignatureRegion::Captured(region), |(_, binder)| {
+                    SignatureRegion::Bound(*binder)
+                });
+            self.encode_signature_region(program, region)
+        }
+
+        pub(crate) fn encode_signature_region(
+            &self,
+            program: &TypedTrees,
+            region: SignatureRegion,
+        ) -> String {
+            let region = self
+                .signature_region_projection
+                .map_or(region, |projection| projection(region));
+            let region = match region {
+                SignatureRegion::Bound(ordinal) => return schema_region(ordinal),
+                SignatureRegion::Captured(region) => region,
+                SignatureRegion::Argument { binding, ordinal } => {
+                    return compound(
+                        RegionForm::Region,
+                        [
+                            atom(Label::Owner, &format!("argument:{binding}")),
+                            atom(Label::Ordinal, &ordinal.to_string()),
+                        ],
+                    );
+                }
+            };
+            if self.qualification == TypeIdentityQualification::PackageQualified
+                || self.structural_callable_identity
             {
-                return schema_region(*binder);
-            }
-            if self.qualification == TypeIdentityQualification::PackageQualified {
-                let identity = if self.portable_machine_applications.is_some() {
+                let identity = if self.portable_machine_applications.is_some()
+                    || self.structural_callable_identity
+                {
                     super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
                         program, region, self,
                     )
@@ -2068,6 +2289,15 @@ pub(crate) mod identity_context {
             )
         }
 
+        fn encode_elided_signature_region(&self, program: &TypedTrees, ordinal: usize) -> String {
+            let region = self
+                .signature_argument
+                .map_or(SignatureRegion::Bound(ordinal), |binding| {
+                    SignatureRegion::Argument { binding, ordinal }
+                });
+            self.encode_signature_region(program, region)
+        }
+
         fn lifetime_slot(
             &self,
             program: &TypedTrees,
@@ -2075,6 +2305,14 @@ pub(crate) mod identity_context {
             region: Option<LifetimeParameterIdentity>,
         ) -> String {
             if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
+                if self.structural_callable_identity
+                    && self
+                        .lifetime_binders
+                        .iter()
+                        .any(|(bound, _)| *bound == region)
+                {
+                    return self.encode_lifetime(program, region);
+                }
                 self.resolved_lifetime(program, region)
             } else {
                 self.lifetime(program, name.as_str())
@@ -2087,7 +2325,9 @@ pub(crate) mod identity_context {
             symbol: SymbolHandle,
             fallback: &str,
         ) -> String {
-            if self.signature_owners.is_some() && !symbol.is_valid() {
+            if (self.structural_callable_identity || self.signature_owners.is_some())
+                && !symbol.is_valid()
+            {
                 return substitution::rejected(self);
             }
             if let Some((_, replacement)) = self
@@ -2161,21 +2401,28 @@ pub(crate) mod identity_context {
                 .symbol_source_origin(symbol)
                 .is_some_and(source::SourceOrigin::is_toolchain)
             {
-                program
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .and_then(|span| {
-                        self.exact_toolchain_sources
-                            .iter()
-                            .find(|(source_id, _)| *source_id == span.source_id)
-                    })
-                    .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
-                    .unwrap_or_else(|| {
-                        if let Some(missing) = self.missing_exact_nominal_owner {
-                            missing.set(true);
-                        }
-                        PackageQualifiedNominalOwner::Toolchain
-                    })
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
             } else {
                 if let Some(missing) = self.missing_exact_nominal_owner {
                     missing.set(true);
@@ -2233,14 +2480,20 @@ pub(crate) mod identity_context {
                 ))],
             );
         }
-        let regions = if context.invalid_application.is_some() && !context.declared_carrier {
+        let regions = if context.invalid_application.is_some()
+            && !context.declared_carrier
+            && !context.callable_operand_shape
+        {
             if lifetimes.is_empty() {
                 (0..elided_signature_lifetime_count(program, symbol, context))
                     .map(|_| {
                         context
                             .signature_elision
                             .and_then(SignatureElision::region)
-                            .map_or_else(|| substitution::rejected(context), schema_region)
+                            .map_or_else(
+                                || substitution::rejected(context),
+                                |ordinal| context.encode_elided_signature_region(program, ordinal),
+                            )
                     })
                     .collect::<Vec<_>>()
             } else {
@@ -2412,7 +2665,6 @@ pub(crate) mod identity_context {
                 symbols::SymbolKind::Data
                     | symbols::SymbolKind::BuiltinType
                     | symbols::SymbolKind::TypeParameter
-                    | symbols::SymbolKind::Conformance
                     | symbols::SymbolKind::ConformanceParameter
             )
         {
@@ -2612,11 +2864,28 @@ pub(crate) mod identity_context {
                 .find(|(_, (candidate, _))| candidate == symbol)
             && *replacement != type_reference
         {
-            return normalize_type_identity(
-                program,
-                *replacement,
-                &context.replacement_context_at(ordinal),
-            );
+            let replacement_context = context.replacement_context_at(ordinal);
+            // The actual type's omitted regions are universally arbitrary, but
+            // fixed across every use of this binding, including the result.
+            // They establish no storage or loan; owned named regions retain
+            // their original declaration instead of entering this local scope.
+            let argument_elision = SignatureElision::inputs(0);
+            let replacement_context = if context.require_owned_substitution_regions {
+                let owner = program
+                    .type_reference_table
+                    .operand_lifetime_owner(*replacement);
+                TypeIdentityContext {
+                    application_owner: owner,
+                    application_argument_owner: owner,
+                    application_scopes: &[],
+                    signature_elision: Some(&argument_elision),
+                    signature_argument: Some(ordinal),
+                    ..replacement_context
+                }
+            } else {
+                replacement_context
+            };
+            return normalize_type_identity(program, *replacement, &replacement_context);
         }
         if context.static_context.is_valid() {
             let refined =
@@ -2633,18 +2902,32 @@ pub(crate) mod identity_context {
                 access,
                 lifetime,
             } => {
-                // Stage 05 reads the outer reference before its referent.
-                // Reserve that binder before nested nominal elision mints any.
+                // Reserve the outer reference binder before its referent.
                 let region = context
                     .invalid_application
-                    .filter(|_| !context.declared_carrier)
+                    .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
+                    .filter(|_| {
+                        context.active_callable_signatures.is_empty()
+                            || lifetime.is_some()
+                            || !program
+                                .type_reference_table
+                                .operand_lifetimes(type_reference)
+                                .is_empty()
+                    })
                     .map(|_| {
                         lifetime.as_ref().map_or_else(
                             || {
-                                if let Some(ordinal) =
-                                    context.signature_elision.and_then(SignatureElision::region)
+                                if let Some(elision) = context.signature_elision {
+                                    if let Some(ordinal) = elision.region() {
+                                        return context
+                                            .encode_elided_signature_region(program, ordinal);
+                                    }
+                                } else if let Some(region) = program
+                                    .type_reference_table
+                                    .operand_lifetimes(type_reference)
+                                    .first()
                                 {
-                                    return schema_region(ordinal);
+                                    return context.resolved_lifetime(program, *region);
                                 }
                                 if context.qualification
                                     == TypeIdentityQualification::PackageQualified
@@ -2755,8 +3038,34 @@ pub(crate) mod identity_context {
                 ))],
             )
             .intern(program),
+            TypeReferenceNode::Callable { contract } => {
+                // The callable type owns its invocation lifetimes; an outer
+                // callback signature or type argument does not supply elision
+                // for the callable's independent parameter/result contract.
+                let nested = TypeIdentityContext {
+                    signature_elision: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_elision
+                    },
+                    signature_argument: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_argument
+                    },
+                    ..*context
+                };
+                text_identity(
+                    program,
+                    crate::runtime_callable_identity::normalize_contract(
+                        program, *contract, &nested,
+                    )
+                    .unwrap_or_else(|_| substitution::rejected(context)),
+                )
+            }
             TypeReferenceNode::Named { symbol, name: _ }
-                if context.signature_owners.is_some() && !symbol.is_valid() =>
+                if (context.structural_callable_identity || context.signature_owners.is_some())
+                    && !symbol.is_valid() =>
             {
                 text_identity(program, substitution::rejected(context))
             }
@@ -2800,6 +3109,31 @@ pub(crate) mod identity_context {
     ) -> String {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if context.structural_callable_identity
+                    && (path.reserved_result_of.is_valid()
+                        || program.expression_table.names_reserved_result(expression))
+                {
+                    if !program.expression_table.names_reserved_result(expression)
+                        || !program
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(path.reserved_result_of)
+                    {
+                        return substitution::rejected(context);
+                    }
+                    // A signature's reserved result uses its active frame
+                    // coordinate. Authenticate its owner and shape before
+                    // alpha-normalizing that declaration-owned binder.
+                    let Some(depth) = context
+                        .active_callable_signatures
+                        .iter()
+                        .rposition(|signature| signature.symbol == path.reserved_result_of)
+                    else {
+                        return substitution::rejected(context);
+                    };
+                    return atom(IndexForm::ConstName, &format!("$C{depth}R"));
+                }
                 if let Some((machine, entry)) = context.signature_owners {
                     if path.reserved_result_of.is_valid() {
                         return if path.reserved_result_of == machine
@@ -2836,7 +3170,9 @@ pub(crate) mod identity_context {
                 } else {
                     SymbolHandle::invalid()
                 };
-                if context.signature_owners.is_some() && !symbol.is_valid() {
+                if (context.structural_callable_identity || context.signature_owners.is_some())
+                    && !symbol.is_valid()
+                {
                     return substitution::rejected(context);
                 }
                 let identity = substitution::index(program, symbol, &fallback, context)
@@ -2859,9 +3195,7 @@ pub(crate) mod identity_context {
                 ]
                 .into_iter()
                 .chain(
-                    context
-                        .signature_owners
-                        .is_some()
+                    (context.structural_callable_identity || context.signature_owners.is_some())
                         .then(|| atom(Label::Domain, binary.policy.name())),
                 ),
             ),
@@ -2913,6 +3247,63 @@ pub(crate) mod identity_context {
                     atom(Label::Domain, cast.domain.name()),
                 ],
             ),
+            ExpressionNode::Call(call) if call.runtime_call.is_some() => {
+                let Some(binding) = call.runtime_call else {
+                    return substitution::rejected(context);
+                };
+                if !program.expression_table.expression_is_valid(binding.callee)
+                    || context
+                        .active_runtime_call_expressions
+                        .contains(&expression)
+                {
+                    return substitution::rejected(context);
+                }
+                let mut active = context.active_runtime_call_expressions.to_vec();
+                active.push(expression);
+                let nested = TypeIdentityContext {
+                    active_runtime_call_expressions: &active,
+                    structural_callable_identity: true,
+                    ..*context
+                };
+                let Ok(contract) = crate::runtime_callable_identity::normalize_contract(
+                    program,
+                    binding.contract,
+                    &nested,
+                ) else {
+                    return substitution::rejected(context);
+                };
+                let arguments = crate::references::StaticArgumentCall::Expression(expression, call)
+                    .arguments(program);
+                compound(
+                    IndexForm::RuntimeCall,
+                    [
+                        normalize_index_expression(program, binding.callee, &nested),
+                        contract,
+                    ]
+                    .into_iter()
+                    .chain((!arguments.is_empty()).then(|| {
+                        compound(
+                            Label::StaticArguments,
+                            arguments.iter().map(|argument| {
+                                substitution::index_argument(
+                                    program,
+                                    super::IndexIdentityArgument::StaticArgument(argument),
+                                    &nested,
+                                )
+                            }),
+                        )
+                    }))
+                    .chain(
+                        program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|argument| {
+                                normalize_index_expression(program, *argument, &nested)
+                            }),
+                    ),
+                )
+            }
             ExpressionNode::Call(call) => compound(
                 IndexForm::Call,
                 std::iter::once(atom(
@@ -2963,25 +3354,27 @@ pub(crate) mod identity_context {
                     member.receiver,
                     context,
                 ))
-                .chain(std::iter::once(if context.signature_owners.is_some() {
-                    // A schema identifies the typed selection, including the
-                    // distinction between a record field and a measurement.
-                    use crate::expression::MemberSelection;
-                    match member.selection {
-                        MemberSelection::Field(symbol) if symbol.is_valid() => atom(
-                            Label::Member,
-                            &context.name(program, symbol, member.member.as_str()),
-                        ),
-                        MemberSelection::CollectionMeasure(measure) => {
-                            atom(Label::Member, &format!("collection-measure:{measure:?}"))
+                .chain(std::iter::once(
+                    if context.structural_callable_identity || context.signature_owners.is_some() {
+                        // A schema identifies the typed selection, including the
+                        // distinction between a record field and a measurement.
+                        use crate::expression::MemberSelection;
+                        match member.selection {
+                            MemberSelection::Field(symbol) if symbol.is_valid() => atom(
+                                Label::Member,
+                                &context.name(program, symbol, member.member.as_str()),
+                            ),
+                            MemberSelection::CollectionMeasure(measure) => {
+                                atom(Label::Member, &format!("collection-measure:{measure:?}"))
+                            }
+                            MemberSelection::Field(_) | MemberSelection::Unresolved => {
+                                substitution::rejected(context)
+                            }
                         }
-                        MemberSelection::Field(_) | MemberSelection::Unresolved => {
-                            substitution::rejected(context)
-                        }
-                    }
-                } else {
-                    atom(Label::Member, member.member.as_str())
-                }))
+                    } else {
+                        atom(Label::Member, member.member.as_str())
+                    },
+                ))
                 .chain(
                     member
                         .case_variant
@@ -3016,6 +3409,11 @@ pub(crate) mod identity_context {
                 ))
                 .chain(
                     literal
+                        .zero_omitted_fields
+                        .then(|| atom(Label::Kind, "zero-omitted-fields")),
+                )
+                .chain(
+                    literal
                         .case_name
                         .as_ref()
                         .map(|case| atom(Label::Case, case.as_str())),
@@ -3044,6 +3442,10 @@ pub(crate) mod identity_context {
                 IndexForm::ZeroValue,
                 [normalize_type_reference(program, *type_reference, context)],
             ),
+            ExpressionNode::MachineValue(value) => {
+                crate::runtime_callable_identity::normalize_machine_value(program, value, context)
+                    .unwrap_or_else(|_| substitution::rejected(context))
+            }
         }
     }
 
@@ -3294,6 +3696,15 @@ pub(crate) mod lifetime_parameters {
                     .map(|(_, signature)| signature.lifetime_parameters.as_slice())
             })
             .or_else(|| {
+                let mut rows = program
+                    .runtime_callable_contracts
+                    .iter()
+                    .filter(|(_, contract)| contract.signature.symbol == owner)
+                    .map(|(_, contract)| contract.signature.lifetime_parameters.as_slice());
+                let roster = rows.next()?;
+                rows.all(|other| other == roster).then_some(roster)
+            })
+            .or_else(|| {
                 program
                     .retained_static_machine_contract(owner)
                     .map(|contract| contract.signature().lifetime_parameters.as_slice())
@@ -3354,7 +3765,7 @@ pub(crate) mod normalized_identities {
     #[derive(Default)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
-        composites: std::sync::RwLock<CompositeIndex>,
+        composites: std::sync::RwLock<std::sync::Arc<CompositeIndex>>,
     }
 
     /*
@@ -3384,14 +3795,15 @@ pub(crate) mod normalized_identities {
 
     impl Clone for TypeIdentityTable {
         fn clone(&self) -> Self {
+            // Hold the cache snapshot while capturing text publication, so a
+            // concurrent new key cannot name a text beyond this fork's prefix.
+            let composites = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner());
             Self {
                 texts: self.texts.clone(),
-                composites: std::sync::RwLock::new(
-                    self.composites
-                        .read()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .clone(),
-                ),
+                composites: std::sync::RwLock::new(std::sync::Arc::clone(&composites)),
             }
         }
     }
@@ -3444,6 +3856,12 @@ pub(crate) mod normalized_identities {
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
             input.record(|input| {
+                let cache_allocation =
+                    compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                        CompositeIndex,
+                    >())
+                    .ok_or_else(|| input.error("type identity cache allocation overflow"))?;
+                input.allocate(cache_allocation)?;
                 Ok(Self {
                     texts: compiler_storage::Record::read(input)?,
                     composites: Default::default(),
@@ -3491,9 +3909,13 @@ pub(crate) mod normalized_identities {
                 return *identity;
             }
             let identity = self.intern(&self.composite_text(key.0, &key.1));
-            self.composites
+            // The derived cache shares its payload until the first new key.
+            // Unlike text storage, that write still copies the cached map.
+            let mut index = self
+                .composites
                 .write()
-                .unwrap_or_else(|error| error.into_inner())
+                .unwrap_or_else(|error| error.into_inner());
+            std::sync::Arc::make_mut(&mut index)
                 .entry(key)
                 .or_insert(identity);
             identity
@@ -3554,7 +3976,7 @@ pub(crate) mod normalized_identities {
 
     #[cfg(test)]
     mod canonical_numbering_tests {
-        use super::{TypeIdentityId, TypeIdentityTable};
+        use super::{IdentityPart, TypeIdentityId, TypeIdentityTable};
         use compiler_storage::RecordLimits;
         use std::collections::BTreeMap;
 
@@ -3638,6 +4060,118 @@ pub(crate) mod normalized_identities {
             checked.identities.renumber_canonically(&mut output);
             let late = checked.identities.intern("d");
             assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn identity_forks_share_text_and_cache_until_new_composites_need_private_keys() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite("tag", vec![IdentityPart::Identity(atom)]);
+            let child = parent.clone();
+            assert!(std::ptr::eq(
+                parent.text(atom).unwrap(),
+                child.text(atom).unwrap()
+            ));
+            let cache_pointer = |table: &TypeIdentityTable| {
+                std::sync::Arc::as_ptr(&table.composites.read().unwrap())
+            };
+            let parent_cache = cache_pointer(&parent);
+            let child_cache = cache_pointer(&child);
+            assert_eq!(parent_cache, child_cache);
+            assert_eq!(
+                child.intern_composite("tag", vec![IdentityPart::Identity(atom)]),
+                compound
+            );
+            assert_eq!(cache_pointer(&child), parent_cache);
+            let parent_only = parent.intern("parent-only");
+            let child_only = child.intern("child-only");
+            assert_eq!(
+                parent_only, child_only,
+                "forks keep independent append numbering"
+            );
+            assert!(!child.by_text("parent-only").is_valid());
+            child.intern_composite("tag", vec![IdentityPart::Identity(child_only)]);
+            assert_eq!(parent.composite_count(), 1);
+            assert_eq!(child.composite_count(), 2);
+            assert_ne!(cache_pointer(&child), parent_cache);
+
+            let independent = TypeIdentityTable::default();
+            independent.intern("child-only");
+            independent.intern_composite("tag", vec![IdentityPart::Text("child-only".into())]);
+            independent.intern("atom");
+            independent.intern_composite("tag", vec![IdentityPart::Text("atom".into())]);
+            let encoded = |table: &TypeIdentityTable| {
+                compiler_storage::encode_with(table, RecordLimits::default(), |output| {
+                    table.renumber_canonically(output)
+                })
+                .unwrap()
+            };
+            assert_eq!(encoded(&child), encoded(&independent));
+        }
+
+        #[test]
+        fn identity_decoder_charges_the_empty_shared_cache_before_constructing_it() {
+            fn minimum_allocation<T: compiler_storage::Record>(bytes: &[u8]) -> usize {
+                let mut lower = 0;
+                let mut upper = 4096;
+                assert!(
+                    compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: upper,
+                            ..Default::default()
+                        }
+                    )
+                    .is_ok()
+                );
+                while lower < upper {
+                    let candidate = lower + (upper - lower) / 2;
+                    if compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: candidate,
+                            ..Default::default()
+                        },
+                    )
+                    .is_ok()
+                    {
+                        upper = candidate;
+                    } else {
+                        lower = candidate + 1;
+                    }
+                }
+                lower
+            }
+            let bytes = compiler_storage::encode(&TypeIdentityTable::default(), Default::default())
+                .unwrap();
+            let text_allocation = minimum_allocation::<arena::OwnedTextInterner>(&bytes);
+            let cache_allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                    super::CompositeIndex,
+                >())
+                .unwrap();
+            let required = text_allocation + cache_allocation;
+            assert_eq!(minimum_allocation::<TypeIdentityTable>(&bytes), required);
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required - 1,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+            );
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required,
+                        ..Default::default()
+                    }
+                )
+                .is_ok()
+            );
         }
     }
 
@@ -3732,6 +4266,7 @@ pub(crate) mod package_policy_reading_tests {
 
         const DECLARATIONS: &[(u8, SymbolKind, &str)] = &[
             (1, SymbolKind::Data, "Payload"),
+            (1, SymbolKind::CallableContract, "Callback"),
             (1, SymbolKind::Data, "Container"),
             (2, SymbolKind::Data, "Record"),
             (2, SymbolKind::Data, "Count"),
@@ -3756,6 +4291,7 @@ pub(crate) mod package_policy_reading_tests {
         ];
 
         const PARAMETERS: [&str; 3] = ["T", "N", "V"];
+        const CALLABLE_NAMES: [&str; 3] = ["subject", "amount", "entry"];
 
         const TOOLCHAIN_DIGEST: [u8; 32] = [9; 32];
 
@@ -3764,6 +4300,8 @@ pub(crate) mod package_policy_reading_tests {
             toolchain: [(SourceId, [u8; 32]); 1],
             symbols: Vec<(&'static str, SymbolHandle)>,
             pub(crate) u64_type: TypeReferenceHandle,
+            callable_type: Option<TypeReferenceHandle>,
+            machine_selection: Option<crate::callable_values::MachineValue>,
         }
 
         impl Fixture {
@@ -3772,6 +4310,7 @@ pub(crate) mod package_policy_reading_tests {
                     .iter()
                     .map(|(_, _, name)| *name)
                     .chain(PARAMETERS)
+                    .chain(CALLABLE_NAMES)
                     .collect::<Vec<_>>();
                 let mut text = String::new();
                 let mut spans = Vec::new();
@@ -3794,7 +4333,7 @@ pub(crate) mod package_policy_reading_tests {
                 });
                 let toolchain_source = sources
                     .add_with_metadata(
-                        PathBuf::from("toolchain.omg"),
+                        PathBuf::from("toolchain").join("toolchain.omg"),
                         text.clone(),
                         PathBuf::from("toolchain"),
                         None,
@@ -3854,6 +4393,42 @@ pub(crate) mod package_policy_reading_tests {
                 )
                 .collect::<Vec<_>>();
                 symbols.extend(PARAMETERS.iter().copied().zip(parameters));
+                let callback = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Callback")
+                    .unwrap()
+                    .1;
+                let selected = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Selected")
+                    .unwrap()
+                    .1;
+                let callback_parameters = builder.insert_children(
+                    callback,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 1)),
+                        (SymbolKind::Parameter, span_of("amount", 1)),
+                    ],
+                );
+                symbols.extend([
+                    ("callback_subject", callback_parameters.handle_at(0)),
+                    ("callback_amount", callback_parameters.handle_at(1)),
+                ]);
+                let selected_entry = builder
+                    .insert_children(selected, [(SymbolKind::State, span_of("entry", 4))])
+                    .handle_at(0);
+                symbols.push(("selected_entry", selected_entry));
+                let selected_parameters = builder.insert_children(
+                    selected_entry,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 4)),
+                        (SymbolKind::Parameter, span_of("amount", 4)),
+                    ],
+                );
+                symbols.extend([
+                    ("selected_subject", selected_parameters.handle_at(0)),
+                    ("selected_amount", selected_parameters.handle_at(1)),
+                ]);
 
                 let mut program = TypedTrees {
                     symbols: builder.finish(),
@@ -3901,9 +4476,196 @@ pub(crate) mod package_policy_reading_tests {
                     toolchain,
                     symbols,
                     u64_type,
+                    callable_type: None,
+                    machine_selection: None,
                 };
                 fixture.install_placed_view();
+                fixture.install_callable();
                 fixture
+            }
+
+            fn install_callable(&mut self) {
+                use crate::callable_values::{MachineValue, RuntimeCallableContract};
+                use crate::domain::ProofFact;
+                use crate::machine::{Machine, MachineBodyStatus};
+                use crate::signature::{
+                    SignatureContract, SignatureContractKind, StateParameter, StateSignature,
+                };
+                use crate::state::State;
+                use crate::statement::{StatementNode, TableTransition, TransitionTargetNode};
+
+                // Allocate the closed reaches-none row before signatures
+                // retain its actual handle.
+                let service_reach_row = self.program.service_reach_rows.intern(Vec::new());
+                let payload = self.named("Payload");
+                let subject_type = self.type_node(TypeReferenceNode::Reference {
+                    referee: payload,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+                let parameters = |fixture: &mut Self, subject, amount| {
+                    fixture.program.state_parameters.insert_many([
+                        StateParameter {
+                            symbol: subject,
+                            name: Identifier::generated("subject"),
+                            type_reference: subject_type,
+                            ..Default::default()
+                        },
+                        StateParameter {
+                            symbol: amount,
+                            name: Identifier::generated("amount"),
+                            type_reference: fixture.u64_type,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let contracts = |fixture: &mut Self, owner, amount| {
+                    let amount = fixture.program.expression_table.insert_tree(
+                        &crate::expression::Expression::Name(NamePath::resolved(
+                            vec![Identifier::generated("amount")],
+                            amount,
+                            amount,
+                        )),
+                    );
+                    let result = fixture.program.expression_table.insert_tree(
+                        &crate::expression::Expression::Name(
+                            NamePath::unresolved(vec![Identifier::generated("result")])
+                                .denoting_reserved_result_of(owner),
+                        ),
+                    );
+                    let low = fixture.integer(3);
+                    let high = fixture.integer(100);
+                    let low = fixture.binary(amount, BinaryOperator::GreaterOrEqual, low);
+                    let high = fixture.binary(amount, BinaryOperator::LessOrEqual, high);
+                    let requires = fixture.binary(low, BinaryOperator::And, high);
+                    let ensures = fixture.binary(result, BinaryOperator::LessOrEqual, amount);
+                    let requires = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(requires)]);
+                    let ensures = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(ensures)]);
+                    fixture.program.signature_contracts.insert_many([
+                        SignatureContract {
+                            kind: SignatureContractKind::Requires,
+                            facts: requires,
+                            ..Default::default()
+                        },
+                        SignatureContract {
+                            kind: SignatureContractKind::Ensures,
+                            facts: ensures,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let callback = self.symbol("Callback");
+                let lexical_owner = self.program.symbols.get(callback).parent;
+                let callback_subject = self.symbol("callback_subject");
+                let callback_amount = self.symbol("callback_amount");
+                let callback_parameters = parameters(self, callback_subject, callback_amount);
+                let callback_contracts = contracts(self, callback, callback_amount);
+                let contract =
+                    self.program
+                        .runtime_callable_contracts
+                        .insert(RuntimeCallableContract {
+                            signature: StateSignature {
+                                symbol: callback,
+                                name: Identifier::generated("Callback"),
+                                parameters: callback_parameters,
+                                return_type: self.u64_type,
+                                contracts: callback_contracts,
+                                service_reach_row,
+                                declares_no_crash_route: true,
+                                ..Default::default()
+                            },
+                            lexical_owner,
+                            resolved_source: None,
+                        });
+                let callable_type = self.type_node(TypeReferenceNode::Callable { contract });
+                let selected = self.symbol("Selected");
+                let entry = self.symbol("selected_entry");
+                let selected_subject = self.symbol("selected_subject");
+                let selected_amount = self.symbol("selected_amount");
+                let selected_parameters = parameters(self, selected_subject, selected_amount);
+                let selected_contracts = contracts(self, selected, selected_amount);
+                let amount = self.program.expression_table.insert_tree(
+                    &crate::expression::Expression::Name(NamePath::resolved(
+                        vec![Identifier::generated("amount")],
+                        selected_amount,
+                        selected_amount,
+                    )),
+                );
+                let target = self
+                    .program
+                    .statement_table
+                    .insert_transition_target(TransitionTargetNode::Value(amount));
+                let body =
+                    self.program
+                        .statement_table
+                        .insert_statements([StatementNode::Transition(TableTransition {
+                            target,
+                            ..Default::default()
+                        })]);
+                let states = self.program.machine_states.insert_many([State {
+                    symbol: entry,
+                    name: Identifier::generated("entry"),
+                    parameters: selected_parameters,
+                    return_type: self.u64_type,
+                    statement_nodes: body,
+                    ..Default::default()
+                }]);
+                self.program.push_machine(Machine {
+                    symbol: selected,
+                    name: Identifier::generated("Selected"),
+                    states,
+                    contracts: selected_contracts,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    service_reach_row,
+                    declares_no_crash_route: true,
+                    ..Default::default()
+                });
+                let application = self
+                    .program
+                    .expression_table
+                    .retain_static_machine_application(
+                        entry,
+                        Identifier::generated("Selected"),
+                        &[],
+                    );
+                let source = self
+                    .program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                source.binding_declaration = selected;
+                source.lexical_owner = lexical_owner;
+                self.callable_type = Some(callable_type);
+                self.machine_selection = Some(MachineValue {
+                    type_reference: callable_type,
+                    selected: StaticMachineArgument {
+                        symbol: selected,
+                        path: Box::new([Identifier::generated("Selected")]),
+                        ..Default::default()
+                    },
+                    application,
+                    conformance: SymbolHandle::invalid(),
+                    requirement: SymbolHandle::invalid(),
+                });
+            }
+
+            pub(crate) fn callable(&self) -> TypeReferenceHandle {
+                self.callable_type
+                    .expect("fixture publishes its complete callable header")
+            }
+
+            pub(crate) fn machine_value(&mut self) -> ExpressionHandle {
+                let value = self
+                    .machine_selection
+                    .clone()
+                    .expect("fixture publishes its exact selected machine application");
+                self.expression(ExpressionNode::MachineValue(value))
             }
 
             fn install_placed_view(&mut self) {
@@ -4101,6 +4863,7 @@ pub(crate) mod package_policy_reading_tests {
                     .expression_table
                     .insert_expression_handles(arguments);
                 self.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: Default::default(),
@@ -4178,6 +4941,7 @@ pub(crate) mod package_policy_reading_tests {
             Slice => TypeReferenceNode::Slice { .. },
             Generic => TypeReferenceNode::Generic { .. },
             ConstExpression => TypeReferenceNode::ConstExpression(_),
+            Callable => TypeReferenceNode::Callable { .. },
             Named => TypeReferenceNode::Named { .. },
             Unit => TypeReferenceNode::Unit,
         });
@@ -4203,6 +4967,7 @@ pub(crate) mod package_policy_reading_tests {
         });
 
         node_kinds!(ExpressionKind, expression_kind for ExpressionNode {
+            MachineValue => ExpressionNode::MachineValue(_),
             TypeExpression => ExpressionNode::TypeExpression(_),
             Match => ExpressionNode::Match(_),
             SavedSubject => ExpressionNode::SavedSubject(_),
@@ -4320,6 +5085,11 @@ pub(crate) mod package_policy_reading_tests {
                 &[],
             ));
             witnesses.push(witness("builtin", fixture.u64_type, &[]));
+            witnesses.push(witness(
+                "complete callable contract",
+                fixture.callable(),
+                &[1],
+            ));
             let payload = fixture.named("Payload");
             witnesses.push(witness("nominal", payload, &[1]));
             let source = fixture.named("Source");
@@ -4553,6 +5323,8 @@ pub(crate) mod package_policy_reading_tests {
                 witnesses.push(witness(form, reference, owners));
             };
 
+            let machine_value = fixture.machine_value();
+            add(fixture, "exact machine selection", machine_value, &[1, 4]);
             let name = fixture.name("LIMIT");
             add(fixture, "declared name", name, &[2]);
             let value = fixture.integer(7);
@@ -4715,6 +5487,7 @@ pub(crate) mod package_policy_reading_tests {
                         value,
                     }]);
             let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: Identifier::generated("Record"),
                 type_symbol: fixture.symbol("Record"),
@@ -4941,6 +5714,40 @@ pub(crate) mod package_policy_reading_tests {
     }
 
     #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
+        );
+    }
+
+    #[test]
     fn a_repeated_identity_request_spells_no_new_text() {
         // Asking again for identities the table already holds must reach the
         // same identities through its composite index, minting no text and no
@@ -5006,6 +5813,93 @@ pub(crate) mod package_policy_reading_tests {
         let mut fixture = Fixture::new();
         let witnesses = expression_witnesses(&mut fixture);
         check(&fixture, &witnesses);
+    }
+
+    #[test]
+    fn callable_selection_keeps_its_contract_and_exact_declaration_names() {
+        use super::constraint_identity::atom;
+        use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
+        use language_semantics::type_identity::vocabulary::Label;
+
+        let mut fixture = Fixture::new();
+        let callable = fixture.render(fixture.callable(), &[], &[]);
+        let selection = fixture.machine_value();
+        let selection = fixture.index(selection);
+        let selection = fixture.render(selection, &[], &[]);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            ..Default::default()
+        };
+        let declaration_name = |name| context.name(&fixture.program, fixture.symbol(name), "");
+        assert!(callable.contains(&atom(Label::Name, &declaration_name("Payload"))));
+        for clause in ["requires", "ensures"] {
+            assert!(callable.contains(&atom(Label::Kind, clause)), "{callable}");
+        }
+        for declaration in ["Selected", "selected_entry"] {
+            assert!(
+                selection.contains(&atom(Label::Symbol, &declaration_name(declaration))),
+                "selection lost {declaration}: {selection}",
+            );
+        }
+        assert_eq!(read(&callable).0, Ok(()), "{callable}");
+        assert_eq!(read(&selection).0, Ok(()), "{selection}");
+
+        let callback = fixture.symbol("Callback");
+        let callable_type = fixture.callable();
+        let result = fixture
+            .program
+            .expression_table
+            .expression_entries()
+            .find_map(|(expression, node)| match node {
+                crate::expression::ExpressionNode::Name(path)
+                    if path.reserved_result_of == callback =>
+                {
+                    Some(expression)
+                }
+                _ => None,
+            })
+            .expect("the callback retains its exact result occurrence");
+        let foreign_owner = fixture.symbol("Selected");
+        for owner in [foreign_owner, symbols::SymbolHandle::invalid()] {
+            let crate::expression::ExpressionNode::Name(path) =
+                fixture.program.expression_table.expression_mut(result)
+            else {
+                panic!("the result occurrence changed kind");
+            };
+            path.reserved_result_of = owner;
+            assert!(
+                fixture
+                    .program
+                    .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                        callable_type
+                    ))
+                    .is_err(),
+                "a valid foreign declaration or missing owner must not bind result"
+            );
+        }
+        let crate::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.reserved_result_of = callback;
+        path.head_symbol = callback;
+        assert!(
+            fixture
+                .program
+                .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                    callable_type
+                ))
+                .is_err(),
+            "an owner marker cannot turn an ordinary resolved name into result"
+        );
+        let crate::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.head_symbol = symbols::SymbolHandle::invalid();
+        assert_eq!(fixture.render(callable_type, &[], &[]), callable);
     }
 
     #[test]
@@ -5664,6 +6558,165 @@ pub(crate) mod portable_machine_applications {
         Ok(result)
     }
 
+    pub fn portable_machine_selection_identity(
+        program: &TypedTrees,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let result = projection.selection(program, selected, application, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("selected callable lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_machine_selection_identity_in_context(
+        program: &TypedTrees,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        match context.portable_machine_applications {
+            Some(projection) => projection.selection(program, selected, application, context),
+            None => portable_machine_selection_identity(
+                program,
+                selected,
+                application,
+                context.exact_toolchain_sources,
+            ),
+        }
+    }
+
+    pub(crate) fn portable_operation_record_value(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_in_context(
+            program,
+            symbol,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_owner),
+                ..Default::default()
+            },
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    /// A nested record keeps the enclosing identity's application and lifetime
+    /// scopes and its policy for exact source owners. A portable record request
+    /// above explicitly requires those owners; local comparisons do not add
+    /// that requirement merely by reading a conformance's value.
+    pub(crate) fn portable_operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            invalid_application: context.invalid_application.or(Some(&invalid)),
+            encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
+            invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
+            ..*context
+        };
+        let result = projection.record_value(program, symbol, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_record_schema_identity_in_context(
+        program: &TypedTrees,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<String, String> {
+        // The existing schema production, with the current projection kept
+        // through every supplying scope instead of starting a fresh query.
+        scope.with_identity_scopes(program, |scopes| {
+            let mut arguments = Vec::new();
+            for parameter in program.trait_type_parameters(scope.declaration) {
+                let (reference, outer) = scope
+                    .parameter_application(parameter.symbol)
+                    .ok_or("static record schema lost a complete argument")?;
+                let supplying = scopes
+                    .get(..outer)
+                    .ok_or("static record schema lost its supplying scope")?;
+                let argument_context = TypeIdentityContext {
+                    application_owner: scope.argument_owner,
+                    application_argument_owner: scope.argument_owner,
+                    application_scopes: supplying,
+                    ..*context
+                };
+                let operand = if parameter.kind.is_const_or_value()
+                    || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                {
+                    IndexIdentityArgument::TypeReference(reference)
+                } else {
+                    IndexIdentityArgument::TypeArgument(reference)
+                };
+                arguments.push(super::substitution::index_argument(
+                    program,
+                    operand,
+                    &argument_context,
+                ));
+            }
+            let lifetime_context = TypeIdentityContext {
+                application_owner: scope.argument_owner,
+                application_argument_owner: scope.argument_owner,
+                application_scopes: scopes,
+                ..*context
+            };
+            Ok::<_, String>(compound(
+                CoordinateTag::TraitApplication,
+                [
+                    atom(
+                        CoordinateTag::Declaration,
+                        &context.name(program, scope.declaration.symbol, ""),
+                    ),
+                    compound(CoordinateTag::Arguments, arguments),
+                    compound(
+                        CoordinateTag::Lifetimes,
+                        scope
+                            .declaration
+                            .lifetime_parameters
+                            .iter()
+                            .map(|parameter| {
+                                lifetime_context.lifetime(program, parameter.as_str())
+                            }),
+                    ),
+                ],
+            ))
+        })
+    }
+
     #[derive(Default)]
     pub(crate) struct PortableMachineApplications {
         active: RefCell<Vec<SymbolHandle>>,
@@ -5671,6 +6724,301 @@ pub(crate) mod portable_machine_applications {
     }
 
     impl PortableMachineApplications {
+        pub(crate) fn record_value(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+            if self.active.borrow().contains(&symbol) {
+                return Err("static record has a cyclic selected argument identity".into());
+            }
+            self.active.borrow_mut().push(symbol);
+            let result = program
+                .canonical_operation_record_value_in_context(symbol, context)
+                .map_err(str::to_owned);
+            self.active.borrow_mut().pop();
+            if let Err(reason) = &result {
+                self.error
+                    .borrow_mut()
+                    .get_or_insert_with(|| reason.clone());
+            }
+            result
+        }
+
+        fn selection(
+            &self,
+            program: &TypedTrees,
+            selected: &crate::expression::StaticMachineArgument,
+            supplied: crate::static_applications::StaticMachineApplicationHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<(SymbolHandle, Option<String>), String> {
+            if !program.symbols.symbols().nodes().is_valid(selected.symbol)
+                || selected.const_literal.is_some()
+                || selected.evidence_projection.is_some()
+            {
+                return Err("selected callable has no exact declaration operand".into());
+            }
+            let machine = program
+                .machine_by_symbol(selected.symbol)
+                .or_else(|| program.machine_holding_state(selected.symbol))
+                .ok_or("selected callable has no machine declaration")?;
+            if selected.symbol != machine.symbol
+                && !program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == selected.symbol)
+            {
+                return Err("selected callable has no exact initial entry".into());
+            }
+            let receipt = program
+                .machine_instantiation(machine.symbol)
+                .map_err(|reason| reason.to_string())?;
+            let declaration = receipt.map_or(machine.symbol, |receipt| receipt.template());
+            let receipt_binding_declaration = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                _ => declaration,
+            };
+            let identity = self.identity(program, selected.symbol, context)?;
+            let retained = if supplied.is_valid() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(supplied)
+                {
+                    return Err("selected callable has a stale source application".into());
+                }
+                Some(program.static_machine_application(supplied))
+            } else {
+                None
+            };
+            if let Some(source) = retained {
+                if !program
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+                {
+                    return Err(
+                        "selected callable source application has no actual supplying owner".into(),
+                    );
+                }
+                let registered = source.registration_operation;
+                let original = program
+                    .machine_by_symbol(declaration)
+                    .ok_or("selected callable lost its original declaration")?;
+                let retained_enclosing_application = matches!(receipt,
+                    Some(MachineInstantiation::Specialization(receipt))
+                        if supplied == receipt.binding_application
+                            && source.binding_declaration == receipt_binding_declaration);
+                if !retained_enclosing_application
+                    && registered != selected.symbol
+                    && registered != machine.symbol
+                    && registered != declaration
+                    && !program
+                        .machine_states(original)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == registered)
+                {
+                    return Err(
+                        "selected callable source application names another operation".into(),
+                    );
+                }
+            }
+            let explicit = selected.application.as_deref();
+            if explicit.is_some_and(|source| source.member.is_valid()) {
+                return Err("selected callable retains an unresolved member application".into());
+            }
+            if let Some(MachineInstantiation::Capture(capture)) = receipt {
+                // The complete capture account is normalized by identity().
+                // A distinct own application requires its actual specialization
+                // receipt rather than reinterpreting the implementation tuple.
+                let empty_explicit = explicit.is_none_or(|source| {
+                    source.arguments.is_empty() && source.lifetime_arguments.is_empty()
+                });
+                let empty_retained = retained.is_none_or(|source| {
+                    (source.binding_declaration == machine.symbol
+                        || source.binding_declaration == capture.template)
+                        && program
+                            .static_machine_application_bindings(supplied)
+                            .is_empty()
+                        && program
+                            .static_machine_application_lifetimes(supplied)
+                            .is_empty()
+                });
+                if !empty_explicit || !empty_retained {
+                    return Err(
+                        "captured callable needs its exact own specialization account".into(),
+                    );
+                }
+                return Ok((declaration, identity));
+            }
+            let template = program
+                .machine_by_symbol(declaration)
+                .ok_or("selected callable lost its original declaration")?;
+            let (parameters, checked_conformances, checked_declarations) = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => (
+                    program
+                        .data_type_parameters
+                        .span(receipt.template_parameters)
+                        .ok_or("selected callable lost its original parameters")?
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    receipt.conformance_applications.as_slice(),
+                    receipt.conformance_arguments.as_slice(),
+                ),
+                _ => (
+                    program
+                        .machine_type_parameters(template)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    &[][..],
+                    &[][..],
+                ),
+            };
+            let receipt_application = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => {
+                    Some(receipt.binding_application)
+                }
+                _ => None,
+            };
+            // An empty frame of an already selected executable adds no tuple.
+            let empty_selected_frame = retained.is_some_and(|source| {
+                source.binding_declaration == machine.symbol
+                    && machine.symbol != declaration
+                    && program
+                        .static_machine_application_bindings(supplied)
+                        .is_empty()
+                    && program
+                        .static_machine_application_lifetimes(supplied)
+                        .is_empty()
+            });
+            let source_application = if retained.is_some() && !empty_selected_frame {
+                Some(supplied)
+            } else {
+                receipt_application
+            };
+            let binding_declaration =
+                if source_application == receipt_application && receipt_application.is_some() {
+                    receipt_binding_declaration
+                } else {
+                    declaration
+                };
+            if let Some(source) = retained
+                && source.binding_declaration != binding_declaration
+                && !empty_selected_frame
+            {
+                return Err("selected callable source bindings name another declaration".into());
+            }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("selected callable lost its exact binding declaration")?;
+            if let Some(source) = explicit {
+                if source.arguments.len() != parameters.len()
+                    || source.lifetime_arguments.len() != binding_owner.lifetime_parameters.len()
+                {
+                    return Err("selected callable explicit tuple is incomplete".into());
+                }
+                let source_application = source_application
+                    .ok_or("explicit callable tuple has no retained binding account")?;
+                let row = program.static_machine_application(source_application);
+                let argument_context = TypeIdentityContext {
+                    application_owner: row.lexical_owner,
+                    application_argument_owner: row.lexical_owner,
+                    ..*context
+                };
+                let bindings = program.static_machine_application_bindings(source_application);
+                for (parameter, argument) in parameters.iter().zip(source.arguments.iter()) {
+                    let mut matches = bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let binding = matches
+                        .next()
+                        .ok_or("explicit callable tuple lost a parameter binding")?;
+                    if matches.next().is_some() {
+                        return Err("explicit callable tuple repeats a parameter binding".into());
+                    }
+                    let (_, operand) = static_binding_operand(&parameter.kind, &binding.value)?;
+                    if super::substitution::index_argument(program, operand, &argument_context)
+                        != super::substitution::index_argument(
+                            program,
+                            IndexIdentityArgument::StaticArgument(argument),
+                            &argument_context,
+                        )
+                    {
+                        return Err(
+                            "explicit callable tuple differs from its retained binding account"
+                                .into(),
+                        );
+                    }
+                }
+                let lifetimes = program
+                    .static_application_lifetimes_for_declaration(
+                        source_application,
+                        binding_declaration,
+                    )
+                    .map_err(str::to_owned)?;
+                for (parameter, actual) in binding_owner
+                    .lifetime_parameters
+                    .iter()
+                    .zip(source.lifetime_arguments.iter())
+                {
+                    let binding = lifetimes
+                        .iter()
+                        .find(|binding| &binding.parameter == parameter)
+                        .ok_or("explicit callable tuple lost a lifetime binding")?;
+                    if argument_context.lifetime(program, actual.as_str())
+                        != argument_context.lifetime(program, binding.argument.as_str())
+                    {
+                        return Err("explicit callable lifetime tuple differs from its retained binding account".into());
+                    }
+                }
+            }
+            let Some(source_application) = source_application else {
+                if explicit.is_some() {
+                    return Err("selected callable lost its explicit binding account".into());
+                }
+                return Ok((declaration, identity));
+            };
+            let source = program.static_machine_application(source_application);
+            if parameters.is_empty() && binding_owner.lifetime_parameters.is_empty() {
+                if !program
+                    .static_machine_application_bindings(source_application)
+                    .is_empty()
+                    || !program
+                        .static_machine_application_lifetimes(source_application)
+                        .is_empty()
+                {
+                    return Err("monomorphic callable retains unexpected static bindings".into());
+                }
+                return Ok((declaration, identity));
+            }
+            if !source.lexical_owner.is_valid() {
+                return Err("selected callable lost its actual supplying scope".into());
+            }
+            let supplied_identity = self.bound_application(
+                program,
+                machine.symbol,
+                declaration,
+                &parameters,
+                source_application,
+                binding_declaration,
+                checked_conformances,
+                checked_declarations,
+                context,
+            )?;
+            if identity
+                .as_ref()
+                .is_some_and(|identity| identity != &supplied_identity)
+            {
+                return Err(
+                    "selected callable source tuple differs from its generated receipt".into(),
+                );
+            }
+            Ok((declaration, Some(supplied_identity)))
+        }
+
         pub(crate) fn nominal_name(
             &self,
             program: &TypedTrees,
@@ -5790,34 +7138,67 @@ pub(crate) mod portable_machine_applications {
             receipt: &crate::MachineSpecialization,
             context: &TypeIdentityContext<'_>,
         ) -> Result<String, String> {
-            if !receipt.binding_application.is_valid() {
+            let parameters = program
+                .data_type_parameters
+                .span(receipt.template_parameters)
+                .ok_or("specialized callable lost its original static parameters")?
+                .iter()
+                .collect::<Vec<_>>();
+            self.bound_application(
+                program,
+                receipt.instance,
+                receipt.template,
+                &parameters,
+                receipt.binding_application,
+                program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                &receipt.conformance_applications,
+                &receipt.conformance_arguments,
+                context,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn bound_application(
+            &self,
+            program: &TypedTrees,
+            instance: SymbolHandle,
+            template_symbol: SymbolHandle,
+            parameters: &[&crate::data::TypeParameter],
+            binding_application: crate::static_applications::StaticMachineApplicationHandle,
+            binding_declaration: SymbolHandle,
+            conformance_applications: &[crate::ClosedConformanceApplication],
+            conformance_arguments: &[SymbolHandle],
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            if !binding_application.is_valid() {
                 return Err(
                     "specialized callable lost its original declaration or binding application"
                         .into(),
                 );
             }
-            let application = program.static_machine_application(receipt.binding_application);
-            if application.binding_declaration != receipt.template {
+            let application = program.static_machine_application(binding_application);
+            if application.binding_declaration != binding_declaration {
                 return Err("specialized callable bindings belong to another declaration".into());
             }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("specialized callable lost its actual binding declaration")?;
             let template = program
-                .machine_by_symbol(receipt.template)
+                .machine_by_symbol(template_symbol)
                 .ok_or("specialized callable lost its original machine declaration")?;
             let template_identity = program
                 .machine_callable_identity_text(template)
                 .ok_or("specialized callable lost its original overload identity")?;
-            let parameters = program
-                .data_type_parameters
-                .span(receipt.template_parameters)
-                .ok_or("specialized callable lost its original static parameters")?;
-            let bindings = program.static_machine_application_bindings(receipt.binding_application);
+            let bindings = program.static_machine_application_bindings(binding_application);
             if parameters.len() != bindings.len() {
                 return Err("specialized callable has an incomplete static argument list".into());
             }
             let declaration = self.origin(
                 program,
-                receipt.instance,
-                receipt.template,
+                instance,
+                template_symbol,
                 &template_identity,
                 context,
             )?;
@@ -5827,9 +7208,9 @@ pub(crate) mod portable_machine_applications {
                 ..*context
             };
             let mut arguments = Vec::with_capacity(parameters.len());
-            let mut conformances = receipt.conformance_applications.iter();
-            let mut conformance_declarations = receipt.conformance_arguments.iter();
-            for parameter in parameters {
+            let mut conformances = conformance_applications.iter();
+            let mut conformance_declarations = conformance_arguments.iter();
+            for &parameter in parameters {
                 let mut matches = bindings
                     .iter()
                     .filter(|binding| binding.parameter == parameter.symbol);
@@ -5874,15 +7255,15 @@ pub(crate) mod portable_machine_applications {
             }
             let bindings = program
                 .static_application_lifetimes_for_declaration(
-                    receipt.binding_application,
-                    receipt.template,
+                    binding_application,
+                    binding_declaration,
                 )
                 .map_err(str::to_owned)?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("specialized callable has an incomplete lifetime argument list".into());
             }
             let mut lifetimes = Vec::with_capacity(bindings.len());
-            for parameter in &template.lifetime_parameters {
+            for parameter in &binding_owner.lifetime_parameters {
                 let binding = bindings
                     .iter()
                     .find(|binding| &binding.parameter == parameter)
@@ -5900,7 +7281,7 @@ pub(crate) mod portable_machine_applications {
         }
     }
 
-    fn static_binding_operand<'a>(
+    pub(super) fn static_binding_operand<'a>(
         kind: &TypeParameterKind,
         value: &'a StaticMachineBindingValue,
     ) -> Result<(&'static str, IndexIdentityArgument<'a>), String> {
@@ -6003,6 +7384,7 @@ pub(crate) mod result_dispatch_terms {
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
         }
@@ -6114,6 +7496,7 @@ pub(crate) mod static_operand_identity {
         pub lexical_owner: SymbolHandle,
         pub binders: &'a [(SymbolHandle, String)],
         pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     }
 
     impl TypedTrees {
@@ -6136,11 +7519,20 @@ pub(crate) mod static_operand_identity {
             let template = self
                 .machine_by_symbol(receipt.template)
                 .ok_or("source application lost its original declaration")?;
-            let source = self.static_machine_application(receipt.binding_application);
-            if source.binding_declaration != receipt.template {
-                return Err("source application bindings belong to another declaration");
+            let binding_declaration = self.specialization_binding_declaration(receipt)?;
+            let binding_owner = self
+                .machine_by_symbol(binding_declaration)
+                .ok_or("source application lost its binding declaration")?;
+            let parameters = self.machine_callable_parameters(binding_owner);
+            // The enclosing tuple does not supply a child's additional own arguments.
+            if self.machine_callable_parameters(template).len() != parameters.len()
+                || (binding_declaration != receipt.template
+                    && !template.lifetime_parameters.is_empty())
+            {
+                return Err(
+                    "source callable still needs its remaining own static or lifetime arguments",
+                );
             }
-            let parameters = self.machine_callable_parameters(template);
             let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let authored = self.static_machine_application_arguments(receipt.binding_application);
             if parameters.len() != bindings.len() || parameters.len() != authored.len() {
@@ -6194,12 +7586,12 @@ pub(crate) mod static_operand_identity {
             }
             let bindings = self.static_application_lifetimes_for_declaration(
                 receipt.binding_application,
-                receipt.template,
+                binding_declaration,
             )?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("source application has an incomplete lifetime tuple");
             }
-            let lifetimes = template
+            let lifetimes = binding_owner
                 .lifetime_parameters
                 .iter()
                 .map(|parameter| {
@@ -6253,6 +7645,7 @@ pub(crate) mod static_operand_identity {
                     application_argument_owner: request.lexical_owner,
                     binders: request.binders,
                     lifetime_binders: request.lifetime_binders,
+                    exact_toolchain_sources: request.exact_toolchain_sources,
                     qualification: super::TypeIdentityQualification::PackageQualified,
                     invalid_application: Some(&invalid),
                     encountered_elided_regions: Some(&invalid),
@@ -6540,13 +7933,16 @@ pub(crate) mod substitution {
                             context,
                         );
                     }
-                    // A retained scalar reference supplies the same value as
-                    // its literal operand, not a type with a numeric name.
+                    // A retained value reference and its explicit operand
+                    // must identify the same value, including record fields
+                    // and selected operations.
                     if matches!(
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
                     ) || selected.as_ref().is_some_and(|selected| {
                         crate::static_const_argument_value(program, selected).is_some()
+                            || (selected.symbol.is_valid()
+                                && program.conformance_by_symbol(selected.symbol).is_some())
                     }) {
                         return index_reference(program, argument.type_reference, context);
                     }
@@ -6728,6 +8124,20 @@ pub(crate) mod substitution {
         if let Some(value) = boolean(program, symbol, spelling) {
             return atom(IndexForm::Boolean, &value.to_string());
         }
+        if let Some(record) = program.conformance_by_symbol(symbol)
+            && record.lifetime_parameters.is_empty()
+            && program.conformance_type_parameters(record).is_empty()
+        {
+            return match context.portable_machine_applications {
+                Some(projection) => projection.record_value(program, symbol, context),
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
+                    program, symbol, context,
+                ),
+            }
+            .ok()
+            .and_then(|value| value.index_identity())
+            .unwrap_or_else(|| rejected(context));
+        }
         if let Some(declaration) = program.const_declaration_by_symbol(symbol)
             && let Some(encoding) = declaration
                 .evaluated_value
@@ -6827,7 +8237,9 @@ pub(crate) mod substitution {
             && selected.symbol.is_valid()
             && matches!(
                 program.symbols.get(selected.symbol).kind,
-                symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::State
+                    | symbols::SymbolKind::Conformance
             )
         {
             return index_argument(
@@ -6837,16 +8249,6 @@ pub(crate) mod substitution {
             );
         }
         match program.type_reference_table.type_reference(reference) {
-            // A named implementation is a declaration, not a constant. Written
-            // directly as a trait argument it is identified as a nominal, so an
-            // implementation that arrives here through a binder keeps that same
-            // identity. Otherwise one map compared with itself would differ
-            // only in whether it was forwarded.
-            TypeReferenceNode::Named { symbol, .. }
-                if program.conformance_by_symbol(*symbol).is_some() =>
-            {
-                normalize_type_reference(program, reference, context)
-            }
             TypeReferenceNode::Named { symbol, name } => {
                 index_name(program, *symbol, name.as_str(), context)
             }
@@ -6968,7 +8370,12 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
-pub use portable_machine_applications::portable_machine_application_identity;
+pub use portable_machine_applications::{
+    portable_machine_application_identity, portable_machine_selection_identity,
+};
+pub(crate) use portable_machine_applications::{
+    portable_machine_selection_identity_in_context, portable_record_schema_identity_in_context,
+};
 pub use static_operand_identity::{
     DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
 };
@@ -7868,9 +9275,15 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<String, String> {
-        let symbol = self.data_field_declaration_symbol(symbol)?;
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
+        }
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return Err("a hermetic identity contains a stale declaration".to_owned());
+        }
+        let symbol = self.data_field_declaration_symbol(symbol)?;
+        if let Some(application) = self.closed_requirement_application(symbol) {
+            return self.closed_requirement_declaration_identity(symbol, application);
         }
         if let Some(identity) = derived_declarations::nominal_name(
             self,
@@ -7886,13 +9299,37 @@ impl TypedTrees {
             return Ok(identity);
         }
         let path = self.symbols.display_path(symbol, "::");
-        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
-            let mut owner = String::with_capacity(64);
-            use std::fmt::Write as _;
-            for byte in package.digest() {
-                let _ = write!(owner, "{byte:02x}");
+        // Overloads share a source path but are different declarations. Keep
+        // the existing callable signature with that path, so selecting one
+        // overload cannot name another declaration with different parameters.
+        let callable = if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let machine = self
+                .machine_declaration_for_lexical_scope(symbol)
+                .ok_or("a machine identity has no retained declaration")?;
+            Some(
+                self.machine_callable_identity_text(machine)
+                    .ok_or("a machine declaration has no complete callable identity")?,
+            )
+        } else if let Some((owner, signature)) = self.trait_machine_signature(symbol) {
+            Some(self.trait_requirement_callable_identity_text(owner, signature))
+        } else {
+            None
+        };
+        let path = match callable {
+            Some(callable) => {
+                language_semantics::type_identity::encoding::callable_declaration_path(
+                    &path, &callable,
+                )
             }
-            return Ok(format!("package:{owner}::{path}"));
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
+                self.domain_declaration_path(symbol, path)?
+            }
+            None => path,
+        };
+        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
+            return Ok(
+                language_semantics::type_identity::package_declaration_identity(package, &path),
+            );
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
@@ -7906,6 +9343,148 @@ impl TypedTrees {
                 "declaration `{path}` has no retained source/package provenance"
             )),
         }
+    }
+
+    fn domain_declaration_path(
+        &self,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> Result<String, String> {
+        let declaration = self
+            .domain_definition(symbol)
+            .ok_or("a domain identity has no retained declaration")?;
+        let subject = crate::reflection::construction::schema_type_identity(
+            self,
+            declaration.target_type,
+            declaration.symbol,
+        )
+        .map_err(|detail| format!("a domain identity lost its declared subject: {detail}"))?;
+        // One predicate meaning can apply across capacities. Both the source
+        // dictionary and portable domain catalog still name the declaration's
+        // complete subject rather than its shared family display path.
+        Ok(compound(
+            CoordinateTag::Declaration,
+            [
+                atom(CoordinateTag::Path, &path),
+                compound(CoordinateTag::Owner, [subject]),
+            ],
+        ))
+    }
+
+    fn closed_requirement_declaration_identity(
+        &self,
+        symbol: SymbolHandle,
+        application: crate::ClosedRequirementApplication<'_>,
+    ) -> Result<String, String> {
+        let live = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+        if !live(application.template)
+            || !live(application.declaring_trait)
+            || self.symbols.get(symbol).generated_from != application.template
+            || application.signature.symbol != symbol
+        {
+            return Err("a closed requirement identity lost its declaration origin".into());
+        }
+        let owner = self
+            .trait_definition_by_symbol(application.declaring_trait)
+            .ok_or("a closed requirement identity lost its declaring trait")?;
+        let declared = self
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|signature| signature.symbol == application.template)
+            .ok_or("a closed requirement identity lost its original requirement")?;
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application.application)
+        {
+            return Err("a closed requirement identity has a stale application".into());
+        }
+        let source = self.static_machine_application(application.application);
+        if source.registration_operation != application.template
+            || source.binding_declaration != application.template
+            || !live(source.lexical_owner)
+        {
+            return Err("a closed requirement identity applies another declaration".into());
+        }
+        let parameters = self.state_signature_type_parameters(declared);
+        let bindings = self.static_machine_application_bindings(application.application);
+        if parameters.len() != bindings.len()
+            || parameters.len()
+                != self
+                    .static_machine_application_arguments(application.application)
+                    .len()
+            || parameters.len() != application.local_arguments.len()
+            || parameters.len() != application.portable_local_arguments.len()
+            || parameters.len() != application.invocation_contract_parameters.len()
+            || self.trait_type_parameters(owner).len() != application.trait_arguments.len()
+        {
+            return Err("a closed requirement identity has an incomplete argument tuple".into());
+        }
+        if application
+            .trait_arguments
+            .iter()
+            .copied()
+            .chain(
+                application
+                    .local_arguments
+                    .iter()
+                    .map(|argument| argument.type_reference()),
+            )
+            .any(|reference| !self.contains_type_reference(reference))
+        {
+            return Err("a closed requirement identity has a stale argument".into());
+        }
+        let outer = self
+            .type_identity_text(application.portable_trait_application_identity)
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a closed requirement identity lost its portable trait application")?;
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let binding = &bindings[ordinal];
+            if !live(parameter.symbol) || binding.parameter != parameter.symbol {
+                return Err("a closed requirement identity binds another parameter".into());
+            }
+            let (kind, _) = portable_machine_applications::static_binding_operand(
+                &parameter.kind,
+                &binding.value,
+            )?;
+            if matches!(
+                application.local_arguments[ordinal],
+                crate::RequirementLocalArgument::RuntimeValue { .. }
+            ) != matches!(
+                binding.value,
+                crate::static_applications::StaticMachineBindingValue::RuntimeValue { .. }
+            ) {
+                return Err("a closed requirement identity changes an argument's category".into());
+            }
+            let identity = application.portable_local_arguments[ordinal];
+            if self
+                .type_identities
+                .text(identity)
+                .is_none_or(|text| text.is_empty())
+            {
+                return Err("a closed requirement identity lost a portable argument".into());
+            }
+            let argument = self
+                .requirement_argument_identity_text(application.local_arguments[ordinal], identity)
+                .ok_or("a closed requirement identity lost a portable argument")?;
+            arguments.push(compound(
+                CoordinateTag::Parameter,
+                [atom(Label::Kind, kind), argument],
+            ));
+        }
+        // Generated roots share a display name. Their declaration identity must
+        // retain the original owner and every applied argument instead.
+        Ok(compound(
+            CoordinateTag::ClosedRequirement,
+            [
+                atom(
+                    CoordinateTag::Template,
+                    &self.normalized_hermetic_symbol_identity(application.template)?,
+                ),
+                atom(CoordinateTag::TraitApplication, &outer),
+                compound(CoordinateTag::LocalArguments, arguments),
+            ],
+        ))
     }
 
     pub fn normalized_type_identity(
@@ -8189,13 +9768,18 @@ impl TypedTrees {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Option<NormalizedTypeIdentity> {
-        if !symbol.is_valid() {
+        if !symbol.is_valid() || !self.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
         let path = self.symbols.display_path(symbol, "::");
         if path.is_empty() {
             return None;
         }
+        let path = if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain {
+            self.domain_declaration_path(symbol, path).ok()?
+        } else {
+            path
+        };
         let missing_exact_nominal_owner = Cell::new(false);
         let identity = program_intern_type_identity(
             self,
@@ -8345,7 +9929,7 @@ impl TypedTrees {
     fn operator_callable_identity_parts(
         &self,
         operator: &crate::operator::OperatorDefinition,
-    ) -> callable_identity::CallableIdentityParts {
+    ) -> Option<callable_identity::CallableIdentityParts> {
         let path = self.operator_path_string(operator.name);
         let flags = self
             .operator_parameters(operator)
@@ -8358,14 +9942,14 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>()
             .join(",");
-        callable_identity::CallableIdentityParts {
+        Some(callable_identity::CallableIdentityParts {
             path,
             parameters: format!(
                 "operands({});flags({flags})",
-                crate::operator::operator_operand_signature(self, operator)
+                crate::operator::operator_operand_signature(self, operator).ok()?
             ),
             result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
-        }
+        })
     }
 
     fn named_callable_identity_parts(
@@ -8462,4 +10046,430 @@ where
     values.push(value.clone());
     slots.insert(value, interned);
     interned
+}
+#[cfg(test)]
+mod closed_requirement_declaration_tests {
+    use super::package_policy_reading_tests::fixture::Fixture;
+    use crate::data::{TypeParameter, TypeParameterKind};
+    use crate::expression::StaticMachineArgument;
+    use crate::name::Identifier;
+    use crate::signature::StateSignature;
+    use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    use crate::trait_definition::{AppliedTraitScope, TraitDefinition};
+    use symbols::{SymbolHandle, SymbolKind};
+
+    #[test]
+    fn incomplete_machine_declarations_do_not_fall_back_to_a_source_path() {
+        let mut fixture = Fixture::new();
+        let symbol = fixture.symbol("size");
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no retained declaration")
+        );
+        fixture.program.push_machine(crate::machine::Machine {
+            symbol,
+            name: Identifier::generated("size"),
+            ..Default::default()
+        });
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no complete callable identity")
+        );
+    }
+
+    #[test]
+    fn closed_requirement_identities_retain_template_and_all_arguments() {
+        let mut fixture = Fixture::new();
+        let receiver = fixture.symbol("Hooks");
+        let other_type = fixture.named("Payload");
+        let seven = fixture.integer(7);
+        let seven = fixture.index(seven);
+        let eight = fixture.integer(8);
+        let eight = fixture.index(eight);
+        let scalar = fixture.u64_type;
+        let program = &mut fixture.program;
+        let template = program
+            .symbols
+            .insert_generated_children(receiver, [(SymbolKind::State, "send")])
+            .start();
+        let binders = program.symbols.insert_generated_children(
+            template,
+            [
+                (SymbolKind::TypeParameter, "T"),
+                (SymbolKind::TypeParameter, "N"),
+                (SymbolKind::TypeParameter, "V"),
+            ],
+        );
+        let kinds = [
+            TypeParameterKind::Type,
+            TypeParameterKind::Const {
+                type_reference: scalar,
+            },
+            TypeParameterKind::Value {
+                type_reference: scalar,
+            },
+        ];
+        let parameters =
+            program.data_type_parameters.insert_many(
+                ["T", "N", "V"].into_iter().zip(kinds).enumerate().map(
+                    |(ordinal, (name, kind))| TypeParameter {
+                        symbol: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                        name: Identifier::generated(name),
+                        kind,
+                        ..Default::default()
+                    },
+                ),
+            );
+        let mut declaration = TraitDefinition {
+            symbol: receiver,
+            name: Identifier::generated("Hooks"),
+            is_boundary: true,
+            ..Default::default()
+        };
+        program.push_trait_machine_signature(
+            &mut declaration,
+            StateSignature {
+                symbol: template,
+                name: Identifier::generated("send"),
+                type_parameters: parameters,
+                return_type: scalar,
+                ..Default::default()
+            },
+        );
+        let environment = AppliedTraitScope::abstract_scope(&declaration).environment();
+        program.push_trait_definition(declaration);
+        let close = |program: &mut crate::TypedTrees, values: [StaticMachineBindingValue; 3]| {
+            let actuals = values.each_ref().map(|value| StaticMachineArgument {
+                type_reference: match value {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference)
+                    | StaticMachineBindingValue::RuntimeValue {
+                        type_reference: reference,
+                        ..
+                    } => *reference,
+                    _ => unreachable!("the fixture supplies only types and values"),
+                },
+                ..Default::default()
+            });
+            let application = program.expression_table.retain_static_machine_application(
+                template,
+                Identifier::generated("send"),
+                &actuals,
+            );
+            let source = program
+                .expression_table
+                .static_machine_application_mut(application);
+            source.binding_declaration = template;
+            source.lexical_owner = receiver;
+            let bindings = values
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, value)| StaticMachineBinding {
+                    parameter: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                    value,
+                })
+                .collect::<Vec<_>>();
+            program
+                .expression_table
+                .set_static_machine_application_bindings(application, &bindings);
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, template, &[]);
+            let instance = program
+                .instantiate_requirement_application(&environment, template, &[], application)
+                .unwrap();
+            (instance, application)
+        };
+        use StaticMachineBindingValue::{Const, RuntimeValue, Type};
+        let (first, source) = close(program, [Type(scalar), Const(seven), Const(seven)]);
+        assert_eq!(
+            first,
+            close(program, [Type(scalar), Const(seven), Const(seven)]).0
+        );
+        let second_type = close(program, [Type(other_type), Const(seven), Const(seven)]).0;
+        let second_const = close(program, [Type(scalar), Const(eight), Const(seven)]).0;
+        let runtime = close(
+            program,
+            [
+                Type(scalar),
+                Const(seven),
+                RuntimeValue {
+                    type_reference: scalar,
+                    subject: SymbolHandle::invalid(),
+                    expression: Default::default(),
+                },
+            ],
+        )
+        .0;
+        let identities = [first, second_type, second_const, runtime].map(|symbol| {
+            assert_eq!(
+                program.symbols.symbol_provenance_source_span(symbol),
+                program.symbols.symbol_provenance_source_span(template)
+            );
+            program.normalized_hermetic_symbol_identity(symbol).unwrap()
+        });
+        for (ordinal, identity) in identities.iter().enumerate() {
+            assert!(
+                identity.contains(&super::atom(
+                    super::CoordinateTag::Template,
+                    &program
+                        .normalized_hermetic_symbol_identity(template)
+                        .unwrap(),
+                ))
+            );
+            assert!(
+                identities[..ordinal]
+                    .iter()
+                    .all(|previous| previous != identity)
+            );
+        }
+        for kind in ["type", "const"] {
+            assert!(
+                identities[0].contains(&super::atom(super::Label::Kind, kind)),
+                "missing {kind} argument category in {:?}",
+                identities[0],
+            );
+        }
+        assert!(
+            identities[3].contains("runtime-value-carrier"),
+            "missing runtime argument category in {:?}",
+            identities[3],
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = receiver;
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = template;
+        program
+            .expression_table
+            .set_static_machine_application_bindings(source, &[]);
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::invalid())
+                .is_err()
+        );
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::from_parts(u32::MAX, 1))
+                .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod nested_callback_region_tests {
+    use crate::TypedTrees;
+    use crate::callable_signature_shapes::CallableShapeMismatch;
+    use crate::callable_values::RuntimeCallableContract;
+    use crate::machine::Machine;
+    use crate::name::Identifier;
+    use crate::signature::{StateParameter, StateSignature};
+    use crate::state::State;
+    use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    fn reference(
+        program: &mut TypedTrees,
+        unit: TypeReferenceHandle,
+        lifetime: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from(lifetime)),
+            })
+    }
+
+    fn compare(swapped: bool) -> Vec<CallableShapeMismatch> {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                PathBuf::from("nested_callback_regions.omg"),
+                "environment".to_owned(),
+                PathBuf::from("nested_callback_regions"),
+                PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let environment = symbols.insert_root(
+            SymbolKind::Machine,
+            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, "environment".len()))),
+        );
+        let environment_entry = symbols
+            .insert_children(
+                environment,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let callback = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+        let callback_entry = symbols
+            .insert_children(
+                callback,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let required_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("required_value"),
+        );
+        let supplied_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("supplied_value"),
+        );
+        let required_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("required_contract"),
+        );
+        let supplied_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("supplied_contract"),
+        );
+        let formals = [required_contract, supplied_contract].map(|owner| {
+            let children = symbols.insert_children(
+                owner,
+                [
+                    (SymbolKind::Parameter, SymbolNameRef::Static("first")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("second")),
+                ],
+            );
+            [children.handle_at(0), children.handle_at(1)]
+        });
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let states = program.machine_states.insert_many([State {
+            symbol: environment_entry,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        // The enclosing borrowed region has a real declaration owner, separate
+        // from either callable type's universally quantified invocation binder.
+        program.push_machine(Machine {
+            symbol: environment,
+            name: Identifier::from("environment"),
+            lifetime_parameters: vec![Identifier::from("captured")],
+            states,
+            ..Default::default()
+        });
+        let mut contracts = Vec::new();
+        for (position, (owner, lexical_owner, own_lifetime, parameters)) in [
+            (
+                required_contract,
+                environment,
+                "local",
+                ["local", "captured"],
+            ),
+            (
+                supplied_contract,
+                callback,
+                "renamed",
+                if swapped {
+                    ["chosen", "renamed"]
+                } else {
+                    ["renamed", "chosen"]
+                },
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let parameters = parameters
+                .into_iter()
+                .zip(formals[position])
+                .map(|(lifetime, symbol)| {
+                    let type_reference = reference(&mut program, unit, lifetime);
+                    StateParameter {
+                        symbol,
+                        name: Identifier::generated(program.symbols.name(symbol)),
+                        type_reference,
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters.insert_many(parameters);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: owner,
+                        lifetime_parameters: vec![Identifier::from(own_lifetime)],
+                        parameters,
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    lexical_owner,
+                    ..Default::default()
+                });
+            contracts.push(
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Callable { contract }),
+            );
+        }
+        let required = StateSignature {
+            symbol: environment,
+            parameters: program.state_parameters.insert_many([StateParameter {
+                symbol: required_parameter,
+                type_reference: contracts[0],
+                ..Default::default()
+            }]),
+            return_type: unit,
+            ..Default::default()
+        };
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            symbol: supplied_parameter,
+            type_reference: contracts[1],
+            ..Default::default()
+        }]);
+        let states = program.machine_states.insert_many([State {
+            symbol: callback_entry,
+            parameters,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        let callback = Machine {
+            symbol: callback,
+            name: Identifier::from("callback"),
+            lifetime_parameters: vec![Identifier::from("chosen")],
+            states,
+            ..Default::default()
+        };
+        program.push_machine(callback.clone());
+        program
+            .compare_callback_signature_types(&required, &callback, &[], &[])
+            .expect("the nested callable types have complete owned signatures")
+    }
+
+    #[test]
+    fn callback_nested_binders_alpha_rename_and_outer_captures_still_instantiate() {
+        assert!(compare(false).is_empty());
+    }
+
+    #[test]
+    fn callback_nested_binders_cannot_exchange_own_and_captured_regions() {
+        assert_eq!(
+            compare(true),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+    }
 }

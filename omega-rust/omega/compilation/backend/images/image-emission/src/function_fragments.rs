@@ -5,9 +5,12 @@ evidence into a sealed `ObjectArtifact`, verifying that every abstract and
 target operation is accounted for in the final native instructions.
 */
 
+mod current_image_selections;
+
 mod attribution {
     use super::{Error, host};
     use crate::order::strictly_increasing;
+    #[cfg(test)]
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use machine_code::{
         FunctionFragment, FunctionFragmentBranchEvidence,
@@ -42,6 +45,7 @@ mod attribution {
         }
     }
 
+    #[cfg(test)]
     fn build_ordinal_index(
         source: &AbstractFunction,
     ) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
@@ -92,65 +96,63 @@ mod attribution {
         index
     }
 
-    fn lookup_ordinal(
-        index: &std::collections::BTreeMap<SemanticCodeSite, Option<usize>>,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        index.get(&site).copied().flatten().ok_or(Error::Mismatch(
-            "fragment semantic site has no unique authored ordinal",
-        ))
-    }
-
-    pub(super) fn ordinal(
+    #[cfg(test)]
+    fn test_publication(
         source: &AbstractFunction,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        let mut matches = source
-            .operations()
-            .enumerate()
-            .filter_map(|(index, operation)| {
-                let matches = if let Some(psi_operation) = operation.psi_operation() {
-                    site == SemanticCodeSite::Operation(psi_operation)
-                } else {
-                    match operation {
-                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
-                        | AbstractOperation::InvokeNoNormal { psi_edge, .. }
-                        | AbstractOperation::ExternalCompletion { psi_edge, .. }
-                        | AbstractOperation::EliminateEmpty { psi_edge, .. }
-                        | AbstractOperation::Crash { psi_edge, .. }
-                        | AbstractOperation::ReturnStructural { psi_edge, .. }
-                        | AbstractOperation::Jump { psi_edge, .. } => {
-                            site == SemanticCodeSite::Edge(*psi_edge)
-                        }
-                        AbstractOperation::Conditional {
-                            when_true,
-                            when_false,
-                            ..
-                        } => {
-                            site == SemanticCodeSite::Edge(when_true.psi_edge)
-                                || site == SemanticCodeSite::Edge(when_false.psi_edge)
-                        }
-                        AbstractOperation::StructuralCase { cases, .. } => cases
-                            .iter()
-                            .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
-                        _ => false,
-                    }
-                };
-                matches.then_some(index)
-            });
-        match (matches.next(), matches.next()) {
-            (Some(index), None) => Ok(index),
-            _ => Err(Error::Mismatch(
-                "fragment semantic site has no unique authored ordinal",
-            )),
-        }
+    ) -> Result<target_vocabulary::NativePublicationFacts, Error> {
+        let sites = build_ordinal_index(source)
+            .into_iter()
+            .map(|(site, ordinal)| {
+                let ordinal = ordinal.ok_or(Error::Mismatch(
+                    "fragment semantic site has no unique authored ordinal",
+                ))?;
+                Ok((site, u32::try_from(ordinal).map_err(|_| Error::Overflow)?))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        target_vocabulary::NativePublicationFacts::seal(
+            vec![target_vocabulary::NativeFunctionPublication {
+                call_targets: Vec::new(),
+                machine: source.machine,
+                operation_count: u32::try_from(source.operations().count())
+                    .map_err(|_| Error::Overflow)?,
+                sites,
+                byte_literals: Vec::new(),
+            }],
+            Default::default(),
+        )
+        .map_err(Error::Mismatch)
     }
 
-    pub(super) fn produce(
+    #[cfg(test)]
+    fn produce(
         fragment: &FunctionFragment,
         source: &AbstractFunction,
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        let ordinals = build_ordinal_index(source);
+        let publication = test_publication(source)?;
+        produce_current(fragment, publication.function(source.machine).unwrap())
+    }
+
+    pub(super) fn ordinal(
+        source: &target_vocabulary::NativeFunctionPublication,
+        site: SemanticCodeSite,
+    ) -> Result<usize, Error> {
+        let ordinal = source.ordinal(site).ok_or(Error::Mismatch(
+            "fragment semantic site has no unique authored ordinal",
+        ))?;
+        usize::try_from(ordinal).map_err(|_| Error::Overflow)
+    }
+
+    pub(super) fn produce_current(
+        fragment: &FunctionFragment,
+        source: &target_vocabulary::NativeFunctionPublication,
+    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
+        produce_with_ordinals(fragment, |site| ordinal(source, site))
+    }
+
+    fn produce_with_ordinals(
+        fragment: &FunctionFragment,
+        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
+    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
         let mut rows = Vec::new();
         for instruction in fragment.instructions() {
             let offset = host(instruction.offset)?;
@@ -158,7 +160,7 @@ mod attribution {
             let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
                 rows.push(SemanticCodeAttribution {
                     site,
-                    operation_ordinal: lookup_ordinal(&ordinals, site)?,
+                    operation_ordinal: ordinal(site)?,
                     code_offset,
                     byte_count,
                 });
@@ -292,17 +294,38 @@ mod attribution {
         Ok(joined)
     }
 
-    pub(super) fn validate(
+    #[cfg(test)]
+    fn validate(
         fragment: &FunctionFragment,
         source: &AbstractFunction,
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
-        let ordinals = build_ordinal_index(source);
+        let publication = test_publication(source)?;
+        validate_current(
+            fragment,
+            publication.function(source.machine).unwrap(),
+            rows,
+        )
+    }
+
+    pub(super) fn validate_current(
+        fragment: &FunctionFragment,
+        source: &target_vocabulary::NativeFunctionPublication,
+        rows: &[SemanticCodeAttribution],
+    ) -> Result<(), Error> {
+        validate_with_ordinals(fragment, rows, |site| ordinal(source, site))
+    }
+
+    fn validate_with_ordinals(
+        fragment: &FunctionFragment,
+        rows: &[SemanticCodeAttribution],
+        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
+    ) -> Result<(), Error> {
         let physical = PhysicalSpans::prepare(fragment);
         let attributed = AttributionRows::new(rows);
         let mut previous_ends = std::collections::BTreeMap::new();
         for row in rows {
-            if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
+            if ordinal(row.site)? != row.operation_ordinal
                 || previous_ends
                     .get(&row.site)
                     .is_some_and(|end| *end >= row.code_offset)
@@ -764,8 +787,9 @@ mod attribution {
     #[cfg(test)]
     mod tests {
         use super::{
-            AbstractFunction, Control, FunctionFragment, SelectedSuccessorRole,
-            SemanticCodeAttribution, SemanticCodeSite, ordinal, produce, validate,
+            AbstractFunction, Control, Error, FunctionFragment, SelectedSuccessorRole,
+            SemanticCodeAttribution, SemanticCodeSite, ordinal as current_ordinal, produce,
+            test_publication, validate,
         };
         use abstract_operations::{
             AbstractFunctionResult, AbstractOperation, IntegerArithmetic,
@@ -780,24 +804,31 @@ mod attribution {
             ScalarType, ValueId,
         };
 
+        fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
+            let publication = test_publication(source)?;
+            current_ordinal(publication.function(source.machine).unwrap(), site)
+        }
+
         fn assert_requires_unique_operation_ordinal(
             source: &mut AbstractFunction,
             operation: OperationId,
         ) {
+            let publication = test_publication(source).unwrap();
+            let current = publication.function(source.machine).unwrap();
             assert_eq!(
-                ordinal(source, SemanticCodeSite::Operation(operation)).unwrap(),
+                current_ordinal(current, SemanticCodeSite::Operation(operation)).unwrap(),
                 1
             );
             assert!(
-                ordinal(
-                    source,
+                current_ordinal(
+                    current,
                     SemanticCodeSite::Operation(OperationId::new(99).unwrap())
                 )
                 .is_err()
             );
             let repeated = source.blocks[0].operations[1].clone();
             source.blocks[0].operations.push(repeated);
-            assert!(ordinal(source, SemanticCodeSite::Operation(operation)).is_err());
+            assert!(test_publication(source).is_err());
         }
 
         #[test]
@@ -1487,7 +1518,6 @@ mod attribution {
 mod byte_literals {
     use super::{Error, source};
     use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
-    use abstract_operations::AbstractOperation;
     use machine_code::PlacedImageAddress;
     use object_file::{
         ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
@@ -1710,31 +1740,70 @@ mod byte_literals {
         if row.operation != literal.operation {
             return Err(Error::Mismatch("literal address operation changed"));
         }
-        let abstracted = source::abstract_function(source, row.machine)?;
-        let mut matches = abstracted
-            .operations()
-            .filter_map(|operation| match operation {
-                AbstractOperation::EstablishByteSequenceLiteral {
-                    psi_operation,
-                    place,
-                    bytes,
-                    ..
-                } if *psi_operation == literal.operation && place.id == literal.place => {
-                    Some(Some((Cow::Borrowed(bytes.as_slice()), 1)))
-                }
-                _ => None,
-            });
-        match (matches.next(), matches.next()) {
-            (Some(Some(octets)), None) => Ok(octets),
-            _ => Err(Error::Mismatch(
+        let current = source::publication_function(source, row.machine)?;
+        Ok((
+            Cow::Borrowed(quoted_octets(current, literal.operation, literal.place)?),
+            1,
+        ))
+    }
+
+    fn quoted_octets(
+        current: &target_vocabulary::NativeFunctionPublication,
+        operation: semantic_vocabulary::OperationId,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Result<&[u8], Error> {
+        let quoted = current
+            .byte_literal(operation)
+            .filter(|quoted| quoted.place == place)
+            .ok_or(Error::Mismatch(
                 "byte-literal address names no unique retained literal",
-            )),
-        }
+            ))?;
+        Ok(quoted.bytes.as_ref())
     }
 
     #[cfg(test)]
     mod tests {
-        use super::pack_octets;
+        use super::{pack_octets, quoted_octets};
+
+        #[test]
+        fn current_literal_lookup_keeps_exact_bytes_and_refuses_another_place_or_operation() {
+            use machine_code::SemanticCodeSite;
+            use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+            use target_vocabulary::{
+                NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts,
+            };
+            let operation = OperationId::new(1).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let facts = NativePublicationFacts::seal(
+                vec![NativeFunctionPublication {
+                    call_targets: Vec::new(),
+                    machine: MachineId::new(1).unwrap(),
+                    operation_count: 1,
+                    sites: vec![(SemanticCodeSite::Operation(operation), 0)],
+                    byte_literals: vec![NativeByteLiteral {
+                        operation,
+                        place,
+                        bytes: std::sync::Arc::from(b"exact\0octets".as_slice()),
+                    }],
+                }],
+                Default::default(),
+            )
+            .unwrap();
+            let function = &facts.functions()[0];
+            assert_eq!(
+                quoted_octets(function, operation, place).unwrap(),
+                b"exact\0octets"
+            );
+            assert!(quoted_octets(function, OperationId::new(2).unwrap(), place).is_err());
+            assert!(quoted_octets(function, operation, PlaceId::new(2).unwrap()).is_err());
+            let mut empty = function.clone();
+            empty.byte_literals[0].bytes = std::sync::Arc::from([]);
+            let empty = NativePublicationFacts::seal(vec![empty], Default::default()).unwrap();
+            assert_eq!(
+                quoted_octets(&empty.functions()[0], operation, place).unwrap(),
+                b""
+            );
+        }
 
         #[test]
         fn identical_octets_share_one_entry_and_the_pool_ends_aligned() {
@@ -2104,7 +2173,7 @@ pub(crate) mod image_residence {
     }
 }
 
-pub(crate) mod implementation_tables {
+pub(crate) mod code_descriptors {
     use super::{Error, refuse_symbol_collision};
     use crate::ObjectFunction;
     use machine_code::PlacedImageAddress;
@@ -2115,53 +2184,112 @@ pub(crate) mod implementation_tables {
     use terminal_psi::TerminalDynamicDispatchCatalog;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectImplementationTablePool {
-        pub catalog: TerminalDynamicDispatchCatalog,
+    pub(crate) struct ObjectCodeDescriptorPool {
+        pub catalogs: target_vocabulary::NativeCodeCatalogs,
         pub addresses: Vec<PlacedImageAddress>,
-        pub tables: Vec<ObjectImplementationTable>,
+        pub descriptors: Vec<ObjectCodeDescriptor>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectImplementationTable {
-        pub table: u32,
+    pub(crate) struct ObjectCodeDescriptor {
+        pub source: CodeDescriptorSource,
         pub symbol: ObjectSymbolHandle,
         pub data_offset: usize,
         pub byte_count: usize,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum CodeDescriptorSource {
+        ImplementationTable(u32),
+        Machine(semantic_vocabulary::MachineDescriptorId),
+    }
+
+    pub(crate) fn address_source(address: &PlacedImageAddress) -> Option<CodeDescriptorSource> {
+        address
+            .implementation_table()
+            .map(CodeDescriptorSource::ImplementationTable)
+            .or_else(|| {
+                address
+                    .machine_descriptor()
+                    .map(CodeDescriptorSource::Machine)
+            })
+    }
+
+    pub(crate) fn target_entries<'catalog>(
+        catalog: &'catalog TerminalDynamicDispatchCatalog,
+        callables: &'catalog terminal_psi::TerminalCallableCatalog,
+        source: CodeDescriptorSource,
+    ) -> Result<impl Iterator<Item = Option<semantic_vocabulary::MachineId>> + 'catalog, Error>
+    {
+        let (rows, single) = match source {
+            CodeDescriptorSource::ImplementationTable(table) => {
+                let table = catalog
+                    .table(table)
+                    .filter(|row| row.id == table)
+                    .ok_or(Error::Mismatch("code descriptor table is absent"))?;
+                let interface = catalog
+                    .interface(table.interface)
+                    .ok_or(Error::Mismatch("code descriptor table interface is absent"))?;
+                if table.rows.len() != interface.slots.len() {
+                    return Err(Error::Mismatch("code descriptor table call shape changed"));
+                }
+                (
+                    Some(table.rows.as_slice()),
+                    table.rows.is_empty().then_some(None),
+                )
+            }
+            CodeDescriptorSource::Machine(descriptor) => {
+                let selected = callables
+                    .descriptor(descriptor)
+                    .ok_or(Error::Mismatch("machine descriptor is absent"))?;
+                if callables.contract(selected.contract).is_none() {
+                    return Err(Error::Mismatch(
+                        "machine descriptor has no retained contract",
+                    ));
+                }
+                (None, Some(Some(selected.machine)))
+            }
+        };
+        Ok(rows.into_iter().flatten().copied().chain(single))
+    }
+
     pub(super) fn place(
-        catalog: &TerminalDynamicDispatchCatalog,
+        catalogs: &target_vocabulary::NativeCodeCatalogs,
         addresses: &[PlacedImageAddress],
         object: &mut ObjectPlan,
-    ) -> Result<(Option<ObjectImplementationTablePool>, Vec<u8>), Error> {
+    ) -> Result<(Option<ObjectCodeDescriptorPool>, Vec<u8>), Error> {
+        let catalog = catalogs.dynamic_dispatch();
+        let callables = catalogs.callables();
         let addresses = addresses
             .iter()
-            .filter(|address| address.implementation_table().is_some())
+            .filter(|address| address_source(address).is_some())
             .copied()
             .collect::<Vec<_>>();
-        if catalog.tables.is_empty() {
+        let mut selected = addresses
+            .iter()
+            .filter_map(|address| address.machine_descriptor())
+            .collect::<Vec<_>>();
+        selected.sort();
+        selected.dedup();
+        let sources = catalog
+            .tables
+            .iter()
+            .map(|table| CodeDescriptorSource::ImplementationTable(table.id))
+            .chain(selected.into_iter().map(CodeDescriptorSource::Machine))
+            .collect::<Vec<_>>();
+        if sources.is_empty() {
             if !addresses.is_empty() {
                 return Err(Error::Mismatch(
-                    "implementation addresses have no table catalog",
+                    "code descriptor addresses have no retained catalog",
                 ));
             }
             return Ok((None, Vec::new()));
         }
         let mut data = Vec::new();
-        let mut tables = Vec::new();
-        for (ordinal, table) in catalog.tables.iter().enumerate() {
-            let interface = catalog
-                .interface(table.interface)
-                .ok_or(Error::Mismatch("implementation table interface is absent"))?;
-            if usize::try_from(table.id).ok() != Some(ordinal)
-                || table.rows.len() != interface.slots.len()
-            {
-                return Err(Error::Mismatch("implementation table roster changed"));
-            }
-            let byte_count = table
-                .rows
-                .len()
-                .max(1)
+        let mut descriptors = Vec::new();
+        for source in sources {
+            let byte_count = target_entries(catalog, callables, source)?
+                .count()
                 .checked_mul(8)
                 .ok_or(Error::Overflow)?;
             let data_offset = data.len();
@@ -2169,8 +2297,15 @@ pub(crate) mod implementation_tables {
                 data_offset.checked_add(byte_count).ok_or(Error::Overflow)?,
                 0,
             );
-            let name = format!("omega_implementation_table_{}", table.id);
-            refuse_symbol_collision(object, &name, "implementation table symbol collision")?;
+            let name = match source {
+                CodeDescriptorSource::ImplementationTable(table) => {
+                    format!("omega_implementation_table_{table}")
+                }
+                CodeDescriptorSource::Machine(descriptor) => {
+                    format!("omega_machine_descriptor_{}", descriptor.get())
+                }
+            };
+            refuse_symbol_collision(object, &name, "code descriptor symbol collision")?;
             let symbol = object.layout.symbols.insert(SymbolPlan {
                 name,
                 section: SymbolSection::Section(SectionKind::Data),
@@ -2179,8 +2314,8 @@ pub(crate) mod implementation_tables {
                 kind: SymbolKind::Object,
                 import_library: String::new(),
             });
-            tables.push(ObjectImplementationTable {
-                table: table.id,
+            descriptors.push(ObjectCodeDescriptor {
+                source,
                 symbol,
                 data_offset,
                 byte_count,
@@ -2192,17 +2327,17 @@ pub(crate) mod implementation_tables {
             alignment: 8,
         });
         Ok((
-            Some(ObjectImplementationTablePool {
-                catalog: catalog.clone(),
-                addresses: addresses.to_vec(),
-                tables,
+            Some(ObjectCodeDescriptorPool {
+                catalogs: catalogs.clone(),
+                addresses,
+                descriptors,
             }),
             data,
         ))
     }
 
     pub(super) fn publish_relocations(
-        pool: Option<&ObjectImplementationTablePool>,
+        pool: Option<&ObjectCodeDescriptorPool>,
         functions: &[ObjectFunction],
         relocations: &mut RelocationPlan,
     ) -> Result<(), Error> {
@@ -2215,7 +2350,7 @@ pub(crate) mod implementation_tables {
     }
 
     pub(super) fn records(
-        pool: &ObjectImplementationTablePool,
+        pool: &ObjectCodeDescriptorPool,
         functions: &[ObjectFunction],
     ) -> Result<Vec<RelocationRecord>, Error> {
         records_for_symbols(pool, |machine| {
@@ -2225,28 +2360,29 @@ pub(crate) mod implementation_tables {
     }
 
     fn records_for_symbols(
-        pool: &ObjectImplementationTablePool,
+        pool: &ObjectCodeDescriptorPool,
         symbol_for_machine: impl Fn(semantic_vocabulary::MachineId) -> Option<ObjectSymbolHandle>,
     ) -> Result<Vec<RelocationRecord>, Error> {
         let mut records = Vec::new();
-        for table in &pool.tables {
-            let rows = &pool
-                .catalog
-                .table(table.table)
-                .ok_or(Error::Mismatch("implementation table is absent"))?
-                .rows;
-            for (slot, machine) in rows.iter().enumerate() {
+        for descriptor in &pool.descriptors {
+            for (slot, machine) in target_entries(
+                pool.catalogs.dynamic_dispatch(),
+                pool.catalogs.callables(),
+                descriptor.source,
+            )?
+            .enumerate()
+            {
                 let Some(machine) = machine else {
                     continue;
                 };
-                let symbol = symbol_for_machine(*machine)
-                    .ok_or(Error::Mismatch("implementation row function is absent"))?;
+                let symbol = symbol_for_machine(machine)
+                    .ok_or(Error::Mismatch("code descriptor target function is absent"))?;
                 records.push(RelocationRecord {
                     origin: RelocationOrigin::Materialization {
-                        object_symbol_handle: table.symbol,
+                        object_symbol_handle: descriptor.symbol,
                     },
                     section: SectionKind::Data,
-                    offset: table
+                    offset: descriptor
                         .data_offset
                         .checked_add(slot.checked_mul(8).ok_or(Error::Overflow)?)
                         .ok_or(Error::Overflow)?,
@@ -2259,14 +2395,14 @@ pub(crate) mod implementation_tables {
         }
         for address in &pool.addresses {
             let table = pool
-                .tables
+                .descriptors
                 .iter()
-                .find(|table| Some(table.table) == address.implementation_table())
+                .find(|descriptor| Some(descriptor.source) == address_source(address))
                 .ok_or(Error::Mismatch(
-                    "implementation address names an absent table",
+                    "code descriptor address names an absent cell",
                 ))?;
             let symbol = symbol_for_machine(address.machine)
-                .ok_or(Error::Mismatch("implementation address owner is absent"))?;
+                .ok_or(Error::Mismatch("code descriptor address owner is absent"))?;
             let origin = RelocationOrigin::SemanticOperation {
                 function_symbol_handle: symbol,
                 operation_identity: address.operation.get(),
@@ -2284,18 +2420,18 @@ pub(crate) mod implementation_tables {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
-        let plan = source
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .optimized()
-            .plan();
-        let Some(pool) = &artifact.implementation_table_pool else {
+        let catalogs = super::source::code_catalogs(source);
+        let Some(pool) = &artifact.code_descriptor_pool else {
             if (!artifact.data_bytes.is_empty() && artifact.native_code_layout_pool.is_none())
-                || !plan.dynamic_dispatch.tables.is_empty()
+                || !catalogs.dynamic_dispatch().tables.is_empty()
+                || source
+                    .source()
+                    .text_section()
+                    .unresolved_image_addresses
+                    .iter()
+                    .any(|address| address_source(address).is_some())
             {
                 return Err(Error::Mismatch(
                     "initialized data has no implementation table owner",
@@ -2303,44 +2439,48 @@ pub(crate) mod implementation_tables {
             }
             return Ok(());
         };
-        if pool.catalog != plan.dynamic_dispatch
+        if &pool.catalogs != catalogs
             || pool.addresses
                 != source
                     .source()
                     .text_section()
                     .unresolved_image_addresses
                     .iter()
-                    .filter(|address| address.implementation_table().is_some())
+                    .filter(|address| address_source(address).is_some())
                     .copied()
                     .collect::<Vec<_>>()
         {
             return Err(Error::Mismatch(
-                "implementation table inputs differ from admitted source",
+                "code descriptor inputs differ from admitted source",
             ));
         }
-        for address in &pool.addresses {
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function.operations()
-                .filter(|operation| {
-                    matches!(operation,
-                abstract_operations::AbstractOperation::SelectImplementation {psi_operation,table,..}
-                if *psi_operation==address.operation && Some(*table)==address.implementation_table())
-                })
-                .count()
-                != 1
-            {
-                return Err(Error::Mismatch(
-                    "implementation table address differs from its selection",
-                ));
+        if !pool.addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "descriptor addresses have no current selection index",
+            ))?;
+            for address in &pool.addresses {
+                let result = match address.machine_descriptor() {
+                    Some(descriptor) => Some(semantic_vocabulary::ScalarType::Callable(
+                        pool.catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .ok_or(Error::Mismatch(
+                                "code descriptor has no current callable contract",
+                            ))?
+                            .contract,
+                    )),
+                    None => None,
+                };
+                selections.require(address, result)?;
             }
         }
-        let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.tables.len());
-        let (rebuilt, data) = place(&pool.catalog, &pool.addresses, &mut expected)?;
+        let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.descriptors.len());
+        let (rebuilt, data) = place(&pool.catalogs, &pool.addresses, &mut expected)?;
         let rebuilt = rebuilt.ok_or(Error::Mismatch("implementation table pool disappeared"))?;
         if artifact.data_bytes.get(..data.len()) != Some(data.as_slice())
-            || rebuilt.tables.len() != pool.tables.len()
+            || rebuilt.descriptors.len() != pool.descriptors.len()
         {
-            return Err(Error::Mismatch("implementation table bytes changed"));
+            return Err(Error::Mismatch("code descriptor bytes changed"));
         }
         let data_section = artifact
             .object
@@ -2357,23 +2497,23 @@ pub(crate) mod implementation_tables {
                 "implementation table data geometry changed",
             ));
         }
-        for (actual, expected_table) in pool.tables.iter().zip(&rebuilt.tables) {
-            if actual.table != expected_table.table
+        for (actual, expected_table) in pool.descriptors.iter().zip(&rebuilt.descriptors) {
+            if actual.source != expected_table.source
                 || actual.data_offset != expected_table.data_offset
                 || actual.byte_count != expected_table.byte_count
                 || !artifact.object.layout.symbols.is_valid(actual.symbol)
                 || artifact.object.layout.symbols.get(actual.symbol)
                     != expected.layout.symbols.get(expected_table.symbol)
             {
-                return Err(Error::Mismatch("implementation table symbol changed"));
+                return Err(Error::Mismatch("code descriptor symbol changed"));
             }
         }
         let actual = super::image_addresses::rows_for_symbols(
             &artifact.relocations,
-            pool.tables.iter().map(|table| table.symbol),
+            pool.descriptors.iter().map(|table| table.symbol),
         );
         if actual != records(pool, &artifact.functions)? {
-            return Err(Error::Mismatch("implementation table relocations changed"));
+            return Err(Error::Mismatch("code descriptor relocations changed"));
         }
         Ok(())
     }
@@ -2386,23 +2526,41 @@ pub(crate) mod implementation_tables {
         let mut expected = Vec::new();
         for namespace in crate::object::private_object_composition::namespaces(artifact) {
             let local = namespace.artifact;
-            let Some(pool) = &local.implementation_table_pool else {
+            let image_selections = if let Some(replay) = &local.fragment_replay {
+                let current = replay
+                    .0
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .physical_program();
+                super::current_image_selections::CurrentImageSelections::prepare_for(
+                    &replay.0.source().text_section().unresolved_image_addresses,
+                    current.functions.iter(),
+                )?
+            } else {
+                None
+            };
+            let Some(pool) = &local.code_descriptor_pool else {
                 if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                     return Err(Error::Mismatch(
                         "initialized image data has no implementation table owner",
                     ));
                 }
                 expected.extend(super::native_code_layouts::image_data_records(
-                    &namespace, artifact, object,
+                    &namespace,
+                    artifact,
+                    object,
+                    image_selections.as_ref(),
                 )?);
                 continue;
             };
             let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
-                "implementation table data requires admitted fragment source",
+                "code descriptor data requires admitted fragment source",
             ))?;
-            validate(&replay.0, local)?;
+            validate(&replay.0, local, image_selections.as_ref())?;
             for symbol in pool
-                .tables
+                .descriptors
                 .iter()
                 .map(|table| table.symbol)
                 .chain(local.functions.iter().map(|function| function.symbol))
@@ -2413,7 +2571,7 @@ pub(crate) mod implementation_tables {
                         != artifact.object.layout.symbols.get(symbol)
                 {
                     return Err(Error::Mismatch(
-                        "image changed implementation table symbol custody",
+                        "image changed code descriptor symbol custody",
                     ));
                 }
             }
@@ -2429,7 +2587,10 @@ pub(crate) mod implementation_tables {
                 expected.push(record);
             }
             expected.extend(super::native_code_layouts::image_data_records(
-                &namespace, artifact, object,
+                &namespace,
+                artifact,
+                object,
+                image_selections.as_ref(),
             )?);
         }
         validate_data_relocation_roster(&expected, relocations)
@@ -2448,7 +2609,7 @@ pub(crate) mod implementation_tables {
                 .map(|(_, record)| record))
         {
             return Err(Error::Mismatch(
-                "initialized image data relocations differ from exact implementation table rows",
+                "initialized image data relocations differ from exact code descriptor cells",
             ));
         }
         Ok(())
@@ -2494,8 +2655,10 @@ pub(crate) mod implementation_tables {
         fn trap_rows_keep_slot_offsets_and_callable_relocations() {
             let machine = semantic_vocabulary::MachineId::new(1).unwrap();
             let catalog = catalog(vec![None, Some(machine), None, Some(machine)]);
+            let catalogs =
+                target_vocabulary::NativeCodeCatalogs::seal(catalog, Default::default()).unwrap();
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 2, 2);
-            let (pool, data) = place(&catalog, &[], &mut object).unwrap();
+            let (pool, data) = place(&catalogs, &[], &mut object).unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 32]);
             let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -2549,7 +2712,7 @@ pub(crate) mod implementation_tables {
                 validate_data_relocation_roster(&relocations, &relocation_plan(&extra)).is_err()
             );
             let mut substituted = relocations.clone();
-            substituted[0].symbol_handle = pool.tables[0].symbol;
+            substituted[0].symbol_handle = pool.descriptors[0].symbol;
             assert!(
                 validate_data_relocation_roster(&relocations, &relocation_plan(&substituted),)
                     .is_err()
@@ -2571,17 +2734,19 @@ pub(crate) mod implementation_tables {
                 rows: Vec::new(),
             });
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 1, 2);
-            let (pool, data) = place(&catalog, &[], &mut object).unwrap();
+            let catalogs =
+                target_vocabulary::NativeCodeCatalogs::seal(catalog, Default::default()).unwrap();
+            let (pool, data) = place(&catalogs, &[], &mut object).unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 16]);
             assert_eq!(
-                pool.tables
+                pool.descriptors
                     .iter()
                     .map(|table| table.data_offset)
                     .collect::<Vec<_>>(),
                 [0, 8]
             );
-            assert_ne!(pool.tables[0].symbol, pool.tables[1].symbol);
+            assert_ne!(pool.descriptors[0].symbol, pool.descriptors[1].symbol);
             assert!(records_for_symbols(&pool, |_| None).unwrap().is_empty());
         }
     }
@@ -2741,9 +2906,9 @@ mod imports {
         if let Some(pool) = &artifact.byte_literal_pool {
             observation_records += super::byte_literals::records(pool, &artifact.functions)?.len();
         }
-        if let Some(pool) = &artifact.implementation_table_pool {
+        if let Some(pool) = &artifact.code_descriptor_pool {
             observation_records +=
-                super::implementation_tables::records(pool, &artifact.functions)?.len();
+                super::code_descriptors::records(pool, &artifact.functions)?.len();
         }
         if let Some(pool) = &artifact.native_code_layout_pool {
             observation_records +=
@@ -2763,9 +2928,9 @@ mod imports {
                 + usize::from(artifact.byte_literal_pool.is_some())
                 + usize::from(artifact.retained_entry_storage.is_valid())
                 + artifact
-                    .implementation_table_pool
+                    .code_descriptor_pool
                     .as_ref()
-                    .map_or(0, |pool| pool.tables.len())
+                    .map_or(0, |pool| pool.descriptors.len())
                 + artifact
                     .native_code_layout_pool
                     .as_ref()
@@ -3235,6 +3400,7 @@ pub(crate) mod native_code_layouts {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
         let addresses = source
             .source()
@@ -3249,14 +3415,11 @@ pub(crate) mod native_code_layouts {
             })
             .copied()
             .collect::<Vec<_>>();
-        let prefix = artifact
-            .implementation_table_pool
-            .as_ref()
-            .map_or(0, |pool| {
-                pool.tables
-                    .last()
-                    .map_or(0, |row| row.data_offset + row.byte_count)
-            });
+        let prefix = artifact.code_descriptor_pool.as_ref().map_or(0, |pool| {
+            pool.descriptors
+                .last()
+                .map_or(0, |row| row.data_offset + row.byte_count)
+        });
         let Some(pool) = &artifact.native_code_layout_pool else {
             if !addresses.is_empty() || artifact.data_bytes.len() != prefix {
                 return Err(Error::Mismatch(
@@ -3270,13 +3433,13 @@ pub(crate) mod native_code_layouts {
                 "native metadata selection or prefix differs from admitted source",
             ));
         }
-        for address in &addresses {
-            let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-            else {
-                unreachable!()
-            };
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function.operations().filter(|operation| matches!(operation, abstract_operations::AbstractOperation::EstablishNativeCodeLayout { psi_operation, machine: target, .. } if *psi_operation == address.operation && *target == machine)).count() != 1 { return Err(Error::Mismatch("native metadata address differs from its exact query")); }
+        if !addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "native metadata has no current selection index",
+            ))?;
+            for address in &addresses {
+                selections.require(address, None)?;
+            }
         }
         let mut object = ObjectPlan::with_capacity(artifact.target, 1, pool.layouts.len());
         let mut data = artifact
@@ -3329,6 +3492,7 @@ pub(crate) mod native_code_layouts {
         namespace: &crate::object::private_object_composition::ObjectNamespace<'_>,
         root: &crate::ObjectArtifact,
         object: &ObjectPlan,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<Vec<RelocationRecord>, Error> {
         let local = namespace.artifact;
         let Some(pool) = &local.native_code_layout_pool else {
@@ -3337,7 +3501,7 @@ pub(crate) mod native_code_layouts {
         let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
             "native metadata requires admitted final placement",
         ))?;
-        validate(&replay.0, local)?;
+        validate(&replay.0, local, selections)?;
         for symbol in pool
             .layouts
             .iter()
@@ -3374,7 +3538,6 @@ pub(crate) mod native_code_layouts {
 mod port_effects {
     use super::{Error, attribution, host, source, structural::placed_text_offset};
     use crate::ObjectPortEffect;
-    use abstract_operations::AbstractOperation;
     use machine_code::{PortEffectRecord, SemanticCodeSite};
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
@@ -3384,56 +3547,258 @@ mod port_effects {
     ) -> Result<Vec<ObjectPortEffect>, Error> {
         let mut effects = Vec::new();
         for placed in &container.source().text_section().functions {
-            let function = source::abstract_function(container, placed.machine)?;
+            let function = source::current_function(container, placed.machine)?;
             let fragment = source::fragments(container)
                 .function(placed.machine)
                 .ok_or(Error::Mismatch(
                     "port event lost its current function fragment",
                 ))?;
-            for operation in function.operations() {
-                let AbstractOperation::PortWrite {
-                    psi_operation,
+            append_function_effects(
+                function.instructions(),
+                fragment,
+                source::publication_function(container, placed.machine)?,
+                placed.section_offset,
+                &mut effects,
+            )?;
+        }
+        Ok(effects)
+    }
+
+    fn append_function_effects<'input>(
+        instructions: impl IntoIterator<Item = &'input selected_instructions::SelectedInstruction>,
+        fragment: &machine_code::FunctionFragment,
+        publication: &target_vocabulary::NativeFunctionPublication,
+        section_offset: u64,
+        effects: &mut Vec<ObjectPortEffect>,
+    ) -> Result<(), Error> {
+        if fragment.machine != publication.machine {
+            return Err(Error::Mismatch("port event has another function owner"));
+        }
+        let mut spans: Vec<_> = fragment
+            .instructions()
+            .filter(|span| span.alternative.family == MachineAlternativeFamily::PortWrite)
+            .collect();
+        spans.sort_unstable_by_key(|span| span.instruction);
+        if spans
+            .windows(2)
+            .any(|rows| rows[0].instruction == rows[1].instruction)
+        {
+            return Err(Error::Mismatch("port event has two selected spans"));
+        }
+        let start = effects.len();
+        for instruction in instructions {
+            let selected_instructions::SelectedInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = instruction.kind
+            else {
+                continue;
+            };
+            let [psi_operation] = instruction.provenance.operations.as_slice() else {
+                return Err(Error::Mismatch("port event has no exact source occurrence"));
+            };
+            let index = spans
+                .binary_search_by_key(&instruction.id, |span| span.instruction)
+                .map_err(|_| Error::Mismatch("port event has no exact selected span"))?;
+            let span = spans[index];
+            if span.alternative
+                != (MachineAlternativeKey {
+                    family: MachineAlternativeFamily::PortWrite,
+                    variant: 0,
+                })
+                || span.provenance.operations.as_slice() != [*psi_operation]
+            {
+                return Err(Error::Mismatch(
+                    "port event differs from its current instruction",
+                ));
+            }
+            let code_offset = host(span.offset)?;
+            effects.push(ObjectPortEffect {
+                machine: publication.machine,
+                text_offset: placed_text_offset(section_offset, code_offset)?,
+                effect: PortEffectRecord {
+                    psi_operation: *psi_operation,
                     service,
                     port,
                     value,
-                } = operation
-                else {
-                    continue;
-                };
-                let mut matching = fragment.instructions().filter(|span| {
-                    span.alternative
-                        == MachineAlternativeKey {
-                            family: MachineAlternativeFamily::PortWrite,
-                            variant: 0,
-                        }
-                        && span.provenance.operations.as_slice() == [*psi_operation]
-                });
-                let span = matching
-                    .next()
-                    .ok_or(Error::Mismatch("port event has no exact selected span"))?;
-                if matching.next().is_some() {
-                    return Err(Error::Mismatch("port event has two selected spans"));
-                }
-                let code_offset = host(span.offset)?;
-                effects.push(ObjectPortEffect {
-                    machine: placed.machine,
-                    text_offset: placed_text_offset(placed.section_offset, code_offset)?,
-                    effect: PortEffectRecord {
-                        psi_operation: *psi_operation,
-                        service: *service,
-                        port: *port,
-                        value: *value,
-                        operation_ordinal: attribution::ordinal(
-                            function,
-                            SemanticCodeSite::Operation(*psi_operation),
-                        )?,
-                        code_offset,
-                        byte_count: span.bytes.len(),
-                    },
-                });
+                    operation_ordinal: attribution::ordinal(
+                        publication,
+                        SemanticCodeSite::Operation(*psi_operation),
+                    )?,
+                    code_offset,
+                    byte_count: span.bytes.len(),
+                },
+            });
+        }
+        if effects.len() - start != spans.len() {
+            return Err(Error::Mismatch("port event has an unowned selected span"));
+        }
+        // Preserve authored order even when native block placement changes.
+        effects[start..].sort_unstable_by_key(|row| row.effect.operation_ordinal);
+        if effects[start..]
+            .windows(2)
+            .any(|rows| rows[0].effect.operation_ordinal == rows[1].effect.operation_ordinal)
+        {
+            return Err(Error::Mismatch("port event repeats its source occurrence"));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod current_event_tests {
+        use super::*;
+        use machine_code::{
+            FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
+            FunctionFragmentInstructionSpan,
+        };
+        use selected_instructions::{
+            SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+            SelectedInstructionProvenance,
+        };
+        use semantic_vocabulary::{MachineId, OperationId, ServiceId};
+
+        fn instruction(
+            id: u32,
+            operation: u64,
+            service: u64,
+            port: u16,
+            value: u8,
+        ) -> SelectedInstruction {
+            SelectedInstruction {
+                id: SelectedInstructionId(id),
+                kind: SelectedInstructionKind::PortWrite {
+                    service: ServiceId::new(service).unwrap(),
+                    port,
+                    value,
+                },
+                constraint: register_model::RegisterConstraintKey::instruction(0),
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![OperationId::new(operation).unwrap()],
+                    ..Default::default()
+                },
             }
         }
-        Ok(effects)
+
+        fn span(instruction: &SelectedInstruction, offset: u64) -> FunctionFragmentInstructionSpan {
+            let physical = register_model::validate_physical_register_model(
+                isa_x86_64::x86_64_physical_register_model(),
+            )
+            .unwrap();
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::PortWrite,
+                variant: 0,
+            };
+            let encoded = isa_x86_64::encode_x86_64_selected_form(
+                &physical,
+                instruction.kind,
+                alternative,
+                &[],
+            )
+            .unwrap();
+            FunctionFragmentInstructionSpan {
+                instruction: instruction.id,
+                alternative,
+                offset,
+                bytes: encoded.bytes().to_vec(),
+                branch: None,
+                internal_machine_fixup: None,
+                normalized_foreign_call_fixup: None,
+                image_address_fixup: None,
+                provenance: instruction.provenance.clone(),
+                control: FunctionFragmentControlProvenance::None,
+            }
+        }
+
+        #[test]
+        fn current_port_events_keep_service_authored_order_and_exact_native_owners() {
+            // Model only these current columns; the actual x86 encoder supplies
+            // span bytes. This does not execute privileged port instructions.
+            let later = instruction(0, 2, 12, 0x2f8, 0x42);
+            let earlier = instruction(1, 1, 11, 0x3f8, 0x41);
+            let first = span(&later, 0);
+            let offset = first.bytes.len() as u64;
+            let second = span(&earlier, offset);
+            let bytes = [first.bytes.as_slice(), second.bytes.as_slice()].concat();
+            let machine = MachineId::new(1).unwrap();
+            let fragment = FunctionFragment {
+                machine,
+                attachment: None,
+                provenance: Default::default(),
+                byte_count: bytes.len() as u64,
+                bytes,
+                blocks: vec![FunctionFragmentBlockSpan {
+                    block: SelectedBlockId(0),
+                    offset: 0,
+                    byte_count: offset + second.bytes.len() as u64,
+                    instructions: vec![first, second],
+                }],
+            };
+            let publication = target_vocabulary::NativeFunctionPublication {
+                machine,
+                operation_count: 2,
+                sites: vec![
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(1).unwrap(),
+                        ),
+                        0,
+                    ),
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(2).unwrap(),
+                        ),
+                        1,
+                    ),
+                ],
+                byte_literals: Vec::new(),
+                call_targets: Vec::new(),
+            };
+            let instructions = [later, earlier];
+            let run = |fragment: &_, publication: &_| {
+                let mut rows = Vec::new();
+                append_function_effects(&instructions, fragment, publication, 32, &mut rows)?;
+                Ok::<_, Error>(rows)
+            };
+            let rows = run(&fragment, &publication).unwrap();
+            assert_eq!(
+                rows.iter()
+                    .map(|row| (
+                        row.effect.psi_operation.get(),
+                        row.effect.service.get(),
+                        row.effect.port,
+                        row.effect.value,
+                        row.effect.operation_ordinal
+                    ))
+                    .collect::<Vec<_>>(),
+                [(1, 11, 0x3f8, 0x41, 0), (2, 12, 0x2f8, 0x42, 1)]
+            );
+            assert_eq!(rows[0].text_offset, 32 + offset as usize);
+            assert_eq!(rows[1].text_offset, 32);
+            let mut missing = fragment.clone();
+            missing.blocks[0].instructions.pop();
+            assert!(run(&missing, &publication).is_err());
+            let mut repeated = fragment.clone();
+            let duplicate = repeated.blocks[0].instructions[0].clone();
+            repeated.blocks[0].instructions.push(duplicate);
+            assert!(run(&repeated, &publication).is_err());
+            let mut foreign = fragment.clone();
+            foreign.blocks[0].instructions[0].provenance.operations[0] =
+                OperationId::new(3).unwrap();
+            assert!(run(&foreign, &publication).is_err());
+            let mut orphan = fragment.clone();
+            let mut extra = orphan.blocks[0].instructions[0].clone();
+            extra.instruction = SelectedInstructionId(9);
+            orphan.blocks[0].instructions.push(extra);
+            assert!(run(&orphan, &publication).is_err());
+            let mut unbound = publication;
+            unbound.sites.clear();
+            assert!(run(&fragment, &unbound).is_err());
+        }
     }
 }
 
@@ -3685,19 +4050,34 @@ mod production {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ProjectedObject(());
 
-    pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
+    pub struct FunctionFragmentObjectArtifactRequest {
         pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
-        pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
+        /// Stage 02's output, present only when the compile requested an
+        /// explicit correspondence audit. Building the object never reads it.
+        pub original_target: Option<crate::RetainedTargetOperations>,
     }
 
     pub fn build_function_fragment_object_artifact(
-        request: FunctionFragmentObjectArtifactRequest<'_>,
+        request: FunctionFragmentObjectArtifactRequest,
     ) -> Result<ObjectArtifact, Error> {
         let FunctionFragmentObjectArtifactRequest {
             replay,
-            dynamic_dispatch,
+            original_target,
         } = request;
         let source = replay.as_ref();
+        if let Some(original) = &original_target {
+            let projection = &source.emission_facts().projection;
+            let optimized = original.target().optimized();
+            if optimized.projection() != projection.identity
+                || optimized.final_unit() != projection.final_unit
+            {
+                return Err(Error::Mismatch(
+                    "retained target operations belong to another optimized program",
+                ));
+            }
+        }
+        let catalogs = source::code_catalogs(source);
+        let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
         let text = source.source().text_section();
         let fragments = source::fragments(source);
@@ -3761,7 +4141,7 @@ mod production {
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
                 .ok_or(Error::Overflow)?;
-            for call in source::stack_calls(source, placed.machine)? {
+            for call in source::stack_calls(source, placed.machine, callable_invocations)? {
                 let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
                 local_peak = local_peak.max(caller_live_bytes);
                 let owner = call.owner;
@@ -3835,7 +4215,10 @@ mod production {
             let fragment = fragments
                 .function(placed.machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
-            let mut rows = attribution::produce(fragment, abstracted)?;
+            let mut rows = attribution::produce_current(
+                fragment,
+                source::publication_function(source, placed.machine)?,
+            )?;
             rows.extend(super::structural::settlement_attributions(
                 source,
                 placed.machine,
@@ -3867,8 +4250,8 @@ mod production {
         )?;
         super::private_addresses::declare(&private_identities, &mut object)?;
         let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
-        let (implementation_table_pool, mut data_bytes) = super::implementation_tables::place(
-            dynamic_dispatch,
+        let (code_descriptor_pool, mut data_bytes) = super::code_descriptors::place(
+            catalogs,
             &source.source().text_section().unresolved_image_addresses,
             &mut object,
         )?;
@@ -3895,8 +4278,8 @@ mod production {
             &functions,
             &mut relocations,
         )?;
-        super::implementation_tables::publish_relocations(
-            implementation_table_pool.as_ref(),
+        super::code_descriptors::publish_relocations(
+            code_descriptor_pool.as_ref(),
             &functions,
             &mut relocations,
         )?;
@@ -3920,12 +4303,32 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            installation_authority: Arc::clone(
+                source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .installation_authority(),
+            ),
+            program_contracts: Arc::clone(
+                &source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .physical_program()
+                    .contracts,
+            ),
             projected: ProjectedObject(()),
             hosted_receiver: None,
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
+            fragment_replay: Some(super::replay::FragmentReplay(
+                Arc::clone(&replay),
+                original_target,
+            )),
             composition_source: None,
             semantic_source: None,
             psi: text.psi,
@@ -3943,7 +4346,7 @@ mod production {
             boundary_settlements: super::structural::settlements(source)?,
             foreign_calls,
             byte_literal_pool,
-            implementation_table_pool,
+            code_descriptor_pool,
             native_code_layout_pool,
         };
         Ok(artifact)
@@ -3951,61 +4354,51 @@ mod production {
 }
 
 pub(crate) mod replay {
-    use std::sync::Arc;
+    mod validation;
 
+    use std::sync::Arc;
+    pub use validation::{
+        verify_retained_fixed_frame, verify_retained_selected_optimization,
+        verify_retained_target_operations,
+    };
+
+    use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
+    /// Stage 02's output, kept beside an emitted object only when the compile
+    /// requested an explicit correspondence audit. Ordinary emission never
+    /// holds it; the audits that compare the object with what stage 02
+    /// lowered refuse without it.
     #[derive(Debug, Clone)]
-    pub(crate) struct FragmentReplay(pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>);
+    pub struct RetainedTargetOperations(Arc<ValidatedOptimizedTargetOperations>);
 
-    pub fn verify_retained_target_operations(
-        artifact: &crate::ObjectArtifact,
-    ) -> Result<(), diagnostics::Diagnostic> {
-        for private in &artifact.private_functions {
-            verify_retained_target_operations(&private.body)?;
+    impl RetainedTargetOperations {
+        pub fn new(target: Arc<ValidatedOptimizedTargetOperations>) -> Self {
+            Self(target)
         }
-        let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
-            diagnostics::Diagnostic::error(
-                "target-operation audit requires retained pipeline input",
-            )
-        })?;
-        let current = replay
-            .0
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target();
-        let optimized = current.optimized();
-        // Every access reference stage 02 established must land on backing
-        // the selected program actually allocates. Ordinary emission builds
-        // from the prepared plan, so this check runs here and in the object
-        // replay, not on the default path.
-        super::source::placed_reference::establish_geometry(&replay.0)
-            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-        // The validator judges the plan stage 02 published for this object,
-        // not a plan prepared again here.
-        native_preparation::verify_execution_plan(
-            current.execution_plan(),
-            crate::retained_working_program::target_operations(&replay.0),
-            optimized.plan(),
-            optimized.unit(),
-            current.boundary_origins(),
-            current.lowering_facts().installed_interrupts(),
-            current.lowering_facts().closed_module(),
-        )
-        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+
+        pub fn target(&self) -> &ValidatedOptimizedTargetOperations {
+            &self.0
+        }
     }
+
+    /// The emitted object's current producer chain, plus stage 02's output
+    /// when an audit asked for it.
+    #[derive(Debug, Clone)]
+    pub(crate) struct FragmentReplay(
+        pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        pub(crate) Option<RetainedTargetOperations>,
+    );
 
     impl FragmentReplay {
         pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
-            self.0.lowering_facts().module()
+            self.0.emission_facts().lowering.module()
         }
 
         pub(crate) fn target_context(
             &self,
         ) -> Option<&terminal_installation::TerminalTargetContext> {
-            self.0.lowering_facts().target_context()
+            self.0.emission_facts().lowering.target_context()
         }
 
         pub(crate) fn selected_terminal_entry(
@@ -4015,16 +4408,9 @@ pub(crate) mod replay {
             native_target: target::NativeTarget,
         ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
             let identity = artifact.view().identity();
-            let input = self.0.lowering_facts();
-            let plan = self
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .optimized()
-                .plan();
+            let facts = self.0.emission_facts();
+            let input = &facts.lowering;
+            let plan = &facts.abstract_program;
             if plan.psi != identity
                 || input.module() != artifact.semantic_module()
                 || plan.entry != entry
@@ -4222,7 +4608,7 @@ pub(crate) mod replay {
             ));
         }
         if let Some(replay) = &artifact.fragment_replay {
-            super::validate_function_fragment_object_artifact(&replay.0, artifact)
+            super::validate_function_fragment_object_artifact(replay, artifact)
                 .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
         }
         Ok(())
@@ -4292,6 +4678,7 @@ pub(crate) mod reporting {
 }
 
 mod source {
+    pub(super) mod retained_source_validation;
     pub(super) fn profile(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
     ) -> Option<target::TargetProfile> {
@@ -4300,10 +4687,9 @@ mod source {
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
-            .profile
+            .physical_program()
+            .contracts
+            .profile()
     }
 
     mod descriptor_tables {
@@ -6101,6 +6487,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -9776,16 +10163,14 @@ mod source {
         }
     }
 
-    mod privileged_termination {
+    pub(super) mod privileged_termination {
         use crate::FunctionFragmentObjectArtifactError as Error;
         use provider_admission::AdmittedInstalledEntryExecution;
-        use selected_instructions::{
-            SelectedInstructionKind as Kind, SelectedInstructionPlan, SelectedTerminator,
-        };
+        use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
-        pub(super) fn validate(
+        pub(in crate::function_fragments) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
-            selected: &SelectedInstructionPlan,
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
             if let Some(execution) = execution {
                 let entry = execution.entry().entry();
@@ -9799,7 +10184,7 @@ mod source {
                     ));
                 }
             }
-            for function in &selected.functions {
+            for function in selected.functions.iter() {
                 for block in &function.blocks {
                     if block
                         .instructions
@@ -10129,7 +10514,7 @@ mod source {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
@@ -10485,6 +10870,7 @@ mod source {
                     let selected = selected_instructions::SelectedFunction {
                         contracts: std::sync::Arc::new(
                             selected_instructions::SelectedFunctionContracts {
+                                structural_block_parameters: Vec::new(),
                                 machine: source.machine,
                                 attachment: None,
                                 provenance: Default::default(),
@@ -11007,7 +11393,7 @@ mod source {
                                         && graph.call_plan.result.as_ref().is_some_and(|placement|
                                             (placement.shape == calling_conventions::ValueShape::integer(0, 1)
                                                 && placement.locations.is_empty())
-                                            || (graph.call_plan.policy == calling_conventions::CallingPolicy::Aapcs64
+                                            || (graph.call_plan.policy.is_aapcs64()
                                                 && placement.shape.class == calling_conventions::ValueClass::Integer
                                                 && matches!(placement.locations.as_slice(),
                                                     [calling_conventions::ValueLocation::Indirect {
@@ -11829,7 +12215,6 @@ mod source {
             mod activation_residence {
                 use super::{BackingGeometry, BackingRequirement, record_selected_formation_calls};
                 use abstract_operations::AbstractOperationPlan;
-                use selected_instructions::SelectedInstructionPlan;
                 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
                 use terminal_psi::{
                     StructuralArgument, StructuralFieldDeclaration, StructuralTypeShape,
@@ -11863,7 +12248,7 @@ mod source {
 
                 pub(in crate::function_fragments::source) fn validate(
                     source: &AbstractOperationPlan,
-                    selected: &SelectedInstructionPlan,
+                    selected: &post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &target_operations::TargetOperationPlan,
                     requirements: &[installation_evidence::InstalledInterruptStackRequirement],
                 ) -> Result<(), super::super::super::Error> {
@@ -11935,7 +12320,7 @@ mod source {
                 impl<'a> BackingGeometry<'a> {
                     pub(in crate::function_fragments::source) fn for_activation_residence(
                         abstracted: &'a AbstractOperationPlan,
-                        selected: &'a SelectedInstructionPlan,
+                        selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                         targeted: &'a target_operations::TargetOperationPlan,
                         graph: &'a [DescriptorMachine],
                     ) -> Self {
@@ -12354,6 +12739,7 @@ mod source {
                                 structural_types: Vec::new().into(),
                                 boundary_machines: Vec::new(),
                                 provider_candidates: Vec::new(),
+                                callables: Default::default(),
                                 dynamic_dispatch: Default::default(),
                                 functions: vec![AbstractFunction {
                                     machine,
@@ -13017,7 +13403,6 @@ mod source {
             pub(in crate::function_fragments::source) use activation_residence::validate as validate_activation_residence;
 
             use abstract_operations::AbstractOperationPlan;
-            use selected_instructions::SelectedInstructionPlan;
             use semantic_vocabulary::{MachineId, PlaceId};
             use terminal_psi::{AccessRamCorrespondence, StructuralAccess, StructuralArgument};
             use terminal_semantics::descriptor_lifetimes::{
@@ -13036,7 +13421,7 @@ mod source {
 
             pub(in crate::function_fragments::source) struct BackingGeometry<'a> {
                 abstracted: &'a AbstractOperationPlan,
-                selected: &'a SelectedInstructionPlan,
+                selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                 targeted: &'a target_operations::TargetOperationPlan,
                 graph: &'a [DescriptorMachine],
                 analysis: DescriptorAnalysis<'a>,
@@ -13209,7 +13594,7 @@ mod source {
             impl<'a> BackingGeometry<'a> {
                 pub(in crate::function_fragments::source) fn new(
                     abstracted: &'a AbstractOperationPlan,
-                    selected: &'a SelectedInstructionPlan,
+                    selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &'a target_operations::TargetOperationPlan,
                     graph: &'a [DescriptorMachine],
                 ) -> Self {
@@ -13227,7 +13612,7 @@ mod source {
                     }
                 }
 
-                pub(super) fn proves(
+                pub(in crate::function_fragments::source) fn proves(
                     &mut self,
                     machine: MachineId,
                     result: PlaceId,
@@ -13542,56 +13927,6 @@ mod source {
                     }
                 }
             }
-        }
-
-        pub(in crate::function_fragments) fn establish_geometry(
-            source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-        ) -> Result<(), super::Error> {
-            let current = source.source().source().source().source();
-            let abstracted = current.optimized_target().optimized().plan();
-            let targeted = crate::retained_working_program::target_operations(source);
-            let selected = current.selected_plan();
-            if !targeted.functions.iter().any(|function| {
-                function.graph.operations().any(|operation| {
-                    matches!(
-                        operation,
-                        TargetUnitOperation::EstablishAccessReference { .. }
-                    )
-                })
-            }) {
-                return Ok(());
-            }
-            let graph = backing_geometry::completed_graph(abstracted, targeted).ok_or(
-                super::Error::Mismatch("placed formation has no complete reference-origin graph"),
-            )?;
-            let mut geometry =
-                backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
-            for function in &targeted.functions {
-                for operation in function.graph.operations() {
-                    if let TargetUnitOperation::EstablishAccessReference {
-                        psi_operation,
-                        result_home,
-                        source,
-                        correspondence,
-                        ..
-                    } = operation
-                    {
-                        geometry
-                            .proves(
-                                function.machine,
-                                result_home.place(),
-                                source,
-                                correspondence,
-                            )
-                            .map_err(|reason| super::Error::AccessBackingGeometry {
-                                machine: function.machine,
-                                operation: *psi_operation,
-                                reason,
-                            })?;
-                    }
-                }
-            }
-            Ok(())
         }
 
         #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15140,6 +15475,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -15725,6 +16061,7 @@ mod source {
         pub(in crate::function_fragments) fn stack_calls(
             source: &StagedOptimizedRelocationFreeObjectContainer,
             machine: MachineId,
+            callable_invocations: &terminal_semantics::callable_values::ReachableCallableInvocations,
         ) -> Result<Vec<CallStackEdge>, Error> {
             let text = source.source().text_section();
             let mut edges = text
@@ -15735,18 +16072,74 @@ mod source {
                 .collect::<Vec<_>>();
             let emissions = source.source().source().source().source();
             let selected = emissions
-                .selected_plan()
+                .physical_program()
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no selected function"))?;
             let placed = text
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no placed function"))?;
-            let catalog = &emissions
-                .optimized_target()
-                .optimized()
-                .plan()
-                .dynamic_dispatch;
+            let catalog = emissions
+                .physical_program()
+                .contracts
+                .publication()
+                .code_catalogs()
+                .dynamic_dispatch();
             for call in &selected.calls {
+                if let NativeCallTarget::Callable { callee, contract } = call.call.target {
+                    use terminal_semantics::callable_values::CallableInvocationTarget;
+                    let site = crate::callable_calls::call_site(call.owner)
+                        .map_err(|detail| Error::CallableInvocation { detail })?;
+                    let Some(invocation) = callable_invocations.site(machine, site) else {
+                        if callable_invocations
+                            .reached_machines
+                            .binary_search(&machine)
+                            .is_ok()
+                        {
+                            return Err(Error::Mismatch(
+                                "callable stack demand lost its reached occurrence",
+                            ));
+                        }
+                        // Retaining an uninvoked body adds no activation demand.
+                        continue;
+                    };
+                    if invocation.invocation.target
+                        != CallableInvocationTarget::Value(callee, contract)
+                    {
+                        return Err(Error::Mismatch(
+                            "callable stack demand changed its evaluated code or contract",
+                        ));
+                    }
+                    if !invocation.targets_are_resolved() {
+                        return Err(Error::Unsupported(
+                            "callable stack demand has unresolved code and no physical ceiling",
+                        ));
+                    }
+                    let instruction = selected
+                        .instructions()
+                        .find(|instruction| instruction.id == call.instruction)
+                        .ok_or(Error::Mismatch("callable stack call has no instruction"))?;
+                    if instruction.kind.call_target()
+                        != Some(SelectedCallTarget::Callable { contract })
+                    {
+                        return Err(Error::Mismatch("callable stack call target changed"));
+                    }
+                    let span = placed
+                        .instruction_span(call.instruction)
+                        .ok_or(Error::Mismatch("callable stack call has no emitted span"))?;
+                    for callee in &invocation.selected_machines {
+                        if text.function(*callee).is_none() {
+                            return Err(Error::Mismatch(
+                                "callable stack call target has no emitted function",
+                            ));
+                        }
+                        edges.push(CallStackEdge {
+                            owner: call.owner,
+                            callee: *callee,
+                            section_offset: span.section_offset,
+                        });
+                    }
+                    continue;
+                }
                 let NativeCallTarget::Dynamic {
                     interface, slot, ..
                 } = call.call.target
@@ -16455,7 +16848,7 @@ mod source {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -20472,19 +20865,29 @@ mod source {
         source.source().source().fragments()
     }
 
+    /// Borrow this function's instructions and contracts from the current form.
+    pub(super) fn current_function(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+        machine: MachineId,
+    ) -> Result<&post_allocation_machine::PhysicalFunction, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .function(machine)
+            .ok_or(Error::Mismatch("current native form has no function"))
+    }
+
     /// The optimized program's function for `machine`, which must be unique.
     pub(super) fn abstract_function(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
     ) -> Result<&AbstractFunction, Error> {
         let mut functions = source
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .optimized()
-            .plan()
+            .emission_facts()
+            .abstract_program
             .functions
             .iter()
             .filter(|function| function.machine == machine);
@@ -20496,43 +20899,71 @@ mod source {
         }
     }
 
-    /// The target calling contract the prepared plan records for `machine`.
-    pub(super) fn function_abi(
+    /// Callable reach was evaluated during preparation against the exact optimized
+    /// program and invocation roots; the driver carried the program entry's summary.
+    pub(super) fn callable_invocations(
         source: &StagedOptimizedRelocationFreeObjectContainer,
-        machine: MachineId,
-    ) -> Result<&legalized_operations::LegalizedFunctionAbi, Error> {
+    ) -> Result<&terminal_semantics::callable_values::ReachableCallableInvocations, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
-            .function_abi(machine)
+            .physical_program()
+            .contracts
+            .execution()
+            .map(target_vocabulary::NativeExecutionFacts::callable_invocations)
             .ok_or(Error::Mismatch(
-                "shared function has no prepared calling contract",
+                "current program has no prepared callable invocation context",
             ))
     }
 
-    /// The optimized function and stage 02's lowered function for `machine`.
-    /// Only the replay validators call this; ordinary emission reads the
-    /// prepared plan.
-    pub(super) fn audited_function(
+    pub(super) fn code_catalogs(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+    ) -> &target_vocabulary::NativeCodeCatalogs {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .contracts
+            .publication()
+            .code_catalogs()
+    }
+
+    pub(super) fn publication_function(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
-    ) -> Result<(&AbstractFunction, &target_operations::TargetFunction), Error> {
-        let abstracted = abstract_function(source, machine)?;
-        let mut targeted = crate::retained_working_program::target_operations(source)
-            .functions
-            .iter()
-            .filter(|function| function.machine == machine);
-        match (targeted.next(), targeted.next()) {
-            (Some(targeted), None) => Ok((abstracted, targeted)),
-            _ => Err(Error::Mismatch(
-                "shared function has no unique current source",
-            )),
-        }
+    ) -> Result<&target_vocabulary::NativeFunctionPublication, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .contracts
+            .publication()
+            .function(machine)
+            .ok_or(Error::Mismatch("current function has no publication facts"))
+    }
+
+    /// The target calling contract retained by the current physical program.
+    pub(super) fn function_abi(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+        machine: MachineId,
+    ) -> Result<&target_vocabulary::function_abi::LegalizedFunctionAbi, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .contracts
+            .function_abi(machine)
+            .ok_or(Error::Mismatch(
+                "shared function has no current calling contract",
+            ))
     }
 
     pub(super) fn frame(
@@ -20547,515 +20978,6 @@ mod source {
                 "shared frame has no unique function geometry",
             )),
         }
-    }
-
-    pub(super) fn admit(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-    ) -> Result<(), Error> {
-        let fragments = fragments(source);
-        if fragments.functions.is_empty()
-            || fragments.target.pointer_size != 8
-            || fragments.target.pointer_alignment != 8
-        {
-            return Err(Error::Unsupported(
-                "shared image publication requires a nonempty 64-bit function roster",
-            ));
-        }
-        let current = source.source().source().source().source();
-        let abstract_plan = current.optimized_target().optimized().plan();
-        privileged_termination::validate(
-            current.optimized_target().installed_entry_execution(),
-            current.selected_plan(),
-        )?;
-        placed_reference::backing_geometry::validate_activation_residence(
-            abstract_plan,
-            current.selected_plan(),
-            crate::retained_working_program::target_operations(source),
-            current.optimized_target().installed_stack_requirements(),
-        )?;
-        let geometry_graph = abstract_plan
-            .operations()
-            .any(|operation| {
-                matches!(
-                    operation,
-                    AbstractOperation::EstablishAccessReference { .. }
-                )
-            })
-            .then(|| {
-                placed_reference::backing_geometry::completed_graph(
-                    abstract_plan,
-                    crate::retained_working_program::target_operations(source),
-                )
-            })
-            .flatten();
-        let mut geometry = geometry_graph.as_ref().map(|graph| {
-            placed_reference::backing_geometry::BackingGeometry::new(
-                abstract_plan,
-                current.selected_plan(),
-                crate::retained_working_program::target_operations(source),
-                graph,
-            )
-        });
-        let interrupt_helpers =
-            provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
-                abstract_plan.psi,
-                source.lowering_facts().module(),
-                source.lowering_facts().installed_interrupts(),
-            );
-        for fragment in &fragments.functions {
-            let (abstracted, targeted) = audited_function(source, fragment.machine)?;
-            let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
-            let selected = current
-                .selected_plan()
-                .function(fragment.machine)
-                .ok_or(Error::Mismatch("missing selected function"))?;
-            let interrupt_replay =
-                static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
-            installed_calls::validate(abstracted, targeted, selected)?;
-            let installed_scopes = installed_interrupts::validate(
-                source.lowering_facts().module(),
-                source.lowering_facts().installed_interrupts(),
-                current.optimized_target().installed_stack_requirements(),
-                current.selected_plan().target,
-                targeted,
-                selected,
-            )?;
-            let mut addresses = placed_reference::AddressReplay::new(targeted, selected);
-            let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
-                .map_err(Error::Mismatch)?;
-            let structural = selected.structural.as_ref();
-            let graph_result = aggregate_results::header(abstracted, targeted, selected);
-            let mut declarations = current
-                .optimized_target()
-                .optimized()
-                .unit()
-                .functions
-                .iter()
-                .filter(|row| row.machine == fragment.machine);
-            let declaration = declarations
-                .next()
-                .ok_or(Error::Mismatch("missing canonical function declaration"))?;
-            if declarations.next().is_some()
-                || declaration.attachment != abstracted.attachment
-                || declaration.entry_claim_declarations != abstracted.entry_claims
-                || declaration.published_service_ceiling != abstracted.published_service_ceiling
-            {
-                return Err(Error::Mismatch(
-                    "function declaration metadata differs from canonical source",
-                ));
-            }
-            if abstracted.attachment != fragment.attachment
-                || targeted.provenance != fragment.provenance
-                || (!abstracted.structural_parameters.is_empty() && structural.is_none())
-                || (structural.is_some_and(|contract| !contract.parameters.is_empty())
-                    && !unit
-                    && !graph_result
-                    && targeted.mixed_structural_scalar_abi.is_none())
-                || (structural.is_none() && !abstracted.entry_claims.is_empty())
-                || (unit
-                    && (targeted
-                        .scalar_abi
-                        .as_ref()
-                        .is_some_and(|abi| abi.result.is_some())
-                        || targeted.mixed_structural_scalar_abi.is_some()))
-                || (!unit
-                    && !graph_result
-                    && (targeted.scalar_abi.is_some()
-                        == targeted.mixed_structural_scalar_abi.is_some()))
-            {
-                return Err(Error::Unsupported(
-                    "shared function has unsupported ABI or boundary effects",
-                ));
-            }
-            if let Some(abi) = &targeted.mixed_structural_scalar_abi {
-                super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
-            }
-            if unit && (!abstracted.parameters.is_empty() || parameter_abi(targeted).is_some())
-                || graph_result
-            {
-                let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
-                    .ok_or(Error::Mismatch(
-                        "shared function has no retained parameter/result ABI",
-                    ))?;
-                if scalar_parameters.len() != abstracted.parameters.len()
-                    || call_plan.parameters.len()
-                        != abstracted.parameters.len() + abstracted.structural_parameters.len()
-                    || call_plan.result.is_some() != graph_result
-                    || structural_parameters.len() != abstracted.structural_parameters.len()
-                    || structural.is_some_and(|contract| {
-                        contract.parameters.len() != structural_parameters.len()
-                            || contract
-                                .parameters
-                                .iter()
-                                .zip(structural_parameters)
-                                .any(|(selected, target)| selected.target != *target)
-                    })
-                    || structural_parameters
-                        .iter()
-                        .zip(&call_plan.parameters[scalar_parameters.len()..])
-                        .any(|(parameter, placement)| parameter.placement != *placement)
-                    || scalar_parameters
-                        .iter()
-                        .zip(&abstracted.parameters)
-                        .zip(&call_plan.parameters)
-                        .any(|((row, declaration), placement)| {
-                            row.value != declaration.value
-                                || row.scalar_type != declaration.scalar_type
-                                || row.placement != *placement
-                        })
-                {
-                    return Err(Error::Mismatch(
-                        "parameter/result ABI differs from current source",
-                    ));
-                }
-            } else if parameter_abi(targeted).is_some() {
-                return Err(Error::Mismatch("unexpected parameter/result ABI"));
-            }
-            let correspondence = correspondence::Function::new(abstracted, targeted, declaration)?;
-            for (operation_ordinal, (operation, matched)) in correspondence.operations().enumerate()
-            {
-                let admitted = match operation {
-                    AbstractOperation::ReadSegmentSelector { .. }
-                    | AbstractOperation::ReadTaskRegister { .. }
-                    | AbstractOperation::ReloadSegmentDescriptors { .. }
-                    | AbstractOperation::ActivateTaskRegister { .. }
-                    | AbstractOperation::GlobalDescriptorTable { .. } => {
-                        descriptor_replay.validate(operation, &mut addresses).map_err(|reason| Error::UnaccountedOperation {
-                            machine: fragment.machine,
-                            operation_ordinal,
-                            operation_description: format!("{operation:?}: {reason}"),
-                        })?;
-                        true
-                    }
-
-                    AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
-                        let mut instructions = selected.instructions().filter(|instruction| {
-                            instruction.provenance.operations.contains(psi_operation)
-                        });
-                        match (instructions.next(), instructions.next()) {
-                            (Some(instruction), None) => {
-                                instruction.kind == selected_instructions::SelectedInstructionKind::RegisterAccess { operation: event.operation() }
-                                    && instruction.provenance.operations.as_slice() == [*psi_operation]
-                                    && instruction.provenance.values.iter().copied().eq(
-                                        event.inputs().copied().chain(result.map(|result| result.value))
-                                    )
-                            }
-                            _ => false,
-                        }
-                    }
-                    AbstractOperation::PortWrite { psi_operation, port, value, .. } => {
-                        selected.instructions().any(|instruction| {
-                            instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { port: *port, value: *value }
-                                && instruction.provenance.operations.as_slice() == [*psi_operation]
-                        })
-                    }
-
-                    AbstractOperation::AtomicEvent {
-                        event: AbstractAtomicEvent::Load { .. }
-                            | AbstractAtomicEvent::Store { .. }
-                            | AbstractAtomicEvent::ReadModifyWrite { .. }
-                            | AbstractAtomicEvent::Swap { .. }
-                            | AbstractAtomicEvent::CompareExchange { .. }
-                            | AbstractAtomicEvent::CompareExchangeOnce { .. }
-                            | AbstractAtomicEvent::Fence { .. },
-                        ..
-                    } => {
-                        true
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
-                        structural_fields::indexed_store_retained(abstracted, operation, targeted)
-                            && structural_fields::indexed_store_footprint_retained(operation, &selected.memory_accesses)
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
-                        structural_fields::indexed_read_retained(abstracted, operation, targeted)
-                            && addresses.geometry().is_some_and(|native_geometry| structural_fields::indexed_read_footprint_retained(
-                                abstracted,
-                                targeted,
-                                native_geometry,
-                                operation,
-                                &selected.memory_accesses,
-                            ))
-                    }
-                    AbstractOperation::StructuralByteViewFieldStore { .. } => {
-                        structural_fields::view_replacement_retained(abstracted, operation, targeted)
-                            && structural_fields::view_replacement_footprints_retained(
-                                abstracted,
-                                targeted,
-                                operation,
-                                &selected.memory_accesses,
-                            )
-                    }
-                    abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
-                        structural_fields::replacement_retained(abstracted, operation, targeted)
-                            && structural_fields::replacement_footprints_retained(
-                                abstracted,
-                                operation,
-                                Some(targeted),
-                                &selected.memory_accesses,
-                                &current.optimized_target().optimized().plan().structural_types,
-                            )
-                    }
-                    AbstractOperation::StorageAddress { .. }
-                    | AbstractOperation::PrimitiveScalarRead { .. }
-                    | AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
-                        primitive_accesses::retained(operation, targeted)
-                    }
-                    AbstractOperation::StructuralScalarFieldRead { .. } => {
-                        structural_fields::retained(abstracted, operation, targeted)
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
-                        structural_fields::retained(abstracted, operation, targeted)
-                            && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
-                    }
-                    AbstractOperation::EstablishAccessReference { psi_operation, result, source, correspondence } => {
-                        let retained = geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
-                            *psi_operation, result, source, correspondence, geometry, &mut addresses,
-                        ).is_some());
-                        if !retained && let Some(reason) = addresses.failure_reason() {
-                            return Err(Error::UnaccountedOperation {
-                                machine: fragment.machine,
-                                operation_ordinal,
-                                operation_description: format!("{operation:?}: {reason}"),
-                            });
-                        }
-                        retained
-                    }
-                    AbstractOperation::StructuralCaseMembership { .. }
-                    | abstract_operations::establish_record_or_case_pattern!(..)
-                    | AbstractOperation::StructuralLeafCopy { .. }
-                    | AbstractOperation::MoveStructuralValue { .. }
-                    | AbstractOperation::TransformContent { .. }
-                    | AbstractOperation::DecomposeStructuralValue { .. }
-                    | abstract_operations::move_or_store_structural_field_pattern!()
-                    | AbstractOperation::EstablishTrivialAffineLocal { .. }
-                    | AbstractOperation::EstablishReference { .. }
-                    | AbstractOperation::ReleaseReference { .. }
-                    | AbstractOperation::EstablishScalarArray { .. }
-                    | AbstractOperation::EstablishStructuralArray { .. }
-                    | AbstractOperation::EstablishZeroedStructural { .. }
-                    | AbstractOperation::EstablishStructuralLocal { .. }
-                    | AbstractOperation::EstablishNativeCodeLayout { .. }
-                    | AbstractOperation::EstablishActivationClaim { .. }
-                    | AbstractOperation::SplitActivationClaim { .. }
-                    | AbstractOperation::MergeActivationClaim { .. }
-                    | AbstractOperation::ReleaseActivationClaim { .. }
-                    | AbstractOperation::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { .. },
-                        ..
-                    }
-                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, matched, &mut addresses),
-                    AbstractOperation::EstablishPrimitiveLocal { .. }
-                    | AbstractOperation::PrimitiveLocalStore { .. } => {
-                        super::structural::primitive_operation_retained(abstracted, selected, operation)
-                    }
-                    AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.instructions().filter(|instruction|
-                        matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
-                        && instruction.provenance.operations.contains(psi_operation)).count()==1,
-                    AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
-                        let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
-                        catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
-                            && selected.calls.iter().filter(|row|row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
-                                && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
-                                && row.call.result_placement.is_some() && row.call.result_placement==row.call.call_plan.result).count()==1
-                    }
-                    AbstractOperation::CallStructural {
-                        psi_operation,
-                        callee:abstract_operations::AbstractCallTarget::Machine(callee),
-                        result: AbstractStructuralCallResult::Scalar(result),
-                        ..
-                    } => {
-                        let (body, target) = audited_function(source, *callee)?;
-                        let call_plan = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
-                            (Some(abi), None) => Some(&abi.call_plan),
-                            (None, Some(abi)) => Some(&abi.call_plan),
-                            (None, None) => parameter_abi(target).map(|(plan, _, _)| plan),
-                            _ => None,
-                        };
-                        selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
-                            && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
-                            && row.call.result_placement.as_ref().is_some_and(|placement| {
-                                body.result.scalar().is_some_and(|returned|
-                                    returned.scalar_type == result.scalar_type)
-                                    && call_plan.is_some_and(|plan|
-                                        plan.result.as_ref() == Some(placement)
-                                            && *plan == row.call.call_plan)
-                            })).count() == 1
-                    }
-                    AbstractOperation::IntegerConstant { .. }
-                    | AbstractOperation::BooleanConstant { .. } => true,
-                    AbstractOperation::IeeeFloatConstant { .. } => {
-                        ieee_literal_retained(operation, targeted.graph.operations())
-                    }
-                    AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
-                        byte_concatenation_retained(operation, targeted.graph.operations())
-                    }
-                    AbstractOperation::EstablishByteSequenceLiteral {
-                        psi_operation, place, structural_type, bytes, qualifications,
-                    } => {
-                        targeted.graph.operations().filter(|operation| matches!(operation,
-                                target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
-                                    psi_operation: actual_operation, place: actual_place,
-                                    structural_type: actual_type, bytes: actual_bytes,
-                                    qualifications: actual_qualifications,
-                                } if actual_operation == psi_operation && actual_place == place
-                                    && actual_type == structural_type && actual_bytes == bytes
-                                    && actual_qualifications == qualifications
-                            )).count() == 1
-                    }
-                    AbstractOperation::ByteSequenceLength { .. } => {
-                        byte_operation_retained(operation, targeted)
-                            || fixed_byte_length_is_static(
-                                abstracted,
-                                current
-                                    .optimized_target()
-                                    .optimized()
-                                    .plan()
-                                    .structural_types
-                                    .as_slice(),
-                                operation,
-                            )
-                    }
-                    AbstractOperation::ByteSequenceWrite { .. }
-                    | abstract_operations::byte_read_predicate_equal_pattern!(..)
-                    | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
-                    AbstractOperation::EstablishElementView { .. }
-                    | AbstractOperation::ElementViewLength { .. }
-                    | abstract_operations::element_view_read_write_pair_pattern!(..)
-                    | AbstractOperation::ElementViewSubslice { .. } => {
-                        element_operation_retained(operation, targeted.graph.operations())
-                    }
-                    AbstractOperation::Call {
-                        psi_operation,
-                        callee,
-                        arguments,
-                        crash_continuations,
-                        ..
-                    } => {
-                        let (body, target) = audited_function(source, *callee)?;
-                        let call_plan = target
-                            .scalar_abi
-                            .as_ref()
-                            .map(|abi| &abi.call_plan)
-                            .or_else(|| parameter_abi(target).map(|(plan, _, _)| plan));
-                        call_plan.is_some_and(|plan|
-                            plan.parameters.len() == arguments.len()
-                                && selected.calls.iter().filter(|row|
-                                    row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
-                                        && row.call.call_plan == *plan
-                                        && row.call.result_placement == plan.result
-                                        && row.call.crash_continuations == *crash_continuations
-                                ).count() == 1)
-                            && !matches!(body.result, AbstractFunctionResult::Unit)
-                            && arguments.len() == body.parameters.len()
-                    }
-                    AbstractOperation::CallStructural {
-                        psi_operation,
-                        crash_continuations,
-                        result: AbstractStructuralCallResult::Unit,
-                        callee,
-                        ..
-                    } => selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
-                    AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
-                        || installed_scopes.binary_search(psi_operation).is_ok()
-                        || program_image_retained(psi_operation, boundary, targeted, selected)
-                        || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
-                        || access_lifecycle_retained(operation, targeted)
-                        || empty_run_release_retained(operation, targeted, abstract_plan)
-                        || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
-                        || placed_scalar_retained(operation, targeted, selected)
-                        || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
-                        || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
-                    AbstractOperation::EliminateEmpty { .. } => control_flow::retained(operation, targeted),
-                    AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
-                    AbstractOperation::InvokeNoNormal {
-                        psi_edge, callee, arguments, structural_arguments, claim_transfers,
-                        requirement_obligations, crash_continuations,
-                    } => {
-                        let (_, target) = audited_function(source, *callee)?;
-                        let call_plan = &target.graph.call_plan;
-                        selected.calls.iter().filter(|row| {
-                            row.owner == target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
-                                && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
-                                && row.call.call_plan == *call_plan
-                                && row.call.result_placement == call_plan.result
-                                && row.call.structural_result.is_none()
-                                && row.call.descriptor_origins.is_empty()
-                                && row.call.claim_transfers == *claim_transfers
-                                && row.call.requirement_obligations == *requirement_obligations
-                                && row.call.crash_continuations == *crash_continuations
-                                && row.call.arguments.iter().filter_map(|argument| match argument {
-                                    legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(*source),
-                                    _ => None,
-                                }).eq(arguments.iter().copied())
-                                && row.call.arguments.iter().filter_map(|argument| match argument {
-                                    legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } => Some(semantic),
-                                    _ => None,
-                                }).eq(structural_arguments)
-                        }).count() == 1 && control_flow::retained(operation, targeted)
-                    }
-                    AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
-                        let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
-                        (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
-                            + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
-                            + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
-                                && matches!(&row.call.source,
-                                    legalized_operations::NativeCallOrigin::InstalledProvider { boundary: required, .. }
-                                    if required == boundary)).count()) == 1
-                            && control_flow::retained(operation, targeted)
-                    },
-                    AbstractOperation::Return {
-                        cleanup_actions, ..
-                    } => cleanup_actions.is_empty()
-                            || control_flow::retained(operation, targeted),
-                    AbstractOperation::ReturnUnit {
-                        cleanup_actions, ..
-                    } => cleanup_actions.is_empty()
-                            || control_flow::retained(operation, targeted)
-                            || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
-                    AbstractOperation::BooleanEqual { .. }
-                    | AbstractOperation::IeeeFloatCompare { .. }
-                    | abstract_operations::integer_equal_less_pair_pattern!(..)
-                    | AbstractOperation::IntegerLessOrEqual { .. }
-                    | AbstractOperation::BooleanNot { .. }
-                    | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
-                    | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
-                    | abstract_operations::bitwise_or_xor_pair_pattern!(..)
-                    | AbstractOperation::IntegerBitwiseNot { .. }
-                    | AbstractOperation::IntegerArithmetic { .. }
-                    | AbstractOperation::IntegerShift { .. }
-                    | AbstractOperation::TrappingInteger { .. }
-                    | AbstractOperation::FloatResultPolicy { .. } => true,
-                    AbstractOperation::StructuralScalarFieldStore { .. } => {
-                        structural_fields::scalar_store_retained(abstracted, operation, targeted)
-                    }
-                    AbstractOperation::Jump { .. }
-                    | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
-                    AbstractOperation::StructuralCase { psi_block, source, path, cases } => {
-                        structural_case::retained(
-                            selected,
-                            &abstracted.blocks,
-                            &abstracted.structural_parameters,
-                            targeted,
-                            *psi_block,
-                            *source,
-                            path,
-                            cases,
-                            current.optimized_target().optimized().unit(),
-                            &mut addresses,
-                        )
-                    }
-                    _ => false,
-                };
-                if !admitted {
-                    return Err(Error::UnaccountedOperation {
-                        machine: abstracted.machine,
-                        operation_ordinal,
-                        operation_description: format!("{operation:?}"),
-                    });
-                }
-            }
-        }
-        Ok(())
     }
 
     fn byte_concatenation_retained<'operation>(
@@ -21445,7 +21367,7 @@ mod source {
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
         let current = source.source().source().source().source();
         temporary_stack_bytes_for_selected_functions(
-            &current.selected_plan().functions,
+            current.physical_program().functions.iter(),
             current.encoding().rows(),
             current.encoding().encoded(),
         )
@@ -21461,15 +21383,15 @@ mod source {
         selected.function(machine).ok_or(Error::Mismatch(
             "missing selected function for temporary stack replay",
         ))?;
-        temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        temporary_stack_bytes_for_selected_functions(selected.iter(), rows, encoded)?
             .remove(&machine)
             .ok_or(Error::Mismatch(
                 "missing selected function for temporary stack replay",
             ))
     }
 
-    fn temporary_stack_bytes_for_selected_functions(
-        selected: &selected_instructions::SelectedFunctions,
+    fn temporary_stack_bytes_for_selected_functions<'function>(
+        selected: impl IntoIterator<Item = &'function selected_instructions::SelectedFunction>,
         rows: &[machine_code::SelectedFormEncodingRow],
         encoded: &machine_code::SelectedFormEncodedRowStore,
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
@@ -22119,6 +22041,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(machine).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -22441,7 +22364,6 @@ mod structural {
                 return Err(invalid());
             }
             let code_offset = host(span.offset)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let record = BoundarySettlementRecord {
                 invocation_site: (*operation).into(),
                 boundary: *boundary,
@@ -22464,7 +22386,7 @@ mod structural {
                     home_byte_offset: offset,
                 }),
                 operation_ordinal: attribution::ordinal(
-                    abstracted,
+                    source::publication_function(container, machine)?,
                     SemanticCodeSite::Operation(*operation),
                 )?,
                 code_offset,
@@ -22527,7 +22449,6 @@ mod structural {
             let BoundaryResultRecord::Structural(produced) = &record.native_result else {
                 return Err(invalid());
             };
-            let abstracted = source::abstract_function(container, machine)?;
             let code_offset = host(span.offset)?;
             if proposed.machine != machine
                 || &produced.declaration != result_declaration(function, result.structural_type)?
@@ -22535,7 +22456,10 @@ mod structural {
                 || record.invocation_site != (*operation).into()
                 || record.boundary != *boundary
                 || record.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Operation(*operation))?
+                    != attribution::ordinal(
+                        source::publication_function(container, machine)?,
+                        SemanticCodeSite::Operation(*operation),
+                    )?
                 || record.execution
                     != BoundaryExecutionRecord::CompilerBuiltin(
                         CompilerBuiltinExecution::HostedReadByte,
@@ -22644,6 +22568,7 @@ mod structural {
                 let mut selected = SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine,
                             attachment: None,
                             provenance: target_operations::TerminalPsiProvenance {
@@ -22858,13 +22783,13 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(Error::Mismatch("selected byte output payload"));
             };
             let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let instruction = function
                 .block(located.block)
                 .and_then(|block| block.instructions.get(located.instruction_index as usize))
@@ -22903,8 +22828,7 @@ mod structural {
             let scalar_type = ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
             );
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             let settlement = BoundarySettlementRecord {
                 invocation_site: operation.into(),
                 boundary,
@@ -22929,7 +22853,7 @@ mod structural {
                 completion_provider_custody: Vec::new(),
                 native_result: BoundaryResultRecord::Unit,
                 operation_ordinal: attribution::ordinal(
-                    abstracted,
+                    source::publication_function(container, machine)?,
                     SemanticCodeSite::Operation(operation),
                 )?,
                 code_offset,
@@ -22958,6 +22882,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(invalid());
@@ -22998,9 +22923,7 @@ mod structural {
                 return Err(invalid());
             };
             let offset = host(span.offset)?;
-            let abstracted = source::abstract_function(container, machine)?;
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             if settlement.execution != BoundaryExecutionRecord::from(execution)
                 || settlement.realization != realization
                 || proposed.machine != machine
@@ -23008,7 +22931,7 @@ mod structural {
                 || settlement.invocation_site != operation.into()
                 || settlement.boundary != boundary
                 || settlement.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Operation(operation))?
+                    != attribution::ordinal(source::publication_function(container, machine)?, SemanticCodeSite::Operation(operation))?
                 || source_value != value
                 || instruction != row.id
                 || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
@@ -23030,14 +22953,11 @@ mod structural {
             Ok(())
         }
 
-        /// Who performs the byte write at `operation`, as the prepared plan
-        /// records it. Only an admitted provider or the compiler's built-in
-        /// host byte output may write a byte.
-        fn target_settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-            boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Read the byte writer from the current boundary contract. Only an
+        /// admitted provider or the compiler's built-in host byte output may
+        /// write a byte.
+        fn current_settlement(
+            execution: target_operations::BoundaryExecutionBinding,
         ) -> Result<
             (
                 target_operations::BoundaryExecutionBinding,
@@ -23045,54 +22965,23 @@ mod structural {
             ),
             Error,
         > {
-            use legalized_operations::LegalizedScalarInstructionKind;
             use target_operations::{
                 BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
                 HostedWriteByteI32Realization,
             };
-            let function = container
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .execution_plan()
-                .plan()
-                .scalar_functions
-                .iter()
-                .find(|function| function.machine == machine)
-                .ok_or(Error::Mismatch("missing byte output prepared function"))?;
-            let mut found = None;
-            for row in function.instructions() {
-                if row.operation != operation {
-                    continue;
-                }
-                let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                    boundary: source_boundary,
-                    execution,
-                    ..
-                } = row.kind
-                else {
-                    continue;
-                };
-                if source_boundary != boundary
-                    || found.is_some()
-                    || !matches!(
-                        execution,
-                        BoundaryExecutionBinding::AdmittedProvider(_)
-                            | BoundaryExecutionBinding::CompilerBuiltin(
-                                CompilerBuiltinExecution::HostedWriteByteI32
-                            )
+            if !matches!(
+                execution,
+                BoundaryExecutionBinding::AdmittedProvider(_)
+                    | BoundaryExecutionBinding::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedWriteByteI32
                     )
-                {
-                    return Err(Error::Mismatch("byte output target settlement custody"));
-                }
-                found = Some((
-                    execution,
-                    BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
-                ));
+            ) {
+                return Err(Error::Mismatch("byte output current settlement custody"));
             }
-            found.ok_or(Error::Mismatch("missing byte output target settlement"))
+            Ok((
+                execution,
+                BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
+            ))
         }
     }
 
@@ -23195,14 +23084,9 @@ mod structural {
             place: PlaceId,
         ) -> Result<StructuralSourceLocation, Error> {
             let invalid = || Error::Mismatch("block view differs from current descriptor custody");
-            let abstracted = source::abstract_function(source, selected.machine)?;
-            let mut declarations = abstracted
-                .blocks
-                .iter()
-                .filter(|entry| entry.block == block)
-                .flat_map(|entry| &entry.structural_parameters)
-                .filter(|parameter| parameter.place == place);
-            let parameter = declarations.next().ok_or_else(invalid)?;
+            let parameter = selected
+                .structural_block_parameter(block, place)
+                .ok_or_else(invalid)?;
             let signature = selected.structural.as_ref().ok_or_else(invalid)?;
             let access = terminal_semantics::descriptor_parameter_access(
                 parameter,
@@ -23217,8 +23101,7 @@ mod structural {
                     argument.structural_type,
                     parameter.multiplicity,
                 );
-            if declarations.next().is_some()
-                || place != argument.place
+            if place != argument.place
                 || parameter.structural_type != argument.root_structural_type
                 || !(owned_transfer
                     || matches!(
@@ -23524,6 +23407,7 @@ mod structural {
                         _ => None,
                     },
                     ScalarType::Boolean => Some(1),
+                    ScalarType::Callable(_) => Some(8),
                     ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                         Some(4)
                     }
@@ -23918,6 +23802,7 @@ mod structural {
                 let selected = SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: function.machine,
                             attachment: None,
                             provenance: Default::default(),
@@ -24032,6 +23917,44 @@ mod structural {
                     .into(),
                 };
                 (function, selected)
+            }
+
+            #[test]
+            fn initialized_callable_local_retains_the_exact_contract_type() {
+                let (mut function, mut selected) = fixture();
+                let callable =
+                    ScalarType::Callable(semantic_vocabulary::CallableContractId::new(1).unwrap());
+                let AbstractOperation::EstablishPrimitiveLocal { value, .. } =
+                    &mut function.blocks[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                value.scalar_type = callable;
+                selected.virtual_registers[1].scalar_type = callable;
+                selected
+                    .structural
+                    .as_mut()
+                    .unwrap()
+                    .structural_types
+                    .make_mut()[0]
+                    .shape = StructuralTypeShape::PrimitiveScalar(callable);
+                let place = PlaceId::new(1).unwrap();
+                assert!(establishment(&function, &selected, place).is_some());
+
+                selected.virtual_registers[1].scalar_type =
+                    ScalarType::Callable(semantic_vocabulary::CallableContractId::new(2).unwrap());
+                assert!(establishment(&function, &selected, place).is_none());
+                selected.virtual_registers[1].scalar_type = callable;
+                selected
+                    .structural
+                    .as_mut()
+                    .unwrap()
+                    .structural_types
+                    .make_mut()[0]
+                    .shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ));
+                assert!(establishment(&function, &selected, place).is_none());
             }
 
             #[test]
@@ -24333,7 +24256,6 @@ mod structural {
             };
             let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let block = function
                 .block(located.block)
                 .ok_or(Error::Mismatch("process exit block"))?;
@@ -24397,7 +24319,10 @@ mod structural {
                 completion_receipts: Vec::new(),
                 completion_provider_custody: Vec::new(),
                 native_result: BoundaryResultRecord::Unit,
-                operation_ordinal: attribution::ordinal(abstracted, SemanticCodeSite::Edge(edge))?,
+                operation_ordinal: attribution::ordinal(
+                    source::publication_function(container, machine)?,
+                    SemanticCodeSite::Edge(edge),
+                )?,
                 code_offset,
                 byte_count: span.bytes.len(),
             };
@@ -24461,7 +24386,6 @@ mod structural {
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let offset = host(span.offset)?;
             if located.instruction_index as usize != block.instructions.len()
                 || edge != *completion_edge
@@ -24481,7 +24405,7 @@ mod structural {
                 || proposed.settlement.execution != execution.into()
                 || proposed.settlement.boundary != boundary
                 || proposed.settlement.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Edge(edge))?
+                    != attribution::ordinal(source::publication_function(container, machine)?, SemanticCodeSite::Edge(edge))?
                 || proposed.settlement.code_offset != offset
                 || proposed.settlement.byte_count != span.bytes.len()
                 || !crate::object::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::bytes_are_exact(
@@ -24693,7 +24617,6 @@ mod structural {
             let invalid =
                 || Error::Mismatch("structural object differs from current ABI or call evidence");
             let selected = selected(source, function.machine)?;
-            let abstracted = source::abstract_function(source, function.machine)?;
             let fragment = fragment(source, function.machine)?;
             let parameters = selected
                 .structural
@@ -24728,7 +24651,7 @@ mod structural {
                     != selected
                         .calls
                         .iter()
-                        .filter(|row| published_call(abstracted, selected, row))
+                        .filter(|row| published_call(selected, row))
                         .count()
             {
                 return Err(invalid());
@@ -24766,7 +24689,7 @@ mod structural {
                 selected
                     .calls
                     .iter()
-                    .filter(|row| published_call(abstracted, selected, row)),
+                    .filter(|row| published_call(selected, row)),
             ) {
                 let expected = &contract.call;
                 let span = rows
@@ -25116,7 +25039,6 @@ mod structural {
             for placed in &source.source().text_section().functions {
                 let function = selected(source, placed.machine)?;
                 let fragment = fragment(source, placed.machine)?;
-                let abstracted = source::abstract_function(source, placed.machine)?;
                 for located in &function.boundary_settlements {
                     let actual = rows
                         .get(cursor)
@@ -25157,7 +25079,7 @@ mod structural {
                         || !row.native_result.is_unit()
                         || row.operation_ordinal
                             != attribution::ordinal(
-                                abstracted,
+                                source::publication_function(source, placed.machine)?,
                                 SemanticCodeSite::Operation(expected.operation),
                             )?
                         || row.byte_count != 0
@@ -25183,7 +25105,7 @@ mod structural {
                             return Err(Error::Mismatch("completion provider custody"));
                         }
                     }
-                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.lowering_facts().module().identities)
+                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.emission_facts().lowering.module().identities)
                         .map_err(|_| Error::Mismatch("completion receipts"))?;
                 }
             }
@@ -25200,7 +25122,6 @@ mod structural {
         ) -> Result<Vec<SemanticCodeAttribution>, Error> {
             let function = selected(source, machine)?;
             let fragment = fragment(source, machine)?;
-            let abstracted = source::abstract_function(source, machine)?;
             let invalid =
                 || Error::Mismatch("settlement attribution differs from admitted operation");
             let mut sites = Vec::new();
@@ -25242,7 +25163,11 @@ mod structural {
                 };
                 if matching.next().is_some()
                     || row.byte_count != expected_byte_count
-                    || row.operation_ordinal != attribution::ordinal(abstracted, site)?
+                    || row.operation_ordinal
+                        != attribution::ordinal(
+                            source::publication_function(source, machine)?,
+                            site,
+                        )?
                 {
                     return Err(invalid());
                 }
@@ -25637,7 +25562,7 @@ mod structural {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(Error::Mismatch("function has no selected contract"))
     }
@@ -25669,7 +25594,6 @@ mod structural {
     }
 
     pub(super) fn published_call(
-        abstracted: &abstract_operations::AbstractFunction,
         selected: &SelectedFunction,
         contract: &selected_instructions::SelectedCallContract,
     ) -> bool {
@@ -25709,19 +25633,13 @@ mod structural {
                         let Some(signature) = &selected.structural else {
                             return true;
                         };
-                        let mut parameters = abstracted
-                            .blocks
-                            .iter()
-                            .filter(|entry| entry.block == *block)
-                            .flat_map(|entry| &entry.structural_parameters)
-                            .filter(|parameter| parameter.place == *place);
-                        let Some(parameter) = parameters.next() else {
+                        let Some(parameter) = selected.structural_block_parameter(*block, *place)
+                        else {
                             return true;
                         };
-                        parameters.next().is_some()
-                            || parameter.place != target.place
+                        parameter.place != target.place
                             || parameter.structural_type != target.root_structural_type
-                            || abstract_operations::control_flow::address_joins::is_address_join_in(
+                            || native_vocabulary::address_joins::is_address_join_in(
                                 parameter,
                                 signature.structural_types.as_slice(),
                             )
@@ -25750,12 +25668,11 @@ mod structural {
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
     ) -> Result<bool, Error> {
-        let abstracted = source::abstract_function(source, machine)?;
         let selected = selected(source, machine)?;
         Ok(selected
             .calls
             .iter()
-            .any(|contract| !published_call(abstracted, selected, contract)))
+            .any(|contract| !published_call(selected, contract)))
     }
 
     pub(super) fn inline_owned_placement(
@@ -25958,7 +25875,6 @@ mod structural {
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
         let selected = selected(source, function.machine)?;
-        let abstracted = source::abstract_function(source, function.machine)?;
         let fragment = fragment(source, function.machine)?;
         if let Some(contract) = &selected.structural {
             let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
@@ -25999,7 +25915,7 @@ mod structural {
         for contract in selected
             .calls
             .iter()
-            .filter(|contract| published_call(abstracted, selected, contract))
+            .filter(|contract| published_call(selected, contract))
         {
             let call = &contract.call;
             let span = rows
@@ -26181,7 +26097,6 @@ mod structural {
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
         let function = selected(source, machine)?;
         let fragment = fragment(source, machine)?;
-        let abstracted = source::abstract_function(source, machine)?;
         function
             .boundary_settlements
             .iter()
@@ -26195,7 +26110,10 @@ mod structural {
                 let site = semantic_code_site(row.settlement.invocation_site());
                 Ok(SemanticCodeAttribution {
                     site,
-                    operation_ordinal: attribution::ordinal(abstracted, site)?,
+                    operation_ordinal: attribution::ordinal(
+                        source::publication_function(source, machine)?,
+                        site,
+                    )?,
                     code_offset: settlement_offset(function, fragment, row)?,
                     byte_count: 0,
                 })
@@ -26209,7 +26127,6 @@ mod structural {
         for placed in &source.source().text_section().functions {
             let function = selected(source, placed.machine)?;
             let fragment = fragment(source, placed.machine)?;
-            let abstracted = source::abstract_function(source, placed.machine)?;
             for located in &function.boundary_settlements {
                 let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(row) =
                     &located.settlement
@@ -26250,7 +26167,7 @@ mod structural {
                             .ok_or(Error::Mismatch("completion custody"))?,
                         native_result: machine_code::BoundaryResultRecord::Unit,
                         operation_ordinal: attribution::ordinal(
-                            abstracted,
+                            source::publication_function(source, placed.machine)?,
                             SemanticCodeSite::Operation(row.operation),
                         )?,
                         code_offset: offset,
@@ -26283,600 +26200,7 @@ mod structural {
     }
 }
 
-pub(crate) mod validation {
-    mod stack {
-        use super::super::source::CallStackEdge;
-        use super::{Error, host};
-        use crate::{
-            ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
-        };
-        use target::Architecture;
-
-        pub(super) fn validate(
-            unit: bool,
-            geometry: (u64, u16, bool),
-            architecture: Architecture,
-            temporary_bytes: u32,
-            calls: &[CallStackEdge],
-            unit_stack: Option<ObjectUnitStack>,
-            scalar_stack: Option<ObjectScalarStack>,
-            unit_call_stacks: &[ObjectUnitCallStack],
-            scalar_call_stacks: &[ObjectScalarCallStack],
-        ) -> Result<(), Error> {
-            let (frame_bytes, alignment, contains_call) = geometry;
-            if (unit && (!scalar_call_stacks.is_empty() || unit_call_stacks.len() != calls.len()))
-                || (!unit
-                    && (!unit_call_stacks.is_empty() || scalar_call_stacks.len() != calls.len()))
-                || alignment == 0
-            {
-                return Err(Error::Mismatch("shared call stack roster changed"));
-            }
-            let return_bytes = match architecture {
-                Architecture::X86_64 => 8u64,
-                Architecture::Aarch64 => 0,
-            };
-            let mut peak = frame_bytes
-                .checked_add(u64::from(temporary_bytes))
-                .ok_or(Error::Overflow)?;
-            let edges = unit_call_stacks
-                .iter()
-                .map(|row| {
-                    (
-                        row.owner,
-                        row.target,
-                        row.text_offset,
-                        row.caller_live_bytes,
-                    )
-                })
-                .chain(scalar_call_stacks.iter().map(|row| {
-                    (
-                        row.owner,
-                        row.target,
-                        row.text_offset,
-                        row.caller_live_bytes,
-                    )
-                }));
-            for ((owner, target, text_offset, caller_live_bytes), call) in edges.zip(calls) {
-                if !contains_call
-                    || owner != call.owner
-                    || target != call.callee
-                    || text_offset != host(call.section_offset)?
-                    || u64::from(caller_live_bytes)
-                        != frame_bytes
-                            .checked_add(return_bytes)
-                            .ok_or(Error::Overflow)?
-                    || !caller_live_bytes.is_multiple_of(u32::from(alignment))
-                {
-                    return Err(Error::Mismatch(
-                        "shared call prefix differs from its validated frame and call",
-                    ));
-                }
-                peak = peak.max(u64::from(caller_live_bytes));
-            }
-            if unit_call_stacks.iter().any(|row| {
-                u64::from(row.active_frame_bytes) != frame_bytes
-                    || u64::from(row.transient_bytes) != return_bytes
-            }) {
-                return Err(Error::Mismatch("shared call frame decomposition changed"));
-            }
-            match (unit, unit_stack, scalar_stack) {
-                (true, Some(stack), None)
-                    if u64::from(stack.frame_bytes) == frame_bytes
-                        && u64::from(stack.local_peak_bytes) == peak
-                        && stack.stack_alignment == u32::from(alignment) =>
-                {
-                    Ok(())
-                }
-                (false, None, Some(stack))
-                    if u64::from(stack.local_peak_bytes) == peak
-                        && stack.stack_alignment == u32::from(alignment) =>
-                {
-                    Ok(())
-                }
-                _ => Err(Error::Mismatch("shared function stack envelope changed")),
-            }
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::{
-                Architecture, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,
-                ObjectUnitStack, validate,
-            };
-            use machine_code::{
-                InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
-                PlacedInternalMachineCallResolution,
-            };
-            use selected_instructions::{SelectedBlockId, SelectedInstructionId};
-            use semantic_vocabulary::{MachineId, OperationId};
-
-            fn call(architecture: Architecture) -> PlacedInternalMachineCallResolution {
-                let x86 = architecture == Architecture::X86_64;
-                let opcode = 12;
-                let field = opcode + u64::from(x86);
-                let next = opcode + if x86 { 5 } else { 4 };
-                PlacedInternalMachineCallResolution {
-                    kind: if x86 {
-                        InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1
-                    } else {
-                        InternalMachineCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1
-                    },
-                    state: InternalMachineCallResolutionState::ResolvedInSectionV1,
-                    caller: MachineId::new(1).unwrap(),
-                    callee: MachineId::new(2).unwrap(),
-                    block: SelectedBlockId(0),
-                    instruction: SelectedInstructionId(3),
-                    owner: target_operations::CallSiteOwner::Operation(
-                        OperationId::new(3).unwrap(),
-                    ),
-                    call_function_offset: opcode,
-                    call_section_offset: opcode,
-                    call_byte_count: next - opcode,
-                    opcode_function_offset: opcode,
-                    opcode_section_offset: opcode,
-                    field_function_offset: field,
-                    field_section_offset: field,
-                    next_instruction_function_offset: next,
-                    next_instruction_section_offset: next,
-                    callee_section_offset: 64,
-                    field_byte_width: 4,
-                    addend: 0,
-                    displacement: if x86 { 47 } else { 13 },
-                }
-            }
-
-            #[test]
-            fn balanced_private_storage_is_included_in_peak_without_a_call() {
-                let stack = ObjectScalarStack {
-                    local_peak_bytes: 40,
-                    stack_alignment: 16,
-                };
-                let check = |stack| {
-                    validate(
-                        false,
-                        (24, 16, false),
-                        Architecture::X86_64,
-                        16,
-                        &[],
-                        None,
-                        Some(stack),
-                        &[],
-                        &[],
-                    )
-                };
-                check(stack).unwrap();
-                let mut understated = stack;
-                understated.local_peak_bytes = 24;
-                assert!(check(understated).is_err());
-                let mut overstated = stack;
-                overstated.local_peak_bytes += 16;
-                assert!(check(overstated).is_err());
-            }
-
-            #[test]
-            fn scalar_call_edges_retain_exact_frame_prefix_owner_target_and_role() {
-                for architecture in [Architecture::X86_64, Architecture::Aarch64] {
-                    let call = call(architecture);
-                    let (frame_bytes, peak) = match architecture {
-                        Architecture::X86_64 => (24, 32),
-                        Architecture::Aarch64 => (16, 16),
-                    };
-                    let stack = ObjectScalarStack {
-                        local_peak_bytes: peak,
-                        stack_alignment: 16,
-                    };
-                    let row = ObjectScalarCallStack {
-                        owner: call.owner,
-                        target: call.callee,
-                        text_offset: call.field_section_offset as usize,
-                        caller_live_bytes: peak,
-                    };
-                    let check = |stack, rows: &[ObjectScalarCallStack]| {
-                        validate(
-                            false,
-                            (frame_bytes, 16, true),
-                            architecture,
-                            0,
-                            &[(&call).into()],
-                            None,
-                            Some(stack),
-                            &[],
-                            rows,
-                        )
-                    };
-                    check(stack, &[row]).unwrap();
-                    let mut changed = row;
-                    changed.caller_live_bytes += 16;
-                    assert!(check(stack, &[changed]).is_err());
-                    changed = row;
-                    changed.target = call.caller;
-                    assert!(check(stack, &[changed]).is_err());
-                    changed = row;
-                    changed.owner =
-                        target_operations::CallSiteOwner::Operation(OperationId::new(9).unwrap());
-                    assert!(check(stack, &[changed]).is_err());
-                    changed = row;
-                    changed.text_offset += 1;
-                    assert!(check(stack, &[changed]).is_err());
-                    let mut changed_stack = stack;
-                    changed_stack.local_peak_bytes += 16;
-                    assert!(check(changed_stack, &[row]).is_err());
-                    assert!(check(stack, &[]).is_err());
-                    assert!(check(stack, &[row, row]).is_err());
-                    assert!(
-                        validate(
-                            true,
-                            (frame_bytes, 16, true),
-                            architecture,
-                            0,
-                            &[(&call).into()],
-                            Some(ObjectUnitStack {
-                                frame_bytes: frame_bytes as u32,
-                                local_peak_bytes: peak,
-                                stack_alignment: 16
-                            }),
-                            None,
-                            &[],
-                            &[row]
-                        )
-                        .is_err()
-                    );
-                }
-            }
-
-            #[test]
-            fn retained_call_prefix_and_local_peak_cannot_be_changed_or_removed() {
-                for architecture in [Architecture::X86_64, Architecture::Aarch64] {
-                    let call = call(architecture);
-                    let (frame_bytes, transient_bytes, peak) = match architecture {
-                        Architecture::X86_64 => (24, 8, 32),
-                        Architecture::Aarch64 => (16, 0, 16),
-                    };
-                    let stack = ObjectUnitStack {
-                        frame_bytes,
-                        local_peak_bytes: peak,
-                        stack_alignment: 16,
-                    };
-                    let row = ObjectUnitCallStack {
-                        owner: call.owner,
-                        target: call.callee,
-                        text_offset: call.field_section_offset as usize,
-                        active_frame_bytes: frame_bytes,
-                        transient_bytes,
-                        caller_live_bytes: peak,
-                    };
-                    let check = |stack, rows: &[ObjectUnitCallStack]| {
-                        validate(
-                            true,
-                            (u64::from(frame_bytes), 16, true),
-                            architecture,
-                            0,
-                            &[(&call).into()],
-                            Some(stack),
-                            None,
-                            rows,
-                            &[],
-                        )
-                    };
-                    check(stack, &[row]).unwrap();
-                    let mut prefix = row;
-                    prefix.active_frame_bytes += 16;
-                    prefix.caller_live_bytes += 16;
-                    assert!(check(stack, &[prefix]).is_err());
-                    let mut transient = row;
-                    transient.transient_bytes += 16;
-                    transient.caller_live_bytes += 16;
-                    assert!(check(stack, &[transient]).is_err());
-                    let mut peak = stack;
-                    peak.local_peak_bytes += 16;
-                    assert!(check(peak, &[row]).is_err());
-                    assert!(check(stack, &[]).is_err());
-                }
-            }
-        }
-    }
-
-    use super::{Error, attribution, host, source};
-    use crate::{ObjectArtifact, ObjectFunction};
-    use object_file::{
-        SectionKind, StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolSection,
-        entry_symbol_name,
-    };
-
-    pub(crate) fn validate_function_fragment_object_artifact(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-        artifact: &ObjectArtifact,
-    ) -> Result<(), Error> {
-        crate::entries::physical_entry::validate_binding(artifact).map_err(Error::PhysicalEntry)?;
-        if artifact.composition_source.is_some() {
-            let root = artifact
-                .composition_source
-                .as_ref()
-                .and_then(|root| root.fragment_replay.as_ref())
-                .ok_or(Error::Mismatch("composition root lacks fragment custody"))?;
-            if root.0.custody() != source.custody() {
-                return Err(Error::Mismatch("composition source custody changed"));
-            }
-            crate::object::private_object_composition::validate_composition(artifact)?;
-            if let Some(binding) = artifact.hosted_receiver_binding() {
-                crate::entries::hosted_receiver::validate_binding(artifact, binding)
-                    .map_err(|_| Error::Mismatch("composed hosted receiver binding differs"))?;
-            }
-            return Ok(());
-        }
-        validate(source, artifact)
-    }
-
-    fn validate(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-        artifact: &ObjectArtifact,
-    ) -> Result<(), Error> {
-        object_file::validate_optimized_relocation_free_object_container(source)
-            .map_err(Error::Source)?;
-        source::admit(source)?;
-        source::placed_reference::establish_geometry(source)?;
-        if artifact.profile != source::profile(source) {
-            return Err(Error::Mismatch("object deployment profile changed"));
-        }
-        let text = source.source().text_section();
-        let layout = &artifact.object.layout;
-        let code_text_len =
-            artifact
-                .private_functions
-                .iter()
-                .try_fold(text.bytes.len(), |total, carrier| {
-                    total
-                        .checked_add(carrier.function.byte_count)
-                        .ok_or(Error::Overflow)
-                })?;
-        super::byte_literals::validate(source, artifact, code_text_len)?;
-        super::implementation_tables::validate(source, artifact)?;
-        super::native_code_layouts::validate(source, artifact)?;
-        super::image_residence::validate(source, artifact)?;
-        let private_identities = super::private_addresses::identities(
-            &artifact.foreign_calls,
-            &text.unresolved_image_addresses,
-            text.psi,
-        )?;
-        let private_address_records = super::private_addresses::validate(
-            &private_identities,
-            &text.unresolved_image_addresses,
-            artifact,
-        )?;
-        let table_count = artifact
-            .implementation_table_pool
-            .as_ref()
-            .map_or(0, |pool| pool.tables.len());
-        let native_count = artifact
-            .native_code_layout_pool
-            .as_ref()
-            .map_or(0, |pool| pool.layouts.len());
-        let pool = artifact.byte_literal_pool.as_ref();
-        let expected_text_len = code_text_len
-            .checked_add(pool.map_or(0, |pool| pool.byte_count))
-            .ok_or(Error::Overflow)?;
-        let requires_graph_storage_replay =
-            text.functions
-                .iter()
-                .try_fold(false, |required, placed| -> Result<bool, Error> {
-                    let abstracted = source::abstract_function(source, placed.machine)?;
-                    Ok(required
-                        || source::requires_graph_storage_replay(abstracted.operations())
-                        || super::structural::requires_call_graph_replay(source, placed.machine)?)
-                })?;
-        if artifact.requires_graph_storage_replay != requires_graph_storage_replay
-            || artifact.psi != text.psi
-            || artifact.target != text.target
-            || artifact.entry != text.semantic_entry
-            || artifact.object.target != text.target
-            || artifact.text_bytes.len() != expected_text_len
-            || !artifact.text_bytes.starts_with(&text.bytes)
-            || artifact.relocations.target != text.target
-            || artifact.port_effects != super::port_effects::produce(source)?
-            || layout.function_symbols.len() != private_identities.len()
-            || layout.sections.len() != 1 + usize::from(table_count + native_count != 0)
-            || layout.symbols.len()
-                != text.functions.len()
-                    + private_identities.len()
-                    + usize::from(pool.is_some())
-                    + table_count
-                    + native_count
-                    + usize::from(artifact.retained_entry_storage.is_valid())
-                    + layout.normalized_imports.len()
-            || artifact.functions.len() != text.functions.len()
-        {
-            return Err(Error::Mismatch(
-                "shared object root or unsupported effect roster changed",
-            ));
-        }
-        let (_, section) = layout
-            .sections
-            .iter()
-            .find(|(_, section)| section.kind == SectionKind::Text)
-            .ok_or(Error::Mismatch("object has no text section"))?;
-        if section.kind != SectionKind::Text
-            || section.size != artifact.text_bytes.len()
-            || section.alignment != host(text.section_alignment)?
-        {
-            return Err(Error::Mismatch("shared object text geometry changed"));
-        }
-        let fragments = source::fragments(source);
-        let temporary_stack_bytes = if text.functions.is_empty() {
-            std::collections::BTreeMap::new()
-        } else {
-            source::temporary_stack_bytes_by_function(source)?
-        };
-        let mut attribution_cursor = 0usize;
-        for ((placed, function), (symbol_handle, symbol)) in text
-            .functions
-            .iter()
-            .zip(&artifact.functions)
-            .zip(layout.symbols.iter())
-        {
-            let (abstracted, targeted) = source::audited_function(source, placed.machine)?;
-            let fragment = fragments
-                .function(placed.machine)
-                .ok_or(Error::Mismatch("missing current fragment"))?;
-            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
-            let offset = host(placed.section_offset)?;
-            let length = host(placed.byte_count)?;
-            let entry = placed.machine == text.semantic_entry;
-            let expected_name = if entry {
-                entry_symbol_name(text.target)
-            } else {
-                format!("omega_terminal_machine_{}", placed.machine.get())
-            };
-            let unit_abi_matches = match (&function.parameter_abi, source::parameter_abi(targeted))
-            {
-                (None, None) => true,
-                (Some(actual), Some((call_plan, parameters, _))) => {
-                    actual.call_plan == *call_plan && actual.parameters == parameters
-                }
-                _ => false,
-            };
-            if function.machine != placed.machine
-                || function.attachment != attachment
-                || function.provenance != *provenance
-                || function.scalar_abi != targeted.scalar_abi
-                || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
-                || !unit_abi_matches
-                || function.text_offset != offset
-                || function.byte_count != length
-                || function.symbol != symbol_handle
-                || symbol.name != expected_name
-                || symbol.offset != offset
-                || symbol.size != length
-                || symbol.kind != SymbolKind::Function
-                || symbol.section != SymbolSection::Section(SectionKind::Text)
-                || !symbol.import_library.is_empty()
-                || (entry && layout.entry_symbol != symbol_handle)
-                || !empty_unsupported_records(function)
-            {
-                return Err(Error::Mismatch(
-                    "shared object function or symbol differs from current data",
-                ));
-            }
-            let start = attribution_cursor;
-            while let Some(row) = artifact.semantic_code_attribution.get(attribution_cursor) {
-                if row.machine != placed.machine {
-                    break;
-                }
-                if offset.checked_add(row.attribution.code_offset) != Some(row.text_offset)
-                    || row
-                        .attribution
-                        .code_offset
-                        .checked_add(row.attribution.byte_count)
-                        .is_none_or(|end| end > length)
-                {
-                    return Err(Error::Mismatch(
-                        "shared attribution is outside its function",
-                    ));
-                }
-                attribution_cursor += 1;
-            }
-            let rows = artifact.semantic_code_attribution[start..attribution_cursor]
-                .iter()
-                .map(|row| row.attribution)
-                .collect::<Vec<_>>();
-            {
-                let unit = matches!(
-                    abstracted.result,
-                    abstract_operations::AbstractFunctionResult::Unit
-                );
-                let frame = source::frame(source, placed.machine)?;
-                let calls = source::stack_calls(source, placed.machine)?;
-                stack::validate(
-                    unit,
-                    (
-                        frame.map_or(0, |frame| frame.frame_size_bytes),
-                        frame.map_or(16, |frame| frame.abi_stack_alignment_bytes),
-                        frame.is_some_and(|frame| frame.contains_call),
-                    ),
-                    text.target.architecture,
-                    *temporary_stack_bytes
-                        .get(&placed.machine)
-                        .ok_or(Error::Mismatch(
-                            "missing selected function for temporary stack replay",
-                        ))?,
-                    &calls,
-                    function.unit_stack,
-                    function.scalar_stack,
-                    &function.unit_call_stacks,
-                    &function.scalar_call_stacks,
-                )?;
-                let ordinary_rows = super::structural::validate_settlement_attributions(
-                    source,
-                    placed.machine,
-                    &rows,
-                )?;
-                attribution::validate(fragment, abstracted, &ordinary_rows)?;
-                super::structural::validate_function(source, function, &rows)?;
-            }
-        }
-        if attribution_cursor != artifact.semantic_code_attribution.len() {
-            return Err(Error::Mismatch(
-                "shared object retains a foreign semantic attribution",
-            ));
-        }
-        let mut private_symbols = layout.symbols.iter().skip(text.functions.len());
-        let mut private_offset = text.bytes.len();
-        for (carrier, (_, function_symbol)) in artifact
-            .private_functions
-            .iter()
-            .zip(layout.function_symbols.iter())
-        {
-            let length = carrier.function.byte_count;
-            let Some((symbol_handle, symbol)) = private_symbols.next() else {
-                return Err(Error::Mismatch("object lacks a private function symbol"));
-            };
-            if carrier.function.symbol != symbol_handle
-                || carrier.function.text_offset != private_offset
-                || function_symbol.identity != carrier.identity
-                || function_symbol.symbol != symbol_handle
-                || symbol.section != SymbolSection::Section(SectionKind::Text)
-                || symbol.offset != private_offset
-                || symbol.size != length
-                || symbol.kind != SymbolKind::Function
-                || symbol.name.is_empty()
-                || !symbol.import_library.is_empty()
-                || artifact
-                    .text_bytes
-                    .get(private_offset..private_offset + length)
-                    .is_none()
-            {
-                return Err(Error::Mismatch(
-                    "private function carrier is inconsistent with the emitted object",
-                ));
-            }
-            private_offset = private_offset.checked_add(length).ok_or(Error::Overflow)?;
-        }
-        super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
-        super::imports::validate(source, artifact, private_address_records)?;
-        if let Some(binding) = artifact.hosted_receiver_binding() {
-            crate::entries::hosted_receiver::validate_binding(artifact, binding).map_err(|_| {
-                Error::Mismatch("hosted receiver binding differs from replayed object")
-            })?;
-        }
-        Ok(())
-    }
-
-    fn empty_unsupported_records(function: &ObjectFunction) -> bool {
-        function.structural_call_scalar_return.is_none()
-            && function.x86_floating_control.is_none()
-            && function.internal_unit_scalar_calls.is_empty()
-            && function.installed_provider_unit_scalar_calls.is_empty()
-            && function.unit_scalar_homes.is_empty()
-            && function.unit_integer_constants.is_empty()
-            && function.unit_affine_scalar_records.is_empty()
-            && function.unit_structural_scalar_field_stores.is_empty()
-            && function.unit_write_only_primitive_stores.is_empty()
-            && function.scalar_structural_scalar_field_stores.is_empty()
-            && function.unit_continuations.is_empty()
-            && function.scalar_affine_cleanup.is_none()
-            && function.scalar_control_affine_cleanups.is_empty()
-            && function.structural_return.is_none()
-    }
-}
+pub(crate) mod validation;
 
 pub(crate) use production::ProjectedObject;
 pub use production::{
@@ -26886,6 +26210,9 @@ pub(crate) use validation::validate_function_fragment_object_artifact;
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
+    CallableInvocation {
+        detail: String,
+    },
     Source(object_file::RelocationFreeObjectContainerError),
     Unsupported(&'static str),
     UnaccountedOperation {
@@ -26965,6 +26292,9 @@ pub enum FunctionFragmentObjectArtifactError {
 impl std::fmt::Display for FunctionFragmentObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::CallableInvocation { detail } => {
+                write!(formatter, "callable invocation custody: {detail}")
+            }
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),

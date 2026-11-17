@@ -42,8 +42,11 @@ environment; `ValidatedOptimizedTargetOperations::execution_plan` hands the
 plan over. The target operations remain this stage's working form. Only
 validators read them, through `working_program_for_validation`: the validator
 below and image emission's replay validators, which check the emitted object
-against what this stage lowered. `mbx xtask check-boundary` refuses any other
-caller outside this stage and tests.
+against what this stage lowered. Those validators see this stage's output only
+when a validator request retained it; the native driver otherwise drops it
+after instruction selection and hands emission the few facts it needs
+(`EmissionFacts`). `mbx xtask check-boundary` refuses any other caller outside
+this stage and tests.
 
 [`verify_execution_plan`](native-preparation/src/legalization.rs) is the
 stage's validator. It derives the plan's functions a second way, from the

@@ -54,7 +54,7 @@
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs
 9 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs
-10 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs
+9 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs
 12 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs
 2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs
 2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
@@ -76,7 +76,7 @@
 3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
+4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs

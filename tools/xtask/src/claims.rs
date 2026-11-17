@@ -221,8 +221,8 @@ fn claim_expiry(claim: &serde_json::Value) -> Option<i128> {
     }
 }
 
-// Renewal starts a fresh lease from `now`. A claim that has already lapsed is
-// not revived: it may have been taken over, so its agent must claim again.
+// Renewal starts a fresh lease from `now` on a claim that is still live. A
+// lapsed claim is restored instead by `revive_claim`.
 fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Result<bool, String> {
     let (renewed_utc, expires_utc) = lease_timestamps(now)?;
     let now = epoch_nanoseconds(now);
@@ -247,6 +247,79 @@ fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Resu
         fields.insert("lease_minutes".to_owned(), LEASE_MINUTES.into());
     }
     Ok(true)
+}
+
+/// Two claimed paths overlap when one is the other or lies inside it.
+fn paths_overlap(left: &str, right: &str) -> bool {
+    let left = left.trim_end_matches('/');
+    let right = right.trim_end_matches('/');
+    let inside = |inner: &str, outer: &str| {
+        inner
+            .strip_prefix(outer)
+            .is_some_and(|rest| rest.starts_with('/'))
+    };
+    left == right || inside(left, right) || inside(right, left)
+}
+
+// A lapsed claim this worktree published is restored under its own ticket,
+// item, owner and paths with a fresh lease, so an agent whose lease ran out
+// during a long build does not retype its claim. Claiming never refused
+// overlap, so neither does restoring; it returns the live claims of other
+// tickets whose paths now overlap, for the caller to report.
+fn revive_claim(
+    record: &mut ClaimsRecord,
+    saved: &serde_json::Value,
+    now: SystemTime,
+) -> Result<Vec<serde_json::Value>, String> {
+    let ticket = saved
+        .get("ticket")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("a saved claim has no ticket")?;
+    let (renewed_utc, expires_utc) = lease_timestamps(now)?;
+    let instant = epoch_nanoseconds(now);
+    let paths = |claim: &serde_json::Value| -> Vec<String> {
+        claim
+            .get("paths")
+            .and_then(serde_json::Value::as_array)
+            .map(|paths| {
+                paths
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mine = paths(saved);
+    let overlaps = record
+        .claims
+        .iter()
+        .filter(|claim| {
+            claim.get("ticket").and_then(serde_json::Value::as_str) != Some(ticket)
+                && claim_expiry(claim).is_none_or(|expires| expires > instant)
+                && paths(claim)
+                    .iter()
+                    .any(|theirs| mine.iter().any(|path| paths_overlap(path, theirs)))
+        })
+        .map(|claim| {
+            serde_json::json!({
+                "ticket": claim.get("ticket"),
+                "owner": claim.get("owner"),
+                "item": claim.get("item"),
+            })
+        })
+        .collect();
+    record
+        .claims
+        .retain(|claim| claim.get("ticket").and_then(serde_json::Value::as_str) != Some(ticket));
+    let mut restored = saved.clone();
+    if let Some(fields) = restored.as_object_mut() {
+        fields.insert("renewed_utc".to_owned(), renewed_utc.into());
+        fields.insert("expires_utc".to_owned(), expires_utc.into());
+        fields.insert("lease_minutes".to_owned(), LEASE_MINUTES.into());
+    }
+    record.claims.push(restored);
+    Ok(overlaps)
 }
 
 // Every write republishes the whole record. Ended claims and their notes grew
@@ -715,9 +788,42 @@ fn update_registry<T>(
     }
 }
 
-// The tickets this worktree holds, so `claims renew` needs no arguments. The
+// The claims this worktree holds, so `claims renew` needs no arguments. The
 // file sits in the worktree's own git directory: each worktree renews only its
-// own claims, and nothing is committed.
+// own claims, and nothing is committed. Each line is the claim as it was
+// published, so `renew` can restore a claim whose lease lapsed. A line from an
+// older file holds only the ticket.
+#[derive(Clone, Debug, PartialEq)]
+struct HeldClaim {
+    ticket: String,
+    claim: Option<serde_json::Value>,
+}
+
+impl HeldClaim {
+    fn parse(line: &str) -> Option<Self> {
+        let line = line.trim();
+        if line.is_empty() {
+            return None;
+        }
+        let claim = serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .filter(serde_json::Value::is_object);
+        let ticket = claim
+            .as_ref()
+            .and_then(|claim| claim.get("ticket"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(line)
+            .to_owned();
+        Some(Self { ticket, claim })
+    }
+
+    fn line(&self) -> String {
+        self.claim
+            .as_ref()
+            .map_or_else(|| self.ticket.clone(), serde_json::Value::to_string)
+    }
+}
+
 fn tickets_file(repo: &Path) -> Option<std::path::PathBuf> {
     let output = Command::new("git")
         .args(["rev-parse", "--git-path", TICKETS_FILE])
@@ -731,25 +837,22 @@ fn tickets_file(repo: &Path) -> Option<std::path::PathBuf> {
         .then(|| repo.join(String::from_utf8_lossy(&output.stdout).trim()))
 }
 
-fn held_tickets(repo: &Path) -> Vec<String> {
+fn held_claims(repo: &Path) -> Vec<HeldClaim> {
     tickets_file(repo)
         .and_then(|file| std::fs::read_to_string(file).ok())
-        .map(|text| {
-            text.lines()
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-                .map(str::to_owned)
-                .collect()
-        })
+        .map(|text| text.lines().filter_map(HeldClaim::parse).collect())
         .unwrap_or_default()
 }
 
-fn write_held_tickets(repo: &Path, tickets: &[String]) {
+fn write_held_claims(repo: &Path, held: &[HeldClaim]) {
     let Some(file) = tickets_file(repo) else {
         eprintln!("claims: cannot locate this worktree's ticket file; renew with --ticket");
         return;
     };
-    let text: String = tickets.iter().map(|ticket| format!("{ticket}\n")).collect();
+    let text: String = held
+        .iter()
+        .map(|held| format!("{}\n", held.line()))
+        .collect();
     if let Err(error) = std::fs::write(&file, text) {
         eprintln!(
             "claims: cannot record held tickets in {}: {error}",
@@ -907,7 +1010,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         println!(
             "usage: cargo xtask claims <status|claim|release|renew|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]\n\
              A claim lasts {LEASE_MINUTES} minutes from when it was taken or last renewed. \
-             `renew` (no --ticket: every claim this worktree took) and `note` extend it."
+             `renew` (no --ticket: every claim this worktree took) and `note` extend it; `renew` restores a lapsed claim this worktree took."
         );
         return Ok(());
     };
@@ -943,9 +1046,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     "expires_utc": expires_utc,
             });
             update_registry(&repo, |record| append_claim(record, &claim))?;
-            let mut held = held_tickets(&repo);
-            held.push(ticket.clone());
-            write_held_tickets(&repo, &held);
+            let mut held = held_claims(&repo);
+            held.push(HeldClaim {
+                ticket: ticket.clone(),
+                claim: Some(claim),
+            });
+            write_held_claims(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -964,9 +1070,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 });
                 Ok(())
             })?;
-            let mut held = held_tickets(&repo);
-            held.retain(|held| *held != ticket);
-            write_held_tickets(&repo, &held);
+            let mut held = held_claims(&repo);
+            held.retain(|held| held.ticket != ticket);
+            write_held_claims(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -978,8 +1084,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             Ok(())
         }
         Request::Renew { tickets } => {
+            let held = held_claims(&repo);
             let tickets = if tickets.is_empty() {
-                held_tickets(&repo)
+                held.iter().map(|held| held.ticket.clone()).collect()
             } else {
                 tickets
             };
@@ -987,35 +1094,80 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 eprintln!("claims: this worktree holds no claim to renew; pass --ticket <id>");
                 return Err(1);
             }
-            let renewed = update_registry(&repo, |record| {
+            let saved = |ticket: &String| {
+                held.iter()
+                    .find(|held| held.ticket == *ticket)
+                    .and_then(|held| held.claim.clone())
+            };
+            let (renewed, revived, overlaps, published) = update_registry(&repo, |record| {
                 let now = SystemTime::now();
                 let mut renewed = Vec::new();
+                let mut revived = Vec::new();
+                let mut overlaps = Vec::new();
                 for ticket in &tickets {
                     if renew_claim(record, ticket, now).map_err(clock_error)? {
                         renewed.push(ticket.clone());
+                    } else if let Some(claim) = saved(ticket) {
+                        overlaps.extend(revive_claim(record, &claim, now).map_err(clock_error)?);
+                        revived.push(ticket.clone());
                     }
                 }
-                Ok(renewed)
+                // Save what is now published, so a ticket recorded before claims
+                // were saved whole can be restored after a later lapse.
+                let published = record
+                    .claims
+                    .iter()
+                    .filter(|claim| {
+                        claim
+                            .get("ticket")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|ticket| {
+                                renewed.iter().chain(&revived).any(|kept| kept == ticket)
+                            })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                Ok((renewed, revived, overlaps, published))
             })?;
-            let lapsed: Vec<_> = tickets.iter().filter(|t| !renewed.contains(t)).collect();
-            // A lapsed ticket is gone for good; stop offering it for renewal.
-            let mut held = held_tickets(&repo);
-            held.retain(|held| !lapsed.contains(&held));
-            write_held_tickets(&repo, &held);
+            let lapsed: Vec<_> = tickets
+                .iter()
+                .filter(|t| !renewed.contains(t) && !revived.contains(t))
+                .collect();
+            // A ticket with no saved claim cannot be restored; stop offering it.
+            let mut held = held_claims(&repo);
+            held.retain(|held| !lapsed.contains(&&held.ticket));
+            for held in &mut held {
+                if let Some(claim) = published
+                    .iter()
+                    .find(|claim| claim["ticket"] == held.ticket.as_str())
+                {
+                    held.claim = Some(claim.clone());
+                }
+            }
+            write_held_claims(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
                     "state": if lapsed.is_empty() { "renewed" } else { "partially renewed" },
                     "renewed": renewed,
+                    "revived": revived,
+                    "overlapping": overlaps,
                     "lapsed": lapsed,
                     "lease_minutes": LEASE_MINUTES,
                 }))
                 .unwrap()
             );
+            if !overlaps.is_empty() {
+                eprintln!(
+                    "claims: a restored claim overlaps live claims listed under `overlapping`; check what is in flight before editing"
+                );
+            }
             if lapsed.is_empty() {
                 Ok(())
             } else {
-                eprintln!("claims: lapsed or released tickets cannot be renewed; claim again");
+                eprintln!(
+                    "claims: tickets this worktree never recorded cannot be restored; claim again"
+                );
                 Err(1)
             }
         }
@@ -1434,7 +1586,7 @@ mod tests {
     }
 
     #[test]
-    fn renewal_restarts_the_lease_and_cannot_revive_a_lapsed_claim() {
+    fn renewal_restarts_the_lease_and_leaves_a_lapsed_claim_ended() {
         let hour = Duration::from_secs(3600);
         let taken = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
         let (claimed_utc, expires_utc) = lease_timestamps(taken).unwrap();
@@ -1473,6 +1625,63 @@ mod tests {
             claim_expiry(&capped),
             Some(epoch_nanoseconds(renewal + 2 * hour))
         );
+    }
+
+    #[test]
+    fn a_lapsed_claim_is_restored_from_its_saved_record_and_reports_overlap() {
+        let hour = Duration::from_secs(3600);
+        let taken = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(taken).unwrap();
+        let mine = json!({"ticket": "mine", "item": "I", "owner": "me",
+            "paths": ["omega-rust/omega/compilation/native-compiler/"],
+            "claimed_utc": claimed_utc, "expires_utc": expires_utc});
+        let later = taken + 3 * hour;
+        let (theirs_claimed, theirs_expires) = lease_timestamps(later - hour).unwrap();
+        let mut record = ClaimsRecord {
+            claims: vec![
+                mine.clone(),
+                json!({"ticket": "inside", "owner": "other", "item": "J",
+                    "paths": ["omega-rust/omega/compilation/native-compiler/src/lib.rs"],
+                    "claimed_utc": theirs_claimed, "expires_utc": theirs_expires}),
+                json!({"ticket": "sibling", "paths": ["omega-rust/omega/compilation/native-compiler-old"],
+                    "claimed_utc": theirs_claimed, "expires_utc": theirs_expires}),
+                json!({"ticket": "ended", "paths": ["omega-rust"],
+                    "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+            ],
+            ..ClaimsRecord::default()
+        };
+        assert!(!renew_claim(&mut record, "mine", later).unwrap());
+        let overlaps = revive_claim(&mut record, &mine, later).unwrap();
+        assert_eq!(overlaps.len(), 1);
+        assert_eq!(overlaps[0]["ticket"], "inside");
+        let restored = record
+            .claims
+            .iter()
+            .filter(|claim| claim["ticket"] == "mine")
+            .collect::<Vec<_>>();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0]["item"], "I");
+        assert_eq!(restored[0]["claimed_utc"], claimed_utc.as_str());
+        assert_eq!(
+            claim_expiry(restored[0]),
+            Some(epoch_nanoseconds(later + 2 * hour))
+        );
+        // The restored claim then renews like any live claim.
+        assert!(renew_claim(&mut record, "mine", later + hour).unwrap());
+    }
+
+    #[test]
+    fn held_claim_lines_read_saved_records_and_bare_tickets() {
+        let saved = HeldClaim::parse(r#"{"ticket":"t1","item":"I"}"#).unwrap();
+        assert_eq!(saved.ticket, "t1");
+        assert_eq!(saved.claim.as_ref().unwrap()["item"], "I");
+        assert_eq!(HeldClaim::parse(&saved.line()), Some(saved));
+        let bare = HeldClaim::parse(" t2 ").unwrap();
+        assert_eq!((bare.ticket.as_str(), bare.claim), ("t2", None));
+        assert_eq!(HeldClaim::parse("  "), None);
+        assert!(paths_overlap("a/b/", "a/b"));
+        assert!(paths_overlap("a", "a/b/c"));
+        assert!(!paths_overlap("a/b", "a/bc"));
     }
 
     #[test]
