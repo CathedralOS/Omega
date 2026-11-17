@@ -1127,6 +1127,7 @@ mod header_reading_tests {
             &program.admitted_bodies,
             &program.completed_operators,
             &program.admitted_signature_views,
+            &program.admitted_signature_view_owners,
         )
         .expect("the field/helper predicate retains exact And and Not completions");
         assert!(program.symbols.is_empty());
