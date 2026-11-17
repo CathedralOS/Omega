@@ -1611,11 +1611,7 @@ pub mod operator {
             typed: &TypedTrees,
             operator: &super::OperatorDefinition,
         ) -> Option<(BinaryOperator, numerics::literals::FloatFormat)> {
-            let Some([namespace, requirement]) =
-                typed.operator_path_members(operator.name).as_array()
-            else {
-                return None;
-            };
+            let [namespace, requirement] = typed.operator_path_members(operator.name).as_array()?;
             if namespace.as_str() != "Float" {
                 return None;
             }

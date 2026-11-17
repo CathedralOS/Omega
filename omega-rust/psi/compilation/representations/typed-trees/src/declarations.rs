@@ -1943,10 +1943,7 @@ pub mod intrinsic_requirements {
             if let Some(requirement) = typed.machine(operator.symbol) {
                 return Self::from_requirement(typed, requirement);
             }
-            let Some([namespace, name]) = typed.operator_path_members(operator.name).as_array()
-            else {
-                return None;
-            };
+            let [namespace, name] = typed.operator_path_members(operator.name).as_array()?;
             let requirement_identity =
                 crate::operator::boundary_operator_requirement_identity(typed, operator);
             if requirement_identity.is_empty() {
@@ -2485,10 +2482,7 @@ pub mod numeric_intrinsics {
                 );
             }
             let operator = operator?;
-            let Some([namespace, name]) = self.operator_path_members(operator.name).as_array()
-            else {
-                return None;
-            };
+            let [namespace, name] = self.operator_path_members(operator.name).as_array()?;
             self.numeric_requirement_execution(
                 namespace.as_str(),
                 name.as_str(),
