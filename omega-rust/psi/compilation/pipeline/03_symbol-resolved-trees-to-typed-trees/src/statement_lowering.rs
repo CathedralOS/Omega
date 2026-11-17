@@ -7,21 +7,61 @@ pub(crate) mod statement {
     /// Types already produced in this state, without any permission to read or
     /// move their values. Later initializers reuse the exact type handles.
     pub(crate) struct LocalTypes {
-        rows: std::collections::HashMap<
+        rows: Vec<(
             symbols::SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            symbols::BuildSymbolHasher,
-        >,
+            Option<typed_trees::types::TypeReferenceHandle>,
+        )>,
     }
 
     impl LocalTypes {
         pub(crate) fn new(
             program: &typed_trees::TypedTrees,
             state: &typed_trees::state::State,
+            source: &symbol_resolved_trees::SymbolResolvedTrees,
+            statements: &[symbol_resolved_trees::statement::StatementNode],
         ) -> Result<Self, diagnostics::Diagnostic> {
-            let mut types = Self {
-                rows: Default::default(),
+            use symbol_resolved_trees::statement::StatementNode;
+            let binding = |statement: &StatementNode| match statement {
+                StatementNode::LocalData(local) if local.role.has_ordinary_initializer() => {
+                    Some((local.symbol, None))
+                }
+                _ => None,
             };
+            // Prepare only this body's binders. A slot exists before its
+            // initializer runs, but has no type available until publication.
+            let mut rows = program
+                .state_parameters(state)
+                .iter()
+                .map(|parameter| (parameter.symbol, None))
+                .collect::<Vec<_>>();
+            rows.extend(statements.iter().filter_map(binding));
+            let bodies = crate::tables::resolved_statements(source);
+            let declarations = &source.tables.declarations;
+            for statement in statements {
+                if let StatementNode::Assembly(handle) = statement {
+                    let graph = declarations.assembly_graphs.get(*handle);
+                    for block in declarations.assembly_blocks.span_or_empty(graph.blocks) {
+                        rows.extend(
+                            bodies
+                                .statements(block.statement_nodes)
+                                .iter()
+                                .filter_map(binding),
+                        );
+                    }
+                }
+            }
+            rows.retain(|(symbol, _)| symbol.is_valid());
+            if rows
+                .iter()
+                .any(|(symbol, _)| !program.symbols.symbols().nodes().is_valid(*symbol))
+            {
+                return Err(diagnostics::Diagnostic::error(
+                    "local type information names an unavailable binder",
+                ));
+            }
+            rows.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+            rows.dedup_by_key(|(symbol, _)| *symbol);
+            let mut types = Self { rows };
             for parameter in program.state_parameters(state) {
                 types.insert(parameter.symbol, parameter.type_reference)?;
             }
@@ -33,12 +73,27 @@ pub(crate) mod statement {
             symbol: symbols::SymbolHandle,
             reference: typed_trees::types::TypeReferenceHandle,
         ) -> Result<(), diagnostics::Diagnostic> {
-            if symbol.is_valid() && self.rows.insert(symbol, reference).is_some() {
+            if !symbol.is_valid() {
+                return Ok(());
+            }
+            let position = self.position(symbol).ok_or_else(|| {
+                diagnostics::Diagnostic::error("local type information has no declared binder")
+            })?;
+            if self.rows[position].1.replace(reference).is_some() {
                 return Err(diagnostics::Diagnostic::error(
                     "local type information repeats a binder",
                 ));
             }
             Ok(())
+        }
+
+        fn position(&self, symbol: symbols::SymbolHandle) -> Option<usize> {
+            self.rows
+                .binary_search_by_key(
+                    &(symbol.arena_index(), symbol.generation()),
+                    |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                )
+                .ok()
         }
 
         fn record(
@@ -57,7 +112,8 @@ pub(crate) mod statement {
             &self,
             symbol: symbols::SymbolHandle,
         ) -> Option<typed_trees::types::TypeReferenceHandle> {
-            self.rows.get(&symbol).copied()
+            self.position(symbol)
+                .and_then(|position| self.rows[position].1)
         }
     }
     pub(crate) mod arguments {

@@ -630,7 +630,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
                 &self.structural_values,
                 self.structural_cases.as_map(),
                 &self.live_affine_frontier,
-                &self.live_claims,
+                self.live_claims.values(),
                 argument,
                 selected.id,
             )
@@ -1572,7 +1572,7 @@ pub(crate) fn consume_affine_projection(
 /// Compare the live entries with an intact value's affine custody. Linear
 /// claims own their regions separately; component entries do not restore an
 /// ended wrapper's availability.
-pub(crate) fn validate_complete_affine_frontier(
+pub(crate) fn validate_complete_affine_frontier<'claims>(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     cases: &BTreeMap<
@@ -1580,7 +1580,7 @@ pub(crate) fn validate_complete_affine_frontier(
         crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
     >,
     frontier: &BTreeSet<StructuralAffineDiscard>,
-    claims: &BTreeMap<ClaimId, LiveClaim>,
+    claims: impl Iterator<Item = &'claims LiveClaim>,
     subject: &StructuralArgument,
     structural_type: StructuralTypeId,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
@@ -1600,7 +1600,7 @@ pub(crate) fn validate_complete_affine_frontier(
         subject.place,
         structural_type,
         declaration.multiplicity,
-        claims.values().filter_map(|claim| {
+        claims.filter_map(|claim| {
             (claim.place == Some(subject.place))
                 .then(|| claim.path.strip_prefix(subject.path.as_slice()))
                 .flatten()
@@ -1675,7 +1675,7 @@ pub(crate) fn decompose_owned_subject(
         values,
         cases,
         frontier,
-        claims,
+        claims.values(),
         subject,
         structural_type,
     )?;
@@ -2711,7 +2711,7 @@ pub(crate) mod tests {
                 &values,
                 &BTreeMap::new(),
                 &frontier,
-                &claims,
+                claims.values(),
                 &subject,
                 structural_type(1),
             )
@@ -2743,7 +2743,7 @@ pub(crate) mod tests {
                     &values,
                     &BTreeMap::new(),
                     &frontier,
-                    &claims,
+                    claims.values(),
                     &subject,
                     structural_type(1),
                 ),
