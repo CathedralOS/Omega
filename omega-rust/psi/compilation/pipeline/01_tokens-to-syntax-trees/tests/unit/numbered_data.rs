@@ -43,6 +43,25 @@ fn nested_version_blocks_reject_regardless_of_leading_member() {
 }
 
 #[test]
+fn retired_is_a_field_name_unless_followed_by_an_identity() {
+    for declaration in [
+        "data Record { retired: u32; }",
+        "data Sum { case Held(retired: u32); }",
+        "data Record { #1 retired: u32; retired #2; }",
+        "data Sum { #1 case Held(#1 retired: u32, retired #2); }",
+    ] {
+        let parsed = crate::tests::parse_source(declaration, "retired field name");
+        let data = crate::tests::root_data(&parsed, "data declaration");
+        let field = match &parsed.items.data_members(data.members)[0] {
+            DataMember::Field(field) => field,
+            DataMember::Variant(variant) => &parsed.items.data_payload_fields(variant.payload)[0],
+            _ => panic!("the field must retain its ordinary declaration"),
+        };
+        assert_eq!(field.name.as_str(&parsed), "retired");
+    }
+}
+
+#[test]
 fn numbered_data_rejects_duplicate_and_retired_identity_reuse() {
     for members in [
         "#7 left: u32; #7 right: u32;",
