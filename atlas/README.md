@@ -1,99 +1,164 @@
 # Atlas
 
-Atlas is where the owner and agents map the Omega codebase and plan how to
-reshape it into one linear pipeline. Every claim here points at evidence a
-reader can rerun: a dependency graph from `cargo metadata`, a usage scan, a
-line count, or a `file:line` quote. Prose that cannot cite its evidence is a
-question, and goes in [questions.md](questions.md).
+Atlas maps the codebase and plans the owner's linear pipeline. Observations
+cite pinned source; recommendations are *judgment* and unchecked claims are
+*unverified*. This folder changes neither compiler behavior nor owner rulings.
 
-Nothing in this folder is compiled, shipped or read by the compiler. It is a
-planning workspace beside the code, not part of it.
+## Read the map
 
-## What is here
-
-| Path | What it holds |
+| Page | Scope |
 | --- | --- |
-| [rulings.md](rulings.md) | The owner's rulings, dated, in the order they were made. Plans follow them. |
-| [questions.md](questions.md) | Questions that still need the owner, in plain terms, with the evidence behind each. |
-| [plans/](plans/) | Migration plans. Each names a destination for every crate it covers and orders the moves as PRs that each end in a deletion. |
-| [evidence/scripts/](evidence/scripts/) | The scanners that produce the evidence. |
-| [evidence/data/](evidence/data/) | Their output, with the source revision it was taken at. |
-| [artifacts/](artifacts/) | Sources for the generated pages. |
-| [pages/](pages/) | Every page as a static HTML file. Open one in any browser; no tools or accounts needed. |
-| [design/](design/) | The portable design kit: rules, tokens, fonts and a page template any model can use. |
-| [AGENTS.md](AGENTS.md) | Instructions for any agent working here (Codex and other GPT agents read it automatically). |
+| [Repository](subsystems/repository.md) | Rust reference, Omega source, products and tests. |
+| [Psi](subsystems/psi.md) | Source stages, checking and publication. |
+| [Omega](subsystems/omega.md) | Realization, native stages, installations and emission. |
+| [Build and packages](subsystems/build-and-packages.md) | Custody, evaluation, requests and providers. |
+| [CLI](subsystems/cli.md) | Dispatch, compilation, execution and inspection. |
+| [Interpreter](subsystems/interpreter.md) | Program loading and runtime admission. |
+| [Bootstrap](subsystems/bootstrap.md) | Construction routes and self-rebuild limits. |
+| [Tools](subsystems/tools.md) | Repository commands and verification. |
+| [Library](subsystems/library.md) | Bundled declarations and target providers. |
+| [Pipeline diagrams](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
+| [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
+| [Questions](questions.md) | Open decisions and recommendations. |
+| [Owner rulings](rulings.md) | Dated decisions governing the destination. |
 
-## Pages
+Each page traces inputs, outputs, consumers, checks and failures. The
+[pipeline diagrams](artifacts/pipeline-map/map.md) distinguish current and
+proposed routes. The [migration plan](plans/foundation-and-backend.md) orders
+contracts and deletions. [Questions](questions.md) remain open;
+[owner rulings](rulings.md) govern the destination.
 
-The atlas is published on the repository's GitHub Pages site under `/atlas/`
-(beside the Omega book), from [index.html](index.html), every page in
-[pages/](pages/), and the design kit they load. The site redeploys whenever
-`atlas/` changes on `main`.
+## Pages and publication status
 
-Every page lives in [pages/](pages/) as a static HTML file. The online copies
-are the same pages published as Claude artifacts.
+The [atlas index](index.html) links all 13 subject pages, including the
+[pipeline diagrams](pages/pipeline-map.html), the
+[plan](pages/foundation-backend-plan.html), questions and rulings. Navigation
+and page numbers come from one registry; counts come from generated evidence.
+The two established page URLs remain unchanged.
 
-| Page | File | Online copy | Source | What it shows |
-| --- | --- | --- | --- | --- |
-| Omega pipeline map | [pages/pipeline-map.html](pages/pipeline-map.html) | [link](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P) | [artifacts/pipeline-map/](artifacts/pipeline-map/) | The whole compiler as one linear pipeline, with today's reach-arounds as an overlay. |
-| Foundation and backend plan | [pages/foundation-backend-plan.html](pages/foundation-backend-plan.html) | [link](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) | [artifacts/foundation-backend-plan/](artifacts/foundation-backend-plan/) | Where every crate in `foundation/` and `backend/` goes, in what order. |
+The publishing workflow copies only `index.html`, `pages/` and `design/` to
+<https://cathedralos.github.io/Omega/atlas/>. A branch build or draft PR is a
+review candidate; it does not update that site. The generated pages link
+Markdown sources and evidence on GitHub because those files are not deployed.
 
-## Working with any model
+Every page distinguishes two revisions. **Compiler snapshot** is the source
+reviewed for the map: `3f9ce43f0c9d179048911d18faa91ba93f60176d`. **Atlas content**
+is the committed prose, evidence and rendering sources recorded in
+[content-revision.txt](content-revision.txt). Publishing newer atlas pages does
+not refresh the compiler observations or imply a compiler run.
 
-Nothing here needs Claude's tools. A page is a static HTML file that links
-[design/tokens.css](design/tokens.css), so GPT, Codex or any other agent can
-read the evidence, edit a plan, and write or change a page with ordinary file
-edits. Start from [design/page-template.html](design/page-template.html) and
-follow [design/README.md](design/README.md). [AGENTS.md](AGENTS.md) holds the
-working rules; Codex reads it automatically when it works in this folder.
+The [original pipeline map](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P)
+and [original plan](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) are
+historical publications. These builds do not update those URLs.
 
-## Evidence: how to reproduce it
+## Reproduce the evidence
 
-The data in `evidence/data/` was taken at revision
-`6de27da2a36d86f6c3883cb89527d0d44dea646a`. To refresh it from the repository
-root (no build needed):
-
-```bash
-cargo metadata --format-version 1 --no-deps > /tmp/omega-meta.json
-python3 atlas/evidence/scripts/users.py /tmp/omega-meta.json > atlas/evidence/data/users.txt
-python3 atlas/evidence/scripts/modscan.py /tmp/omega-meta.json atlas/evidence/data/usage.json
-python3 atlas/evidence/scripts/modscan_be.py /tmp/omega-meta.json atlas/evidence/data/usage_be.json
-python3 atlas/evidence/scripts/backend_users.py < /tmp/omega-meta.json
-python3 atlas/evidence/scripts/stage_dependencies.py < /tmp/omega-meta.json
-```
-
-- `users.py`: every foundation crate's production users, grouped by pipeline position.
-- `modscan.py` / `modscan_be.py`: which modules and types of foundation and backend crates each crate names in non-test code.
-- `backend_users.py`: line counts and users of every backend crate.
-- `stage_dependencies.py`: which crates outside the pipeline call a numbered stage.
-
-The module scans read source with regular expressions, not a Rust resolver. A
-glob import or a path inside a macro can be missed, so a "declared but unused"
-dependency needs a type check before it is deleted. The plans mark those
-claims *unverified*.
-
-## Rebuilding the pages
+From the repository root, with Python 3.10+ and the repository's Cargo toolchain:
 
 ```bash
-python3 -m pip install markdown==3.7   # once, for the plan page
-python3 atlas/build_pages.py
+python3 -m unittest discover -s atlas/evidence/tests -v
+python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
 ```
 
-`build_pages.py` runs each builder in `artifacts/` and writes the result to
-`pages/<name>.html`, with fonts loaded from `design/fonts/`. Commit the
-regenerated pages with the change that caused them.
+The generator extracts the pinned Git tree to a temporary directory, checks
+every archived blob against Git, and runs
+`cargo metadata --format-version 1 --no-deps --locked` there without compiling.
+Current checkout changes do not enter the snapshot. It records scanner/output
+hashes and counting rules in [manifest.json](evidence/data/manifest.json).
+Compare a separate reproduction with:
+
+```bash
+python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d --output-dir /tmp/atlas-evidence
+diff -rq atlas/evidence/data /tmp/atlas-evidence
+```
+
+The
+[evidence guide](evidence/README.md) documents individual scanners and queries.
+
+Text scans are not a Rust resolver. `unobserved_dependencies` does not mean
+unused. Cargo edges do not prove runtime calls. Counts distinguish all
+tracked `.rs` files from `src/` and include the backend `target/` source crate.
+
+## Rebuild all pages
+
+Dependencies: Python 3.10+, Graphviz (`dot` on `PATH`) and Markdown 3.7:
+
+```bash
+python3 -m venv /tmp/omega-atlas-venv
+/tmp/omega-atlas-venv/bin/python -m pip install -r atlas/artifacts/requirements.txt
+/tmp/omega-atlas-venv/bin/python atlas/build_pages.py
+python3 atlas/artifacts/check.py
+python3 -m http.server 8765 --bind 127.0.0.1 --directory atlas
+```
+
+Open <http://127.0.0.1:8765/>. The canonical build writes tracked `index.html`,
+`pages/*.html` and `pages/build.json`. It first verifies that atlas sources
+match their recorded content revision; the checker also verifies links and
+source line bounds against the **cited Git objects**, not the current files.
+Neither check proves the prose's interpretation of that source.
+
+Full verification needs both recorded commits locally. A shallow clone, or a
+fresh clone after a squash merge, may lack them. Fetch the missing SHA named
+by the checker (`git fetch origin <sha>`) before verifying; offline mode does
+not claim those objects are present.
+
+After changing Markdown, evidence, the renderer or the design kit:
+
+1. Preview with `python3 atlas/build_pages.py --draft` using the venv Python.
+   It writes ignored `artifacts/out/` and labels the pages as an uncommitted
+   draft. Serve all of `atlas/` and open `/artifacts/out/` for working local
+   source links.
+2. Commit those source changes. Run
+   `python3 atlas/build_pages.py --content-revision HEAD` using the venv Python.
+   This records the source commit and rebuilds the publication files.
+3. Run `python3 atlas/artifacts/check.py`, review both themes and screen sizes,
+   then commit `content-revision.txt`, `index.html` and `pages/`. A later normal
+   build must reproduce those files without a diff.
+
+A standalone copy of `atlas/` can render without Git objects:
+
+```bash
+/tmp/omega-atlas-venv/bin/python atlas/build_pages.py --offline
+python3 atlas/artifacts/check.py --local-only
+```
+
+Offline mode keeps the recorded GitHub links but explicitly skips verification
+of the content pin and compiler citations. Use the repository mode before a
+publication update. The same static check accepts a deployed subset through
+`--site /path/to/copied/atlas --local-only`; the checker script stays in the
+full source folder.
+
+For browser checks, install Playwright separately and use a local Chromium:
+
+```bash
+python3 atlas/artifacts/browser_check.py --site atlas --browser /usr/bin/chromium --base-url http://127.0.0.1:8765
+```
+
+This checks all pages at 1440px and 400px in both themes, fonts, figure labels,
+navigation, theme switching and scrolling. Reports and screenshots go under
+ignored `artifacts/out/browser-check/`. Without `--base-url`, it checks `file://`.
+The current review environment blocks `file://` navigation by browser policy;
+that transport remains *unverified*. Localhost checks and static checks of the
+deployment subset cover rendering and asset paths without bypassing the policy.
+
+One template links the [portable design kit](design/README.md), preserving
+Limestone/Ink, square stone corners and the three local Omega Serif weights.
+No font or script requires a network request. Graphviz renders inline SVG from
+editable Mermaid and explicit [diagram semantics](artifacts/diagrams.json);
+colors are never inferred from a node's label. Supported syntax:
+`flowchart LR/RL/TD/TB/BT`, `node[label]`, `-->`, `-.->`, optional
+`|edge labels|`. The kit lays flows out left to right. Captions and handoff
+labels are required; unsupported syntax fails the build. Obsolete parallel
+templates and build entrypoints have been removed.
 
 ## Rules for working here
 
-- **Evidence first.** A number comes from a script in `evidence/scripts/`; a
-  quote comes with its `file:line`. Mark anything not checked *unverified* and
-  every classification choice *judgment*.
-- **One linear pipeline is the target.** Stages read one representation and
-  write the next. Anything beside the pipeline (foundation beyond primitives,
-  the backend, sidecars, stage calls from outside the driver) is something to
-  move, and the plan says where.
-- **Plain language.** Follow [AGENTS.md "Explain the change"](../AGENTS.md#explain-the-change):
-  lead with what changes and why it matters, then the evidence.
-- **Pages use the Omega design system** (Limestone and Ink themes, Omega Serif,
-  stone corners). A page shows a mechanism, not a name: the arrow that moves,
-  the boundary crossed, the before and after.
+- **Evidence first.** Cite generated data or pinned source lines. Mark
+  unchecked claims *unverified* and classification choices *judgment*.
+- **Follow the rulings.** One linear pipeline is the target. Current maps
+  still show drivers, retained inputs and work outside numbered stages.
+- **Trace values.** Name producers, storage, consumers and authorizing checks.
+  Separate ordinary execution, tests and explicit audits.
+- **Plain language.** Follow [AGENTS.md](../AGENTS.md#explain-the-change).
+- **Show mechanisms.** Use the Omega design system; explain what each arrow
+  carries and mark proposals.

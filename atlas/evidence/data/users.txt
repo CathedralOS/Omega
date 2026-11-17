@@ -1,3 +1,6 @@
+# Declared workspace dependencies; production = normal + build.
+# Optional and target-conditional declarations included; these are not observed calls.
+
 ## access-plans  (omega-rust/psi/foundation/access-plans)  users=8 positions=8
    positions: omega-interp terminal-runtime, omega-stage 03, psi-comp build-time-evaluation, psi-interp, psi-repr terminal-psi, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-repr typed-trees
    users: build-time-evaluation, target-operations-to-selected-instructions, terminal-interpreter, terminal-psi, terminal-runtime, terminal-semantics, terminal-wire, typed-trees
@@ -11,32 +14,32 @@
 ## artifacts  (omega-rust/omega/foundation/artifacts)  users=7 positions=7
    positions: build build-settings, build orchestration, cli, omega-comp compiler, omega-comp products, packages package-compilation, packages package-manager
    users: build-settings, compiler, omega, orchestration, package-compilation, package-manager, products
-   dev-only users: 
-   deps: 
+   dev-only users:
+   deps:
 ## bounded-process  (omega-rust/omega/foundation/bounded-process)  users=8 positions=8
    positions: build orchestration, cli, omega-interp native-provider-runtime, packages resolver-execution, packages source-acquisition, samples cli/scientific/sample-runner, tools benchmark, tools xtask
    users: native-provider-runtime, omega, omega-bench, orchestration, resolver-execution, sample-runner, source-acquisition, xtask
    dev-only users: compiler
-   deps: 
+   deps:
 ## build-time-values  (omega-rust/psi/foundation/build-time-values)  users=3 positions=3
    positions: psi-comp build-time-evaluation, psi-fdn language-semantics, realization provider-planning
    users: build-time-evaluation, language-semantics, provider-planning
-   dev-only users: 
+   dev-only users:
    deps: compiler-storage, layout-plans, numerics
 ## compiler-storage  (omega-rust/psi/foundation/compiler-storage)  users=38 positions=38
    positions: backend plans/effects, backend target, omega-comp compiler, omega-comp products, omega-stage 00, packages build-declarations, packages build-output, packages package-compilation, packages source-acquisition, psi-comp build-time-evaluation, psi-comp proof-admission, psi-comp source-compiler, psi-comp terminal-installation, psi-comp terminal-production, psi-fdn access-plans, psi-fdn arena, psi-fdn build-time-values, psi-fdn diagnostics, psi-fdn evaluation-accounting, psi-fdn extents, psi-fdn filesystem-authority, psi-fdn flow-effects, psi-fdn language-core, psi-fdn language-semantics, psi-fdn layout-plans, psi-fdn numerics, psi-fdn semantic-vocabulary, psi-fdn source, psi-fdn symbols, psi-interp, psi-repr symbol-resolved-trees, psi-repr syntax-trees, psi-repr terminal-psi, psi-repr terminal-psi:work, psi-repr typed-trees, psi-stage 02, psi-stage 03, psi-stage 04
    users: access-plans, arena, build-declarations, build-output, build-time-evaluation, build-time-values, compiler, diagnostics, effects, evaluation-accounting, extents, filesystem-authority, flow-effects, language-core, language-semantics, layout-plans, numerics, package-compilation, products, proof-admission, semantic-vocabulary, source, source-acquisition, source-compiler, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, symbols, syntax-trees, syntax-trees-to-symbol-resolved-trees, target, terminal-installation, terminal-interpreter, terminal-production, terminal-psi, terminal-psi-to-abstract-operations, terminal-work, typed-trees, typed-trees-to-typed-trees
-   dev-only users: 
+   dev-only users:
    deps: compiler-storage-derive
 ## compiler-storage-derive  (omega-rust/psi/foundation/compiler-storage/derive)  users=1 positions=1
    positions: psi-fdn compiler-storage
    users: compiler-storage
-   dev-only users: 
-   deps: 
+   dev-only users:
+   deps:
 ## diagnostics  (omega-rust/psi/foundation/diagnostics)  users=49 positions=49
    positions: backend artifacts/native-artifact, backend images/image, backend images/image-elf, backend images/image-emission, backend images/image-macho, backend images/image-pe, backend isa/isa-aarch64, backend isa/isa-x86_64, backend layout, backend machine-emission, backend plans/backend-plan, backend plans/effects, backend plans/post-handoff-writer-plan, backend plans/program-entry-plan, backend runtime/task-plans, backend target, build build-settings, build orchestration, cli, omega-comp compiler, omega-comp native-compiler, omega-comp products, omega-repr abstract-operations:verified-optimization-input, omega-stage 00, omega-stage 02, packages build-output, packages package-compilation, packages package-manager, packages review-evidence, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-production, psi-repr symbol-resolved-trees, psi-repr syntax-trees, psi-repr terminal-psi:check-tables, psi-repr typed-trees, psi-stage 00, psi-stage 01, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning, realization provider-selection, realization selected-dispatch, realization trust-model, samples cli/scientific/spectrometer_attribution
    users: abstract-operations-to-target-operations, backend-plan, build-output, build-settings, build-time-evaluation, compiler, effects, image, image-elf, image-emission, image-macho, image-pe, ind19-spectrum-validation, isa-aarch64, isa-x86_64, layout, machine-emission, native-artifact, native-compiler, omega, orchestration, package-compilation, package-manager, post-handoff-writer-plan, products, program-entry-plan, provider-admission, provider-planning, provider-selection, review-evidence, selected-dispatch, source-compiler, source-files-to-tokens, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, syntax-trees, syntax-trees-to-symbol-resolved-trees, target, task-plans, terminal-check-tables, terminal-production, terminal-psi-to-abstract-operations, terminal-psi-to-terminal-psi, tokens-to-syntax-trees, trust-model, typed-trees, typed-trees-to-terminal-psi, typed-trees-to-typed-trees, verified-optimization-input
-   dev-only users: 
+   dev-only users:
    deps: compiler-storage, source
 ## evaluation-accounting  (omega-rust/psi/foundation/evaluation-accounting)  users=7 positions=7
    positions: build build-settings, packages package-compilation, packages package-manager, psi-comp build-time-evaluation, psi-interp, psi-repr terminal-psi:work, realization provider-planning
@@ -46,8 +49,8 @@
 ## execution-admission  (omega-rust/psi/foundation/execution-admission)  users=7 positions=7
    positions: build orchestration, cli, omega-comp compiler, psi-comp source-compiler, psi-stage 00, psi-stage 01, psi-stage 06
    users: compiler, omega, orchestration, source-compiler, source-files-to-tokens, terminal-psi-to-terminal-psi, tokens-to-syntax-trees
-   dev-only users: 
-   deps: 
+   dev-only users:
+   deps:
 ## extents  (omega-rust/psi/foundation/extents)  users=4 positions=4
    positions: omega-interp terminal-runtime, psi-fdn access-plans, psi-interp, psi-repr terminal-psi:semantics
    users: access-plans, terminal-interpreter, terminal-runtime, terminal-semantics
@@ -56,12 +59,12 @@
 ## filesystem-authority  (omega-rust/psi/foundation/filesystem-authority)  users=6 positions=6
    positions: build build-settings, packages build-output, packages package-compilation, packages package-manager, packages source-acquisition, psi-comp build-time-evaluation
    users: build-output, build-settings, build-time-evaluation, package-compilation, package-manager, source-acquisition
-   dev-only users: 
+   dev-only users:
    deps: compiler-storage, optimization
 ## flow-effects  (omega-rust/psi/foundation/flow-effects)  users=9 positions=9
    positions: packages package-compilation, packages review-evidence, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-installation, psi-repr terminal-psi, psi-repr typed-trees, realization provider-planning, realization provider-selection
    users: build-time-evaluation, package-compilation, provider-planning, provider-selection, review-evidence, source-compiler, terminal-installation, terminal-psi, typed-trees
-   dev-only users: 
+   dev-only users:
    deps: arena, compiler-storage, language-semantics, optimization, semantic-vocabulary, symbols
 ## function-identity  (omega-rust/omega/foundation/function-identity)  users=17 positions=17
    positions: backend artifacts/native-artifact, backend images/image, backend images/image-emission, backend machine-emission, backend object-file, backend plans/backend-plan, backend plans/normalized-foreign-call-plan, backend runtime/bound-installations, omega-repr abstract-operations:verified-optimization-input, omega-repr machine-code, omega-repr register-homes, omega-repr selected-instructions, omega-repr target-operations, omega-repr target-operations:legalized-operations, omega-repr target-operations:target-vocabulary, omega-stage 00, realization provider-admission
@@ -71,7 +74,7 @@
 ## language-core  (omega-rust/psi/foundation/language-core)  users=40 positions=39
    positions: backend images/image-emission, backend plans/backend-plan, backend plans/effects, backend runtime/bound-installations, backend runtime/task-plans, backend target, build build-settings, omega-comp compiler, omega-repr abstract-operations, omega-repr abstract-operations:optimization-unit, omega-repr target-operations, omega-repr target-operations:legalized-operations, omega-repr target-operations:target-vocabulary, omega-stage 00, omega-stage 02, omega-stage 03, packages review-evidence, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-production, psi-fdn access-plans, psi-fdn language-semantics, psi-fdn symbols, psi-interp, psi-repr symbol-resolved-trees, psi-repr syntax-trees, psi-repr terminal-psi, psi-repr terminal-psi:check-tables, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-repr typed-trees, psi-stage 01, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning
    users: abstract-operations, abstract-operations-to-target-operations, access-plans, backend-plan, bound-installations, build-settings, build-time-evaluation, compiler, effects, image-emission, language-semantics, legalized-operations, native-preparation, optimization-unit, provider-admission, provider-planning, review-evidence, source-compiler, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, symbols, syntax-trees, syntax-trees-to-symbol-resolved-trees, target, target-operations, target-operations-to-selected-instructions, target-vocabulary, task-plans, terminal-check-tables, terminal-interpreter, terminal-production, terminal-psi, terminal-psi-to-abstract-operations, terminal-psi-to-terminal-psi, terminal-semantics, terminal-wire, tokens-to-syntax-trees, typed-trees, typed-trees-to-terminal-psi, typed-trees-to-typed-trees
-   dev-only users: 
+   dev-only users:
    deps: compiler-storage, numerics
 ## language-semantics  (omega-rust/psi/foundation/language-semantics)  users=34 positions=34
    positions: backend calling-conventions, backend layout, backend plans/backend-plan, backend plans/effects, build build-settings, omega-comp compiler, omega-comp products, omega-repr abstract-operations:optimization-unit-semantics, omega-repr abstract-operations:verified-optimization-input, omega-stage 00, omega-stage 02, packages build-declarations, packages package-compilation, packages package-manager, packages review-evidence, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-production, psi-fdn access-plans, psi-fdn flow-effects, psi-repr symbol-resolved-trees, psi-repr terminal-psi, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-repr typed-trees, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning, realization provider-selection, realization trust-model
@@ -86,8 +89,8 @@
 ## mutation-matrix  (omega-rust/psi/foundation/mutation-matrix)  users=1 positions=1
    positions: omega-fdn optimization-core
    users: optimization-core
-   dev-only users: 
-   deps: 
+   dev-only users:
+   deps:
 ## numerics  (omega-rust/psi/foundation/numerics)  users=30 positions=30
    positions: backend artifacts/boundary-applications, backend layout, backend plans/effects, omega-interp terminal-runtime, omega-repr abstract-operations:optimization-unit, omega-repr abstract-operations:verified-optimization-input, omega-stage 00, packages review-evidence, psi-comp build-time-evaluation, psi-comp proof-admission, psi-comp terminal-installation, psi-fdn build-time-values, psi-fdn language-core, psi-fdn language-semantics, psi-fdn semantic-vocabulary, psi-fdn symbols, psi-interp, psi-repr symbol-resolved-trees, psi-repr syntax-trees, psi-repr terminal-psi, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-repr typed-trees, psi-stage 01, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, realization provider-admission, realization provider-planning
    users: boundary-applications, build-time-evaluation, build-time-values, effects, language-core, language-semantics, layout, optimization-unit, proof-admission, provider-admission, provider-planning, review-evidence, semantic-vocabulary, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, symbols, syntax-trees, syntax-trees-to-symbol-resolved-trees, terminal-installation, terminal-interpreter, terminal-psi, terminal-psi-to-abstract-operations, terminal-runtime, terminal-semantics, terminal-wire, tokens-to-syntax-trees, typed-trees, typed-trees-to-terminal-psi, typed-trees-to-typed-trees, verified-optimization-input
@@ -96,18 +99,18 @@
 ## optimization  (omega-rust/psi/foundation/optimization)  users=17 positions=17
    positions: omega-comp compiler, omega-fdn optimization-core, omega-stage 01, psi-comp source-compiler, psi-comp terminal-production, psi-fdn access-plans, psi-fdn filesystem-authority, psi-fdn flow-effects, psi-fdn language-semantics, psi-fdn numerics, psi-fdn semantic-vocabulary, psi-repr terminal-psi, psi-repr terminal-psi:codec, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-stage 05, psi-stage 06
    users: abstract-operations-to-abstract-operations, access-plans, compiler, filesystem-authority, flow-effects, language-semantics, numerics, optimization-core, semantic-vocabulary, source-compiler, terminal-codec, terminal-production, terminal-psi, terminal-psi-to-terminal-psi, terminal-semantics, terminal-wire, typed-trees-to-terminal-psi
-   dev-only users: 
-   deps: 
+   dev-only users:
+   deps:
 ## optimization-core  (omega-rust/omega/foundation/optimization-core)  users=56 positions=55
    positions: backend artifacts/boundary-applications, backend artifacts/component-description, backend artifacts/native-artifact, backend calling-conventions, backend images/image, backend images/image-elf, backend images/image-emission, backend images/image-macho, backend isa/isa-aarch64, backend isa/isa-x86_64, backend machine-emission, backend object-file, backend plans/backend-plan, backend plans/effects, backend plans/program-entry-plan, backend register-model, backend runtime/task-plans, backend target, build build-settings, omega-comp compiler, omega-comp native-compiler, omega-comp products, omega-fdn function-identity, omega-repr abstract-operations, omega-repr abstract-operations:optimization-unit, omega-repr abstract-operations:optimization-unit-semantics, omega-repr abstract-operations:verified-optimization-input, omega-repr machine-code, omega-repr native-vocabulary, omega-repr post-allocation-machine, omega-repr register-homes, omega-repr selected-instructions, omega-repr selected-instructions:analyses, omega-repr target-operations:legalized-operations, omega-repr target-operations:target-vocabulary, omega-stage 00, omega-stage 01, omega-stage 02, omega-stage 03, omega-stage 04, omega-stage 05, omega-stage 06, omega-stage 08, omega-stage 09, packages build-declarations, packages build-output, packages package-compilation, packages package-manager, packages review-evidence, packages source-acquisition, realization provider-admission, realization provider-planning, realization selected-dispatch, realization trust-model, samples cli/scientific/spectrometer_attribution
    users: abstract-operations, abstract-operations-to-abstract-operations, abstract-operations-to-target-operations, backend-plan, boundary-applications, build-declarations, build-output, build-settings, calling-conventions, compiler, component-description, effects, function-identity, image, image-elf, image-emission, image-macho, ind19-spectrum-validation, isa-aarch64, isa-x86_64, legalized-operations, machine-code, machine-emission, native-artifact, native-compiler, native-preparation, native-vocabulary, object-file, optimization-unit, optimization-unit-semantics, package-compilation, package-manager, post-allocation-machine, products, program-entry-plan, provider-admission, provider-planning, register-homes, register-homes-to-post-allocation-machine, register-model, resolved-layout-to-resolved-layout, review-evidence, selected-dispatch, selected-form-encoding-to-resolved-layout, selected-instruction-analyses, selected-instructions, selected-instructions-to-register-homes, selected-instructions-to-selected-instructions, source-acquisition, target, target-operations-to-selected-instructions, target-vocabulary, task-plans, terminal-psi-to-abstract-operations, trust-model, verified-optimization-input
-   dev-only users: 
+   dev-only users:
    deps: mutation-matrix, optimization
 ## platform-custody  (omega-rust/omega/foundation/platform-custody)  users=7 positions=7
    positions: backend artifacts/native-artifact, build orchestration, cli, omega-comp products, packages package-compilation, packages package-manager, packages source-acquisition
    users: native-artifact, omega, orchestration, package-compilation, package-manager, products, source-acquisition
    dev-only users: compiler, terminal-runtime
-   deps: 
+   deps:
 ## semantic-vocabulary  (omega-rust/psi/foundation/semantic-vocabulary)  users=81 positions=80
    positions: backend artifacts/boundary-applications, backend artifacts/component-description, backend artifacts/native-artifact, backend calling-conventions, backend images/image, backend images/image-emission, backend isa/isa-aarch64, backend isa/isa-x86_64, backend layout, backend machine-emission, backend object-file, backend plans/backend-plan, backend plans/effects, backend plans/normalized-foreign-call-plan, backend plans/post-handoff-writer-plan, backend plans/program-entry-plan, backend runtime/bound-installations, backend runtime/installation-evidence, backend runtime/runtime-abi, backend runtime/task-plans, backend target, build build-settings, build orchestration, cli, omega-comp compiler, omega-comp native-compiler, omega-comp products, omega-interp terminal-runtime, omega-repr abstract-operations, omega-repr abstract-operations:optimization-unit, omega-repr abstract-operations:optimization-unit-semantics, omega-repr abstract-operations:verified-optimization-input, omega-repr machine-code, omega-repr native-vocabulary, omega-repr post-allocation-machine, omega-repr register-homes, omega-repr selected-instructions, omega-repr selected-instructions:analyses, omega-repr target-operations, omega-repr target-operations:legalized-operations, omega-repr target-operations:target-vocabulary, omega-stage 00, omega-stage 01, omega-stage 02, omega-stage 03, omega-stage 04, omega-stage 05, omega-stage 06, omega-stage 07, omega-stage 08, omega-stage 09, packages package-compilation, packages package-manager, packages review-evidence, psi-comp build-time-evaluation, psi-comp proof-admission, psi-comp source-compiler, psi-comp terminal-installation, psi-comp terminal-production, psi-fdn access-plans, psi-fdn evaluation-accounting, psi-fdn flow-effects, psi-fdn language-semantics, psi-fdn layout-plans, psi-fdn source, psi-fdn symbols, psi-interp, psi-repr terminal-psi, psi-repr terminal-psi:check-tables, psi-repr terminal-psi:codec, psi-repr terminal-psi:semantics, psi-repr terminal-psi:wire, psi-repr terminal-psi:work, psi-repr typed-trees, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning, realization provider-selection, samples cli/scientific/spectrometer_attribution
    users: abstract-operations, abstract-operations-to-abstract-operations, abstract-operations-to-target-operations, access-plans, backend-plan, bound-installations, boundary-applications, build-settings, build-time-evaluation, calling-conventions, compiler, component-description, effects, evaluation-accounting, flow-effects, image, image-emission, ind19-spectrum-validation, installation-evidence, isa-aarch64, isa-x86_64, language-semantics, layout, layout-plans, legalized-operations, machine-code, machine-emission, native-artifact, native-compiler, native-preparation, native-vocabulary, normalized-foreign-call-plan, object-file, omega, optimization-unit, optimization-unit-semantics, orchestration, package-compilation, package-manager, post-allocation-machine, post-allocation-machine-to-selected-form-encoding, post-handoff-writer-plan, products, program-entry-plan, proof-admission, provider-admission, provider-planning, provider-selection, register-homes, register-homes-to-post-allocation-machine, resolved-layout-to-resolved-layout, review-evidence, runtime-abi, selected-form-encoding-to-resolved-layout, selected-instruction-analyses, selected-instructions, selected-instructions-to-register-homes, selected-instructions-to-selected-instructions, source, source-compiler, symbols, target, target-operations, target-operations-to-selected-instructions, target-vocabulary, task-plans, terminal-check-tables, terminal-codec, terminal-installation, terminal-interpreter, terminal-production, terminal-psi, terminal-psi-to-abstract-operations, terminal-psi-to-terminal-psi, terminal-runtime, terminal-semantics, terminal-wire, terminal-work, typed-trees, typed-trees-to-terminal-psi, verified-optimization-input
@@ -116,13 +119,13 @@
 ## source  (omega-rust/psi/foundation/source)  users=32 positions=32
    positions: backend plans/effects, build build-settings, omega-comp compiler, omega-comp products, omega-stage 00, packages package-compilation, packages package-manager, packages review-evidence, packages source-acquisition, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-production, psi-fdn diagnostics, psi-fdn language-semantics, psi-fdn symbols, psi-repr symbol-resolved-trees, psi-repr syntax-trees, psi-repr terminal-psi, psi-repr terminal-psi:check-tables, psi-repr terminal-psi:semantics, psi-repr tokens, psi-repr typed-trees, psi-stage 00, psi-stage 01, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning, realization trust-model
    users: build-settings, build-time-evaluation, compiler, diagnostics, effects, language-semantics, package-compilation, package-manager, products, provider-admission, provider-planning, review-evidence, source-acquisition, source-compiler, source-files-to-tokens, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, symbols, syntax-trees, syntax-trees-to-symbol-resolved-trees, terminal-check-tables, terminal-production, terminal-psi, terminal-psi-to-abstract-operations, terminal-psi-to-terminal-psi, terminal-semantics, tokens, tokens-to-syntax-trees, trust-model, typed-trees, typed-trees-to-terminal-psi, typed-trees-to-typed-trees
-   dev-only users: 
+   dev-only users:
    deps: arena, compiler-storage, semantic-vocabulary
 ## source-audit  (omega-rust/psi/foundation/source-audit)  users=0 positions=0
-   positions: 
-   users: 
+   positions:
+   users:
    dev-only users: boundary-applications, effects, task-plans, terminal-psi
-   deps: 
+   deps:
 ## symbols  (omega-rust/psi/foundation/symbols)  users=28 positions=28
    positions: backend layout, backend plans/effects, build build-settings, omega-comp compiler, omega-comp products, omega-repr register-homes, omega-stage 00, omega-stage 02, packages package-compilation, packages review-evidence, psi-comp build-time-evaluation, psi-comp source-compiler, psi-comp terminal-production, psi-fdn flow-effects, psi-fdn language-semantics, psi-repr symbol-resolved-trees, psi-repr terminal-psi, psi-repr terminal-psi:check-tables, psi-repr typed-trees, psi-stage 02, psi-stage 03, psi-stage 04, psi-stage 05, psi-stage 06, realization provider-admission, realization provider-planning, realization trust-model, samples cli/scientific/spectrometer_attribution
    users: abstract-operations-to-target-operations, build-settings, build-time-evaluation, compiler, effects, flow-effects, ind19-spectrum-validation, language-semantics, layout, package-compilation, products, provider-admission, provider-planning, register-homes, review-evidence, source-compiler, symbol-resolved-trees, symbol-resolved-trees-to-typed-trees, syntax-trees-to-symbol-resolved-trees, terminal-check-tables, terminal-production, terminal-psi, terminal-psi-to-abstract-operations, terminal-psi-to-terminal-psi, trust-model, typed-trees, typed-trees-to-terminal-psi, typed-trees-to-typed-trees

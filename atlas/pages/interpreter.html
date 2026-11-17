@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How portable Terminal Psi is loaded, supplied with runtime capabilities, and executed.">
+  <title>Psi interpreter</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+</style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 6 of 13</div>
+      <h1>Psi interpreter</h1>
+      <p class="lede">How portable Terminal Psi is loaded, supplied with runtime capabilities, and executed.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/subsystems/interpreter.md">Page source</a></span></div>
+
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+    </header>
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html" aria-current="page"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Pipeline diagrams</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">11</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">12</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">13</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#from-produced-code-to-an-instance">From produced code to an instance</a></li>
+<li><a href="#a-concrete-route-execute-one-calling-policy">A concrete route: execute one calling policy</a></li>
+<li><a href="#compile-time-execution-has-the-same-engine">Compile-time execution has the same engine</a></li>
+<li><a href="#target-aware-execution-belongs-to-omega">Target-aware execution belongs to Omega</a></li>
+<li><a href="#what-loading-and-execution-do-not-establish">What loading and execution do not establish</a></li>
+<li><a href="#existing-examples-and-limits-of-this-review">Existing examples and limits of this review</a></li>
+</ul>
+</div>
+</details><p>The Psi interpreter executes a produced program. It keeps immutable code,
+creates separate mutable instances, binds the supplies each instance needs,
+then advances operations under a work meter. Compilation uses this engine
+for supported compile-time computations; the engine does not call the
+compiler. Omega supplies target-aware host adapters outside Psi.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/lib.rs#L1">Engine entrance</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/Cargo.toml#L11">dependency boundary</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/lib.rs#L1">host owner</a></p>
+<p><strong>Evidence scope.</strong> This page follows
+<code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>. All source links are pinned to
+that revision. Code and tests were inspected; no execution tests were run.
+Runtime results are therefore <strong>unverified</strong> in this review. “Terminal Psi”
+below denotes the internal representation and API names; the public product
+is Psi. <a href="psi.html">Psi compilation</a> explains how a program is produced;
+<a href="build-and-packages.html">Build and packages</a> explains who requests work and
+grants host effects.</p>
+<h2 id="from-produced-code-to-an-instance">From produced code to an instance</h2>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution."><svg viewBox="0.00 0.00 2171.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution." style="min-width:2171px">
+<title>An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.</title><defs><marker id="interpreter-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
+<title>atlas</title>
+
+<g id="interpreter-diagram-1-node1" class="node hub">
+<title>A</title>
+<polygon points="154,-50 0,-50 0,0 154,0 154,-50" />
+<text text-anchor="middle" x="77" y="-28.6">Produced artifact or</text>
+<text text-anchor="middle" x="77" y="-14.6">received bytes</text>
+</g>
+
+<g id="interpreter-diagram-1-node2" class="node psi">
+<title>P</title>
+<polygon points="488,-50 297,-50 297,0 488,0 488,-50" />
+<text text-anchor="middle" x="392.5" y="-28.6">TerminalProgram loads or</text>
+<text text-anchor="middle" x="392.5" y="-14.6">borrows code</text>
+</g>
+
+<g id="interpreter-diagram-1-edge1" class="edge handoff">
+<title>A-&gt;P</title>
+<path d="M154.29,-25C197.24,-25 251.26,-25 296.89,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="225.5" y="-28.4">load or borrow</text>
+</g>
+
+<g id="interpreter-diagram-1-node3" class="node around">
+<title>S</title>
+<polygon points="815,-50 659,-50 659,0 815,0 815,-50" />
+<text text-anchor="middle" x="737" y="-28.6">Admit exact runtime</text>
+<text text-anchor="middle" x="737" y="-14.6">supplies</text>
+</g>
+
+<g id="interpreter-diagram-1-edge2" class="edge handoff">
+<title>P-&gt;S</title>
+<path d="M488.45,-25C542.1,-25 608.31,-25 658.75,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="573.5" y="-28.4">match code identity</text>
+</g>
+
+<g id="interpreter-diagram-1-node4" class="node around">
+<title>I</title>
+<polygon points="1146,-50 966,-50 966,0 1146,0 1146,-50" />
+<text text-anchor="middle" x="1056" y="-28.6">Instantiate with</text>
+<text text-anchor="middle" x="1056" y="-14.6">arguments and account</text>
+</g>
+
+<g id="interpreter-diagram-1-edge3" class="edge handoff">
+<title>S-&gt;I</title>
+<path d="M815.14,-25C860.68,-25 918.52,-25 965.99,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="890.5" y="-41.4">supply admitted</text>
+<text text-anchor="middle" x="890.5" y="-28.4">inputs</text>
+</g>
+
+<g id="interpreter-diagram-1-node5" class="node around">
+<title>B</title>
+<polygon points="1474,-50 1282,-50 1282,0 1474,0 1474,-50" />
+<text text-anchor="middle" x="1378" y="-28.6">Bind checked imports and</text>
+<text text-anchor="middle" x="1378" y="-14.6">components</text>
+</g>
+
+<g id="interpreter-diagram-1-edge4" class="edge handoff">
+<title>I-&gt;B</title>
+<path d="M1146.14,-25C1188.39,-25 1238.92,-25 1281.91,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1214" y="-41.4">bind declared</text>
+<text text-anchor="middle" x="1214" y="-28.4">imports</text>
+</g>
+
+<g id="interpreter-diagram-1-node6" class="node around">
+<title>E</title>
+<polygon points="1819,-50 1632,-50 1632,0 1819,0 1819,-50" />
+<text text-anchor="middle" x="1725.5" y="-21.6">Invoke under WorkMeter</text>
+</g>
+
+<g id="interpreter-diagram-1-edge5" class="edge handoff">
+<title>B-&gt;E</title>
+<path d="M1474.32,-25C1523.46,-25 1583.13,-25 1631.87,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1553" y="-28.4">invoke or resume</text>
+</g>
+
+<g id="interpreter-diagram-1-node7" class="node around">
+<title>O</title>
+<polygon points="2154,-50 1962,-50 1962,0 2154,0 2154,-50" />
+<text text-anchor="middle" x="2058" y="-28.6">Completion or suspension</text>
+<text text-anchor="middle" x="2058" y="-14.6">or failure</text>
+</g>
+
+<g id="interpreter-diagram-1-edge6" class="edge handoff">
+<title>E-&gt;O</title>
+<path d="M1819,-25C1863.59,-25 1917.01,-25 1961.93,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1890.5" y="-28.4">observe status</text>
+</g>
+</g>
+</svg></div><figcaption>An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+    A[Produced artifact or received bytes]
+    P[TerminalProgram loads or borrows code]
+    S[Admit exact runtime supplies]
+    I[Instantiate with arguments and account]
+    B[Bind checked imports and components]
+    E[Invoke under WorkMeter]
+    O[Completion or suspension or failure]
+    A --&gt; P
+    P --&gt; S
+    S --&gt; I
+    I --&gt; B
+    B --&gt; E
+    E --&gt; O</code></pre></details></figure>
+<p>This is the embedding lifecycle, not a proof-verification diagram. Runtime
+supply admission can be empty for a program that needs no installation.
+Loaded bytes still need the host's execution-trust decision discussed below.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Boundary</th>
+<th>Named input and output</th>
+<th>What it establishes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Load or borrow code</td>
+<td><code>TerminalProgram::load(&amp;[u8])</code>, <code>load_envelope(&amp;[u8])</code>, <code>borrow(TerminalExecutionView)</code> or <code>retain(RetainedTerminalCode)</code> produce <code>TerminalProgram</code></td>
+<td><code>load</code> decodes semantic bytes; <code>load_envelope</code> decodes a canonical envelope; borrowed and retained routes reuse existing code. One shared immutable owner keeps the program identity and catalogs. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L2555">Code</a></td>
+</tr>
+<tr>
+<td>Admit runtime supplies</td>
+<td><code>admit_runtime_supplies(TerminalRuntimeSupplyRequest) -&gt; Result&lt;TerminalRuntimeSupplies, TerminalInterpretError&gt;</code></td>
+<td>Joins the program to its provider installation, entry, target selections, target layouts and optional host environments. A provider installation from another execution identity or target context from another semantic identity is rejected. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L2610">Code</a></td>
+</tr>
+<tr>
+<td>Create an instance</td>
+<td><code>instantiate(TerminalInstantiation) -&gt; Result&lt;TerminalInstance, TerminalArtifactInterpretError&gt;</code></td>
+<td>Prepares independent execution state from scalar arguments, structural contents, installation, optional invocation account and scalar admission. It does not decode code again. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L2805">Entrance</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L3032">request fields</a></td>
+</tr>
+<tr>
+<td>Bind an import</td>
+<td><code>bind_import(BoundaryMachineId, impl TerminalImportAdapter)</code></td>
+<td>Requires the exact declared signature. Unknown, duplicate, unneeded or provider-realized imports refuse; externally completing boundaries require their own admission. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L1607">Code</a></td>
+</tr>
+<tr>
+<td>Run or resume</td>
+<td><code>invoke(&amp;mut WorkMeter) -&gt; Result&lt;TerminalExecutionStatus, TerminalInstanceError&gt;</code></td>
+<td>Refuses missing imports/completion bindings before guest execution, then resumes the instance's existing state. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L1799">Code</a></td>
+</tr>
+<tr>
+<td>Release state</td>
+<td><code>close() -&gt; Result&lt;(), TerminalInstanceCloseError&gt;</code></td>
+<td>Clears runtime state and bindings after completion, or before any invocation. An invoked instance that is still active returns <code>Busy</code>; repeated close is harmless. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L1914">Code</a></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>TerminalExecutionStatus</code> distinguishes <code>Complete</code>, <code>SponsorExhausted</code>,
+<code>AwaitingEffect</code>, <code>HostComputationPending</code>, <code>Crashed</code> and
+<code>ExternalCompletion</code>. An exhausted budget is a suspension, not evidence of
+successful completion or a false program contract. Callers decide whether to
+replenish work or return that status. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/boundary_values.rs#L1348">Status definition</a></p>
+<p>The implementation separates the dispatch loop (<code>engine_execution</code>), saved
+call frames (<code>engine_calls</code>), ownership and claims (<code>engine_custody</code>),
+terminators, and runtime storage. Frames retain identities into the immutable
+module rather than copies of complete block graphs. Code ownership and
+runtime value storage are separate. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/lib.rs#L1">Implementation map</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L47">code and frame ownership</a></p>
+<p>The resume loop reads the current machine, block and operation index, charges
+an operation before executing it, and remembers pending effects and component
+calls. Completed results and crashes return their recorded status on a later
+resume. Execution errors retain the machine, block and operation site and
+become the instance's recorded failure. This is why resumption needs the
+existing instance rather than a fresh call with the same arguments.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/engine_execution.rs#L2679">Resume mechanism</a></p>
+<p>Structural input contents do not manufacture ownership or reference
+authority. Entry preparation binds actual contents; custody checks compare an
+owned argument's exact path and linear claims against its declared structure.
+At an external call, the engine stages writable buffers and checks their
+writeback before committing them. Rejecting a response cannot undo host
+effects already performed, so a host adapter's behavior remains a separate
+obligation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L93">Entry contents</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/engine_custody.rs#L514">owned claims</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/boundary_effects.rs#L1030">buffer validation</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L515">host-effect limit</a></p>
+<h2 id="a-concrete-route-execute-one-calling-policy">A concrete route: execute one calling policy</h2>
+<p>A calling policy is an Omega program that returns a proposed calling plan.
+Its execution does not itself authorize arbitrary register or stack choices.
+<code>build-settings::evaluate_terminal_calling_policy</code> takes a
+<code>TerminalCallingPolicyInvocation</code> and returns
+<code>Result&lt;(ValidatedBoundaryEntryPlan, WorkUsage), String&gt;</code>.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1">Actual entry</a></p>
+<ol>
+<li>Provider planning supplies the retained artifact, callable entry,
+   <code>CallingPolicySignature</code>, target, invocation account and prior admission.
+   The executor checks that the signature's target matches the target
+   profile, admits target selections and layouts, and checks that admission
+   names this exact invocation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1">Inputs and identity checks</a></li>
+<li>It borrows the artifact as <code>TerminalProgram</code>, admits runtime supplies and
+   asks for execution requirements. A missing boundary provider produces an
+   error naming the callable and target. It completes demanded scalar
+   applications before entry. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L80">Requirements</a></li>
+<li>It requires one structural signature argument and a structural result,
+   encodes the calling signature into contents, and creates a fresh instance
+   with those contents, admitted installation and account.
+   <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L149">Argument construction</a></li>
+<li>It invokes under <code>WorkMeter</code>. Anything except a complete structural or
+   scalar-case result is an error for this caller, including a suspended or
+   crashed invocation. It reads the returned <code>BuildTimeValue</code>, charges result
+   custody, decodes the proposed plan, and calls
+   <code>validate_calling_policy_result(plan, signature)</code> before returning the
+   validated plan and work usage. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L188">Execution and result checks</a></li>
+</ol>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage."><svg viewBox="0.00 0.00 1479.28 152.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage." style="min-width:1479px">
+<title>A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.</title><defs><marker id="interpreter-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 143.64)">
+<title>atlas</title>
+
+<g id="interpreter-diagram-2-node1" class="node psi">
+<title>S</title>
+<polygon points="167,-131 7,-131 7,-81 167,-81 167,-131" />
+<text text-anchor="middle" x="87" y="-109.6">Canonical calling</text>
+<text text-anchor="middle" x="87" y="-95.6">signature and target</text>
+</g>
+
+<g id="interpreter-diagram-2-node3" class="node around">
+<title>I</title>
+<polygon points="469,-74 332,-74 332,-24 469,-24 469,-74" />
+<text text-anchor="middle" x="400.5" y="-52.6">Fresh interpreter</text>
+<text text-anchor="middle" x="400.5" y="-38.6">instance</text>
+</g>
+
+<g id="interpreter-diagram-2-edge1" class="edge handoff">
+<title>S-&gt;I</title>
+<path d="M167.04,-87.41C179.06,-84.79 191.34,-82.24 203,-80 245.57,-71.84 293.62,-64.23 331.56,-58.59" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="253" y="-83.4">encode signature</text>
+</g>
+
+<g id="interpreter-diagram-2-node5" class="node around">
+<title>C</title>
+<polygon points="1123,-106 955,-106 955,-56 1123,-56 1123,-106" />
+<text text-anchor="middle" x="1039" y="-84.6">Validate result against</text>
+<text text-anchor="middle" x="1039" y="-70.6">original signature</text>
+</g>
+
+<g id="interpreter-diagram-2-edge5" class="edge handoff">
+<title>S-&gt;C</title>
+<path d="M167.26,-107.89C316.14,-110.79 647.67,-114.16 926,-95 935.38,-94.35 945.19,-93.46 954.92,-92.43" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="538.5" y="-125.4">retain original</text>
+<text text-anchor="middle" x="538.5" y="-112.4">contract</text>
+</g>
+
+<g id="interpreter-diagram-2-node2" class="node hub">
+<title>A</title>
+<polygon points="174,-50 0,-50 0,0 174,0 174,-50" />
+<text text-anchor="middle" x="87" y="-28.6">Admitted policy artifact</text>
+<text text-anchor="middle" x="87" y="-14.6">and supplies</text>
+</g>
+
+<g id="interpreter-diagram-2-edge2" class="edge handoff">
+<title>A-&gt;I</title>
+<path d="M174.1,-19.45C213.54,-18.23 260.79,-18.62 303,-24 312.44,-25.2 322.28,-27.04 331.91,-29.19" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="253" y="-40.4">supply admitted</text>
+<text text-anchor="middle" x="253" y="-27.4">policy</text>
+</g>
+
+<g id="interpreter-diagram-2-node4" class="node psi">
+<title>V</title>
+<polygon points="797,-74 608,-74 608,-24 797,-24 797,-74" />
+<text text-anchor="middle" x="702.5" y="-45.6">Returned BuildTimeValue</text>
+</g>
+
+<g id="interpreter-diagram-2-edge3" class="edge handoff">
+<title>I-&gt;V</title>
+<path d="M469.2,-49C510.16,-49 562.97,-49 607.89,-49" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="538.5" y="-52.4">execute policy</text>
+</g>
+
+<g id="interpreter-diagram-2-edge4" class="edge handoff">
+<title>V-&gt;C</title>
+<path d="M797.23,-55.67C836.98,-58.74 883.79,-62.66 926,-67 935.36,-67.96 945.14,-69.06 954.87,-70.2" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="876" y="-83.4">decode proposed</text>
+<text text-anchor="middle" x="876" y="-70.4">result</text>
+</g>
+
+<g id="interpreter-diagram-2-node6" class="node native">
+<title>P</title>
+<polygon points="1462,-106 1254,-106 1254,-56 1462,-56 1462,-106" />
+<text text-anchor="middle" x="1358" y="-84.6">ValidatedBoundaryEntryPlan</text>
+<text text-anchor="middle" x="1358" y="-70.6">and WorkUsage</text>
+</g>
+
+<g id="interpreter-diagram-2-edge6" class="edge handoff">
+<title>C-&gt;P</title>
+<path d="M1123.29,-81C1163.28,-81 1211.58,-81 1253.87,-81" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="1188.5" y="-84.4">validate plan</text>
+</g>
+</g>
+</svg></div><figcaption>A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+    S[Canonical calling signature and target]
+    A[Admitted policy artifact and supplies]
+    I[Fresh interpreter instance]
+    V[Returned BuildTimeValue]
+    C[Validate result against original signature]
+    P[ValidatedBoundaryEntryPlan and WorkUsage]
+    S --&gt; I
+    A --&gt; I
+    I --&gt; V
+    V --&gt; C
+    S --&gt; C
+    C --&gt; P</code></pre></details></figure>
+<p><strong>Authority boundary.</strong> The interpreter owns execution and value custody.
+The invocation admission owns permission to execute that program with those
+supplies. Provider planning owns the meaning and validation of the returned
+calling plan. A returned structure becomes a plan only after the final check.
+This trace is a source-level route, <strong>not a fresh successful policy run</strong>.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1">Executor's ownership contract</a></p>
+<h2 id="compile-time-execution-has-the-same-engine">Compile-time execution has the same engine</h2>
+<p>The source evaluator follows the same artifact route. A prepared source job
+fixes its actual caller and inputs, crosses Psi 04, and calls
+<code>AcceptedTerminalSource::judge</code> for an invocation publication. Its execution
+method requires that admission match the published invocation, encodes
+structural inputs, calls <code>TerminalProgram::instantiate</code>, then <code>invoke</code> and
+transports the result back to compiler-owned <code>BuildTimeValue</code>.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">Job preparation</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L402">job execution</a></p>
+<p>The source evaluator, not the engine, installs computed results into source
+and typed representations. It refuses unavailable providers or external
+authority; it also rejects target observations on a target-independent
+invocation. These restrictions prevent an ambient host fact from becoming a
+constant merely because an interpreter can compute it.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/README.md#L3">Evaluation ownership</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L260">invocation restrictions</a></p>
+<p>The crate dependencies follow that direction: <code>build-time-evaluation</code>
+depends on <code>terminal-interpreter</code>; the interpreter depends on representation,
+semantic, installation, accounting and proof-admission libraries, with no
+source-producing stage or Omega package in its manifest. Proof-admission
+usage here does not make the interpreter a source checker. For example,
+closed crash-guard checks use the mathematical meaning of a supplied value.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/Cargo.toml#L11">Evaluator manifest</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/Cargo.toml#L11">engine manifest</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L493">closed crash guards</a></p>
+<p><strong>Judgment.</strong> Preserve this engine boundary while repairing the source
+sequencing described in <a href="psi.html">Psi compilation</a>. Moving source preparation
+into the interpreter would introduce the dependency direction the existing
+engine avoids. The necessary repair is to isolate source-job preparation
+from artifact execution, with explicit results between them.</p>
+<h2 id="target-aware-execution-belongs-to-omega">Target-aware execution belongs to Omega</h2>
+<p><code>omega/interpreter/terminal-runtime</code> adapts an already-produced canonical
+artifact and <code>TerminalRuntimeProvisions</code> to the Psi engine. Its
+<code>TerminalRuntimeRequest</code> supplies the target, optional native image for
+layout inspection, entry receipt, exact provisions, work budget, finite
+standard-input stream, clock and explicit filesystem/native-service/domain
+exit delegations. Its result, <code>TerminalRuntimeObservation</code>, contains status,
+buffered output, effects, private entry storage observations and work usage.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs#L67">Request and observation</a></p>
+<p><code>execute_sliced</code> checks that provisions name the same program, entry and
+deployment target. It establishes entry storage, instantiates the program,
+binds host imports and component products, then repeatedly invokes the same
+instance when the sponsor replenishes work. This path does not rerun Build
+or compile source. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs#L174">Identity checks</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs#L350">execution loop</a></p>
+<p>External native adapters live in <code>native-provider-runtime</code>, which consumes
+source-free compilation products and runs fixed-frame adapters in a private
+provider process. Its worker reply does not establish Psi ownership, loan or
+completion obligations. Those remain with semantic admission and interpreter
+custody. The private-process design is described in the source; this audit
+did not validate its containment guarantees or platform coverage.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/native-provider-runtime/src/lib.rs#L1">Native adapter owner</a></p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks."><svg viewBox="0.00 0.00 1194.28 80.51" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks." style="min-width:1194px">
+<title>Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.</title><defs><marker id="interpreter-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 71.87)">
+<title>atlas</title>
+
+<g id="interpreter-diagram-3-node1" class="node around">
+<title>H</title>
+<polygon points="195,-62.23 0,-62.23 0,-12.23 195,-12.23 195,-62.23" />
+<text text-anchor="middle" x="97.5" y="-40.83">Host request and retained</text>
+<text text-anchor="middle" x="97.5" y="-26.83">provisions</text>
+</g>
+
+<g id="interpreter-diagram-3-node2" class="node around">
+<title>R</title>
+<polygon points="498,-62.23 312,-62.23 312,-12.23 498,-12.23 498,-62.23" />
+<text text-anchor="middle" x="405" y="-33.83">Omega terminal-runtime</text>
+</g>
+
+<g id="interpreter-diagram-3-edge1" class="edge handoff">
+<title>H-&gt;R</title>
+<path d="M195.16,-37.23C232.48,-37.23 274.99,-37.23 311.87,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="253.5" y="-53.63">exact host</text>
+<text text-anchor="middle" x="253.5" y="-40.63">provisions</text>
+</g>
+
+<g id="interpreter-diagram-3-node3" class="node around">
+<title>I</title>
+<polygon points="833,-62.23 659,-62.23 659,-12.23 833,-12.23 833,-62.23" />
+<text text-anchor="middle" x="746" y="-33.83">Psi interpreter instance</text>
+</g>
+
+<g id="interpreter-diagram-3-edge2" class="edge handoff">
+<title>R-&gt;I</title>
+<path d="M498.19,-37.23C548.28,-37.23 609.84,-37.23 658.95,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="578.5" y="-53.63">Admitted supplies</text>
+<text text-anchor="middle" x="578.5" y="-40.63">and adapters</text>
+</g>
+
+<g id="interpreter-diagram-3-node4" class="node native">
+<title>N</title>
+<polygon points="1177,-62.23 1006,-62.23 1006,-12.23 1177,-12.23 1177,-62.23" />
+<text text-anchor="middle" x="1091.5" y="-40.83">Private native provider</text>
+<text text-anchor="middle" x="1091.5" y="-26.83">process</text>
+</g>
+
+<g id="interpreter-diagram-3-edge3" class="edge handoff">
+<title>I-&gt;N</title>
+<path d="M833.24,-37.23C886,-37.23 953.22,-37.23 1005.72,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="919.5" y="-53.63">External call</text>
+<text text-anchor="middle" x="919.5" y="-40.63">through adapter</text>
+</g>
+
+<g id="interpreter-diagram-3-edge4" class="edge handoff">
+<title>N-&gt;I</title>
+<path d="M1012.33,-12.18C1000.6,-9.3 988.56,-6.83 977,-5.23 926.37,1.77 912.64,1.69 862,-5.23 850.3,-6.83 838.1,-9.3 826.22,-12.18" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="919.5" y="-21.63">Response subject to</text>
+<text text-anchor="middle" x="919.5" y="-8.63">semantic checks</text>
+</g>
+</g>
+</svg></div><figcaption>Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+    H[Host request and retained provisions]
+    R[Omega terminal-runtime]
+    I[Psi interpreter instance]
+    N[Private native provider process]
+    H --&gt; R
+    R --&gt;|Admitted supplies and adapters| I
+    I --&gt;|External call through adapter| N
+    N --&gt;|Response subject to semantic checks| I</code></pre></details></figure>
+<p>Interpreted Omega provider bodies can run in the engine; external mechanisms
+need adapters. Target-aware host integration is not a substitute for
+unsupported native lowering. Interpreter/native comparisons belong to
+comparison callers and tests. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L17">Domain boundary</a></p>
+<h2 id="what-loading-and-execution-do-not-establish">What loading and execution do not establish</h2>
+<p>Canonical decoding checks representation closure and identity. It does not
+prove that the compiler's translation was correct or authorize a producer's
+code to run. <code>TerminalProgram::load</code> calls
+<code>ClosedTerminalModule::from_semantic_bytes</code>; it does not run Psi 06 or a
+whole-artifact proof verifier. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L2555">Load implementation</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/representations/terminal-psi/codec/src/lib.rs#L16">codec contract</a></p>
+<p><strong>Current implementation gap.</strong> The interpreter README says the admission
+contract requires explicit trust in the exact producer artifact until
+untrusted-artifact containment is audited, and says the byte-loading API does
+not yet accept that trust witness. The current signatures confirm that gap.
+The atlas must not label byte loading as fully authorized execution or claim
+that safe Rust proves guest isolation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/README.md#L61">Admission limit</a></p>
+<p>Likewise, the compilation README's link to a <code>terminal-verification</code>
+directory is stale at this revision. No such package is present. The current
+map therefore distinguishes source checking, supplied-certificate admission,
+canonical structural decoding, runtime supply checks and the host's trust
+decision rather than collapsing them into one “verified” arrow.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/README.md#L18">Pinned stale link</a>; <a href="psi.html">Psi discussion</a></p>
+<h2 id="existing-examples-and-limits-of-this-review">Existing examples and limits of this review</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Existing check</th>
+<th>What its assertions cover</th>
+<th>Status here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>loading_an_envelope_keeps_identity_with_its_owned_semantics</code></td>
+<td>Loads a declaration artifact, drops the original bytes/artifact, then checks retained identity and declaration text. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L3139">Definition</a></td>
+<td>Source-inspected; not run. It does not execute a machine.</td>
+</tr>
+<tr>
+<td><code>retained_execution_preserves_identity_and_resumes_without_decoding</code></td>
+<td>Builds the existing recursion fixture, rejects mismatched deployment provisions, compares complete ordinary and one-unit-sliced execution, and asserts no additional module decoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/tests/retained_runtime.rs#L12">Definition</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tests/fixtures/pass/calls/machine_self_call_recursion_compile/main.omg#L1">fixture</a></td>
+<td>Source and fixture exist; compilation and execution remain unverified in this review.</td>
+</tr>
+<tr>
+<td><code>private_entry_recipe_requires_exact_installed_geometry</code></td>
+<td>Checks private entry geometry against an actual supplied canonical artifact. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/interpreter/src/embedding.rs#L3173">Definition</a></td>
+<td>Explicitly ignored unless a qualification supplies <code>OMEGA_ENTRY_RAM_CANONICAL_ARTIFACT</code>; not run.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The presence of these tests and APIs does not establish support for every
+program, target, external mechanism or storage shape. The host-runtime README
+also identifies unfinished common loaded/borrowed views and a production
+artifact-execution command. Those are implementation limits, not reasons to
+draw compilation inside the runtime. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/README.md#L20">Remaining runtime work</a></p>
+<p>This documentation change checks pinned source paths, line anchors, diagrams
+and adjacent-page consistency. It makes no new performance, native-coverage
+or execution-safety claim.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+</script>
+</body>
+</html>
