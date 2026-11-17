@@ -267,6 +267,14 @@ impl Program<'_> {
                 "boundary call needs its complete declaring trait application",
             ));
         }
+        let owning_service = if let Some(closed) = typed.closed_requirement_application(target) {
+            let scope = closed.trait_scope.scope(typed).ok_or_else(|| {
+                services::unavailable(context, "boundary requirement lost its applied service")
+            })?;
+            self.service(context, scope)?
+        } else {
+            self.declared_service(context, owner)?
+        };
         if !crate::reach::has_authored_ceiling(typed, context, declared.symbol)? {
             return Err(services::unavailable(
                 context,
@@ -293,17 +301,6 @@ impl Program<'_> {
             ));
         }
         let envelope = self.signature_envelope(context, declared)?;
-        let service = self
-            .typed
-            .service_reaches
-            .id_for_symbol(owner.symbol)
-            .ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "boundary requirement has no owning service declaration",
-                )
-            })?;
-        let owning_service = services::service(self.typed, context, service)?;
         let declaration = crate::declare::boundary_source(
             self.typed,
             target,

@@ -86,11 +86,57 @@ struct Lower<'a> {
     /// The generic helper that wrote the request, whose binders a bare name
     /// in it may be; invalid where no such name can occur.
     helper: SymbolHandle,
+    /// The selected declaration decides whether this argument names a type
+    /// or a value before either role is resolved.
+    expects_type: bool,
     /// Nodes read so far for this argument.
     nodes: usize,
 }
 
 impl Lower<'_> {
+    fn builtin_type(&mut self, name: &ProductOperandName) -> Formed<Option<SymbolHandle>> {
+        if let Some(atom) = name.builtin_type {
+            if let Some(carrier) = atom.fixed_integer() {
+                self.program.symbols.install_integer_types([carrier]);
+            }
+            return self
+                .program
+                .symbols
+                .builtin_atom_symbol(atom)
+                .map(Some)
+                .ok_or(unserved(
+                    "a retained builtin type this program does not hold",
+                ));
+        }
+        if !symbols::is_builtin_type_spelling(&name.text) {
+            return Ok(None);
+        }
+        // The request came from Build's source map, so its source position
+        // cannot scope a lookup in the product. Builtins have the same
+        // compiler identity in both maps and need no authored import.
+        let atom = numerics::integer_carrier::FixedInteger::from_decimal_spelling(&name.text)
+            .map(symbols::BuiltinTypeAtom::Integer)
+            .or_else(|| {
+                symbols::BuiltinTypeAtom::ALL
+                    .into_iter()
+                    .find(|atom| atom.symbol_name() == name.text)
+            })
+            .ok_or_else(|| {
+                Stop::Rejected(format!(
+                    "invalid builtin type `{}` in provider application",
+                    name.text
+                ))
+            })?;
+        if let Some(carrier) = atom.fixed_integer() {
+            self.program.symbols.install_integer_types([carrier]);
+        }
+        self.program
+            .symbols
+            .builtin_atom_symbol(atom)
+            .map(Some)
+            .ok_or(unserved("a builtin type this program does not hold"))
+    }
+
     fn deeper(&mut self) -> Formed<()> {
         self.nodes += 1;
         if self.nodes > NODES {
@@ -225,6 +271,7 @@ impl Lower<'_> {
             graph: &environment.graph,
             environment: None,
             helper: SymbolHandle::invalid(),
+            expects_type: self.expects_type,
             nodes: self.nodes,
         };
         actual.argument(binding.argument).map(Some)
@@ -251,6 +298,13 @@ impl Lower<'_> {
             return Err(unserved("a qualified static argument"));
         };
         if !operand.application.is_valid() {
+            // Builtin type names cannot be shadowed by a value binder. Value
+            // arguments still resolve that binder through `supplied` below.
+            if self.expects_type
+                && let Some(symbol) = self.builtin_type(name)?
+            {
+                return Ok(Closed::Type(self.named(symbol, &name.text)));
+            }
             // `true` and `false` are keywords, so neither is a binder.
             if name.declaration.is_none() && name.builtin_type.is_none() {
                 match name.text.as_str() {
@@ -273,14 +327,31 @@ impl Lower<'_> {
             ));
         }
         let symbol = self.symbol(name)?;
-        let mut arguments = Vec::new();
-        for argument in self
+        let parameters = self
+            .program
+            .declaration_type_parameters(symbol)
+            .iter()
+            .map(|parameter| parameter.kind == TypeParameterKind::Type)
+            .collect::<Vec<_>>();
+        let inputs = self
             .graph
             .static_arguments
             .span_or_empty(application.arguments)
-            .to_vec()
-        {
-            let closed = self.argument(argument)?;
+            .to_vec();
+        if parameters.len() != inputs.len() {
+            return Err(Stop::Rejected(format!(
+                "static type `{}` needs {} arguments, received {}",
+                name.text,
+                parameters.len(),
+                inputs.len()
+            )));
+        }
+        let mut arguments = Vec::new();
+        for (argument, expects_type) in inputs.into_iter().zip(parameters) {
+            let outer = std::mem::replace(&mut self.expects_type, expects_type);
+            let result = self.argument(argument);
+            self.expects_type = outer;
+            let closed = result?;
             arguments.push(self.reference(closed)?);
         }
         Ok(Closed::Type(self.applied(symbol, &name.text, arguments)))
@@ -347,6 +418,9 @@ impl Lower<'_> {
                 .insert(TypeReferenceNode::Unit)),
             ProductOperandType::Named(name) => {
                 let name = self.graph.names.get(name).clone();
+                if let Some(symbol) = self.builtin_type(&name)? {
+                    return Ok(self.named(symbol, &name.text));
+                }
                 match self.supplied(&name)? {
                     Some(Closed::Type(reference)) => Ok(reference),
                     Some(other) => self.reference(other),
@@ -623,6 +697,7 @@ pub(super) fn form(
             } else {
                 author
             },
+            expects_type: parameter.kind == TypeParameterKind::Type,
             nodes: 0,
         };
         let argument = lower.argument(argument)?;
@@ -687,6 +762,9 @@ pub(super) fn form(
         }
         .ok_or(incomplete)?
     };
+    if role == ProductOperandRole::BoundarySubject {
+        prepare_boundary_requirements(program, &scope, author)?;
+    }
     let scope = scope.retain(program).map_err(unserved)?;
     let supplying = program.expression_table.retain_static_machine_application(
         declaration,
@@ -737,4 +815,121 @@ pub(super) fn form(
             implementation: None,
         },
     )))
+}
+
+/// A selected service owes every requirement in its complete parent graph.
+/// Prepare concrete receiving headers here; the ordinary schema and body
+/// judgments still check all rows, including locally generic requirements.
+fn prepare_boundary_requirements(
+    program: &mut TypedTrees,
+    root: &typed_trees::trait_definition::TraitApplicationEnvironment,
+    author: SymbolHandle,
+) -> Formed<()> {
+    let mut pending = vec![root.clone()];
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(environment) = pending.pop() {
+        let scope = environment.scope(program).ok_or(unserved(
+            "selected service lost its complete trait application",
+        ))?;
+        let identity = scope.application_identity(program).ok_or(unserved(
+            "selected service has no canonical trait application",
+        ))?;
+        if !visited.insert(identity) {
+            continue;
+        }
+        let requirements = program
+            .trait_machine_signatures(scope.declaration)
+            .iter()
+            .filter(|signature| {
+                program
+                    .state_signature_type_parameters(signature)
+                    .is_empty()
+            })
+            .map(|signature| (signature.symbol, signature.name.clone()))
+            .collect::<Vec<_>>();
+        pending.extend(
+            scope
+                .parent_scopes(program)
+                .map_err(unserved)?
+                .into_iter()
+                .map(|parent| parent.environment()),
+        );
+        for (requirement, name) in requirements {
+            let application =
+                program
+                    .expression_table
+                    .retain_static_machine_application(requirement, name, &[]);
+            let row = program
+                .expression_table
+                .static_machine_application_mut(application);
+            row.lexical_owner = author;
+            row.binding_declaration = requirement;
+            crate::passes::specialization::prepare_requirement_in_scope(
+                program,
+                &environment,
+                requirement,
+                application,
+                &[],
+            )
+            .map_err(|stop| match stop {
+                crate::passes::specialization::Stop::Unserved(reason) => Stop::Unserved(reason),
+                crate::passes::specialization::Stop::Rejected(reason) => Stop::Rejected(reason),
+                crate::passes::specialization::Stop::Defect(reason) => {
+                    Stop::Rejected(reason.into())
+                }
+            })?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deferred_builtin_type_names_keep_the_selected_binders_type_role() {
+        let mut builder = symbols::SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
+        builder.insert_children(root, symbols::builtin_type_symbols());
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        for name in ["u32", "u13", "u0"] {
+            let mut graph = ProductStaticOperandGraph::default();
+            let path = graph.names.insert_many([ProductOperandName {
+                text: name.into(),
+                ..Default::default()
+            }]);
+            let operand = graph.operands.insert(ProductStaticOperand {
+                path,
+                ..Default::default()
+            });
+            let mut lower = Lower {
+                program: &mut program,
+                source: None,
+                graph: &graph,
+                environment: None,
+                helper: SymbolHandle::invalid(),
+                expects_type: true,
+                nodes: 0,
+            };
+            match lower.argument(operand) {
+                Ok(Closed::Type(reference)) if name != "u0" => {
+                    let TypeReferenceNode::Named { symbol, .. } =
+                        lower.program.type_reference_table.type_reference(reference)
+                    else {
+                        panic!("a builtin retains its resolved type symbol");
+                    };
+                    assert_eq!(lower.program.symbols.name(*symbol), name);
+                    assert!(lower.program.symbols.builtin_type_atom(*symbol).is_some());
+                }
+                Err(Stop::Rejected(reason)) if name == "u0" => {
+                    assert!(reason.contains("invalid builtin type"), "{reason}");
+                }
+                _ => panic!("unexpected static type outcome for {name}"),
+            }
+        }
+    }
 }
