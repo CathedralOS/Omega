@@ -598,7 +598,7 @@ crashes Trap
     }
 
     machine value_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
-        let value_binding: ValueBinding = output.value_bindings[index];
+        let value_binding: ValueBinding = output.value_bindings[index as -Trapping];
         transition value_binding {
             ValueBinding::NotAName -> value_tag(resolver_harness, output, index, 0, 0u64 as +Trapping, 0u64 as +Trapping)
             ValueBinding::Unresolved -> value_tag(resolver_harness, output, index, 1, 0u64 as +Trapping, 0u64 as +Trapping)
@@ -656,7 +656,7 @@ crashes Trap
     machine binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping)
     requires index <= 65535
     {
-        let type_binding: TypeBinding = output.type_bindings[index];
+        let type_binding: TypeBinding = output.type_bindings[index as -Trapping];
         transition type_binding {
             TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0u64 as +Trapping)
             TypeBinding::Ambiguous -> type_row(resolver_harness, output, index, 8, 0u64 as +Trapping)
@@ -717,7 +717,7 @@ crashes Trap
     {
         write_byte(resolver_harness, tag);
         write_u64(resolver_harness, handle);
-        transition output.domain_bindings[index] {
+        transition output.domain_bindings[index as -Trapping] {
             DomainBinding::Unqualified -> domain_row(resolver_harness, output, index, 0)
             DomainBinding::Wrapping -> domain_row(resolver_harness, output, index, 1)
             DomainBinding::Saturating -> domain_row(resolver_harness, output, index, 2)
