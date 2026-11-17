@@ -149,14 +149,6 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one
-- Category: One idea, several implementations
-- Where: [even-register rounding](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L735), [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [pilot harness](https://github.com/CathedralOS/Omega/tree/work/pilot-abi-vs-clang)
-- Saw: [authorship and evaluation](wiki/spec/build/calling_plans.md#L14) says the selected plan must support the argument's placement or reject the binding. Apple's arm64 ABI says that when a 16-byte-aligned argument is passed in integer registers, "Apple platforms allow the argument to start in an odd-numbered xN register", for example x1 and x2. The default macOS arm64 plan uses the generic `Aapcs64` evaluator, which rounds `integer_index` up to an even register for any 16-byte-aligned value (AAPCS64 C.10). A record with a `u128` field passed after one integer argument goes in x2–x3 under Omega and in x1–x2 under Apple's rule. The ABI pilot compared 1,440 signatures against clang and found 13 macOS signatures with this cause, each checked against the quoted Apple rule.
-- Cost: Default-ABI imports and callbacks with such records exchange wrong values on macOS. This has the same root as the macOS stack-packing entry: Mach-O arm64 uses the generic AAPCS64 policy instead of Apple's. Give Apple arm64 its own policy row covering both rules, or refuse these signatures there.
-- Reported: 2026-11-16, Claude Code, while piloting an ABI cross-check against clang
-
-
 ### A read through a runtime index gets a field equation the spec says it never supplies
 - Category: The documents disagree
 - Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
