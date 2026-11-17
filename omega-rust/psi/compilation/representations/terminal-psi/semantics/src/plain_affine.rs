@@ -4681,7 +4681,7 @@ mod tests {
             declaration.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
             ));
-            declaration.copyable = true;
+            declaration.multiplicity = StructuralMultiplicity::Unrestricted;
         }
         let mut machine = borrowed_backedge(StructuralAccess::SharedBorrow);
         machine.contract.structural_parameters[0].structural_type = id(1);

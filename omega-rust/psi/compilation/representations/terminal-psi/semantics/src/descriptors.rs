@@ -1290,10 +1290,28 @@ pub mod descriptor_lifetimes {
                     .push((*position, edge));
             }
         }
-        let mut established = steps
-            .keys()
-            .map(|position| (*position, BTreeSet::new()))
-            .collect::<BTreeMap<_, _>>();
+        let mut established = if may {
+            steps
+                .keys()
+                .map(|position| (*position, BTreeSet::new()))
+                .collect::<BTreeMap<_, _>>()
+        } else {
+            // Must transport descends from the possible names at each cut.
+            // Starting at empty loses unchanged authority at every loop join.
+            // The possible names come only from this genuine formation, so
+            // disconnected cycles gain nothing. Empty incoming paths still
+            // participate in the intersection below; possibility never
+            // substitutes for a path's retained authority.
+            transported_locations(
+                steps,
+                birth,
+                descriptor,
+                at_entry,
+                invalidate_containers,
+                true,
+                arrival,
+            )
+        };
         if at_entry {
             established.insert(birth, BTreeSet::from([descriptor.clone()]));
         }
@@ -1477,6 +1495,64 @@ pub mod descriptor_lifetimes {
                 parameters: Vec::new(),
                 bindings: Vec::new(),
             }
+        }
+
+        #[test]
+        fn a_loop_keeps_entry_authority_only_while_every_backedge_keeps_it() {
+            let mut steps = BTreeMap::from([
+                (
+                    position(0),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(1),
+                    DescriptorFlowStep {
+                        inputs: vec![(Some(root(1)), None)],
+                        successors: vec![edge(2), edge(3)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(2),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (position(3), DescriptorFlowStep::default()),
+                (
+                    position(4),
+                    DescriptorFlowStep {
+                        successors: vec![edge(5)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(5),
+                    DescriptorFlowStep {
+                        successors: vec![edge(4)],
+                        ..Default::default()
+                    },
+                ),
+            ]);
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            for cut in [position(1), position(2)] {
+                assert_eq!(lifetime.authorized[&cut], BTreeSet::from([root(1)]));
+                assert_eq!(lifetime.surviving[&cut], BTreeSet::from([root(1)]));
+            }
+            assert!(lifetime.authorized[&position(4)].is_empty());
+            assert!(lifetime.authorized[&position(5)].is_empty());
+            steps
+                .get_mut(&position(2))
+                .unwrap()
+                .definitions
+                .push(root(1));
+            let retired = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert!(retired.authorized[&position(1)].is_empty());
+            assert_eq!(retired.surviving[&position(1)], BTreeSet::from([root(1)]));
         }
 
         #[test]

@@ -235,8 +235,10 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
             .expect("the caller retains its exact authored helper application");
         assert_eq!(
             typed
-                .static_machine_application_arguments(application)
-                .len(),
+                .expression_table
+                .static_machine_application(application)
+                .arguments
+                .count(),
             2,
             "the helper supplies both its type and callable arguments"
         );
@@ -269,8 +271,10 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
         );
         assert_eq!(
             prepared
-                .static_machine_application_arguments(application)
-                .len(),
+                .expression_table
+                .static_machine_application(application)
+                .arguments
+                .count(),
             2,
             "preparation keeps the exact application even when its callable has open lifetimes"
         );
