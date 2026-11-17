@@ -226,7 +226,7 @@ pub(crate) fn project(
             ..
         } => Kind::AtomicAccess {
             location: location.clone(),
-            scalar_type: types.integer(*scalar_type).ok_or_else(Error::custody)?,
+            scalar_type: *scalar_type,
             field_byte_offset: *field_byte_offset,
             event: *event,
             outcome: outcome_home
@@ -1027,6 +1027,83 @@ mod tests {
         IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
     };
     use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId};
+
+    #[test]
+    fn atomic_boolean_storage_keeps_its_closed_byte_without_a_source_u8() {
+        use semantic_vocabulary::{ClosedScalarType, PlaceId};
+        use target_operations::{
+            TargetInstruction, TargetInstructionSource, TargetOperationMetadata,
+        };
+        use terminal_psi::{
+            AtomicAccessEvent, MemoryOrdering, StructuralAccess, StructuralArgument,
+        };
+
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(terminal_psi::TerminalModule::declarations())
+                .unwrap();
+        let types = crate::native_geometry::ModuleTypes::of(&closed);
+        let event = AtomicAccessEvent::Store {
+            value: ValueId::new(1).unwrap(),
+            ordering: MemoryOrdering::NoOrdering,
+        };
+        let storage =
+            target_operations::atomic_storage_integer_type_closed(event, ClosedScalarType::Boolean)
+                .unwrap();
+        assert!(
+            types.integer(storage.as_checking()).is_none(),
+            "the physical byte must not require a phantom semantic integer"
+        );
+        let machine = MachineId::new(1).unwrap();
+        let operation = OperationId::new(2).unwrap();
+        let location = StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::Owned);
+        let instruction = TargetInstruction {
+            source: Some(TargetInstructionSource {
+                operation,
+                result: None,
+                metadata: TargetOperationMetadata {
+                    work: Vec::new(),
+                    effect: native_vocabulary::provenance::EffectLink {
+                        input: 1,
+                        output: 2,
+                    },
+                    ownership: Vec::new(),
+                },
+            }),
+            kind: Operation::AtomicAccess {
+                psi_operation: operation,
+                location: location.clone(),
+                scalar_type: storage,
+                field_byte_offset: 0,
+                event,
+                operands: Vec::new(),
+                result_home: None,
+                outcome_home: None,
+            },
+        };
+        let target = target_operations::TargetOperationPlan {
+            psi: closed.identity(),
+            target: target::NativeTarget::linux_x64(),
+            profile: None,
+            entry: machine,
+            functions: Vec::new(),
+            native_callback_arguments: Vec::new(),
+            borrowed_storage_layouts: Default::default(),
+            publication: Default::default(),
+        };
+        let geometry = crate::native_geometry::NativeGeometry::new(&[]).unwrap();
+        assert_eq!(
+            project(machine, &[], &types, &target, &geometry, &instruction)
+                .unwrap()
+                .kind,
+            Kind::AtomicAccess {
+                location,
+                scalar_type: storage,
+                field_byte_offset: 0,
+                event,
+                outcome: None
+            }
+        );
+    }
 
     #[test]
     fn retained_scalar_execution_keeps_operands_and_requires_the_exact_fact() {
