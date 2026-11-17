@@ -18,8 +18,8 @@ DETOUR_REPAIRS = {
         'Source preparation evaluates required invocations inside stage 01. Its result carries the computed values and receipts.'),
     'policy': (88, ['accepted', 'native-planning-policies'],
         'Stage 01 settles source choices. Stage 03 computes calling policies from the carried choices and accepted policy code.'),
-    'handlers': (459, ['native-planning-select', 'physical-planning-generated', 'binding-summarize', 'binding-bind'],
-        'Open 03–05 handler handoff. Selection needs the entry checks and the pairs of dedicated stacks that must stay disjoint. Binding could fill in sizes and alignment if the instructions, registers and frames stay fixed.'),
+    'handlers': (459, ['native-planning-target', 'native-planning-select', 'physical-planning-generated', 'binding-summarize', 'binding-bind'],
+        'Open 03–05 handler handoff. 03.5 carries the permitted nesting for each retained installation. 03.6 uses its dedicated-stack pairs to select guards. 05 checks the finished bodies and measures the stack along those same nesting paths.'),
     'emission': (85, ['native-planning-target', 'encoding-bodies'],
         'From target lowering onward, each form carries the facts its successor needs. Encoding can consume physical code and those facts directly.'),
     'callbacks': (89, ['native-planning-closure', 'object-stage-container'],
@@ -36,17 +36,23 @@ DETOUR_REPAIRS = {
 # Source observations describe the current compiler. The proposed stage order
 # and the feasibility of filling numeric operands at 05 remain separate claims.
 def annotate_handler_handoff(nodes):
-    code='https://github.com/CathedralOS/Omega/blob/9b57170606b57bb43d9faef50253a23317c0df82/omega-rust/omega/compilation/'
+    code='https://github.com/CathedralOS/Omega/blob/cd529647d448fef97efe9f785a30f18c2570b5a6/omega-rust/omega/compilation/'
     selection=code+'pipeline/03_target-operations-to-selected-instructions/src/selection_interrupts.rs'
     object_code=code+'backend/images/image-emission/src/object_artifact.rs'
     requirement=code+'backend/runtime/installation-evidence/src/lib.rs'
+    admission=code+'realization/provider-admission/src/static_interrupts/scopes.rs'
+    driver=code+'native-compiler/src/realization/callback_thunks.rs'
     annotations={
+        'native-planning-target': (
+            ['Keep each retained installation’s', 'nesting rules and stack choices.', 'Derive the dedicated-stack pairs.'],
+            'Today admission records each installed entry’s gate and stack. Target lowering identifies which installations survive. For the supported x86-64 delivery rules, any installed entry can arrive first. A non-maskable interrupt (vector 2) and a machine check (vector 18) can then nest, each at most once per history. The proposal carries that rule and the entry placements forward. At 03.5, derive the dedicated-stack pairs from those rules and carry them into selection.',
+            [('Admitted gates and stack choices',admission+'#L239-L284'),('Delivery assumptions',admission+'#L294-L353'),('Retained installations',driver+'#L123-L159'),('Permitted nesting and pairs',object_code+'#L1115-L1141')]),
         'native-planning-select': (
             ['Fix gate, protocol and stack mode.',
              'Select capacity and alignment checks.',
              'For each simultaneous dedicated pair,',
              'check distinct slots and disjoint ranges.'],
-            'Selection needs the retained entries, their gate and entry protocols, which stacks they use, and which dedicated handlers can be active together. These facts determine which checks and branches to emit. Can 03 establish the complete pair list before measuring any body?',
+            'Select the entry checks from the gate, protocol and stack mode. For every pair of dedicated entries that can be active together, select checks for distinct stack slots and disjoint memory ranges. A three-entry nesting on dedicated stacks needs all three pair checks.',
             [('Entry and stack guards',selection+'#L1602-L1678'),('Pair guards',selection+'#L972-L1080')]),
         'physical-planning-generated': (
             ['Plan handler and entry-bridge bodies.',
@@ -55,14 +61,14 @@ def annotate_handler_handoff(nodes):
             [('Body and bridge costs',object_code+'#L1524-L1555')]),
         'binding-summarize': (
             ['Add body, bridge and call-stack costs.',
-             'Include nesting and stack alignment.'],
-            'Compute finite requirements from the physical bodies, including their callees. Combine costs for permitted arrival histories. Today that same walk also records simultaneous pairs, which selection already consumes.',
+             'Measure each permitted nesting path.'],
+            'Follow the same ordered arrivals as 03.5. A handler using the interrupted stack adds its aligned cost to whichever stack was active. A dedicated handler switches stacks while the earlier stack stays live. Take the peak for each stack across the permitted histories.',
             [('Stack demand and pair roster',object_code+'#L1042-L1067'),('Required byte count',requirement+'#L147-L161')]),
         'binding-bind': (
-            ['Bind size and alignment only if guards,',
-             'register use and frames stay fixed.'],
-            'Candidates for late binding are the finite required byte count and alignment for an already selected check. Its guard, branch structure and operand constraints must already exist. If the value needs a new instruction sequence, register, helper or larger frame, this split is still unsolved.',
-            [('Alignment and capacity operands',selection+'#L1230-L1243')]),
+            ['Check bodies for unexpected faults.',
+             'Bind sizes within the selected guards.'],
+            'Check that the finished bodies exclude the faults the nesting rule assumes away. Reject a body if that check fails. Only then bind a finite byte count and alignment to its selected check. Its guard, branch structure and operand constraints must already exist. If the value needs a new instruction sequence, register, helper or larger frame, this split is still unsolved.',
+            [('Physical fault evidence',object_code+'#L1266-L1305'),('Alignment and capacity operands',selection+'#L1230-L1243')]),
     }
     for key,(notes,gate,evidence) in annotations.items():
         node=nodes[key]

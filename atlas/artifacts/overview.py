@@ -398,7 +398,7 @@ def render_overview(architecture):
     parts.append('<script type="application/json" id="overview-proposed-model">'+json.dumps(proposed,ensure_ascii=False).replace('<','\\u003c')+'</script>')
     parts.append('<details class="proposed-contracts"><summary>Proposed contracts and open questions</summary><p>Proposed phase boundaries are judgment, not implemented or verified behavior. <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">Open planning gates</a>.</p><dl>')
     for n in proposed['nodes']:
-        anchor=' id="proposed-handlers"' if n['id']=='native-planning-select' else ''
+        anchor=' id="proposed-handlers"' if n['id']=='native-planning-target' else ''
         parts.append(f'<dt{anchor}>{esc(n["title"])}</dt><dd><p>{esc(n["description"])}</p>')
         if n['gate']:
             parts.append(f'<p>Open contract: {esc(n["gate"])}</p>')
