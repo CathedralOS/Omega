@@ -308,6 +308,8 @@ enum Slot {
 #[derive(Debug, Default)]
 pub struct ProofSearchActivity {
     started: usize,
+    #[cfg(test)]
+    sign_queries: usize,
 }
 
 impl ProofSearchActivity {
@@ -317,6 +319,10 @@ impl ProofSearchActivity {
 
     pub(crate) fn merge(&mut self, other: Self) {
         self.started = self.started.saturating_add(other.started);
+        #[cfg(test)]
+        {
+            self.sign_queries = self.sign_queries.saturating_add(other.sign_queries);
+        }
     }
 }
 
@@ -1320,6 +1326,16 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
+                // Carrier endpoints need no search through unrelated facts.
+                // The kernel checks the live value's exact type and endpoint.
+                if decide_primitive(self.context, goal, PrimitiveJudgment::IntegerCarrierBound)
+                    .is_ok()
+                {
+                    return Ok(primitive(
+                        goal.clone(),
+                        PrimitiveJudgment::IntegerCarrierBound,
+                    ));
+                }
                 let strict = matches!(goal, Proposition::LessThan(..));
                 self.compare(left, right, strict)
             }
@@ -2131,12 +2147,20 @@ impl<'a> Prover<'a> {
 
     /// A proof of `0 < term`.
     fn positive(&mut self, integer: IntegerType, term: &ScalarTerm) -> Option<ProofNode> {
+        #[cfg(test)]
+        {
+            self.activity.sign_queries += 1;
+        }
         let zero = ScalarTerm::integer(integer, integer.zero()).ok()?;
         self.prove(&Proposition::LessThan(zero, term.clone())).ok()
     }
 
     /// A proof of `0 <= term`.
     fn nonnegative(&mut self, integer: IntegerType, term: &ScalarTerm) -> Option<ProofNode> {
+        #[cfg(test)]
+        {
+            self.activity.sign_queries += 1;
+        }
         let zero = ScalarTerm::integer(integer, integer.zero()).ok()?;
         self.prove(&Proposition::LessOrEqual(zero, term.clone()))
             .ok()
@@ -2306,6 +2330,28 @@ impl<'a> Prover<'a> {
         best
     }
 
+    /// Reject an irrelevant subtraction chain before proving any offset signs.
+    /// A failed deeper sign proof can leave an intermediate left term as the
+    /// result, so every left term remains a possible endpoint here.
+    fn upper_subterm_can_reach(
+        mut term: &ScalarTerm,
+        wanted: impl Fn(&ScalarTerm) -> bool,
+    ) -> bool {
+        while let ScalarTerm::ExactIntegerSubtract {
+            scalar_type, left, ..
+        } = term
+        {
+            if scalar_type.carrier() != IntegerCarrier::Fixed || scalar_type.is_address() {
+                return false;
+            }
+            if wanted(left) {
+                return true;
+            }
+            term = left;
+        }
+        false
+    }
+
     /// Follows exact subtractions of positive or nonnegative offsets upward to
     /// the underlying minuend: `(sup, proof of term < sup or term <= sup)`.
     fn upper_subterm(&mut self, term: &ScalarTerm) -> Option<(ScalarTerm, ProofNode)> {
@@ -2351,6 +2397,16 @@ impl<'a> Prover<'a> {
         right: &ScalarTerm,
         order_proof: ProofNode,
     ) -> Option<(ScalarTerm, ProofNode, bool)> {
+        let relevant = if matches!(right, ScalarTerm::Value { .. }) {
+            right != at
+        } else {
+            Self::upper_subterm_can_reach(right, |candidate| {
+                matches!(candidate, ScalarTerm::Value { .. }) && candidate != at
+            })
+        };
+        if !relevant {
+            return None;
+        }
         let at_to_left = if left == at {
             None
         } else {
@@ -3135,6 +3191,9 @@ impl<'a> Prover<'a> {
         let chained = match direction {
             Direction::Upper => chain(self.below_compound(subject, open_side)?, le_proof).ok()?,
             Direction::Lower => {
+                if !Self::upper_subterm_can_reach(open_side, |candidate| candidate == subject) {
+                    return None;
+                }
                 let (sup, step_out) = self.upper_subterm(open_side)?;
                 if &sup != subject {
                     return None;
