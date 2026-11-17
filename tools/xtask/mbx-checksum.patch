@@ -267,18 +267,10 @@ index f88a546..713ecc8 100644
      fn resolved_aliases_prefer_specific_roots_and_restore_literal_paths() {
          let directory = tempfile::tempdir().unwrap();
 diff --git a/crates/mbx/src/rustc.rs b/crates/mbx/src/rustc.rs
-index ff2e05d..e2aacfd 100644
+index ff2e05d..cd020e2 100644
 --- a/crates/mbx/src/rustc.rs
 +++ b/crates/mbx/src/rustc.rs
-@@ -2781,7 +2781,6 @@ fn restore_prediction_payload(
- ) -> Result<Option<CachedCompilation>> {
-     let _phase = crate::phase_timing::phase("key");
-     let Compilation {
--        invocation,
-         working_dir,
-         portable,
-         ..
-@@ -2796,7 +2795,7 @@ fn restore_prediction_payload(
+@@ -2796,7 +2796,7 @@ fn restore_prediction_payload(
          session::file_digest_cache(),
      )?;
      discovered.clone().apply_to(&mut context)?;
@@ -287,7 +279,7 @@ index ff2e05d..e2aacfd 100644
      if let Some(diagnostic) = diagnostic {
          *diagnostic = candidates
              .ordered()
-@@ -2869,13 +2868,26 @@ struct ActionCandidates {
+@@ -2869,13 +2869,26 @@ struct ActionCandidates {
  }
  
  impl ActionCandidates {
@@ -320,7 +312,7 @@ index ff2e05d..e2aacfd 100644
          })
      }
  
-@@ -2899,6 +2911,16 @@ impl ActionCandidates {
+@@ -2899,6 +2912,16 @@ impl ActionCandidates {
      }
  }
  
@@ -337,7 +329,7 @@ index ff2e05d..e2aacfd 100644
  /// Split a canonical rustc action into named hashes suitable for session
  /// history. The hashes preserve comparison fidelity without retaining source
  /// contents or environment values.
-@@ -3079,7 +3101,7 @@ fn action_from_parsed_dep_info(
+@@ -3079,7 +3102,7 @@ fn action_from_parsed_dep_info(
      )?;
      let mut context = base_action_context(compilation.rustc, working_dir, portable)?;
      discovered.clone().apply_to(&mut context)?;
