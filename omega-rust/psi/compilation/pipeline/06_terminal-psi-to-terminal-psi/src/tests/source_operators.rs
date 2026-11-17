@@ -451,3 +451,54 @@ machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; la
         terminal_check_tables::obligations::ObligationKind::CallRequirement { .. }
     )));
 }
+
+#[test]
+fn stored_byte_view_reads_keep_the_declarations_lifetime() {
+    let source = super::boundary_calls::typed(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/borrowed_view_lifetime_owner/main.omg"
+    )));
+    let verdict = operator_program(&source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    let program =
+        terminal_semantics::callable_values::terminal_callable_values(&accepted.elaboration.module)
+            .unwrap();
+    let entry = accepted
+        .elaboration
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == super::boundary_calls::entry(&source)).then_some(id))
+        .unwrap();
+    let reached =
+        terminal_semantics::callable_values::reachable_callable_invocations(&program, [entry]);
+    let calls = program
+        .bodies
+        .iter()
+        .flat_map(|(caller, body)| {
+            body.invocations.iter().filter_map(|record| {
+                let invocation = record.value.as_ref().ok()?;
+                let terminal_semantics::callable_values::CallableInvocationTarget::Machine(callee) =
+                    invocation.target
+                else {
+                    return None;
+                };
+                let expected = &program.bodies.iter().find(|(id, _)| *id == callee)?.1;
+                Some((
+                    *caller,
+                    callee,
+                    &invocation.structural_actual_types,
+                    &expected.structural_parameters,
+                ))
+            })
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        reached.is_ok(),
+        "{:?}; calls: {calls:?}; types: {:?}",
+        reached.err(),
+        program.structural_types
+    );
+    assert_operator_value(Ok(RouteVerdict::Accepted(accepted)), true);
+}

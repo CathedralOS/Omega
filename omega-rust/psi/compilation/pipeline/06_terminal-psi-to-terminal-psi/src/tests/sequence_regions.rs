@@ -215,6 +215,23 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
     );
     assert_ne!(source, ranged);
     assert_ne!(ranged, typed_ranged);
+    let typed = super::boundary_calls::typed(source);
+    let context = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Context")
+        .unwrap();
+    for member in typed.data_members(context) {
+        if let typed_trees::data::DataMember::Field(field) = member {
+            assert_eq!(
+                typed
+                    .type_reference_table
+                    .operand_lifetime_owner(field.type_reference),
+                context.symbol,
+                "a stored view keeps the declaration that owns its lifetime"
+            );
+        }
+    }
     for program in [source, ranged.as_str(), typed_ranged.as_str()] {
         let positive = judge_build(program).unwrap();
         let RouteVerdict::Accepted(accepted) = positive else {
