@@ -120,13 +120,6 @@ framework or a list of unimplemented features.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
 
-### A qualified collection gets builtin `[..]` indexing without a declared operator
-- Category: A verdict with nothing behind it
-- Where: [builtin meaning check](omega-rust/psi/compilation/representations/typed-trees/src/operator_declarations.rs#L2135), [typing selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L74), [byte-view tests](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L593)
-- Saw: [operands](wiki/spec/language/domains.md#L752) says builtin operators accept unqualified operands only, and indexing "follows the same rule through its operator declarations ... a qualified collection or index has such a declaration or is cast" (L777). Typing selects builtin indexing when `has_builtin_spelled_expression_meaning` holds, but that function never checks operand qualification. So with `domain [u8]::Path requires no_nul(self)`, `let x: &[u8] = &path[0..p];` on a `&[u8] in Path` is accepted as builtin indexing with no declaration and no cast, and the byte-view tests assert that acceptance. A declared range operator is still honoured; only the no-declaration case falls through. Found by a blind checklist replay of #3789 and confirmed on main at fdc89014463.
-- Cost: Qualified values lose the rule that their operators come from declarations, and a test pins the gap. Refuse builtin meaning for qualified operands in `has_builtin_spelled_expression_meaning`, require a declaration or cast, and turn the pinning test into a refusal twin.
-- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
 ### The Omega-written compiler binds static arguments by kind instead of position
 - Category: One idea, several implementations
 - Where: [bind_static_arguments](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg#L379), [Rust positional binding](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L1211)

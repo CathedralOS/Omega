@@ -626,6 +626,19 @@ fn an_explicit_domain_cast_permits_the_builtin_byte_range_and_keeps_its_bounds()
 }
 
 #[test]
+fn adding_a_domain_back_does_not_acquire_a_builtin_byte_range() {
+    let program = QUALIFIED_BYTE_RANGE.replace(
+        "&path[0..position]",
+        "&((path as -Path) as +Path)[0..position]",
+    );
+    let actual = verdict(&program);
+    assert!(
+        actual.contains("range of qualified bytes without its selected operand type"),
+        "{actual}"
+    );
+}
+
+#[test]
 fn a_declared_qualified_byte_range_is_not_taken_as_builtin() {
     let program = QUALIFIED_BYTE_RANGE;
     let authored = format!(
