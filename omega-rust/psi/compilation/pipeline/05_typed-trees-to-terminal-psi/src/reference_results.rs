@@ -862,7 +862,29 @@ fn publish_parents(
                     .filter(|(id, _)| *id != child)
                     .map(|(id, life)| (*id, life)),
             )
-            .map_err(|reason| unavailable(machine.id, reason))?;
+            .map_err(|reason| {
+                let mut refusal = refuse(
+                    machine.id,
+                    Construct::Obligation(child),
+                    Unserved::Call(reason),
+                );
+                refusal.source_span = elaboration
+                    .sources
+                    .get(machine.id)
+                    .and_then(|source| source.obligations.get(child))
+                    .and_then(|origin| origin.span());
+                if refusal.source_span.is_none()
+                    && let Some(name) = elaboration.names.get(machine.id)
+                {
+                    refusal.detail = format!(
+                        "{} in machine `{name}` at block {} position {}",
+                        refusal.detail,
+                        at.0.get(),
+                        at.1,
+                    );
+                }
+                refusal
+            })?;
             updates.push((
                 machine.id,
                 child,
