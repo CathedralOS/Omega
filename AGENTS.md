@@ -329,6 +329,11 @@ The only pre-merge check is `admission` (rules, formatting and, when Rust or
 Cargo files changed, a type check of the merge tree; about two minutes);
 `main` is checked after every merge.
 
+When changing a shared Rust API or helper, search the whole repository for its
+consumers, including tests, examples and forwarding helpers. Run the affected
+crates' required all-target Clippy early, before costly runtime or performance
+runs, and reuse that result for final validation unless relevant source changes.
+
 Passing tests on the change and on the small area around it end pre-merge
 testing. A failure there is an investigation of that failure, never a wider
 run.
