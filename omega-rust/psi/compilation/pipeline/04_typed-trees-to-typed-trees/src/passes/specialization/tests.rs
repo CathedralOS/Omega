@@ -2496,6 +2496,73 @@ fn closed_callback_type_requirements_are_proved_and_retained() {
 }
 
 #[test]
+fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
+    use super::{Operand, copy_declarations};
+    use language_core::data_layout_queries::DataLayoutQueryKind;
+    use typed_trees::expression::DataLayoutQueryRequest;
+
+    for kind in [DataLayoutQueryKind::Size, DataLayoutQueryKind::Alignment] {
+        let mut source = source();
+        let program = &mut source.program;
+        let parameter = named(program, source.relay.parameter, "T");
+        let wide = program
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::unsigned(64)))
+            .unwrap();
+        let result = named(program, wide, "u64");
+        let mut query = calls(program, source.relay.machine)[0].clone();
+        query.arguments = HandleSpan::empty();
+        query.machine_arguments = Box::new([]);
+        query.authored_machine_application = arena::Handle::invalid();
+        query.layout_query = Some(DataLayoutQueryRequest {
+            kind,
+            operand: StaticMachineArgument {
+                type_reference: parameter,
+                ..argument(source.relay.parameter, "T")
+            },
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        let expression = program.expression_table.insert(ExpressionNode::Call(query));
+        let body = returns(program, expression);
+        let statements = program.statement_table.insert_statements([body]);
+        let state = program
+            .machine_by_symbol(source.relay.machine)
+            .unwrap()
+            .states
+            .start();
+        program.machine_states.get_mut(state).statement_nodes = statements;
+        program.machine_states.get_mut(state).return_type = result;
+        let operand = Operand::read(
+            program,
+            &TypeParameter {
+                symbol: source.relay.parameter,
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            },
+            &argument(source.byte, "u8"),
+        )
+        .unwrap();
+        let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
+        let copied_calls = calls(program, copied.machine);
+        let query = copied_calls[0].layout_query.as_ref().unwrap();
+        assert_eq!(query.kind, kind);
+        assert_eq!(query.operand.symbol, source.byte);
+        assert_eq!(
+            named_symbol(program, query.operand.type_reference),
+            source.byte
+        );
+        assert!(!query.nonempty_view.is_valid());
+        let original_calls = calls(program, source.relay.machine);
+        let original = original_calls[0].layout_query.as_ref().unwrap();
+        assert_eq!(original.operand.symbol, source.relay.parameter);
+        assert_eq!(
+            named_symbol(program, original.operand.type_reference),
+            source.relay.parameter
+        );
+    }
+}
+
+#[test]
 fn copied_statement_applications_rewrite_structural_type_operands() {
     use super::{Operand, copy_declarations};
     let (mut source, _, selection) = statement_callback_source();
