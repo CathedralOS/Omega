@@ -1,5 +1,5 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
-use source_files_to_tokens::Lexer;
 
 #[test]
 fn retired_receiver_parameters_reject_in_every_signature_owner() {

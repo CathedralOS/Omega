@@ -4,7 +4,7 @@ expressions, inline assembly, patterns, and type constraints.
 */
 
 use crate::errors::parse_error::ParseError;
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::State;

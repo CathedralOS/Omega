@@ -1786,8 +1786,10 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let mut syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../source/library/core");
         let mut bindings = Vec::new();
@@ -1802,8 +1804,10 @@ machine entry() -> u64 crashes none {
                     source::SourceOrigin::Toolchain,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
             bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
                 id,
                 source,

@@ -1,5 +1,5 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
-use source_files_to_tokens::Lexer;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::statement::TransitionGuardNode;

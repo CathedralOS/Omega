@@ -689,9 +689,11 @@ mod tests {
             let source_id = sources
                 .add("receiving_application/main.omg".into(), text.to_owned())
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
             crate::resolution::resolve(crate::resolution::ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),

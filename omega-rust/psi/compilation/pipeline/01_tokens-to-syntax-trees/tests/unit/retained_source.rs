@@ -1,14 +1,10 @@
 use crate::token_input::cursor::*;
-use source_files_to_tokens::Lexer;
 use std::sync::Arc;
 
 #[test]
 fn escaping_text_and_literal_bytes_outlive_token_storage() {
     let source: Arc<str> = Arc::from(r#"name 1.5 "\xff""#);
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .unwrap()
-        .retain_source(source.clone());
+    let tokens = crate::frontend_fixture::lex_retained(source.clone()).unwrap();
     let mut syntax = syntax_trees::SyntaxTrees::new(SourceId(77));
     let input = Input::new(SourceId(77), &tokens, &source, &mut syntax);
     let (name, rest) = input.take_identifier().unwrap();

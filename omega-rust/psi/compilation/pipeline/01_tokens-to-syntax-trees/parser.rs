@@ -1,21 +1,63 @@
 //! Parse token streams into unresolved syntax trees, preserving source order and spans.
-//! `parse` publishes one source's root items through `declarations::items`.
-//! Batch entry points below retain source metadata and schedule independent syntax pages.
+//! `parse` owns tree creation, source metadata, page scheduling and publication.
+//! Grammar helpers and partial tree construction are private to this stage.
 
 #![forbid(unsafe_code)]
+
+#[cfg(test)]
+extern crate self as tokens_to_syntax_trees;
 
 pub use errors::parse_error::ParseError;
 
 use crate::declarations::items::{ParsedDeclaration, parse_item};
 use crate::token_input::cursor::Input;
-use arena::{Arena, ConcurrentPagedArena, Handle, SealedPagedArena};
-use diagnostics::Diagnostic;
+use arena::{ConcurrentPagedArena, Handle};
 use rayon::prelude::*;
 use source::{SourceId, SourcePosition};
-use syntax_trees::{ParsedRootItems, ParsedSource, ParsedSources, SyntaxTrees, item::Item};
+use syntax_trees::{
+    ParsedRootItems, ParsedSource, ParsedSyntaxPages, ParsedSyntaxSource, SyntaxTrees, item::Item,
+};
 use tokens::{LexedSources, TokenStream};
 
-pub fn parse(
+/// How source trees may share a page. Independent units can be retained and adopted separately.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum ParseLayout {
+    #[default]
+    SharedPages,
+    IndependentUnits,
+}
+
+/// Storage coordinates for this parse. The compiler assigns the first unused page identity.
+#[derive(Debug, Clone, Copy)]
+pub struct ParseOptions {
+    pub first_page_identity: u32,
+    pub layout: ParseLayout,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            first_page_identity: 1,
+            layout: ParseLayout::SharedPages,
+        }
+    }
+}
+
+/// Borrows a complete token batch and returns owned syntax pages or its first source error.
+/// Callers neither prepare mutable trees nor assemble roots and source records.
+pub fn parse(lexed: &LexedSources, options: ParseOptions) -> Result<ParsedSyntaxPages, ParseError> {
+    let sources = lexed.sources.span_or_empty(lexed.batch);
+    let desired_pages = match options.layout {
+        ParseLayout::SharedPages => sources
+            .len()
+            .min(execution_admission::current_workers().saturating_mul(4))
+            .max(1),
+        ParseLayout::IndependentUnits => sources.len().max(1),
+    };
+    parse_source_pages_with_count(sources, desired_pages, options.first_page_identity)
+}
+
+fn parse_into(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
     tokens: &TokenStream<'_>,
@@ -45,111 +87,25 @@ pub fn parse(
     Ok(roots)
 }
 
-pub fn parse_syntax_trees(tokens: &TokenStream<'_>) -> Result<SyntaxTrees, ParseError> {
-    parse_syntax_trees_with_id(SourceId::default(), tokens)
-}
-
-pub fn parse_syntax_trees_with_id(
-    source_id: SourceId,
-    tokens: &TokenStream<'_>,
-) -> Result<SyntaxTrees, ParseError> {
-    let mut syntax_trees = SyntaxTrees::new(source_id);
-    parse(&mut syntax_trees, source_id, tokens)?;
-    Ok(syntax_trees)
-}
-
-pub fn parse_sources(
-    mut lexed: LexedSources,
-    syntax_trees: &mut SyntaxTrees,
-) -> Result<ParsedSources, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
-    let source_count = lexed_sources.len();
-    let mut parsed_sources = Arena::with_capacity(source_count);
-    let mut parsed = Vec::with_capacity(source_count);
-
-    for lexed_source in lexed_sources {
-        parsed.push(parse_recorded_source(syntax_trees, lexed_source)?);
-    }
-
-    let batch = parsed_sources.insert_many(parsed);
-
-    Ok(ParsedSources {
-        sources: parsed_sources,
-        batch,
-    })
-}
-
-pub struct ParsedSyntaxSource {
-    source: ParsedSource,
-    syntax: Handle<SyntaxTrees>,
-}
-
-impl ParsedSyntaxSource {
-    pub const fn source(&self) -> &ParsedSource {
-        &self.source
-    }
-
-    pub const fn syntax_handle(&self) -> Handle<SyntaxTrees> {
-        self.syntax
-    }
-}
-
-pub struct ParsedSyntaxPages {
-    pages: SealedPagedArena<SyntaxTrees>,
-    sources: Vec<ParsedSyntaxSource>,
-}
-
-impl ParsedSyntaxPages {
-    pub fn sources(&self) -> &[ParsedSyntaxSource] {
-        &self.sources
-    }
-
-    pub fn syntax(&self, handle: Handle<SyntaxTrees>) -> Option<&SyntaxTrees> {
-        self.pages.try_get(handle)
-    }
-
-    pub fn syntax_for<T>(&self, handle: Handle<T>) -> Option<&SyntaxTrees> {
-        self.syntax(Handle::from_parts(1, handle.generation()))
-    }
-
-    pub fn page_count(&self) -> usize {
-        self.pages.page_count()
-    }
-
-    pub fn into_parts(self) -> (Vec<SyntaxTrees>, ParsedSources) {
-        let trees = self.pages.into_pages().into_iter().flatten().collect();
-        let mut sources = Arena::with_capacity(self.sources.len());
-        let batch = sources.insert_many(self.sources.into_iter().map(|source| source.source));
-        (trees, ParsedSources { sources, batch })
-    }
-}
-
-pub fn parse_source_pages_from(
-    mut lexed: LexedSources,
-    first_page_identity: u32,
-) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
-    let source_count = lexed_sources.len();
-    let desired_pages = source_count
-        .min(execution_admission::current_workers().saturating_mul(4))
-        .max(1);
-    parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
-}
-
-pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
-    let desired_pages = lexed_sources.len().max(1);
-    parse_source_pages_with_count(lexed_sources, desired_pages, 1)
-}
-
 fn parse_source_pages_with_count(
-    lexed_sources: &mut [tokens::LexedSource],
+    lexed_sources: &[tokens::LexedSource],
     desired_pages: usize,
     first_page_identity: u32,
-) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+) -> Result<ParsedSyntaxPages, ParseError> {
     let source_count = lexed_sources.len();
     let chunk_size = source_count.max(1).div_ceil(desired_pages);
     let page_count = source_count.div_ceil(chunk_size);
+    if page_count != 0
+        && (first_page_identity == 0
+            || u32::try_from(page_count - 1)
+                .ok()
+                .and_then(|last| first_page_identity.checked_add(last))
+                .is_none())
+    {
+        return Err(ParseError::new(
+            "parser exhausted its source-page directory",
+        ));
+    }
     let arena = ConcurrentPagedArena::<SyntaxTrees>::new_with_first_page(
         desired_pages,
         1,
@@ -157,23 +113,30 @@ fn parse_source_pages_with_count(
     );
     let page_reservations = (0..page_count)
         .map(|_| {
-            arena.reserve_page().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "parser exhausted its source-page directory",
-                )]
-            })
+            arena
+                .reserve_page()
+                .ok_or_else(|| ParseError::new("parser exhausted its source-page directory"))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let parsed_pages = execution_admission::within_budget(|| {
-        page_reservations
-            .into_par_iter()
-            .zip(lexed_sources.par_chunks_mut(chunk_size))
-            .map(|(page, sources)| parse_source_page(page, sources))
-            .collect::<Vec<_>>()
-    })
-    .into_iter()
-    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        // Keep the large parsing stack, but one page needs no parallel dispatch.
+        if page_count <= 1 {
+            page_reservations
+                .into_iter()
+                .zip(lexed_sources.chunks(chunk_size))
+                .map(|(page, sources)| parse_source_page(page, sources))
+                .collect::<Result<Vec<_>, ParseError>>()
+        } else {
+            page_reservations
+                .into_par_iter()
+                .zip(lexed_sources.par_chunks(chunk_size))
+                .map(|(page, sources)| parse_source_page(page, sources))
+                .collect::<Vec<_>>()
+                .into_iter()
+                .collect::<Result<Vec<_>, ParseError>>()
+        }
+    })?;
 
     let mut parsed_sources = Vec::with_capacity(source_count);
     for (syntax, sources) in parsed_pages {
@@ -185,10 +148,10 @@ fn parse_source_pages_with_count(
     }
 
     let pages = arena.seal().map_err(|error| {
-        vec![Diagnostic::error(format!(
+        ParseError::new(format!(
             "parser page publication incomplete: {} of {} pages published",
             error.published_pages, error.reserved_pages
-        ))]
+        ))
     })?;
     Ok(ParsedSyntaxPages {
         pages,
@@ -198,8 +161,8 @@ fn parse_source_pages_with_count(
 
 fn parse_source_page(
     mut page: arena::ConcurrentArenaPage<'_, SyntaxTrees>,
-    sources: &mut [tokens::LexedSource],
-) -> Result<(Handle<SyntaxTrees>, Vec<ParsedSource>), Vec<Diagnostic>> {
+    sources: &[tokens::LexedSource],
+) -> Result<(Handle<SyntaxTrees>, Vec<ParsedSource>), ParseError> {
     let page_identity = page.page_identity();
     let first_source = sources
         .first()
@@ -219,23 +182,17 @@ fn parse_source_page(
 
 fn parse_recorded_source(
     syntax_trees: &mut SyntaxTrees,
-    lexed_source: &mut tokens::LexedSource,
-) -> Result<ParsedSource, Vec<Diagnostic>> {
-    let root_items =
-        parse(syntax_trees, lexed_source.source_id, &lexed_source.tokens).map_err(|error| {
-            let position =
-                SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
-            vec![Diagnostic::error(format!(
-                "{}:{}:{}: {}",
-                lexed_source.path.display(),
-                position.line,
-                position.column,
-                error.message
-            ))]
+    lexed_source: &tokens::LexedSource,
+) -> Result<ParsedSource, ParseError> {
+    let root_items = parse_into(syntax_trees, lexed_source.source_id, &lexed_source.tokens)
+        .map_err(|mut error| {
+            let position = SourcePosition::of(&lexed_source.source, error.source_span.span.start);
+            error.location = Some((lexed_source.path.clone(), position));
+            error
         })?;
     Ok(ParsedSource {
         source_id: lexed_source.source_id,
-        path: std::mem::take(&mut lexed_source.path),
+        path: lexed_source.path.clone(),
         source: lexed_source.source.clone(),
         origin: lexed_source.origin,
         root_items: root_items.items,
@@ -343,3 +300,15 @@ mod types {
 #[cfg(test)]
 #[path = "tests/unit/mod.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/support/internal.rs"]
+mod test_support;
+#[cfg(test)]
+use test_support::{
+    parse_source_units, parse_sources, parse_syntax_trees, parse_syntax_trees_with_id,
+};
+
+#[cfg(test)]
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

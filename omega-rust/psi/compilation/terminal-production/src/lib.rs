@@ -348,3 +348,7 @@ pub(crate) mod composition_roots {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

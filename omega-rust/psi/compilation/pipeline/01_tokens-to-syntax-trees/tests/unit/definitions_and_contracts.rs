@@ -1,7 +1,7 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
 use language_core::DomainPredicatePresence;
 use language_core::ReferenceAccess;
-use source_files_to_tokens::Lexer;
 use std::sync::Arc;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::Item;

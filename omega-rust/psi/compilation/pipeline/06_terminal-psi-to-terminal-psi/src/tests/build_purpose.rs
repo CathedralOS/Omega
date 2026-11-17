@@ -65,14 +65,16 @@ pub(super) fn frontier_with_core(
         } else {
             build_source = Some(id);
         }
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
         match &mut syntax {
             None => {
                 syntax =
-                    Some(tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap());
+                    Some(crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
             }
             Some(syntax) => {
-                tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
         }
     }
@@ -96,8 +98,10 @@ pub(super) fn frontier_with_core(
                 core_scope,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
         bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
             importing_source,
             id,

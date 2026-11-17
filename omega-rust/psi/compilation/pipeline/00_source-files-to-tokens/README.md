@@ -1,8 +1,8 @@
 # Lexical scanning
 
 Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
-streams: `lex_sources` coordinates the batch, `Lexer::fill_tokens` publishes each
-token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
+streams. Its only public operation is `lex(LoadedSources) -> Result<LexedSources, LexError>`.
+The private scanner publishes each token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
 error type, comments, identifiers and punctuation scanning stay with that flow.
 
 Follow the two substantial spelling domains under `literals/`:
@@ -10,7 +10,7 @@ Follow the two substantial spelling domains under `literals/`:
 - [numbers.rs](literals/numbers.rs) recognizes radix, fractional, exponent and suffix boundaries.
 - [quoted_bytes.rs](literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
 
-The [source-compilation coordinator](../../source-compiler/src/lib.rs) owns file
+The [source-compilation coordinator](../../source-compiler/src/source_parsing.rs) owns file
 loading before this stage receives text. [Token vocabulary](../../representations/tokens/lexemes/kinds.rs)
 owns the shared keyword and punctuation definitions. Ordinary tokens borrow the
 source; quoted literals use the token stream's byte buffer. Whitespace and
@@ -18,7 +18,9 @@ comments retain exact spans, including LF after a line comment.
 
 Behavior tests live under `tests/`. They check exact source coverage, token
 boundaries, accepted and refused spellings, decoded bytes, and batch order.
-The source-loading test lives with the source-compilation coordinator.
+The source-loading test lives with the source-compilation coordinator. Small
+fixture adapters in [tests/support/frontend.rs](../../../../../tests/support/frontend.rs)
+construct complete stage inputs; they expose no additional production route.
 
 ## Benchmark scanning through its consumer
 
@@ -32,8 +34,8 @@ mbx bench -p source-files-to-tokens --bench lexer_timing -- parse 100 <absolute-
 ```
 
 Cargo runs benchmarks from the package directory; absolute paths avoid changing
-the meaning of an input path. Additional source paths join the input batch. `lex` measures source-retaining
-tokenization and buffer recycling; `parse` also constructs and drops syntax
+the meaning of an input path. Additional source paths join the input batch. `lex` measures loaded-source
+batch construction and tokenization; `parse` also constructs and drops syntax
 trees. File reads and the complete token fingerprint are outside the timed loop.
 Each result reports bytes processed, elapsed time, and a checksum containing the
 fingerprint and consumed token/root counts.

@@ -1,14 +1,13 @@
-//! Time parsing of retained, pre-lexed inputs; omega-bench owns paired comparisons.
+//! Time parsing of retained, pre-lexed batches; omega-bench owns paired comparisons.
 //! Syntax snapshots and token fingerprints are checked outside the timed loop.
 
 use source::SourceId;
-use source_files_to_tokens::Lexer;
+use source::{LoadedSource, LoadedSources};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Instant;
-use syntax_trees::SyntaxTrees;
 
 fn main() -> Result<(), String> {
     let arguments: Vec<_> = std::env::args()
@@ -35,26 +34,33 @@ fn main() -> Result<(), String> {
             .checked_add(source.len() as u64)
             .ok_or("input size overflow")?;
         source.hash(&mut fingerprint);
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .map_err(|error| error.message)?
-            .retain_source(source.clone());
+        let loaded: LoadedSources = [LoadedSource {
+            source_id: SourceId(1),
+            source: source.clone(),
+            ..Default::default()
+        }]
+        .into_iter()
+        .collect();
+        let lexed = source_files_to_tokens::lex(loaded).map_err(|error| error.message)?;
+        let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
         for token in tokens.iter() {
             format!("{:?}", token.kind).hash(&mut fingerprint);
             token.span.start.hash(&mut fingerprint);
             token.span.end.hash(&mut fingerprint);
             tokens.text(token).as_bytes().hash(&mut fingerprint);
         }
-        let mut syntax = SyntaxTrees::new(SourceId(1));
-        let roots = tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), &tokens)
+        let parsed = tokens_to_syntax_trees::parse(&lexed, Default::default())
             .map_err(|error| format!("{path}: {}", error.message))?;
-        roots.items.len().hash(&mut fingerprint);
-        roots.import_range.hash(&mut fingerprint);
-        syntax
+        let roots = parsed.sources()[0].source();
+        roots.root_items.len().hash(&mut fingerprint);
+        roots.import_root_range.hash(&mut fingerprint);
+        parsed
+            .syntax(parsed.sources()[0].syntax_handle())
+            .unwrap()
             .snapshot_json()
             .map_err(|error| error.to_string())?
             .hash(&mut fingerprint);
-        inputs.push(tokens);
+        inputs.push(lexed);
     }
     let work_units = bytes.checked_mul(repeats).ok_or("work size overflow")?;
     if work_units == 0 {
@@ -63,12 +69,12 @@ fn main() -> Result<(), String> {
     let mut checksum = 0u64;
     let start = Instant::now();
     for _ in 0..black_box(repeats) {
-        for tokens in &inputs {
-            let mut syntax = SyntaxTrees::new(SourceId(1));
-            let roots = tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), black_box(tokens))
+        for lexed in &inputs {
+            let parsed = tokens_to_syntax_trees::parse(black_box(lexed), Default::default())
                 .map_err(|error| error.message)?;
-            checksum = checksum.wrapping_add(black_box(roots.items.len()) as u64);
-            black_box(&syntax);
+            checksum = checksum
+                .wrapping_add(black_box(parsed.sources()[0].source().root_items.len()) as u64);
+            black_box(&parsed);
         }
     }
     let elapsed = start.elapsed().as_nanos();

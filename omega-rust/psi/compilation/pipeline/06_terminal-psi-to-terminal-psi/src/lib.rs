@@ -2558,3 +2558,7 @@ pub fn derive_contract_obligation(
     .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
     Ok(certificate)
 }
+
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

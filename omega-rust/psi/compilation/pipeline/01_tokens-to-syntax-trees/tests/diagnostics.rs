@@ -1,5 +1,5 @@
-use source_files_to_tokens::Lexer;
-use tokens_to_syntax_trees::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::frontend_fixture::parse_syntax_trees;
 
 fn parse_error_message(source: &str) -> String {
     let tokens = Lexer::new(source)
@@ -94,3 +94,6 @@ fn a_trait_requirement_carries_its_token_on_the_ordinary_machine_head() {
         "unexpected diagnostic: {message}"
     );
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;
