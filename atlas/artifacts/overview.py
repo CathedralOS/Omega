@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 import re
 import subprocess
-import textwrap
 
 
 def validate(model):
@@ -204,6 +203,23 @@ def overview_model(architecture):
     for node in nodes:
         owner = records[node['owner']]
         node.update(source=owner['source'], description=owner['description'], page=owner['page'])
+    # Runtime admission calls a helper inside Omega 02. Object composition can
+    # discover private bodies from emitted symbols. Give each its own endpoint.
+    for key,owner,title,description,path in (
+        ('runtime-layout','runtime-admission','02 storage-layout helper','Runtime admission optimizes the abstract program and calls a target-lowering helper for borrowed storage layouts. It installs the returned layouts in the runtime provisions.','realization.rs#L152-L184'),
+        ('callbacks','compose','Compile callback bodies','Root object symbols select reached callbacks. The driver realizes private objects and follows their symbols until it closes the set.','realization/callback_thunks.rs#L195-L264'),
+    ):
+        nodes.append(dict(id=key,owner=owner,title=title,role='operation',kind='attention',
+                          group='runtime' if key=='runtime-layout' else 'emission',page='omega',
+                          description=description,source=base+'omega-rust/omega/compilation/native-compiler/src/'+path))
+    for index,a,b,label,path in (
+        (73,'admit','runtime-layout','query stage 02 for storage layouts','realization.rs#L166-L178'),
+        (74,'runtime-layout','admit','borrowed storage layouts for runtime provisions','realization.rs#L173-L184'),
+        (75,'objects','callbacks','scan emitted symbols for required callback bodies','realization/callback_thunks.rs#L195-L229'),
+        (76,'callbacks','compose','private function objects for composition','realization/object_emission.rs#L115-L128'),
+    ):
+        edges.append(dict(id=f'overview-edge-{index}',start=a,end=b,label=label,kind='attention',
+                          source=base+'omega-rust/omega/compilation/native-compiler/src/'+path))
     # Same-form optimization still has an input and an output. Showing those
     # versions separately keeps 01 and 04 in the numbered reading order.
     for number, input_id, output_id, title in (
@@ -233,7 +249,34 @@ def overview_model(architecture):
             n['height']=60
     for e in edges:
         e['main']=(e['start'],e['end']) in main_pairs
-    model = dict(nodes=nodes, edges=edges, spine=spine)
+    # The repair plan identifies these specific calls and handoffs. Other
+    # side paths, such as ordinary runtime calls, keep their own color.
+    detours=[
+        ('emission','Emit reads stage 02',[61],
+         'Emit reads admission facts and a retained abstract program saved at target lowering, across selection, allocation and encoding.'),
+        ('handlers','Handler round trip',[47,48],
+         'Before instruction selection, the compiler builds required handlers as objects. Their stack and entry requirements return as installation facts.'),
+        ('evaluation','Source evaluation',[16,17],
+         'Source preparation sends a required value to the evaluator. The evaluator prepares and checks the invocation, runs it, and returns the computed value.'),
+        ('policy','Policy loop',[22,23],
+         'When provider demand changes, policy preparation reads the accepted publication and checked source inputs again. Settlement repeats with the prepared inputs.'),
+        ('callbacks','Object-driven compilation',[75,76],
+         'The compiler scans emitted object symbols, compiles the callbacks they reach, and sends those private objects to composition.'),
+        ('runtime-layout','Runtime layout query',[73,74],
+         'Runtime admission separately calls a helper from Omega 02 to compute storage layouts and installs them in the runtime provisions.'),
+        ('frames','Late frame rewrite',[59,60],
+         'After emission, applying frames inserts prologue and epilogue instructions and can re-encode branches whose destinations moved.'),
+        ('image','Image-time codegen',[68,69],
+         'Image construction can generate entry or adapter code after the body objects already exist.'),
+    ]
+    traces=[]
+    by_id={e['id']:e for e in edges}
+    for key,title,numbers,description in detours:
+        ids=[f'overview-edge-{number}' for number in numbers]
+        for edge_id in ids:
+            by_id[edge_id]['detour']=key
+        traces.append(dict(id=key,title=title,edges=ids,description=description))
+    model = dict(nodes=nodes, edges=edges, spine=spine,traces=traces)
     validate(model)
     return model
 
@@ -261,57 +304,42 @@ def render_scene(model):
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
     parts = [f'<g class="connected-scene{" proposed-scene" if model.get("view")=="proposed" else ""}">']
+    proposed=model.get('view')=='proposed'
     for g in model['groups']:
-        parts.append(f'<g class="connected-group"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/>')
+        parts.append(f'<g class="connected-group" data-group="{g["id"]}"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/>')
         for i,line in enumerate(g['caption']['lines']):
-            parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]}" y="{g["caption"]["y"]+20+i*26}">{esc(line)}</text>')
+            parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]}" y="{g["caption"]["y"]+i*26}">{esc(line)}</text>')
         parts.append('</g>')
     start=model['startLabel']
-    parts.append(f'<text class="connected-start" x="{start["x"]}" y="{start["y"]+20}">START ↓</text>')
+    parts.append(f'<text class="connected-start" x="{start["x"]}" y="{start["y"]+20}">{("START ↓" if proposed else "START")}</text>')
     for e in model['edges']:
         kind=e['kind'];css='attention' if kind in ('attention','auxiliary') else 'request' if kind in ('request','result') else kind
-        marker='return' if css=='attention' else 'check' if css=='check' else 'arrow'
+        if e.get('detour'):
+            css='attention detour'
+        marker='return' if 'attention' in css else 'check' if css=='check' else 'service' if not e.get('main') else 'arrow'
         parts.append(f'<g class="overview-edge {css}{" main-path" if e.get("main") else ""}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}" tabindex="0" role="button" aria-label="{esc(nodes[e["start"]]["title"])} to {esc(nodes[e["end"]]["title"])}: {esc(e["label"])}"><title>{esc(e["label"])} · {esc(e["source"])}</title>')
-        arrow='' if nodes[e['end']]['role']=='transform' and kind!='auxiliary' else f' marker-end="url(#overview-{marker})"'
+        arrow=f' marker-end="url(#overview-{marker})"'
         for section in e.get('sections',[]):
             path='M'+' L'.join(f'{p["x"]:g} {p["y"]:g}' for p in section['points'])
             parts.append(f'<path d="{path}"{arrow}/><path class="connected-hit" d="{path}"/>')
         for label in e.get('labels',[]):
-            if 'anchor' in label:
-                ax,ay=label['anchor']['x'],label['anchor']['y']
-                tx=max(label['x'],min(ax,label['x']+label['width']))
-                ty=max(label['y'],min(ay,label['y']+label['height']))
-                parts.append(f'<line class="label-guide" x1="{ax:g}" y1="{ay:g}" x2="{tx:g}" y2="{ty:g}"/>')
-            for i,line in enumerate(label['lines']):
-                parts.append(f'<text x="{label["x"]+4}" y="{label["y"]+20+26*i}">{esc(line)}</text>')
+            parts.append(f'<text class="wire-caption" x="{label["x"]}" y="{label["y"]}" text-anchor="middle">{esc(label["text"])}</text>')
         parts.append('</g>')
     for n in model['nodes']:
         x,y,w,h=(n[k] for k in ('x','y','width','height'))
         href=f'{n["page"]}.html#{n["anchor"]}' if model.get('view')=='proposed' else f'#layer-{n["group"]}'
         parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-role="{n["role"]}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
-        if n['role']=='transform':
-            parts.append(f'<circle class="overview-join" cx="{x+w/2}" cy="{y+h/2}" r="3"/>')
-            for label in n['labels']:
-                for i,line in enumerate(label['lines']):
-                    parts.append(f'<text class="overview-action" x="{label["x"]+4}" y="{label["y"]+20+26*i}">{esc(line)}</text>')
-        elif model.get('view')=='proposed':
+        if not proposed:
+            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3"/>')
+            title={'apply-frame':'Apply frames · rewrite','image-build':'Form image · late code','optimized-abstract':'Optimized abstract ops','installations':'Measure handler objects','native-run':'Run native executable','build':'Build · packages · library'}.get(n['id'],n['title'])
+            parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
+        else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')
             for i,line in enumerate(n.get('notes',[])):
                 parts.append(f'<text class="overview-step-note" x="{x+16}" y="{y+47+i*19}">{esc(line)}</text>')
             if n['reference']:
                 parts.append(f'<text class="overview-step-note" x="{x+w-12}" y="{y+25}" text-anchor="end">{esc(n["reference"])}</text>')
-        else:
-            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
-            lines=textwrap.wrap(n['title'],21 if model.get('view')=='proposed' else 23,break_long_words=False,break_on_hyphens=False)
-            for i,line in enumerate(lines):
-                title_y=y+27+28*i if n.get('notes') else y+h/2+7-(len(lines)-1)*14+28*i-(11 if n['id']=='compiler' else 0)
-                parts.append(f'<text class="overview-box-title" x="{x+w/2}" y="{title_y}" text-anchor="middle">{esc(line)}</text>')
-            note_lines=[line for note in n.get('notes',[]) for line in textwrap.wrap(note,29,break_long_words=False,break_on_hyphens=False)]
-            for i,line in enumerate(note_lines):
-                parts.append(f'<text class="overview-step-note" x="{x+w/2}" y="{y+38+len(lines)*28+i*20}" text-anchor="middle">{esc(line)}</text>')
-        if n['id']=='compiler':
-            parts.append(f'<text class="overview-note" x="{x+w/2}" y="{y+49}" text-anchor="middle">Coordinates Psi 00–04</text>')
         parts.append('</a>')
     parts.append('</g>')
     return ''.join(parts)
@@ -322,24 +350,25 @@ def render_overview(architecture):
     model = layout_model(overview_model(architecture))
     revision=re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
     model.update(view='current',badge=f'Current · compiler snapshot {revision[:12]}',
-                 intro='Follow the bold line from START, top to bottom. Select a dashed connection for its details.')
+                 intro='Follow the numbered stages across the map. Orange arrows mark the dependencies flagged in the repair plan.')
     proposed=layout_model(proposed_model())
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
+    trace_options=''.join(f'<option value="{t["id"]}">{esc(t["title"])}</option>' for t in model['traces'])
     options=''.join(f'<option value="{n["id"]}">{esc(n["title"])}</option>' for n in proposed['nodes'] if n['role']=='owner')
     parts = ['<div class="arch-reading" id="compiler-overview" data-view="current">',
              '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
-             '<div class="arch-overview-legend" data-legend="current"><span class="legend-psi">Psi form</span><span class="legend-native">Native form</span><span>Shaded: owner / inputs</span><span class="legend-check">Checker verdict</span><span>Bold: main route</span><span>Dashed: supporting work</span><span class="arch-attention">Red: extra inputs / late code</span></div>',
+             '<div class="arch-overview-legend" data-legend="current"><span class="key-main">Stage handoff</span><span class="key-service">Supporting call or data</span><span class="key-detour">Pipeline detour or late code</span></div>',
              '<div class="arch-overview-legend" data-legend="proposed" hidden><span>00–10: stage owners</span><span>01.1, 01.2…: unfolded operations</span><span>Within a stage: dependency order; work may repeat</span></div>',
-             f'<div class="connected-tools" hidden><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
+             f'<div class="connected-tools" hidden><label class="trace-picker">Trace <select aria-label="Trace a pipeline detour"><option value="">All connections</option>{trace_options}</select></label><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
-    parts.append('</select></label><button type="button" data-camera="clear">Clear selection</button></div><div class="connected-workspace"><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
+    parts.append('</select></label><button type="button" data-camera="clear">Clear selection</button></div><p class="trace-explanation" hidden></p><div class="connected-workspace"><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
     parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Current compiler architecture"><defs>')
-    for name in ('arrow','return','check'):
-        parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
+    for name in ('arrow','return','check','service'):
+        parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs>'+render_scene(model))
     parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div></div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
     for e in model['edges']:
