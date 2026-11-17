@@ -1733,19 +1733,49 @@ fn analyze(
                 if path.contains(&StructuralPathSegment::Referent)
         )
     });
-    let reference_graph = if needs_backing {
+    // The active case determines which payload needs cleanup, even when
+    // the type contains no references. Ordinary type-wide cleanup needs no
+    // additional flow. Captured homes and reference backing remain separate.
+    let decomposes = machine.operations().any(|operation| {
+        matches!(
+            operation.kind,
+            terminal_psi::OperationKind::DecomposeStructuralValue { .. }
+        )
+    });
+    let mut needs_storage_flow = needs_backing;
+    if !needs_storage_flow && module.is_some() {
+        for (root, place) in roots.iter().zip(&machine.structural_places) {
+            let Some(root) = root.as_ref().filter(|root| root.owned && root.affine) else {
+                continue;
+            };
+            if (decomposes || dispositions[index(root.structural_type.get())?] != Some(true))
+                && crate::descriptor_results::DescriptorSlotKind::References.tracks_returned_value(
+                    types,
+                    place.id,
+                    root.structural_type,
+                )
+            {
+                needs_storage_flow = true;
+                break;
+            }
+        }
+    }
+    let reference_graph = if needs_storage_flow {
         let module = module.ok_or(Error::unsupported(
-            "reference storage requires its module's exact backing",
+            "conditional storage analysis requires its exact module",
         ))?;
         crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
             .map_err(|_| Error::unsupported("reference storage has no complete closure"))?
     } else {
         Vec::new()
     };
-    let mut references = needs_backing.then(|| {
+    let mut references = needs_storage_flow.then(|| {
         crate::descriptor_results::DescriptorAnalysis::with_reference_slots(types, &reference_graph)
     });
-    let backing = if let Some(references) = &mut references {
+    let backing = if needs_backing {
+        let references = references.as_mut().ok_or(Error::malformed(
+            "reference backing lost its storage analysis",
+        ))?;
         let graph = reference_graph
             .iter()
             .find(|graph| graph.id == machine.id)

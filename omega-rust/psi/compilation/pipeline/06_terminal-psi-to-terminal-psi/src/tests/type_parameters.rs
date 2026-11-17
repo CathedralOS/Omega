@@ -1542,7 +1542,7 @@ fn generic_case_reconstruction_preserves_both_empty_and_live_payloads() {
 
 #[test]
 fn a_nested_generic_constructor_keeps_its_argument_contents() {
-    let form = parameter_form(
+    let source = super::boundary_calls::typed(
         r#"
         data Outcome<T> { case Missing; case Present(item: T); }
         machine entry<T>(value: T) -> Outcome<T> {
@@ -1553,6 +1553,72 @@ fn a_nested_generic_constructor_keeps_its_argument_contents() {
         }
     "#,
     );
-    let verdict = judge(Ok(form)).unwrap();
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Ticket [linear] { number: u64; }
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry(value: Outcome<Ticket>) -> u64 {
+            transition value {
+                Outcome::Missing -> 0u64
+                Outcome::Present { item } -> consume(move item)
+            }
+        }
+        machine consume(item: Ticket) -> u64 { let { number } = move item; number }
+    "#,
+    );
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = typed_trees_to_terminal_psi::elaborate_closure(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_known_empty_case_keeps_its_cleanup_membership() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Ticket [linear] { number: u64; }
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry() -> u64 {
+            let value: Outcome<Ticket> = Outcome::Missing;
+            transition value {
+                Outcome::Missing -> 0u64
+                Outcome::Present { item } -> consume(move item)
+            }
+        }
+        machine consume(item: Ticket) -> u64 { let { number } = move item; number }
+    "#,
+    );
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = typed_trees_to_terminal_psi::elaborate_closure(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
