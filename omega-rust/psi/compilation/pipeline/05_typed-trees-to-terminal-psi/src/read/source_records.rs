@@ -10,6 +10,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication};
 
 mod layouts;
+mod opaque;
 
 use super::{Program, places::RecordSource};
 use crate::body::RecordType;

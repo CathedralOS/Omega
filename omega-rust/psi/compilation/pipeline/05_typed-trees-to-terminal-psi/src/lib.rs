@@ -1122,6 +1122,7 @@ fn finish_reading_into<'source>(
     let descriptions = (!policies.requests.is_empty())
         .then(|| program.prepare_calling_storage(diagnostic, &policies))
         .transpose()?;
+    let opaque_carriers = program.prepare_opaque_carriers(diagnostic)?;
     program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
     // Header types and clauses may name services and parent contracts.
@@ -1292,6 +1293,14 @@ fn finish_reading_into<'source>(
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
+    program.publish_opaque_carriers(
+        diagnostic,
+        opaque_carriers,
+        descriptions
+            .iter()
+            .flat_map(|rows| rows.signatures.iter().map(|row| &row.storage)),
+        &mut elaboration.module,
+    )?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
