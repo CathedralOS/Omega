@@ -1036,6 +1036,9 @@ pub enum ExpressionKind {
     /// Exact IEEE representation after one rounding at the landing boundary.
     Float(semantic_vocabulary::IeeeFloatValue),
     Boolean(bool),
+    /// Ordinary zero construction, with the same establishment and custody
+    /// checks as zero-initialized locals. No source expression is evaluated.
+    Zero,
     /// A stored exact selection. Construction keeps code and its required
     /// contract; it evaluates no arguments and invokes no body.
     MachineValue {

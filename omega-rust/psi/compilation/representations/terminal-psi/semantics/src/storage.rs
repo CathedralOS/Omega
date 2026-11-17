@@ -2152,6 +2152,107 @@ pub mod borrowed_storage {
         Ok(())
     }
 
+    /// The referents a callee can store into through the `&mut` references
+    /// carried by a value it receives with `access`: one path per reference,
+    /// relative to the value and ending in `Referent`, outermost first.
+    /// Lowering writes each of them at a call that has no narrower frame,
+    /// and the checker derives the same rows, because a caller's fact
+    /// survives a call only when its storage is disjoint from the callee's
+    /// frame, "aliases included" (dependent_values.md, "Mutation frames").
+    /// A shared or write-only borrow of the value grants no store through
+    /// what it carries, and a shared reference grants none beneath it
+    /// (loans.md, "Reborrow lineage and access"). `None` when the referents
+    /// are not a finite list of exact paths: a recursive type, an array of
+    /// open extent, or an exclusive view of values that carry references.
+    pub fn carried_exclusive_referents(
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
+        use terminal_psi::{
+            ResolvedStructuralPathSegment as Segment, StructuralAccess, StructuralFieldType,
+            StructuralTypeShape,
+        };
+        type Paths = Vec<Vec<Segment>>;
+
+        fn walk(
+            types: &[terminal_psi::StructuralTypeDeclaration],
+            structural_type: semantic_vocabulary::StructuralTypeId,
+            active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+        ) -> Option<Paths> {
+            if active.contains(&structural_type) || active.len() > 64 {
+                return None;
+            }
+            let declaration = crate::exactly_one::exactly_one(types.iter(), |declaration| {
+                declaration.id == structural_type
+            })?;
+            active.push(structural_type);
+            let mut found = Paths::new();
+            let beneath = |prefix: &[Segment], paths: Paths, found: &mut Paths| {
+                found.extend(
+                    paths
+                        .into_iter()
+                        .map(|path| prefix.iter().copied().chain(path).collect()),
+                );
+            };
+            match &declaration.shape {
+                StructuralTypeShape::Reference { referent, access } => match access {
+                    StructuralAccess::MutableBorrow => {
+                        found.push(vec![Segment::Referent]);
+                        let paths = walk(types, *referent, active)?;
+                        beneath(&[Segment::Referent], paths, &mut found);
+                    }
+                    StructuralAccess::WriteOnlyBorrow => found.push(vec![Segment::Referent]),
+                    StructuralAccess::SharedBorrow | StructuralAccess::Owned => {}
+                },
+                StructuralTypeShape::FixedArray { element, length } => {
+                    let element = walk(types, *element, active)?;
+                    if !element.is_empty() {
+                        let length = length.literal().filter(|length| *length <= 4096)?;
+                        for index in 0..length {
+                            for path in &element {
+                                found.push(
+                                    [Segment::FixedIndex(index)]
+                                        .into_iter()
+                                        .chain(path.iter().copied())
+                                        .collect(),
+                                );
+                            }
+                        }
+                    }
+                }
+                StructuralTypeShape::ElementView {
+                    element,
+                    access: Some(StructuralAccess::MutableBorrow),
+                } if !walk(types, *element, active)?.is_empty() => return None,
+                _ => {}
+            }
+            for (case, field) in declaration.shape.fields_with_case() {
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    continue;
+                };
+                if field.relevance.is_erased() {
+                    continue;
+                }
+                let prefix: &[Segment] = match case {
+                    Some(case) => &[Segment::Case(case.id), Segment::Field(field.id)],
+                    None => &[Segment::Field(field.id)],
+                };
+                let paths = walk(types, child, active)?;
+                beneath(prefix, paths, &mut found);
+            }
+            active.pop();
+            Some(found)
+        }
+
+        match access {
+            StructuralAccess::MutableBorrow | StructuralAccess::Owned => {
+                walk(types, structural_type, &mut Vec::new())
+            }
+            StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow => Some(Vec::new()),
+        }
+    }
+
     /// Substitute a published frame through the call's already evaluated
     /// operands. These are invalidation regions, not new borrows or move
     /// permissions. An unserved reference origin retains the call ceiling.

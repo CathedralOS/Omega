@@ -124,6 +124,9 @@ pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
 }
 
 impl ValidatedNonAuthoritativeCalleeSaveStorage {
+    pub fn into_plan(self) -> NonAuthoritativeCalleeSaveStoragePlan {
+        self.plan
+    }
     pub const fn plan(&self) -> &NonAuthoritativeCalleeSaveStoragePlan {
         &self.plan
     }

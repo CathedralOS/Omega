@@ -42,7 +42,8 @@ pub use x86_branch_relaxation::{
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 use x86_branch_relaxation::{
-    stage_optimized_x86_branch_relaxation, validate_optimized_x86_branch_relaxation,
+    stage_optimized_x86_branch_relaxation, validate_current_x86_branch_relaxation,
+    validate_optimized_x86_branch_relaxation,
 };
 
 pub(crate) type FunctionRelativeLayoutRuleCatalogEntry =
@@ -84,7 +85,7 @@ impl std::error::Error for ResolvedLayoutOptimizationError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLayoutOptimization {
-    baseline: Arc<ResolvedMachineLayout>,
+    baseline: machine_code::ResolvedLayoutRoots,
     program: machine_code::ResolvedMachineProgram,
     current: Arc<ResolvedMachineLayout>, // Active resolved machine layout after optional relaxation.
     selections: OptimizationPhaseSelections, // Phase-projected optimization selections governing this run.
@@ -93,8 +94,12 @@ pub struct ResolvedLayoutOptimization {
 }
 
 impl ResolvedLayoutOptimization {
-    pub fn baseline(&self) -> &ResolvedMachineLayout {
-        &self.baseline
+    pub fn baseline_identity(&self) -> machine_code::ResolvedSelectedFormLayoutIdentity {
+        self.baseline.identity
+    }
+
+    pub fn baseline_roots(&self) -> machine_code::ResolvedLayoutRoots {
+        self.baseline
     }
     pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
         &self.program
@@ -143,7 +148,7 @@ pub fn execute_resolved_layout_optimization(
         None => Arc::clone(baseline),
     };
     Ok(ResolvedLayoutOptimization {
-        baseline: Arc::clone(baseline),
+        baseline: baseline.roots(),
         program: machine_code::ResolvedMachineProgram {
             layout: Arc::clone(&current),
             ..program.clone()
@@ -164,6 +169,9 @@ pub fn validate_resolved_layout_optimization(
     if &artifact.selections != selections {
         return Err(ResolvedLayoutOptimizationError::SelectionMismatch);
     }
+    if artifact.baseline != baseline.roots() {
+        return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
+    }
     let enabled = x86_rel8_selected(selections, baseline.target().architecture)
         .map_err(ResolvedLayoutOptimizationError::Catalog)?;
     match (enabled, artifact.relaxation.as_ref()) {
@@ -182,6 +190,46 @@ pub fn validate_resolved_layout_optimization(
         _ => return Err(ResolvedLayoutOptimizationError::SelectionMismatch),
     }
     Ok(())
+}
+
+/// Check phase, budget and result custody from the current form alone. Earlier
+/// layout rows are required only by `validate_resolved_layout_optimization`.
+pub fn validate_current_layout_optimization(
+    artifact: &ResolvedLayoutOptimization,
+) -> Result<(), ResolvedLayoutOptimizationError> {
+    let program = artifact.program();
+    let facts = &program.instructions.publication;
+    let selections = facts
+        .selections()
+        .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    if artifact.selections != selections
+        || artifact.budget != facts.budget()
+        || program.layout.as_ref() != artifact.layout()
+        || artifact.baseline.selected != program.instructions.machine.selected
+        || artifact.baseline.machine != program.instructions.machine.identity
+        || artifact.baseline.pre_layout != program.encoding.identity()
+    {
+        return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
+    }
+    let enabled = x86_rel8_selected(&selections, program.instructions.target.architecture)
+        .map_err(ResolvedLayoutOptimizationError::Catalog)?;
+    match (enabled, artifact.relaxation()) {
+        (false, None) if artifact.layout().identity() == artifact.baseline.identity => Ok(()),
+        (true, Some(relaxation)) => {
+            validate_current_x86_branch_relaxation(
+                program.instructions.physical(),
+                artifact.baseline,
+                program.instructions.target,
+                relaxation,
+            )
+            .map_err(ResolvedLayoutOptimizationError::Relaxation)?;
+            if relaxation.layout() != artifact.layout() || relaxation.budget() != artifact.budget {
+                return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
+            }
+            Ok(())
+        }
+        _ => Err(ResolvedLayoutOptimizationError::SelectionMismatch),
+    }
 }
 
 pub(crate) fn x86_rel8_selected(

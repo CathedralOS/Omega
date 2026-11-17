@@ -1732,7 +1732,9 @@ pub(crate) mod byte_output {
         builder: &mut Builder<'_>,
     ) -> Result<bool, SelectedInstructionError> {
         let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-            boundary, source, ..
+            boundary,
+            execution,
+            source,
         } = row.kind
         else {
             return Ok(false);
@@ -1772,6 +1774,7 @@ pub(crate) mod byte_output {
                 instruction_index,
                 settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                     operation: row.operation,
+                    execution,
                     boundary,
                     source,
                 },
@@ -7331,13 +7334,22 @@ pub(crate) fn select_function(
             {
                 continue;
             }
-            if let LegalizedScalarInstructionKind::PortWrite { port, value, .. } = operation.kind {
+            if let LegalizedScalarInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = operation.kind
+            {
                 if operation.result.is_some() {
                     return Err(invalid());
                 }
                 let key = builder.constraints.keys.port_write.ok_or_else(invalid)?;
                 builder.emit(
-                    SelectedInstructionKind::PortWrite { port, value },
+                    SelectedInstructionKind::PortWrite {
+                        service,
+                        port,
+                        value,
+                    },
                     key,
                     &[],
                     SelectedInstructionProvenance {
@@ -7667,6 +7679,24 @@ pub(crate) fn select_function(
             attachment: source.attachment,
             provenance: source.provenance.clone(),
             structural: source.structural.clone(),
+            structural_block_parameters: {
+                let mut rows: Vec<_> = source
+                    .blocks
+                    .iter()
+                    .filter(|block| !block.structural_parameters.is_empty())
+                    .map(|block| {
+                        (
+                            block.id,
+                            std::sync::Arc::clone(&block.structural_parameters),
+                        )
+                    })
+                    .collect();
+                rows.sort_by_key(|(block, _)| *block);
+                if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                    return Err(invalid());
+                }
+                rows
+            },
             outgoing_arguments: builder.transport.slots,
             local_storage_slots: builder.transport.local_slots,
             calls: builder.transport.calls,

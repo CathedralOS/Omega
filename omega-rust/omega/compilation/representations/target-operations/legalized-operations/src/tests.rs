@@ -152,9 +152,11 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
+        execution: None,
+        publication: Default::default(),
         borrowed_storage_layouts: Default::default(),
         installation_operations: Vec::new(),
-        function_abis: Vec::new(),
+        function_abis: std::sync::Arc::from([]),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
@@ -253,7 +255,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             entry_block: id(1),
             blocks: vec![LegalizedScalarBlock {
                 id: id(1),
-                structural_parameters: Vec::new(),
+                structural_parameters: std::sync::Arc::from([]),
                 parameters: Vec::new(),
                 instructions: vec![LegalizedScalarInstruction {
                     operation: call,
@@ -488,7 +490,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         entry_block: block,
         blocks: vec![LegalizedScalarBlock {
             id: block,
-            structural_parameters: Vec::new(),
+            structural_parameters: std::sync::Arc::from([]),
             parameters: vec![],
             instructions: vec![
                 instruction(

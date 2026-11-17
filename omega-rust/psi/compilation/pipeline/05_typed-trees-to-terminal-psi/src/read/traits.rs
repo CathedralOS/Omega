@@ -101,7 +101,7 @@ impl Program<'_> {
         self.read_trait_schema(context, declaration).map(|_| ())
     }
 
-    fn read_trait_schema(
+    pub(super) fn read_trait_schema(
         &mut self,
         context: MachineId,
         declaration: &TraitDefinition,
@@ -267,6 +267,7 @@ impl Program<'_> {
             SourceSchema {
                 declaration: symbol,
                 requirements,
+                bindings: Vec::new(),
             },
         );
         let parents = AppliedTraitScope::abstract_scope(declaration)

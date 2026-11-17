@@ -412,7 +412,64 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
             )
         })?;
     let module = &elaboration.module;
+    let mut bound = Vec::new();
+    let mut instances = Vec::new();
     for schema in &elaboration.static_schemas {
+        for binding in &schema.bindings {
+            if !binding.parameter.is_valid()
+                || !binding.owner.is_valid()
+                || binding.application.is_empty()
+                || bound.contains(&binding.parameter)
+                || !elaboration.generic_binders.contains(&binding.parameter)
+            {
+                return Err(fault(
+                    machine,
+                    "static record has an invalid, repeated or unquantified binder account",
+                ));
+            }
+            bound.push(binding.parameter);
+            let mut members = Vec::new();
+            for member in &binding.members {
+                if member.application.is_empty()
+                    || !member.signature.is_valid()
+                    || members.contains(&member.requirement)
+                    || !elaboration.static_schemas.iter().any(|schema| {
+                        schema.declaration == member.declaring_trait
+                            && schema
+                                .requirements
+                                .iter()
+                                .any(|requirement| requirement.declaration == member.requirement)
+                    })
+                {
+                    return Err(fault(
+                        machine,
+                        "static record member escapes its complete originating schema",
+                    ));
+                }
+                members.push(member.requirement);
+                let mut arguments = Vec::new();
+                for instance in &member.instances {
+                    if instances.contains(&instance.machine)
+                        || arguments.contains(&instance.arguments)
+                        || !elaboration.requirements.contains(&instance.machine)
+                        || elaboration.machines.get(instance.machine) != Some(&member.signature)
+                        || elaboration.value_arguments.get(instance.machine)
+                            != Some(&instance.arguments)
+                        || elaboration
+                            .module
+                            .machine(instance.machine)
+                            .is_none_or(|machine| !machine.blocks.is_empty())
+                    {
+                        return Err(fault(
+                            machine,
+                            "static record requirement instance changes its binder, arguments or logical callable",
+                        ));
+                    }
+                    instances.push(instance.machine);
+                    arguments.push(instance.arguments.clone());
+                }
+            }
+        }
         for requirement in &schema.requirements {
             let context = schema_context(
                 module,

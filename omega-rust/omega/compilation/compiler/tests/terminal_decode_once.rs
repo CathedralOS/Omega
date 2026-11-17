@@ -135,9 +135,13 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
-    let mut prepared_native = native_compiler::prepare(
+    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
+        .expect("scalar completion");
+    let product = native_compiler::compile(
         &retained,
         native_compiler::NativeCompileRequest {
+            retain_native_stage_inputs: false,
             installation_assumptions: &[],
             private_entry_ram: &[],
             optimization_selections: &optimizations,
@@ -150,67 +154,10 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             image_request,
             imports: &[],
             components: &[],
+            scalars: scalars.as_ref(),
         },
     )
-    .unwrap_or_else(|(_, diagnostics)| {
-        panic!("{FIXTURE} must prepare its native artifact: {diagnostics:#?}")
-    });
-    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
-    for completion in prepared_native.scalar_completions() {
-        let artifact = completion.artifact();
-        let completed = build_time_evaluation::complete_scalar_applications(
-            artifact,
-            completion.target(),
-            None,
-            completion.demand(),
-            None,
-            &mut accounting,
-            |scope| {
-                let scope = scope.ok_or("native completion requires its deployment")?;
-                let proposal = completion
-                    .provider_proposals()
-                    .iter()
-                    .find(|proposal| proposal.target == scope)
-                    .ok_or_else(|| format!("missing {scope} provider proposal"))?;
-                let providers = proposal
-                    .selection
-                    .as_ref()
-                    .map_err(|reasons| reasons.join("; "))?
-                    .admit(artifact.view(), scope)?;
-                let profile = target::TargetProfile::from_canonical_target_name(scope)
-                    .map_err(|diagnostic| diagnostic.message)?;
-                Ok(build_time_evaluation::ScalarScopeEvaluation {
-                    application_roots: None,
-                    import_realizations: None,
-                    layout_target: Some(
-                        profile
-                            .layout_target_facts()
-                            .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    ),
-                    carrier_layout: profile
-                        .native_realization()
-                        .map(runtime_abi::target_carrier_layout),
-                    targets: Some(terminal_installation::terminal_target_context(
-                        artifact.view(),
-                        scope,
-                    )),
-                    providers,
-                    address_model: Ok(target::TargetSemantics::close_address_model(profile).map(
-                        |model| terminal_installation::ScalarAddressModel {
-                            target: scope.to_owned(),
-                            carrier: model.carrier(),
-                            semantics_version: model.semantics_version(),
-                            commitment: model.commitment(),
-                        },
-                    )),
-                })
-            },
-        )
-        .expect("scalar completion");
-        completion.complete(completed).expect("one completion");
-    }
-    let product = native_compiler::compile(prepared_native)
-        .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
+    .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
     let realization_decodes = terminal_codec::module_decode_count() - before;
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
         panic!("{FIXTURE} emits a direct native artifact")

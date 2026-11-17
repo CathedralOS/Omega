@@ -49,8 +49,10 @@ not board-file paths, so boards stay shared.
 
 ## Lifetime and notes
 
-A claim lasts two hours. Renew it after each push; a lapsed claim cannot be
-renewed, because someone else may have taken the work, so claim again.
+A claim lasts two hours. Renew it after each push. If it lapsed, `renew` from
+the worktree that took it restores it under the same ticket, item, owner and
+paths, and lists any live claim whose paths now overlap; check what is in
+flight there before editing.
 
 ```text
 mbx xtask claims renew
@@ -58,9 +60,11 @@ mbx xtask claims note --ticket TICKET --text "Outcome; acceptance; failure; next
 mbx xtask claims release --ticket TICKET
 ```
 
-`claim` records its ticket in the worktree's git directory
-(`omega-claim-tickets`, never committed). `renew` with no `--ticket` renews
-every claim that worktree took; repeat `--ticket` to name claims instead.
+`claim` records the published claim in the worktree's git directory
+(`omega-claim-tickets`, never committed). `renew` with no `--ticket` renews or
+restores every claim that worktree took; repeat `--ticket` to name claims
+instead. A claim the worktree never recorded, or recorded only by ticket,
+cannot be restored.
 `note` requires one ticket and nonempty text, appends a UTC-stamped note and
 renews that claim. A note lasts only as long as its claim, so it is a status
 line, not a record: put findings and what the next session needs in the pull

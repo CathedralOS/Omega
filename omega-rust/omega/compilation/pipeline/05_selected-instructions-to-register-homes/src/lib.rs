@@ -3,11 +3,14 @@
 /*
 We assign physical register homes and execute admitted register-pressure
 recovery over the selected instruction program (`Omega 05`). Our entry point,
-`stage_register_allocation` in `register_allocation.rs`, consumes the preceding
-`Omega 04` stage's `SelectedOptimizationOutput`, sequences transition-free home
-assignment alongside declared or runtime-spill pressure recovery, and publishes
-one validated `RetainedAllocation` carrying the current allocated program and
-its checked facts.
+`stage_register_allocation` in `register_allocation.rs`, consumes the one
+`SelectedAllocationInput` Omega 04 hands over (the current program, the
+analyses Omega 04 established for it, and its `SelectedOptimizationRecord`),
+runs the allocation procedure the selected allocation-recovery catalog entry
+names (or plain assignment), falls back to runtime spilling under remaining
+pressure, and publishes one validated `RetainedAllocation` carrying the
+current allocated program and its checked facts. Which Omega 04 phase ran is
+evidence in the manifest, never a choice of procedure.
 */
 
 /*
@@ -22,18 +25,18 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 */
 
 /*
-- Input: `SelectedOptimizationOutput` from `Omega 04` (`selected-instructions-to-selected-instructions`).
+- Input: `SelectedAllocationInput` from `Omega 04` (`selected-instructions-to-selected-instructions`).
 - Output: `RetainedAllocation` (`output.rs`) and `ValidatedAllocatedCalleeSavedRequirements` (`preservation.rs`) consumed by `Omega 06` (`register-homes-to-machine-plan`).
 - Flat module layout:
-  - `register_allocation.rs`: stage entry routing identity, completed rewrite runs, declared recovery rules, and runtime spill fallback.
-  - `assignment.rs`: baseline, transformed, recovery, runtime-spill, and post-allocation manifest staging.
+  - `register_allocation.rs`: the stage entrance: select the recovery catalog entry, take the legality analysis, run the procedure the entry names, admit the result.
+  - `assignment.rs`: baseline homes, the three allocation procedures, runtime-spill recovery, and post-allocation manifest staging.
   - `home_assignment.rs`: transition-free constraint solver and interference/early-clobber preparation (no home replay).
   - `rewrites.rs`: fixed-occurrence materialization, fixed-view segment-home staging, settlement-gap alignment, and active-resident rematerialization staging.
   - `fixed_view_copy_recovery.rs`: fixed-view copy materialization (no CFG replay).
   - `pressure_rematerialization_recovery.rs`: active-resident immediate rematerialization under register pressure.
   - `runtime_spill_and_split.rs`: runtime value spilling, live-range splitting, and runtime rematerialization.
   - `reanalysis.rs`: liveness, live-range, and legality reanalysis over fixed-view copy graphs.
-  - `output.rs`: `AllocationOutput` projection and `RetainedAllocation` admission.
+  - `output.rs`: `StagedAllocation`, `AllocationOutput` projection and `RetainedAllocation` admission.
   - `preservation.rs`: allocation-visible callee-saved register modification discovery and replay.
 */
 
@@ -209,20 +212,6 @@ pub use rewrites::{
 };
 pub use selected_input::ValidatedSelectedAnalysis;
 
-pub(crate) type SelectedLoweringResult =
-    selected_instruction_analyses::CompletedSelectedOptimization<
-        optimization_core::SelectedLoweringOptimizationCompletionIdentity,
-    >;
-pub(crate) type PreAllocationResult = selected_instruction_analyses::CompletedSelectedOptimization<
-    optimization_core::PreAllocationOptimizationCompletionIdentity,
->;
-pub type SelectedLoweringLedger = selected_instruction_analyses::SelectedOptimizationLedger<
-    optimization_core::SelectedLoweringOptimizationCompletionIdentity,
->;
-pub type PreAllocationLedger = selected_instruction_analyses::SelectedOptimizationLedger<
-    optimization_core::PreAllocationOptimizationCompletionIdentity,
->;
-
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
 
 pub(crate) use assignment::baseline::{
@@ -245,14 +234,6 @@ pub use assignment::post_allocation_manifest::{
 };
 
 pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
-
-pub(crate) use assignment::transformed::{
-    OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedPostPreAllocationHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomesAfterPreAllocation,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-};
 
 pub(crate) use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,

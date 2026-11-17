@@ -31,6 +31,7 @@ pub(crate) struct Graph {
     tables_edges: Vec<(BlockId, Destination)>,
     cleanup_counts: Vec<usize>,
     block_ends: Vec<usize>,
+    cyclic_blocks: Vec<bool>,
 }
 
 fn index(raw: u64) -> usize {
@@ -138,6 +139,7 @@ impl Graph {
             .collect();
         let dominance = dominance_forest(&incoming_positions, &ordered_positions, &roots)
             .ok_or_else(|| refuse("control graph has no complete dominance forest"))?;
+        let cyclic_blocks = cyclic_blocks(&predecessors, &successors, &ordered);
         Ok(Self {
             machine,
             dominance,
@@ -148,6 +150,7 @@ impl Graph {
             tables_edges,
             cleanup_counts,
             block_ends,
+            cyclic_blocks,
         })
     }
 
@@ -166,6 +169,13 @@ impl Graph {
     }
     pub(crate) fn block_count(&self) -> usize {
         self.predecessors.len()
+    }
+    /// Whether `block` belongs to a control-flow cycle in the table-edge graph.
+    pub(crate) fn in_cycle(&self, block: BlockId) -> Checked<bool> {
+        self.cyclic_blocks
+            .get(index(block.get()))
+            .copied()
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
     }
     /// One past the largest operation identity the machine holds.
     pub(crate) fn operation_count(&self) -> usize {
@@ -337,4 +347,40 @@ fn ordered_blocks(
     }
     postorder.reverse();
     postorder
+}
+
+fn cyclic_blocks(
+    predecessors: &[Vec<BlockId>],
+    successors: &[Vec<BlockId>],
+    reverse_postorder: &[BlockId],
+) -> Vec<bool> {
+    let count = successors.len();
+    let mut assigned = vec![false; count];
+    let mut cyclic = vec![false; count];
+    let mut component = Vec::new();
+    let mut pending = Vec::new();
+    for &root in reverse_postorder {
+        let root_slot = index(root.get());
+        if std::mem::replace(&mut assigned[root_slot], true) {
+            continue;
+        }
+        component.clear();
+        component.push(root_slot);
+        pending.push(root);
+        while let Some(block) = pending.pop() {
+            for &predecessor in &predecessors[index(block.get())] {
+                let slot = index(predecessor.get());
+                if !std::mem::replace(&mut assigned[slot], true) {
+                    component.push(slot);
+                    pending.push(predecessor);
+                }
+            }
+        }
+        if component.len() > 1 || successors[root_slot].contains(&root) {
+            for &slot in &component {
+                cyclic[slot] = true;
+            }
+        }
+    }
+    cyclic
 }

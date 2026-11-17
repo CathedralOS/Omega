@@ -110,7 +110,16 @@ public data OpenOptions [copy] {
     create_new: bool;
 }
 
-// Zero requests the target's default writable-file permissions. Readonly is a
+// Every target refuses truncation it cannot carry out as a random-access write.
+// Truncation needs write access; append-only access cannot satisfy it and is
+// never upgraded to make the combination fit. Each family's open_with checks
+// this before it reaches the OS, so a refused request leaves the file intact.
+machine open_options_truncate_conflict(options: OpenOptions) -> bool {
+    options.truncate && (!options.write || options.append) && !options.create_new
+}
+
+// Zero makes the file writable, the same request as `Readonly { value: false }`
+// on every target: it keeps the file's other permission bits. Readonly is a
 // portable request; a numeric POSIX mode is explicitly an OS-family extension,
 // not a fictional Windows ACL or an encoding of its read-only attribute.
 public data Permissions [copy] {

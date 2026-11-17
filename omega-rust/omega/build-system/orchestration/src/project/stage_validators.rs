@@ -27,15 +27,27 @@ pub enum StageValidator {
     /// abstract operations they were lowered from
     /// (`native_preparation::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
+    /// Compare fixed-frame machine output with its original allocation,
+    /// encoding and baseline layout inputs.
+    FixedFrameCorrespondence,
+    /// Rebuild each selected-instruction rewrite run (Omega 04) step by step
+    /// and require the allocated program's record to name exactly that run.
+    SelectedInstructionRewriteReplay,
 }
 
 impl StageValidator {
     /// Every registered validator, in report order.
-    pub const ROSTER: &'static [Self] = &[Self::TargetOperationCorrespondence];
+    pub const ROSTER: &'static [Self] = &[
+        Self::TargetOperationCorrespondence,
+        Self::FixedFrameCorrespondence,
+        Self::SelectedInstructionRewriteReplay,
+    ];
 
     pub const fn name(self) -> &'static str {
         match self {
             Self::TargetOperationCorrespondence => "TargetOperationCorrespondence",
+            Self::FixedFrameCorrespondence => "FixedFrameCorrespondence",
+            Self::SelectedInstructionRewriteReplay => "SelectedInstructionRewriteReplay",
         }
     }
 
@@ -43,6 +55,8 @@ impl StageValidator {
     pub const fn stage(self) -> &'static str {
         match self {
             Self::TargetOperationCorrespondence => "target operations",
+            Self::FixedFrameCorrespondence => "fixed-frame machine code",
+            Self::SelectedInstructionRewriteReplay => "selected-instruction rewrites",
         }
     }
 
@@ -58,7 +72,9 @@ impl StageValidator {
     fn inapplicable_reason(self, product: &ProjectProduct) -> Option<&'static str> {
         match (self, product) {
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::Published,
                     ..
@@ -67,19 +83,28 @@ impl StageValidator {
             (Self::TargetOperationCorrespondence, ProjectProduct::Check) => {
                 Some("--check produces no native target operations")
             }
-            (Self::TargetOperationCorrespondence, ProjectProduct::Terminal)
-            | (Self::TargetOperationCorrespondence, ProjectProduct::Inspection { .. }) => {
+            (Self::FixedFrameCorrespondence, ProjectProduct::Check) => {
+                Some("--check produces no fixed-frame machine code")
+            }
+            (Self::SelectedInstructionRewriteReplay, ProjectProduct::Check) => {
+                Some("--check produces no selected instructions")
+            }
+            (_, ProjectProduct::Terminal | ProjectProduct::Inspection { .. }) => {
                 Some("this product stops at Terminal Psi before target operations")
             }
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::RuntimeAdmission,
                     ..
                 },
             ) => Some("runtime admission stops before target lowering"),
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::Retained,
                     ..
@@ -182,15 +207,19 @@ impl StageValidatorRequest {
                     target.target_name()
                 ))]));
             }
-            let row = StageValidationRow {
+            rows.push(StageValidationRow {
                 validator,
                 target: target.target_name(),
                 result,
-            };
-            if matches!(row.result, StageValidationResult::Failed(_)) {
-                return Err(BuildError::StageValidation(row));
-            }
-            rows.push(row);
+            });
+        }
+        // A failure still runs the remaining validators and carries every row
+        // out with the error, so the report shows what passed beside what failed.
+        if rows
+            .iter()
+            .any(|row| matches!(row.result, StageValidationResult::Failed(_)))
+        {
+            return Err(BuildError::StageValidation(rows));
         }
         Ok(rows)
     }
@@ -199,7 +228,9 @@ impl StageValidatorRequest {
 impl StageValidator {
     fn check(self, report: Option<&compiler::CompileReport>) -> StageValidationResult {
         match self {
-            Self::TargetOperationCorrespondence => {
+            Self::TargetOperationCorrespondence
+            | Self::FixedFrameCorrespondence
+            | Self::SelectedInstructionRewriteReplay => {
                 let object = report.and_then(|report| {
                     report
                         .retained_native_artifact()
@@ -215,7 +246,26 @@ impl StageValidator {
                         "this build produces no native executable",
                     );
                 };
-                match image_emission::verify_retained_target_operations(object) {
+                let checked = match self {
+                    Self::TargetOperationCorrespondence => {
+                        image_emission::verify_retained_target_operations(object)
+                    }
+                    Self::FixedFrameCorrespondence => {
+                        image_emission::verify_retained_fixed_frame(object)
+                    }
+                    Self::SelectedInstructionRewriteReplay => {
+                        match image_emission::verify_retained_selected_optimization(object) {
+                            Ok(true) => Ok(()),
+                            Ok(false) => {
+                                return StageValidationResult::Inapplicable(
+                                    "no selected-instruction rewrite rule ran",
+                                );
+                            }
+                            Err(error) => Err(error),
+                        }
+                    }
+                };
+                match checked {
                     Ok(()) => StageValidationResult::Passed,
                     Err(error) => StageValidationResult::Failed(error.to_string()),
                 }
@@ -287,7 +337,14 @@ mod tests {
         let rows = request
             .run_with(&native(), host(), |_| StageValidationResult::Passed)
             .unwrap();
-        assert_eq!(rows.len(), 1, "a named and enumerated validator runs once");
+        assert_eq!(rows.len(), StageValidator::ROSTER.len());
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.validator == StageValidator::TargetOperationCorrespondence)
+                .count(),
+            1,
+            "a named and enumerated validator runs once"
+        );
         let error =
             StageValidatorRequest::from_exact_names(["NoSuchValidator"], false).unwrap_err();
         assert!(
@@ -340,6 +397,38 @@ mod tests {
     }
 
     #[test]
+    fn a_failing_validator_keeps_every_row_of_its_target() {
+        // The middle validator fails; the rows before and after it still
+        // reach the error, which the report writes before the command exits.
+        let request = StageValidatorRequest::from_exact_names([], true).unwrap();
+        let error = request
+            .run_with(&native(), host(), |validator| {
+                if validator == StageValidator::FixedFrameCorrespondence {
+                    StageValidationResult::Failed("changed frame".into())
+                } else {
+                    StageValidationResult::Passed
+                }
+            })
+            .unwrap_err();
+        let BuildError::StageValidation(rows) = &error else {
+            panic!("expected a stage validation failure, got {error}");
+        };
+        let results: Vec<_> = rows.iter().map(|row| row.result.clone()).collect();
+        assert_eq!(
+            results,
+            [
+                StageValidationResult::Passed,
+                StageValidationResult::Failed("changed frame".into()),
+                StageValidationResult::Passed,
+            ]
+        );
+        let text = error.to_string();
+        for row in rows {
+            assert!(text.contains(&row.to_string()), "{text}");
+        }
+    }
+
+    #[test]
     fn a_failing_validator_fails_the_compilation_as_a_compiler_defect() {
         let request = StageValidatorRequest::from_exact_names([], true).unwrap();
         let error = request
@@ -348,7 +437,10 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(error, BuildError::StageValidation(_)));
-        assert_eq!(error.outcome(), compiler::CompilerRequestOutcome::Reject);
+        assert_eq!(
+            error.outcome(),
+            compiler::CompilerRequestOutcome::InternalFailure
+        );
         let text = error.to_string();
         assert!(text.contains("stage validator TargetOperationCorrespondence (target linux_x86_64, stage target operations): failed: changed operand"), "{text}");
         assert!(

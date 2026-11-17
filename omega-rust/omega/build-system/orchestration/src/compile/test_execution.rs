@@ -6,10 +6,12 @@ Each test product arrives as its own pending native product whose only
 `ProgramEntry` root is the test machine. For each one we complete the native
 image, then run the same product on both engines with fresh instance state:
 the Terminal Psi interpreter (target-neutral, so it is available for every
-target) and the native executable when the test's target is this host. A test
-passes on an engine only by returning normally. A contract-permitted crash, a
-process exit instead of a return, and work exhaustion each fail or leave the
-run incomplete, and every such outcome refuses the application. Every test
+target) and the native executable when the test's target is this host and the
+test cannot end the process, since a native exit status cannot tell
+`ProcessExit` from a return. A test passes on an engine only by returning
+normally. A contract-permitted crash, a process exit instead of a return, and
+work exhaustion each fail or leave the run incomplete, and every such outcome
+refuses the application. Every test
 must execute on at least one engine; an engine that is unavailable before any
 guest effect is reported, never counted as a pass.
 
@@ -106,10 +108,26 @@ fn run_test(
     };
     accounting.append(report.source_completion_accounting().clone());
     let interpreted = interpret(&report, identity.target, identity.filesystem);
-    let native = if target::TargetProfile::host_if_supported() == Some(identity.target) {
-        execute_native(report, identity.filesystem)
-    } else {
+    // A native test reports only an exit status, and exit status 0 also
+    // follows `ProcessExit::exit_process(0)`. A process exit is not a pass
+    // (testing.md#scheduling-execution-and-outcomes), so a test that can end
+    // the process is not run natively: its status could not show that it
+    // returned to the runner. This is decided from the program before it runs.
+    let can_end_the_process = report.retained_native_program().is_none_or(|program| {
+        program
+            .psi_artifact()
+            .semantic_module()
+            .can_end_the_process()
+    });
+    let native = if target::TargetProfile::host_if_supported() != Some(identity.target) {
         EngineOutcome::Unavailable("its target does not execute on this host".to_owned())
+    } else if can_end_the_process {
+        EngineOutcome::Unavailable(
+            "the test can end the process, so its exit status cannot show that it returned to the runner"
+                .to_owned(),
+        )
+    } else {
+        execute_native(report, identity.filesystem)
     };
     let mut engines = Vec::new();
     let mut unavailable = Vec::new();
@@ -257,6 +275,8 @@ fn execute_native(report: CompileReport, filesystem: TestFilesystem) -> EngineOu
             return EngineOutcome::Unavailable(format!("cannot be spawned: {error}"));
         }
     };
+    // The caller ran only a test that cannot end the process, so exit status
+    // 0 means its entry returned normally.
     if output.status.success() {
         return EngineOutcome::Passed;
     }

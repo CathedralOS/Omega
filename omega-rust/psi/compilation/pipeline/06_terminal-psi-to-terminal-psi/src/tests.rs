@@ -55,6 +55,7 @@ mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
+mod loan_windows;
 mod machine_inputs;
 mod machine_lifetimes;
 mod mathematical_clauses;
@@ -91,6 +92,7 @@ mod type_parameters;
 mod uninhabited_results;
 mod value_parameters;
 mod width_parameters;
+mod window_handoffs;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()

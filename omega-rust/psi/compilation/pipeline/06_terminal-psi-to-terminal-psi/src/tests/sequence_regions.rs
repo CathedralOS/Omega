@@ -281,11 +281,61 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
         "{negative:?}"
     );
 
-    let copied = source.replace("get(&items[0u64].value)", "items[0u64].value");
-    let negative = judge_build(&copied).unwrap();
+    // Reading one field of a non-copy element copies only that field.
+    let field = source.replace("get(&items[0u64].value)", "items[0u64].value");
+    let positive = judge_build(&field).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 17);
+
+    // Reading the whole non-copy element would copy it out of the view.
+    let whole = source
+        .replace(
+            "machine get(value: &u32) -> u32 { value }",
+            "machine take(cell: Cell) -> u32 { cell.value }",
+        )
+        .replace("get(&items[0u64].value)", "take(items[0u64])");
+    let negative = judge_build(&whole).unwrap();
     assert!(
         format!("{negative:?}")
             .contains("copying a slice element requires a copyable element type"),
+        "{negative:?}"
+    );
+}
+
+#[test]
+fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
+    // expressions.md, "Borrowed range access": a bare range forms a shared
+    // view when a call receives it as a reference, exactly as `&items[..]`.
+    let source = r#"
+        data Cell { value: u32; }
+        machine first(items: &[Cell]) -> u32 {
+            transition items.len > 0u64 { true -> read(items) false -> 0u32 }
+            machine read(items: &[Cell]) -> u32 requires items.len > 0u64 {
+                items[0u64].value
+            }
+        }
+        machine build_entry() -> u32 {
+            let items: [Cell; 3] = [Cell { value: 1u32 }, Cell { value: 7u32 }, Cell { value: 9u32 }];
+            let suffix: u32 = first(items[1u64..]);
+            let whole: u32 = first(items[..]);
+            transition whole == 1u32 { true -> suffix false -> 0u32 }
+        }
+    "#;
+    let positive = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 7);
+
+    // An expected `&mut [T]` never inserts the mutable borrow.
+    let mutable = source
+        .replace("items: &[Cell]", "items: &mut [Cell]")
+        .replace("let items: [Cell; 3]", "let mut items: [Cell; 3]");
+    let negative = judge_build(&mutable);
+    assert!(
+        !matches!(negative, Ok(RouteVerdict::Accepted(_))),
         "{negative:?}"
     );
 }

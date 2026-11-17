@@ -198,6 +198,8 @@ pub(crate) use legalized_operations::structural_inputs;
 
 mod callable_invocations;
 pub use callable_invocations::PreparedCallableInvocations;
+mod publication;
+pub use publication::capture_source_publication;
 
 /// What stage 02 knows about the program's boundary origins while it prepares
 /// the plan: the program entry, the installed assumed bindings, the target
@@ -225,8 +227,8 @@ mod legalization_target;
 
 pub(crate) use legalization::LegalizationError;
 pub use legalization::{
-    LegalizationError as TargetOperationAuditError, PreparationEvidence, prepare_execution_plan,
-    verify_execution_plan, verify_target_operation_plan_with_closed_module,
+    ExecutionPlanReplayInputs, LegalizationError as TargetOperationAuditError, PreparationEvidence,
+    prepare_execution_plan, verify_execution_plan, verify_target_operation_plan_with_closed_module,
 };
 pub use native_geometry::{ModuleTypes, accepted_types};
 

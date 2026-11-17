@@ -783,6 +783,7 @@ pub mod product_operands {
         },
         Array(HandleSpan<Handle<ProductOperandExpression>>),
         Record {
+            zero_omitted_fields: bool,
             name: Handle<ProductOperandName>,
             case: Option<Handle<ProductOperandName>>,
             fields: HandleSpan<ProductOperandField>,

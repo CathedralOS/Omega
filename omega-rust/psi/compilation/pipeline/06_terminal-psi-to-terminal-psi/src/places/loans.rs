@@ -1216,83 +1216,70 @@ impl<'a> Storage<'a> {
                 if !holds(lifetime, &at) {
                     continue;
                 }
-                for effect in self.operation_read_effects(operation)? {
-                    let (place, backing) = match effect {
-                        super::StorageEffect::Payload(place) => {
-                            let backing = self.borrow_backing(
-                                references,
-                                &place,
-                                BorrowedResource::ViewPayload,
-                                at,
-                                concerns,
-                            )?;
-                            (place, backing)
-                        }
-                        super::StorageEffect::Storage(place) => {
-                            let backing = LoanRegion::Storage(self.backing(
-                                references,
-                                &place,
-                                block.id,
-                                position as usize,
-                                concerns,
-                            )?);
-                            (place, backing)
-                        }
-                    };
-                    if competing_borrows(
-                        loan.access,
-                        &loan.lineage,
-                        ReferenceAccess::Shared,
-                        &backing,
-                    )
-                    .is_some()
-                        && !self.authorized_reference(loan, &place, at, formed)?
-                    {
-                        return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
-                    }
-                }
                 let atomic_change = matches!(
                     operation.kind,
                     terminal_psi::OperationKind::AtomicAccess { .. }
                 );
-                for effect in self.operation_changes(operation)? {
-                    let (place, backing) = match effect {
-                        super::StorageEffect::Payload(place) => {
-                            let backing = self.borrow_backing(
-                                references,
-                                &place,
-                                BorrowedResource::ViewPayload,
-                                at,
-                                concerns,
-                            )?;
-                            (place, backing)
-                        }
-                        super::StorageEffect::Storage(place) => {
-                            let backing = LoanRegion::Storage(self.backing(
-                                references,
-                                &place,
-                                block.id,
-                                position as usize,
-                                concerns,
-                            )?);
-                            (place, backing)
-                        }
-                    };
-                    if competing_borrows(
-                        loan.access,
-                        &loan.lineage,
-                        if atomic_change {
-                            ReferenceAccess::Shared
-                        } else {
-                            ReferenceAccess::Mutable
-                        },
-                        &backing,
-                    )
-                    .is_some()
-                        && ((!atomic_change && !loan.access.is_exclusive())
-                            || !self.authorized_reference(loan, &place, at, formed)?)
+                let effects = self
+                    .operation_read_effects(operation)?
+                    .into_iter()
+                    .map(|effect| (effect, Touch::Read))
+                    .chain(
+                        self.operation_changes(operation)?
+                            .into_iter()
+                            .map(|effect| {
+                                (
+                                    effect,
+                                    if atomic_change {
+                                        Touch::AtomicChange
+                                    } else {
+                                        Touch::Change
+                                    },
+                                )
+                            }),
+                    );
+                for (effect, touch) in effects {
+                    if let Some(conflict) = self
+                        .retained_conflict(references, loan, formed, effect, touch, at, concerns)?
                     {
-                        return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
+                        return Ok(Some((concerns, conflict)));
+                    }
+                }
+            }
+            // The block's terminator observes and relinquishes storage just
+            // as an operation does: a dispatch reads its subject, an owned
+            // edge or return argument leaves its home (ownership.md: an
+            // exclusive child suspends its parent branch).
+            let at = (
+                block.id,
+                crate::position(block.operations.len(), self.machine)?,
+            );
+            if holds(lifetime, &at) {
+                // A dispatch has one edge per case, so it is named by its
+                // block, as the place model names it.
+                let concerns = match &block.terminator {
+                    terminal_psi::Terminator::StructuralCase { .. } => Construct::Block(block.id),
+                    terminator => terminator
+                        .edges()
+                        .next()
+                        .map_or(Construct::Block(block.id), Construct::Edge),
+                };
+                let (reads, changes) = self.terminator_effects(block)?;
+                let effects = reads
+                    .into_iter()
+                    .map(|place| (place, Touch::Read))
+                    .chain(changes.into_iter().map(|place| (place, Touch::Change)));
+                for (place, touch) in effects {
+                    if let Some(conflict) = self.retained_conflict(
+                        references,
+                        loan,
+                        formed,
+                        super::StorageEffect::Storage(place),
+                        touch,
+                        at,
+                        concerns,
+                    )? {
+                        return Ok(Some((concerns, conflict)));
                     }
                 }
             }
@@ -1361,6 +1348,60 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(None)
+    }
+
+    /// Whether one storage effect at `at` conflicts with a retained loan:
+    /// a read of exclusively lent storage, or a change of lent storage, not
+    /// made through a descriptor the loan authorizes.
+    #[allow(clippy::too_many_arguments)]
+    fn retained_conflict(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        loan: &Formed,
+        formed: &[Formed],
+        effect: super::StorageEffect,
+        touch: Touch,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<Option<LoanConflict>> {
+        let (place, backing) = match effect {
+            super::StorageEffect::Payload(place) => {
+                let backing = self.borrow_backing(
+                    references,
+                    &place,
+                    BorrowedResource::ViewPayload,
+                    at,
+                    concerns,
+                )?;
+                (place, backing)
+            }
+            super::StorageEffect::Storage(place) => {
+                let backing = LoanRegion::Storage(self.backing(
+                    references,
+                    &place,
+                    at.0,
+                    at.1 as usize,
+                    concerns,
+                )?);
+                (place, backing)
+            }
+        };
+        let access = match touch {
+            Touch::Read | Touch::AtomicChange => ReferenceAccess::Shared,
+            Touch::Change => ReferenceAccess::Mutable,
+        };
+        if competing_borrows(loan.access, &loan.lineage, access, &backing).is_none() {
+            return Ok(None);
+        }
+        let conflict = match touch {
+            Touch::Read => LoanConflict::ObserveWhileExclusive,
+            Touch::Change | Touch::AtomicChange => LoanConflict::ChangeWhileBorrowed,
+        };
+        // A shared loan permits no ordinary write through any alias.
+        if touch == Touch::Change && !loan.access.is_exclusive() {
+            return Ok(Some(conflict));
+        }
+        Ok((!self.authorized_reference(loan, &place, at, formed)?).then_some(conflict))
     }
 
     fn cleanup_cohorts(
@@ -2560,6 +2601,15 @@ impl<'a> Storage<'a> {
 /// that names the input's loan, yet the input stays borrowed until the view's
 /// last use (lifetimes.md, "Returned views": the source must "remain live for
 /// the result's use").
+/// How one effect touches storage a retained loan may cover.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Touch {
+    Read,
+    Change,
+    /// An atomic access changes storage that a shared loan may also observe.
+    AtomicChange,
+}
+
 fn holds(
     lifetime: &terminal_semantics::descriptor_lifetimes::DescriptorLifetime,
     at: &terminal_semantics::descriptor_lifetimes::DescriptorPosition,

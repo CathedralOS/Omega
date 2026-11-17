@@ -174,11 +174,18 @@ impl Program<'_> {
         // An abstract requirement can defer its operational contract to a
         // later application. The generic witness retains that open Signature;
         // it cannot publish a complete callable envelope or supply descriptors.
+        // A complete retained requirement policy is already sufficient input to
+        // the fixed point below; it does not need a previously inferred envelope.
         if let Some(requirement) = self.requirements.iter().copied().find(|id| {
             self.symbols
                 .get(*id)
                 .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
                 && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+                && !self
+                    .declared_envelope_policies
+                    .get(*id)
+                    .and_then(Option::as_ref)
+                    .is_some_and(Policy::is_complete)
         }) {
             if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
                 return Err(unavailable(
@@ -769,24 +776,9 @@ impl Program<'_> {
                 SourceSchema {
                     declaration,
                     requirements: vec![source],
+                    bindings: Vec::new(),
                 },
             ),
-        }
-        Ok(())
-    }
-
-    pub(super) fn retain_closed_requirement_envelope(&mut self, id: MachineId) -> Checked<()> {
-        let policy = self
-            .declared_envelope_policies
-            .get(id)
-            .and_then(Option::as_ref)
-            .ok_or_else(|| unavailable(id, "bodyless requirement has no retained source policy"))?;
-        // A checked body completes its own envelope. A bodyless requirement
-        // can retain only axes its source contract already closes.
-        if let Some(envelope) = policy.closed() {
-            self.callables
-                .bind_machine_envelope(id, envelope)
-                .map_err(|reason| unavailable(id, reason))?;
         }
         Ok(())
     }
@@ -840,14 +832,11 @@ pub(super) struct Policy {
     termination: TerminalCallableTermination,
 }
 impl Policy {
-    fn closed(&self) -> Option<SourceEnvelope> {
-        Some(SourceEnvelope {
-            service_reach: self.reach.clone()?,
-            invocations: self.invokes.clone()?,
-            suspends: self.suspends?,
-            blocks: self.blocks?,
-            termination: self.termination.clone(),
-        })
+    fn is_complete(&self) -> bool {
+        self.reach.is_some()
+            && self.invokes.is_some()
+            && self.suspends.is_some()
+            && self.blocks.is_some()
     }
 
     fn initial(&self) -> SourceEnvelope {
@@ -1022,6 +1011,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             }
         }
         E::SavedSubject(_)
+        | E::Zero
         | E::Float(_)
         | E::ScalarApplication { .. }
         | E::ByteLiteral(_)

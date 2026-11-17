@@ -411,9 +411,8 @@ impl Program<'_> {
                 };
             }
         }
-        // `self in S::C`, in a data clause only. Stage 01 writes a case test
-        // as `CaseMembership` or as `Equal` against a case name; in both the
-        // right operand names a case, which is what makes it one.
+        // `self in S::C`, in a data clause only. `self == S::C` is the same
+        // test only on a payload-free sum (`require_intrinsic_tag_equality`).
         if matches!(
             operator,
             BinaryOperator::CaseMembership | BinaryOperator::Equal
@@ -428,6 +427,9 @@ impl Program<'_> {
             let Some(sum) = self.opened(id, Some(tested), Access::Read)? else {
                 return unserved("case test of something that is not a sum");
             };
+            if operator == BinaryOperator::Equal {
+                self.require_intrinsic_tag_equality(id, sum)?;
+            }
             let case = self.case_position(id, sum, case)?;
             let case = self.data_type(id, sum.record())?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {

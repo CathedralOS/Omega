@@ -530,3 +530,138 @@ machine entry() crashes Trap {
         "the zero edge must fail the query input obligation: {unproved:?}"
     );
 }
+
+#[test]
+fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() {
+    for (name, write, contract, alternative, accepted) in [
+        (
+            "guarded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "0u32",
+            true,
+        ),
+        (
+            "replaced_index_cycle",
+            "input.index = 3u32 as +Wrapping;",
+            "",
+            "0u32",
+            false,
+        ),
+        (
+            "unbounded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "requires true",
+            "0u32",
+            false,
+        ),
+        (
+            "unguarded_arrival_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "block fetch(input)",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
+            public machine entry(input: &mut Input) -> u32 requires true {{
+                transition {{ _ -> block test(input) }}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {contract} {{
+                    {write}
+                    let found: u32 = input.values[input.index];
+                    input.index = input.index + 1;
+                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}"
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        let verdict = judge(Ok(elaboration)).unwrap();
+        if accepted {
+            let RouteVerdict::Accepted(accepted) = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            accepted.publish_invocation().unwrap();
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| row.statement.contains("index is within length 3")),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+}
+
+/// Two callers reach `report` knowing different elements: `entry` read
+/// `cells[0]` and `second_step` read `cells[1]`, after `fill` wrote both
+/// through the borrowed board. The inferred input is their join, so each
+/// caller owes a disjunction one of whose disjuncts names an element it never
+/// read and so has no value for. That caller proves the disjunct it can state.
+#[test]
+fn a_caller_proves_the_inferred_disjunct_it_can_state() {
+    let source = r#"
+data Board { cells: [u32; 2]; }
+machine entry(board: &mut Board) -> u32 {
+    fill(board, 1);
+    transition board.cells[0] == 1 { true -> second_step(board) false -> report(board) }
+    machine second_step(board: &mut Board) -> u32 {
+        transition board.cells[1] == 1 { true -> 0u32 false -> report(board) }
+    }
+    machine report(board: &mut Board) -> u32 {
+        7u32
+    }
+}
+machine fill(board: &mut Board, value: u32) {
+    board.cells[0] = value;
+    board.cells[1] = value;
+}
+"#;
+    let verdict = judge_source_arrivals(source, 2);
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("each caller states the disjunct it established: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+/// A written disjunctive requirement whose second disjunct names a field the
+/// caller never read. The caller may prove the first disjunct, but an
+/// unstated disjunct is never taken as true: a looser guard refuses.
+#[test]
+fn an_unstated_disjunct_is_proved_false_not_assumed() {
+    let source = r#"
+data Pair { first: u32; second: u32; }
+machine entry(pair: &mut Pair) -> u32 {
+    transition pair.first < BOUND { true -> check(pair) false -> 0u32 }
+}
+machine check(pair: &mut Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
+    7u32
+}
+"#;
+    for (bound, accepted) in [("10", true), ("20", false)] {
+        match judge_source_arrivals(&source.replace("BOUND", bound), 0) {
+            RouteVerdict::Accepted(proved) if accepted => {
+                proved.publish_invocation().unwrap();
+            }
+            RouteVerdict::Rejected { unproved, .. } if !accepted => assert!(
+                unproved
+                    .iter()
+                    .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))
+            ),
+            verdict => panic!("guard bound {bound} decides the requirement: {verdict:?}"),
+        }
+    }
+}

@@ -1245,6 +1245,7 @@ pub(crate) mod capture_product_operands {
                         })
                         .collect::<Result<Vec<_>, Diagnostic>>()?;
                     ProductExpressionKind::Record {
+                        zero_omitted_fields: value.zero_omitted_fields,
                         name,
                         case,
                         fields: self.graph.fields.insert_many(fields),

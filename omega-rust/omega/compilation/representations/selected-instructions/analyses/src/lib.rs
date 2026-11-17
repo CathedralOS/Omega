@@ -36,9 +36,13 @@
   models (`ValidatedTargetRegisterEnvironment`, `ValidatedPhysicalRegisterModel`)
   through `SelectedProgramView`. Produces sealed analysis carriers and custody
   receipts (`StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
-  `StagedOptimizedAllocationLegality`, `SelectedOptimizationOutput`) consumed by
+  `StagedOptimizedAllocationLegality`) consumed by
   `04_selected-instructions-to-selected-instructions` and
-  `05_selected-instructions-to-register-homes`.
+  `05_selected-instructions-to-register-homes`. `SelectedAllocationInput` is the
+  one form Omega 04 hands Omega 05: the current program, the analyses Omega 04
+  already established for it, and its `SelectedOptimizationRecord`. Omega 04's
+  rewrite history is evidence in that record, never a choice of how Omega 05
+  allocates.
 */
 
 #[macro_export]
@@ -142,6 +146,11 @@ macro_rules! staged_producer_accessors {
     (@row $producer:ident, source_legality_stage) => {
         pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
             self.$producer.source_legality_stage()
+        }
+    };
+    (@row $producer:ident, record) => {
+        pub const fn record(&self) -> &$crate::SelectedOptimizationRecord {
+            self.$producer.record()
         }
     };
     (@row $producer:ident, selections) => {
@@ -387,15 +396,50 @@ mod allocation_recovery_catalog {
         Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
         OptimizationPhaseMismatch, OptimizationPhaseSelections,
     };
+    use register_homes::{
+        FixedViewCopyPolicy, PressureRematerializationPolicy, RecoveryClassificationPolicy,
+        SpillChoicePolicy,
+    };
 
+    use crate::AllocatorAvailabilityRequirement;
     use crate::rewriting::RegisterAllocationRuleTargetApplicability;
+
+    /// The recovery procedure an allocation-recovery entry runs, with every
+    /// policy it uses. Omega 05 runs the procedure the selected entry names;
+    /// it keeps no second table from optimization names to procedures.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AllocationRecoveryRule {
+        /// Split fixed-register conflicts with explicit copies, then assign.
+        FixedViewCopies(FixedViewCopyPolicy),
+        /// Rematerialize a chosen immediate before its uses, then assign.
+        PressureRematerialization {
+            choice: SpillChoicePolicy,
+            classification: RecoveryClassificationPolicy,
+            rematerialization: PressureRematerializationPolicy,
+        },
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct AllocationRecoveryRuleCatalogPayload {
         target: RegisterAllocationRuleTargetApplicability,
+        availability: AllocatorAvailabilityRequirement,
+        rule: AllocationRecoveryRule,
     }
 
-    impl AllocationRecoveryRuleCatalogPayload {}
+    impl AllocationRecoveryRuleCatalogPayload {
+        /// The allocator availability the rule's legality analysis must use.
+        pub const fn availability(&self) -> AllocatorAvailabilityRequirement {
+            self.availability
+        }
+
+        pub const fn rule(&self) -> AllocationRecoveryRule {
+            self.rule
+        }
+
+        pub const fn target(&self) -> RegisterAllocationRuleTargetApplicability {
+            self.target
+        }
+    }
 
     pub type AllocationRecoveryRuleCatalogEntry =
         OptimizationCatalogDescriptor<AllocationRecoveryRuleCatalogPayload>;
@@ -405,12 +449,24 @@ mod allocation_recovery_catalog {
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             AllocationRecoveryRuleCatalogPayload {
                 target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+                availability: AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews,
+                rule: AllocationRecoveryRule::FixedViewCopies(
+                    FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+                ),
             },
         ),
         AllocationRecoveryRuleCatalogEntry::new(
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             AllocationRecoveryRuleCatalogPayload {
                 target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+                availability:
+                    AllocatorAvailabilityRequirement::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                rule: AllocationRecoveryRule::PressureRematerialization {
+                    choice: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                    classification:
+                        RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                    rematerialization: PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                },
             },
         ),
     ];
@@ -422,32 +478,34 @@ mod allocation_recovery_catalog {
         UnsupportedComposition,
     }
 
-    pub fn selected_allocation_recovery_rule(
+    /// The catalog entry the allocation-recovery projection selects, or none.
+    /// More than one selected rule is an unsupported composition.
+    pub fn selected_allocation_recovery_entry(
         selections: &OptimizationPhaseSelections,
-    ) -> Result<Option<Optimization>, AllocationRecoveryRuleCatalogError> {
+    ) -> Result<
+        Option<&'static AllocationRecoveryRuleCatalogEntry>,
+        AllocationRecoveryRuleCatalogError,
+    > {
         let phase = selections
             .require_phase(OptimizationExecutionPhase::AllocationRecovery)
             .map_err(AllocationRecoveryRuleCatalogError::WrongPhase)?;
         match phase.as_slice() {
             [] => Ok(None),
-            [selected]
-                if ALLOCATION_RECOVERY_RULE_CATALOG
-                    .iter()
-                    .any(|entry| entry.optimization() == *selected) =>
-            {
-                Ok(Some(*selected))
-            }
-            [unsupported] => Err(AllocationRecoveryRuleCatalogError::UnsupportedSelection(
-                *unsupported,
-            )),
+            [selected] => ALLOCATION_RECOVERY_RULE_CATALOG
+                .iter()
+                .find(|entry| entry.optimization() == *selected)
+                .map(Some)
+                .ok_or(AllocationRecoveryRuleCatalogError::UnsupportedSelection(
+                    *selected,
+                )),
             _ => Err(AllocationRecoveryRuleCatalogError::UnsupportedComposition),
         }
     }
 }
 pub use allocation_recovery_catalog::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRule, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload,
-    selected_allocation_recovery_rule,
+    selected_allocation_recovery_entry,
 };
 pub mod codec_bytes {
 
@@ -477,94 +535,141 @@ pub mod codec_bytes {
         Ok(())
     }
 }
-mod selected_optimization_output {
+mod selected_optimization_record {
 
     use optimization_core::{
-        OptimizationSelectionIdentity, PreAllocationOptimizationCompletionIdentity,
-        SelectedLoweringOptimizationCompletionIdentity,
+        PreAllocationOptimizationCompletionIdentity, SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_homes::PostAllocationSelectedTransformation;
 
-    use crate::{
-        OwnedSelectedProgram, SelectedProgramRef, StagedOptimizedAllocationLegality,
-        StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiveRanges,
-        ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    };
-
-    #[derive(Debug)]
-    pub enum SelectedOptimizationOutput {
-        Identity(StagedOptimizedLiveRanges),
-        SelectedLowering(
-            CompletedSelectedOptimization<SelectedLoweringOptimizationCompletionIdentity>,
-        ),
-        PreAllocation(CompletedSelectedOptimization<PreAllocationOptimizationCompletionIdentity>),
-    }
-
-    #[derive(Debug)]
-    pub struct CompletedSelectedOptimization<Completion> {
-        pub source: StagedOptimizedAllocationLegality,
-        pub current: OwnedSelectedProgram,
-        pub liveness: ValidatedLiveness,
-        pub ranges: ValidatedLiveRanges,
-        pub legality: ValidatedAllocationLegality,
-        pub ledger: SelectedOptimizationLedger<Completion>,
-    }
-
-    impl<Completion> CompletedSelectedOptimization<Completion> {
-        pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
-            &self.source
-        }
-
-        pub fn current(&self) -> SelectedProgramRef<'_> {
-            SelectedProgramRef::new(&self.current)
-        }
-
-        pub const fn liveness(&self) -> &ValidatedLiveness {
-            &self.liveness
-        }
-
-        pub const fn ranges(&self) -> &ValidatedLiveRanges {
-            &self.ranges
-        }
-
-        pub const fn legality(&self) -> &ValidatedAllocationLegality {
-            &self.legality
-        }
-
-        pub const fn ledger(&self) -> &SelectedOptimizationLedger<Completion> {
-            &self.ledger
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct SelectedOptimizationLedger<Completion> {
-        pub identity: Completion,
-        pub phase_selections: OptimizationSelectionIdentity,
-        pub source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    /// What earlier selected-instruction rewrites did to the program a stage
+    /// receives: the completed Omega 04 phase, if any, and the transformations
+    /// it applied in order. Allocation copies it into its manifest as
+    /// evidence; it never chooses how a later stage runs. Instruction
+    /// selection's output carries the empty record.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct SelectedOptimizationRecord {
+        pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+        pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
         pub transformations: Vec<PostAllocationSelectedTransformation>,
     }
 
-    impl<Completion: Copy> SelectedOptimizationLedger<Completion> {
-        pub const fn identity(&self) -> Completion {
-            self.identity
+    /// One completed Omega 04 rewrite run kept for an explicitly requested
+    /// validator. Later stages carry it as replay evidence beside the current
+    /// program and never read it to produce output; Omega 04 owns the
+    /// validation it runs.
+    pub trait RetainedSelectedOptimizationRun: std::fmt::Debug + Send + Sync {
+        /// Rebuild every step of the run independently and require `record`,
+        /// the record the allocated program carries, to name exactly this run.
+        fn validate(&self, record: &SelectedOptimizationRecord) -> Result<(), String>;
+    }
+
+    impl SelectedOptimizationRecord {
+        /// Whether an Omega 04 rewrite phase produced the program.
+        pub const fn is_rewritten(&self) -> bool {
+            self.selected_lowering_completion.is_some() || self.pre_allocation_completion.is_some()
         }
 
-        pub const fn phase_selections(&self) -> OptimizationSelectionIdentity {
-            self.phase_selections
-        }
-
-        pub const fn source(&self) -> &StagedOptimizedAllocationLegalityCustodyReceipt {
-            &self.source
-        }
-
-        pub fn transformations(&self) -> &[PostAllocationSelectedTransformation] {
-            &self.transformations
+        /// This record followed by transformations a later stage applied.
+        pub fn followed_by(
+            &self,
+            later: &[PostAllocationSelectedTransformation],
+        ) -> Vec<PostAllocationSelectedTransformation> {
+            let mut transformations = Vec::with_capacity(self.transformations.len() + later.len());
+            transformations.extend_from_slice(&self.transformations);
+            transformations.extend_from_slice(later);
+            transformations
         }
     }
 }
-pub use selected_optimization_output::{
-    CompletedSelectedOptimization, SelectedOptimizationLedger, SelectedOptimizationOutput,
+pub use selected_optimization_record::{
+    RetainedSelectedOptimizationRun, SelectedOptimizationRecord,
 };
+mod allocation_input {
+
+    use optimization_core::OptimizationSelections;
+    use selected_instructions::SelectedProgram;
+
+    use crate::{
+        AllocatorAvailabilityRequirement, OptimizedAllocationLegalityCustodyError,
+        SelectedOptimizationRecord, StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
+        stage_optimized_allocation_legality,
+    };
+
+    /// What Omega 04 hands Omega 05: the current selected program with the
+    /// analyses Omega 04 already established for it. After a rewrite phase
+    /// that includes allocation legality; after an identity run it stops at
+    /// live ranges. Allocation is the same procedure either way.
+    #[derive(Debug)]
+    pub struct SelectedAllocationInput {
+        analyses: AllocationAnalyses,
+    }
+
+    #[derive(Debug)]
+    enum AllocationAnalyses {
+        LiveRanges(StagedOptimizedLiveRanges),
+        Legality(StagedOptimizedAllocationLegality),
+    }
+
+    impl SelectedAllocationInput {
+        pub const fn with_live_ranges(ranges: StagedOptimizedLiveRanges) -> Self {
+            Self {
+                analyses: AllocationAnalyses::LiveRanges(ranges),
+            }
+        }
+
+        pub const fn with_legality(legality: StagedOptimizedAllocationLegality) -> Self {
+            Self {
+                analyses: AllocationAnalyses::Legality(legality),
+            }
+        }
+
+        pub const fn selected(&self) -> &SelectedProgram {
+            match &self.analyses {
+                AllocationAnalyses::LiveRanges(ranges) => ranges.selected(),
+                AllocationAnalyses::Legality(legality) => legality.selected(),
+            }
+        }
+
+        pub fn selections(&self) -> &OptimizationSelections {
+            match &self.analyses {
+                AllocationAnalyses::LiveRanges(ranges) => ranges.selections(),
+                AllocationAnalyses::Legality(legality) => legality.selections(),
+            }
+        }
+
+        pub const fn record(&self) -> &SelectedOptimizationRecord {
+            match &self.analyses {
+                AllocationAnalyses::LiveRanges(ranges) => ranges.record(),
+                AllocationAnalyses::Legality(legality) => legality.record(),
+            }
+        }
+
+        /// The legality analysis allocation runs on. A legality Omega 04
+        /// already established is reused, never recomputed; a selected
+        /// recovery rule that requires different allocator availability than
+        /// that analysis used refuses instead of silently using it.
+        pub fn into_legality(
+            self,
+            required: Option<AllocatorAvailabilityRequirement>,
+        ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError>
+        {
+            match self.analyses {
+                AllocationAnalyses::LiveRanges(ranges) => stage_optimized_allocation_legality(
+                    ranges,
+                    required.unwrap_or(
+                        AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews,
+                    ),
+                ),
+                AllocationAnalyses::Legality(legality) => match required {
+                    None => Ok(legality),
+                    Some(requirement) => legality.require_availability(requirement),
+                },
+            }
+        }
+    }
+}
+pub use allocation_input::SelectedAllocationInput;
 pub mod cursor {
 
     pub use optimization_core::cursor::{TakeError, Truncated};
@@ -628,6 +733,12 @@ mod optimization_input {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{SelectedProgram, StagedOptimizedCustodyCore};
 
+    use crate::SelectedOptimizationRecord;
+
+    /// One selected program with the custody, registers, selections and
+    /// budgets a selected-instruction stage works under. `record` says which
+    /// earlier selected-instruction rewrites produced `program`; it is empty
+    /// for instruction selection's own output.
     #[derive(Debug)]
     pub struct SelectedOptimizationInput {
         pub program: SelectedProgram,
@@ -635,11 +746,16 @@ mod optimization_input {
         pub register_environment: ValidatedTargetRegisterEnvironment,
         pub selections: OptimizationSelections,
         pub budget_per_pass: OptimizationWorkBudget,
+        pub record: SelectedOptimizationRecord,
     }
 
     impl SelectedOptimizationInput {
         pub const fn selected(&self) -> &SelectedProgram {
             &self.program
+        }
+
+        pub const fn record(&self) -> &SelectedOptimizationRecord {
+            &self.record
         }
 
         pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
@@ -663,11 +779,10 @@ pub mod liveness;
 pub mod machine_effects;
 mod tied_registers;
 
-pub use legality::stage_optimized_allocation_legality_for_frameless_leaf;
 pub use legality::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
-    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
+    AllocatorAvailabilityRequirement, OptimizedAllocationLegalityCustodyError,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    admit_optimized_allocation_legality, stage_optimized_allocation_legality,
 };
 pub use live_ranges::{
     LiveRangeError, StagedOptimizedLiveRanges, ValidatedLiveRanges, analyze_live_ranges,
@@ -675,12 +790,13 @@ pub use live_ranges::{
 };
 pub use live_ranges::{
     LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
-    StagedOptimizedLiveRangeCustodyReceipt, stage_optimized_live_ranges,
+    StagedOptimizedLiveRangeCustodyReceipt, admit_optimized_live_ranges,
+    stage_optimized_live_ranges,
 };
 pub use liveness::{LivenessError, ValidatedLiveness, analyze_liveness, analyze_liveness_reusing};
 pub use liveness::{
     LivenessValidationReceipt, OptimizedLivenessCustodyError, StagedOptimizedLiveness,
-    StagedOptimizedLivenessCustodyReceipt, stage_optimized_liveness,
+    StagedOptimizedLivenessCustodyReceipt, admit_optimized_liveness, stage_optimized_liveness,
 };
 pub use machine_effects::MachineEffectError;
 pub use machine_effects::analyze_pre_allocation_machine_effects;

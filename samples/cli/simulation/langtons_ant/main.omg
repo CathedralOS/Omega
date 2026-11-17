@@ -112,7 +112,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block show_row(main) }
     }
     machine show_done(main: &mut Main) {
-        Clock::sleep(45);
+        block Clock::sleep(45);
         transition { _ -> step(main) }
     }
 

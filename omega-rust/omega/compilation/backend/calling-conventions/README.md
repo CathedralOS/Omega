@@ -64,3 +64,15 @@ uses it. Current native limits belong beside the
 Final state-footprint certificates are a separate realization check; a
 passing plan evaluator says nothing about their
 [production status](../images/image/src/lib.rs).
+
+## Cross-check against clang
+
+[clang_crosscheck.rs](src/tests/clang_crosscheck.rs) compares where the
+default plans put each argument and result byte with where clang puts it, for
+1,440 fixed generated C signatures on all four hosted targets. The platform
+ABI documents stay the answer key: each disagreement still open on `main` is
+one `KNOWN_MISMATCHES` entry that quotes the ABI rule and names its
+OWNER_CODE_CONCERNS.md heading, and the test fails on any other disagreement
+or on an entry that no longer reproduces. It needs clang, so it is ignored by
+default; the post-merge workflow runs it report-only:
+`mbx test -p calling-conventions --lib clang_crosscheck -- --ignored --nocapture`.

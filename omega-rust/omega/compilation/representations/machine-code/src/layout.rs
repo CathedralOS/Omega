@@ -55,6 +55,15 @@ pub use text_section::{
 
 register_homes::identity_newtype! { pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]); }
 
+/// Retains the exact input joins for a layout without retaining its earlier rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedLayoutRoots {
+    pub identity: ResolvedSelectedFormLayoutIdentity,
+    pub selected: SelectedInstructionPlanIdentity,
+    pub machine: PostAllocationMachineIdentity,
+    pub pre_layout: SelectedFormEncodingIdentity,
+}
+
 const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v17";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,6 +185,15 @@ pub struct ResolvedMachineLayout {
 }
 
 impl ResolvedMachineLayout {
+    pub fn roots(&self) -> ResolvedLayoutRoots {
+        ResolvedLayoutRoots {
+            identity: self.identity,
+            selected: self.selected,
+            machine: self.machine,
+            pre_layout: self.pre_layout,
+        }
+    }
+
     pub fn selected(&self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
@@ -244,6 +262,7 @@ pub struct FramedMachineProgram {
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
 }
@@ -253,6 +272,7 @@ pub struct EncodedMachineProgram {
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
     pub encoding: Arc<SelectedFormEncoding>,
@@ -263,6 +283,7 @@ pub struct ResolvedMachineProgram {
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
     pub encoding: Arc<SelectedFormEncoding>,

@@ -354,6 +354,23 @@ pub(crate) fn publish(
         usize::try_from(machine.get() - 1)
             .map_err(|_| unavailable(diagnostic, "machine coordinate exceeds host width"))
     };
+    // Logical requirements have no body from which to infer reach. Calls use
+    // their retained abstract bounds without publishing an executable declaration.
+    // An omitted bound remains open in requirement_ceilings.
+    for requirement in &elaboration.requirements {
+        let ceiling = elaboration
+            .requirement_ceilings
+            .get(*requirement)
+            .ok_or_else(|| unavailable(*requirement, "requirement lost its service ceiling"))?;
+        if let crate::Ceiling::Authored(reach) = &ceiling.reaches {
+            *published.get_mut(position(*requirement)?).ok_or_else(|| {
+                unavailable(
+                    *requirement,
+                    "requirement has no published reach coordinate",
+                )
+            })? = reach.clone();
+        }
+    }
     loop {
         let mut changed = false;
         for machine in &elaboration.module.machines {
