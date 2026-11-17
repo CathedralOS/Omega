@@ -58,21 +58,7 @@ pub(super) struct ClauseScope<'s> {
     /// selects the input observation. Crash guards retain their separate
     /// admission rule.
     pub(super) formal_fields: bool,
-    /// Whether a comparison in this clause may be between mathematical
-    /// integers (`embed(a) + embed(b) <= 99`).
-    pub(super) mathematical: MathematicalTerms,
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
-}
-
-/// Whether a clause may compare mathematical integers. A machine's
-/// `requires`, `ensures` and crash guards may: elaboration and the checker
-/// restate them using the same checked semantic substitution. A data
-/// `requires` still needs its own mathematical domain-establishment goals.
-#[derive(Clone, Copy)]
-pub(super) enum MathematicalTerms {
-    Served,
-    /// The refusal that names the clause kind.
-    Refused(&'static str),
 }
 
 /// The stored value a `requires` clause is about: the value of a data
@@ -521,9 +507,6 @@ impl Program<'_> {
         if left_type != right_type
             && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
         {
-            if let MathematicalTerms::Refused(why) = scope.mathematical {
-                return Err(refuse(id, Construct::Machine, Unserved::Contract(why)));
-            }
             let embedded = |term| {
                 IntegerMathTerm::embed(term).ok_or_else(|| {
                     refuse(
@@ -1409,6 +1392,8 @@ impl Program<'_> {
     /// Terminal Psi keeps for one (`IntegerMathEqual`, `IntegerMathLessThan`,
     /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
     /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
+    /// Domain and data clauses retain the same terms; the lowered-form checker
+    /// still proves their formation and establishment in each subject scope.
     fn mathematical_comparison(
         &mut self,
         id: MachineId,
@@ -1417,10 +1402,6 @@ impl Program<'_> {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-        if let MathematicalTerms::Refused(why) = scope.mathematical {
-            return unserved(why);
-        }
         let left = self.mathematical_term(id, scope, left)?;
         let right = self.mathematical_term(id, scope, right)?;
         mathematical_relation(comparison, left, right, id)
@@ -1487,11 +1468,7 @@ impl Program<'_> {
                     return unserved("embed of other than one value");
                 };
                 let (term, value_type) = self.term(id, scope, *argument, None)?;
-                self.clause_operand_type(id, value_type)?;
-                match IntegerMathTerm::embed(term) {
-                    Some(embedded) => Ok(embedded),
-                    None => unserved("embed of a value that is not an integer"),
-                }
+                super::mathematics::integer_embedding(id, term, value_type)
             }
             ExpressionNode::Call(_) => unserved("call in a mathematical term"),
             ExpressionNode::Integer(literal) if literal.landing().is_none() => {
@@ -1587,8 +1564,7 @@ impl Program<'_> {
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                let address =
-                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
                 match 1_u128.checked_shl(u32::from(address.bits())) {
                     Some(bound) => Ok(IntegerMathTerm::literal(
                         semantic_vocabulary::IntegerValue::Unsigned(bound),

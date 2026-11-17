@@ -596,3 +596,73 @@ fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
         if refusal.detail.contains("removing strict rank edges")
     )), "passing the unchanged slice cannot prove descent: {:?}", observed_verdicts(&results));
 }
+
+/// A ranked tail transfer that lends an element of a borrowed array
+/// (`&sig.shapes[ordinal]`) builds that argument's path before its successor
+/// ranking emits the next measure. The index obligation is owed by the jump,
+/// so it must sit at the jump's point, after those observations, or the
+/// lowered-form check refuses the table as misplaced. The negative twin lets
+/// the index reach the array's length and is refused on that bound.
+#[test]
+fn a_ranked_tail_transfer_creates_its_element_index_obligation_at_the_jump() {
+    let source = |guard: &str| {
+        format!(
+            r#"
+data Shape {{ size: u64; }}
+data Signature {{ count: u64; shapes: [Shape; 4]; }}
+machine walk(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+terminates by remaining -> Nat::Descending
+crashes none
+{{
+    transition {{
+        ordinal == sig.count -> true
+        ordinal < sig.count && remaining > 0 -> root(sig, ordinal, remaining)
+        _ -> false
+    }}
+    machine root(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+    requires remaining > 0 {{
+        transition {guard} {{
+            true -> shape(sig, ordinal, remaining, &sig.shapes[ordinal])
+            _ -> false
+        }}
+    }}
+    machine shape(sig: &Signature, ordinal: u64, remaining: u64, item: &Shape) -> bool
+    requires remaining > 0, ordinal < 5 {{
+        transition remaining > 1 {{
+            true -> walk(sig, ordinal + 1, remaining - 1)
+            _ -> false
+        }}
+    }}
+}}
+machine entry(sig: &Signature) -> bool terminates crashes none {{ walk(sig, 0, 4) }}
+"#
+        )
+    };
+    let verdicts = |guard| {
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source(guard)))
+    };
+    let misplaced = |verdict: &Result<RouteVerdict, crate::CompilationRefusal>| {
+        matches!(
+            verdict,
+            Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
+            if refusal.detail.contains("not created at the point of what owes it")
+        )
+    };
+    let positive = verdicts("ordinal < 4");
+    assert!(!positive.is_empty());
+    for verdict in &positive {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "an index proved by its guard must be accepted: {verdict:?}"
+        );
+    }
+    let negative = verdicts("ordinal < 5");
+    assert!(!negative.iter().any(misplaced), "{negative:?}");
+    assert!(
+        negative.iter().any(|verdict| matches!(
+            verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))
+        )),
+        "an index the guard does not bound must be refused on its bound: {negative:?}"
+    );
+}

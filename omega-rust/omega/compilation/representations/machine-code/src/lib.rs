@@ -490,12 +490,12 @@ pub use layout::text_section::{
     TextSectionRelocationRequirements, relocation_free_text_section_identity,
 };
 pub use layout::{
-    EncodedMachineProgram, FramedMachineProgram, ResolvedBranchEvidence,
+    EncodedMachineProgram, FramedMachineProgram, OptimizedMachineLayout, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
     ResolvedLayoutRoots, ResolvedMachineLayout, ResolvedMachineProgram,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
-    resolved_machine_layout_identity,
+    X86BranchRelaxationRoots, resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

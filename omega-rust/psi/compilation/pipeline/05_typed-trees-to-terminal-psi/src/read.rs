@@ -644,7 +644,7 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
 }
 #[cfg(test)]
 mod tests {
-    use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
+    use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
     use crate::body::ExpressionKind;
     use language_core::ReferenceAccess;
@@ -1419,7 +1419,6 @@ mod tests {
             logical: None,
             subject: None,
             formal_fields: false,
-            mathematical: MathematicalTerms::Served,
             slots: &[],
             values: &[],
             bound: &[],
@@ -1540,7 +1539,7 @@ mod tests {
             logical: None,
             subject: None,
             formal_fields,
-            mathematical: MathematicalTerms::Served,
+
             slots,
             values: &values,
             bound: &[],
@@ -1702,7 +1701,7 @@ mod tests {
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
             }],
-            None,
+            logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();
         let same_input =
@@ -1741,7 +1740,6 @@ mod tests {
             result: ResultTerm::Named(ValueId::new(2).unwrap(), scalar_type, Qualification::NONE),
             subject: None,
             formal_fields: false,
-            mathematical: MathematicalTerms::Served,
         };
         let mut program = Program::new(&typed, false);
         let input = (
@@ -2034,7 +2032,11 @@ mod tests {
         // A projected invocation keeps the same source input at normal
         // completion. Its guarantee is still an obligation of the ordinary
         // call/return body, rather than an entry premise or executable snapshot.
-        let logical = logical_inputs.scope(machine(), None, &[]);
+        let logical = logical_inputs.scope(
+            machine(),
+            logical::MathematicalAddressContext::Binding(None),
+            &[],
+        );
         let completion_scope = ClauseScope {
             logical: Some(logical.normal_return()),
             slots: &[],
@@ -2413,7 +2415,6 @@ mod tests {
             logical: None,
             subject: None,
             formal_fields: false,
-            mathematical: MathematicalTerms::Served,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -2990,11 +2991,10 @@ mod tests {
         };
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];
-        let scope = |mathematical| ClauseScope {
+        let scope = || ClauseScope {
             logical: None,
             subject: None,
             formal_fields: true,
-            mathematical,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -3002,7 +3002,7 @@ mod tests {
             result: ResultTerm::Absent("result in an entry clause"),
         };
         let mut program = Program::new(&typed, false);
-        let served = scope(MathematicalTerms::Served);
+        let served = scope();
         let embedded = |value: u64| IntegerMathTerm::MathValue {
             source_type: carrier_type,
             value: ValueId::new(value).unwrap(),
@@ -3078,13 +3078,6 @@ mod tests {
         assert_eq!(
             detail(&served, spelled_embed),
             "call target is not a machine declaration"
-        );
-        let guard = scope(MathematicalTerms::Refused(
-            "mathematical comparison in a crash route guard",
-        ));
-        assert_eq!(
-            detail(&guard, within),
-            "contract mathematical comparison in a crash route guard"
         );
     }
 }
