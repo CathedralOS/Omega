@@ -14,8 +14,8 @@ Source data and checker evidence live in different packages.
 
 | Program form | Produced by | Next pipeline consumer |
 | --- | --- | --- |
-| [Tokens](tokens/src/lib.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/lexer.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
-| [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
+| [Tokens](tokens/src/lib.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/lexer.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/parser.rs) |
+| [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed preparation](../pipeline/04_typed-trees-to-typed-trees/README.md), then [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
 | [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs), [judgment](../pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) and [accepted-source publication](../terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
