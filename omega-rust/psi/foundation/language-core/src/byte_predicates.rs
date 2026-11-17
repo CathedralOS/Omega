@@ -1,6 +1,6 @@
-//! Canonical byte-content predicates shared by source declaration custody and
-//! lowered semantic operations. A declaration name alone grants no meaning:
-//! ordinary selection and the sealed catalog authenticate compiler supply.
+//! Byte observations shared by Core declarations and compiled operations.
+//! The compiler checks each declaration against its fixed Core catalog before
+//! using one of these observations for a call.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ByteSequencePredicate {

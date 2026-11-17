@@ -1,6 +1,6 @@
-//! Core's sealed declaration supplies an existing byte observation, not a
-//! special spelling. Runtime calls form an ordinary shared loan; logical
-//! calls retain the exact storage subject and the same complete pure header.
+//! Read byte properties through checked Core declarations. Runtime calls form
+//! shared loans. Contract calls retain the exact storage being observed and
+//! the declaration's complete contract.
 
 use semantic_vocabulary::{ByteSequencePredicate, MachineId, ScalarType};
 use symbols::SymbolHandle;

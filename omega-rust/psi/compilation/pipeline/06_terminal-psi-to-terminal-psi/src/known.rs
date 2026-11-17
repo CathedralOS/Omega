@@ -42,7 +42,7 @@ impl ProofValues for IdTable<ValueId, ValueRow> {
     }
 
     fn identity(&self, position: usize) -> Option<ValueId> {
-        self.keys().nth(position)
+        self.identity_at(position)
     }
 
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {

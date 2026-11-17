@@ -1184,6 +1184,12 @@ mod id_table {
             self.values.iter()
         }
 
+        /// Return the identity at one row ordinal without traversing earlier rows.
+        pub fn identity_at(&self, position: usize) -> Option<Id> {
+            self.values.get(position)?;
+            Id::new(self.first.checked_add(u64::try_from(position).ok()?)?)
+        }
+
         pub fn keys(&self) -> impl DoubleEndedIterator<Item = Id> + ExactSizeIterator + '_ {
             (0..self.values.len()).map(|offset| {
                 Id::new(self.first + offset as u64).expect("table identities are nonzero")
@@ -1324,6 +1330,17 @@ mod id_table {
             assert_eq!(table.get(id(5)), Some(&'b'));
             assert_eq!(table.get(id(7)), None);
             assert_eq!(table.keys().collect::<Vec<_>>(), [id(4), id(5), id(6)]);
+            assert_eq!(table.identity_at(0), Some(id(4)));
+            assert_eq!(table.identity_at(2), Some(id(6)));
+            assert_eq!(table.identity_at(3), None);
+            assert_eq!(table.identity_at(usize::MAX), None);
+            assert_eq!(
+                IdTable::<StructuralTypeId, ()>::default().identity_at(0),
+                None
+            );
+            let high = IdTable::from_rows([(id(u64::MAX), ())]).unwrap();
+            assert_eq!(high.identity_at(0), Some(id(u64::MAX)));
+            assert_eq!(high.identity_at(1), None);
             assert_eq!(
                 table.map(|_, value| value.to_ascii_uppercase()).get(id(6)),
                 Some(&'C')

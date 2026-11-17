@@ -67,10 +67,10 @@ impl TypedTrees {
     }
 }
 
-// Byte-domain classification and executable uses must agree on the actual
-// declaration. These four rows have no generic contracts to approximate: the
-// complete header is one own-lifetime shared u8 view, a bool, and pure total
-// completion. A matching file does not excuse a changed typed declaration.
+// Domain facts and executable calls must use the same checked function.
+// Each Core observation takes one shared byte slice with its own lifetime,
+// returns bool, and always completes without effects. Check the complete typed
+// declaration as well as its file.
 fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
     use crate::types::TypeReferenceNode;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
