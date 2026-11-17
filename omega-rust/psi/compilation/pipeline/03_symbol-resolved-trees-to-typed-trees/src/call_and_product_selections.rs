@@ -2209,8 +2209,10 @@ pub(crate) mod construction_destinations {
                     (SymbolKind::Parameter, SymbolNameRef::Static("parameter")),
                     (SymbolKind::Local, SymbolNameRef::Static("local")),
                     (SymbolKind::Field, SymbolNameRef::Static("field")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("needs_type")),
                 ]),
             );
+            let contextual = declarations.handles().last().unwrap();
             let mut program = TypedTrees {
                 symbols: symbols.finish(),
                 ..Default::default()
@@ -2267,8 +2269,9 @@ pub(crate) mod construction_destinations {
                         .is_valid()
                 );
             }
-            // A real contextual production still needs an authored telescope;
-            // this pass cannot manufacture a builtin's expected argument type.
+            // A contextual production passed to an ordinary callable still
+            // needs its authored telescope. Builtins use their own operand
+            // rules, so they do not exercise a missing callable signature.
             let literal = program
                 .expression_table
                 .insert(ExpressionNode::String(b"value".to_vec().into()));
@@ -2278,7 +2281,7 @@ pub(crate) mod construction_destinations {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
-                    target_symbol: intrinsic,
+                    target_symbol: contextual,
                     arguments: operands,
                     ..Default::default()
                 }));

@@ -701,18 +701,24 @@ impl Lowering<'_> {
         mut finish: impl FnMut(&mut Self, &T, SourceOrigin, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         let arms = arms.into_iter().collect::<Vec<_>>();
-        let mut cases = arms
+        let mut indices = arms
             .iter()
-            .map(|(selector, _, _)| selector.case)
+            .map(|(selector, _, _)| (selector.case, None))
             .collect::<Vec<_>>();
-        cases.sort_unstable();
-        cases.dedup();
-        let mut groups = vec![Vec::new(); cases.len()];
+        indices.sort_unstable_by_key(|(case, _)| *case);
+        indices.dedup_by_key(|(case, _)| *case);
+        let mut cases = Vec::with_capacity(indices.len());
+        let mut groups: Vec<Vec<usize>> = Vec::with_capacity(indices.len());
         for (position, (selector, _, _)) in arms.iter().enumerate() {
-            let index = cases
-                .binary_search(&selector.case)
+            let slot = indices
+                .binary_search_by_key(&selector.case, |(case, _)| *case)
                 .expect("selected case is indexed");
-            groups[index].push(position);
+            let group = *indices[slot].1.get_or_insert_with(|| {
+                cases.push(selector.case);
+                groups.push(Vec::new());
+                groups.len() - 1
+            });
+            groups[group].push(position);
         }
         let decided_in = self.current()?;
         let (blocks, rest) = continuing!(self.select(
