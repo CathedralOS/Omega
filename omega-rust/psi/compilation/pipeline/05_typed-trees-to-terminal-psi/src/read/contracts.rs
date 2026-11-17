@@ -1607,7 +1607,7 @@ impl Program<'_> {
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
     fn field_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1651,7 +1651,7 @@ impl Program<'_> {
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
     fn projected(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1791,6 +1791,12 @@ impl Program<'_> {
                         ),
                     ));
                 };
+                // A contract's checked index is the same primitive collection
+                // operation as a body read. Retain its actual collection type
+                // before publishing the source selection; bounds alone cannot
+                // resolve a competing declared operator.
+                let operands = self.collection_index_operand_types(id, array.record());
+                self.complete_contract_operator(id, scope, expression, operands)?;
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
