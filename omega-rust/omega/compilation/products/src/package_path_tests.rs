@@ -5,8 +5,8 @@
 use super::*;
 use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
-    NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
-    PackagePublicationComponent, executable_container_digest, publish_macos_application_package,
+    NativePublicationEvidenceDigest, NativePublicationInputsDigest, PackagePublicationComponent,
+    executable_container_digest, publish_macos_application_package,
 };
 use std::path::Path;
 
@@ -50,14 +50,11 @@ fn executable_receipt(
     ExecutablePublicationReceipt::new(
         output_path,
         [1; 32],
-        NativePublicationCertificateDigest::from_digest([2; 32]),
+        NativePublicationInputsDigest::from_digest([2; 32]),
         29,
         None,
         image::PlacedExecutableRegionInventoryDigest::from_digest([5; 32]),
         23,
-        image::CompilerTextDerivationDigest::from_digest([3; 32]),
-        image::CompilerFunctionValidationDigest::from_digest([4; 32]),
-        19,
         NativePublicationEvidenceDigest::from_digest([6; 32]),
         byte_count,
         container,

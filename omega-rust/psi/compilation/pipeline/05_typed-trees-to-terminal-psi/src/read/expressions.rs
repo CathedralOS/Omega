@@ -672,6 +672,12 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
+                if let Some(expected) = expected
+                    && let Some(view) =
+                        self.borrowed_array_range(id, slots, handle, expected, source, None)?
+                {
+                    return Ok(view);
+                }
                 return self.indexed(
                     id,
                     slots,
@@ -687,8 +693,22 @@ impl<'t> Program<'t> {
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
-                let Some(expected) = expected else {
-                    return unserved("reference formation without its retained contextual type");
+                let expected = match expected {
+                    Some(expected) => expected,
+                    None => {
+                        let reference = typed
+                            .expression_table
+                            .constructed_value_type_reference(handle);
+                        if !typed
+                            .type_reference_table
+                            .contains_type_reference(reference)
+                        {
+                            return unserved(
+                                "reference formation without its retained contextual type",
+                            );
+                        }
+                        self.value_type(id, reference)?
+                    }
                 };
                 return self.borrow_value(id, slots, handle, expected, source);
             }

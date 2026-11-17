@@ -93,9 +93,9 @@ shape-incompatible, unresolved, or substituted materializations reject.
 
 Materialization uses only a fully validated outbound plan. The private function's
 artifact-local machine identity stays nested in its source artifact; it cannot
-impersonate a machine in the enclosing program. Object and final-image replay
-bind the private symbol, relocation, executable region, and patched address to
-the same function and native argument destination.
+impersonate a machine in the enclosing program. Object construction and image
+emission must bind the private symbol, relocation, executable region and patched
+address to the same function and native argument destination.
 
 Independent receiving validation needs both authenticated plan-application
 identity and replayable authored-use-to-Terminal-operation correspondence.

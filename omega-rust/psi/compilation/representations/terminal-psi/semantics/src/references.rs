@@ -2206,6 +2206,7 @@ pub(crate) mod reference_origins {
                     }],
                     unknown_contents: Vec::new(),
                     unresolved_slots: vec![Vec::new()],
+                    case_facts: Default::default(),
                 };
                 assert_eq!(
                     crate::reference_result_contents(&types, &[], &declaration, &contents),
@@ -2556,6 +2557,12 @@ pub(crate) mod reference_origins {
                     .map(|position| packets[position])
                     .ok_or("unknown result contents lost their custody packet")?;
                 if packet.origins.is_empty() {
+                    if contents
+                        .case_facts
+                        .excludes_payload(result.structural_type, &packet.path)
+                    {
+                        continue;
+                    }
                     return Err("unknown result contents repeat or omit their origins");
                 }
                 for origin in &packet.origins {

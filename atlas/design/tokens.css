@@ -55,7 +55,8 @@
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.architecture[data-theme="dark"] {
   --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
   --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719;
   color-scheme: dark;

@@ -71,7 +71,7 @@ pub(crate) fn finite_reach(
 pub(super) fn invocations(
     typed: &TypedTrees,
     context: MachineId,
-    authored: &[AuthoredInvocation],
+    authored: arena::RootRows<'_, AuthoredInvocation>,
     parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
 ) -> Checked<Vec<Invocation>> {
     let mut targets = Vec::new();
@@ -1368,7 +1368,7 @@ impl<'t> Program<'t> {
     pub(super) fn entry_ceiling(
         &mut self,
         caller: MachineId,
-        rows: &[typed_trees::signature::AuthoredInvocation],
+        rows: arena::RootRows<'_, typed_trees::signature::AuthoredInvocation>,
         parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
         bodyless: bool,
     ) -> Checked<crate::Ceiling> {

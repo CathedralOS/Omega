@@ -1879,7 +1879,7 @@ impl<'a> Lowering<'a> {
             .result
             .map_or(Qualification::NONE, ValueType::qualification);
         let (whole, projected) = self.memberships(record, after)?;
-        let held = self.qualifications.structural(self.id, record, before)?;
+        let (held, before_projected) = self.memberships(record, before)?;
         let (shown, displayed) = if matches!(
             self.record_type(record)?.shape,
             StorageShape::Reference { .. }
@@ -1891,10 +1891,7 @@ impl<'a> Lowering<'a> {
                     .map(|row| row.domain)
                     .collect::<Vec<_>>()
             };
-            (
-                referent(&projected),
-                referent(&self.memberships(record, before)?.1),
-            )
+            (referent(&projected), referent(&before_projected))
         } else {
             (Vec::new(), Vec::new())
         };
@@ -2671,7 +2668,7 @@ impl<'a> Lowering<'a> {
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
-                let captured = continuing!(self.capture_place(place));
+                let captured = continuing!(self.capture_loan_backing(place, *access));
                 let shared_descriptor = reinterpret
                     && declared == StructuralAccess::SharedBorrow
                     && captured.1.is_empty()
@@ -3080,6 +3077,36 @@ impl<'a> Lowering<'a> {
             )?;
         }
         Ok(Reached::Value(value))
+    }
+
+    /// A fresh shared descriptor consumed by another loan has not escaped or
+    /// been overwritten. Capture its original place once when its exact type
+    /// is unchanged. This retains field codecs and dynamic selectors; stored
+    /// descriptors and exclusive formations keep their ordinary loan chain.
+    fn capture_loan_backing(
+        &mut self,
+        expression: &Expression,
+        access: language_core::ReferenceAccess,
+    ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+        if access == language_core::ReferenceAccess::Shared
+            && let ExpressionKind::Referent(descriptor) = &expression.kind
+            && let ExpressionKind::Borrow {
+                access: language_core::ReferenceAccess::Shared,
+                place,
+                ..
+            } = &descriptor.kind
+            && let Some(ValueType::Record(reference, qualification, _)) = descriptor.result
+            && let StorageShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } = self.record_type(reference)?.shape
+            && place.result.map(ValueType::erased)
+                == Some(self.storage_value_type(referent, qualification)?.erased())
+            && expression.result.map(ValueType::erased) == place.result.map(ValueType::erased)
+        {
+            return self.capture_place(place);
+        }
+        self.capture_place(expression)
     }
 
     /// Capture an existing place using the same expression and declared

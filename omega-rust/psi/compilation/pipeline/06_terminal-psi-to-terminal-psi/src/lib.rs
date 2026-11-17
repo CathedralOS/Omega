@@ -949,7 +949,7 @@ fn check_prepared_machine(
                 if matches!(unproved.reason, RefusalReason::Unproved(_)) && (stores || zeroes) =>
             {
                 let owner = storage.owner(operation, clause, concerns)?;
-                if stores && storage.untouched(operation, &owner, concerns)? {
+                if stores && storage.untouched(references, operation, &owner, concerns)? {
                     Ok(Discharged::Preserved)
                 } else {
                     windows.push(places::Window {

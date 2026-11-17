@@ -103,7 +103,11 @@ pub(crate) mod statement {
             if let Some(local) = statement.as_local_data()
                 && local.role.has_ordinary_initializer()
             {
-                self.insert(local.symbol, local.type_reference)?;
+                // An initializer not yet typed supplies no receiving type.
+                // A produced Unit result still has its own valid handle.
+                if local.type_reference.is_valid() {
+                    self.insert(local.symbol, local.type_reference)?;
+                }
             }
             Ok(())
         }
@@ -1684,14 +1688,9 @@ pub(crate) mod statement {
                         types,
                         local_data.initial_value,
                     )?
+                    .unwrap_or_else(typed::types::TypeReferenceHandle::invalid)
                 } else {
-                    None
-                };
-                let type_reference = match type_reference {
-                    Some(type_reference) => type_reference,
-                    None => {
-                        lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
-                    }
+                    lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
                 };
                 let roster = crate::tables::resolved_expressions(lowerer.source_trees)
                     .match_fields(local_data.pattern_fields)

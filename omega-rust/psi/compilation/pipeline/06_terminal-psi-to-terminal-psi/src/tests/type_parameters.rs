@@ -929,3 +929,289 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
         }
     }
 }
+
+#[test]
+fn an_open_record_header_retains_its_actual_field_binder() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { value: T; }
+        machine entry<T>(value: &Envelope<T>) {}
+    "#,
+    );
+    assert_eq!(form.generic_storage.len(), 1);
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_forwarded_open_record_uses_the_callers_actual_type() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+    "#,
+    );
+    assert_eq!(form.generic_storage.len(), 1);
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn an_open_record_cannot_silently_discard_its_unknown_field() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine entry<T>(value: Envelope<T>) {}
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
+        "the field's possible linear debt must survive: {verdict:?}"
+    );
+}
+
+#[test]
+fn forwarded_open_records_cannot_change_their_argument() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T, U>(left: &Envelope<T>, right: &Envelope<U>) { keep<T>(right); }
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+            if refusal.reason == RefusalReason::Unsupported && refusal.detail.contains("argument types")),
+        "the receiving record must retain its actual argument: {verdict:?}"
+    );
+}
+
+#[test]
+fn an_open_record_literal_transfers_its_unknown_field() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { before: u32; item: T; after: u32; }
+        machine entry<T>(value: T) -> Envelope<T> {
+            Envelope { before: 19u32, item: move value, after: 23u32 }
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn an_open_record_call_requires_its_actual_source_owner() {
+    let mut source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+    "#,
+    );
+    let entry = super::boundary_calls::entry(&source);
+    let callee = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "keep")
+        .unwrap()
+        .symbol;
+    let application = source
+        .expression_table
+        .static_machine_applications()
+        .find(|(_, application)| {
+            source
+                .machine_by_symbol(application.lexical_owner)
+                .or_else(|| source.machine_holding_state(application.lexical_owner))
+                .is_some_and(|owner| owner.symbol == entry)
+        })
+        .expect("the call retains its actual source owner")
+        .0;
+    source
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = callee;
+    let refusal = typed_trees_to_terminal_psi::elaborate_generic(&source, entry).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("type application has another source owner or declaration"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_generic_case_constructor_transfers_its_unknown_payload() {
+    let form = parameter_form(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: T) -> Outcome<T> { Outcome::Present { item: move value } }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_generic_empty_case_has_no_live_payload_contents() {
+    let form = parameter_form(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>() -> Outcome<T> { Outcome::Missing }
+    "#,
+    );
+    let verdict = judge(Ok(form.clone())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let machine = &form.module.machines[0];
+    let result = machine.result.structural().unwrap();
+    let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+        &form.module,
+        [machine.id],
+        &[],
+    )
+    .unwrap();
+    let mut analysis =
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            &form.module.structural_types,
+            &graph,
+        );
+    let contents = analysis.result_contents(machine.id).unwrap();
+    assert!(
+        terminal_semantics::reference_result_contents(
+            &form.module.structural_types,
+            &machine.structural_parameters,
+            result,
+            &contents,
+        )
+        .is_ok()
+    );
+    let mut types = form.module.structural_types.clone();
+    let mut foreign = types
+        .iter()
+        .find(|row| row.id == result.structural_type)
+        .unwrap()
+        .clone();
+    foreign.id = semantic_vocabulary::StructuralTypeId::new(
+        types.iter().map(|row| row.id.get()).max().unwrap() + 1,
+    )
+    .unwrap();
+    let mut wrong = result.clone();
+    wrong.structural_type = foreign.id;
+    types.push(foreign);
+    assert_eq!(
+        terminal_semantics::reference_result_contents(
+            &types,
+            &machine.structural_parameters,
+            &wrong,
+            &contents,
+        ),
+        Err("unknown result contents repeat or omit their origins")
+    );
+}
+
+#[test]
+fn an_empty_result_case_does_not_retire_an_unknown_argument() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: T) -> Outcome<T> { Outcome::Missing }
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn generic_case_reconstruction_preserves_both_empty_and_live_payloads() {
+    let form = parameter_form(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: Outcome<T>) -> Outcome<T> {
+            transition value {
+                Outcome::Missing -> Outcome::Missing
+                Outcome::Present { item } -> Outcome::Present { item: move item }
+            }
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Ticket [linear] { number: u64; }
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry(value: Outcome<Ticket>) -> u64 {
+            transition value {
+                Outcome::Missing -> 0u64
+                Outcome::Present { item } -> consume(move item)
+            }
+        }
+        machine consume(item: Ticket) -> u64 { let { number } = move item; number }
+    "#,
+    );
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = typed_trees_to_terminal_psi::elaborate_closure(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_known_empty_case_keeps_its_cleanup_membership() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Ticket [linear] { number: u64; }
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry() -> u64 {
+            let value: Outcome<Ticket> = Outcome::Missing;
+            transition value {
+                Outcome::Missing -> 0u64
+                Outcome::Present { item } -> consume(move item)
+            }
+        }
+        machine consume(item: Ticket) -> u64 { let { number } = move item; number }
+    "#,
+    );
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = typed_trees_to_terminal_psi::elaborate_closure(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}

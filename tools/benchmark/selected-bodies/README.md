@@ -129,3 +129,114 @@ the owned typed data; live `Arc::make_mut` can also allocate its Arc
 container, while owned-copy and `unwrap_or_clone` sites do not.
 Keep raw snapshots, plans, logs, producer identities and resource records outside
 Git. The measurement report names exact source/binary identities and limits.
+
+## Retained side-record measurements
+
+The later side-record repair uses two separate observers. The original Build
+routes expose which retained field owners allocate when they fork. A nonempty
+source-stage driver verifies that a successor keeps its predecessor's request
+rows while producing new output. Their windows overlap neither each other nor
+ordinary timing controls, so keep their results separate.
+
+The patches below have recorded preimages at
+`b6b44c31fe8693380fcee5aef7ceef540dc6041c` (the ownership repair before unrelated main changes). The ordinary
+baseline is `2b586716b443764af2b88616403b9c8b8ee1f2d0`, a test-only descendant of `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f`. Preserve the
+patches and the common driver before checking out either source in an acquired
+worker. Both patches were checked against both recorded preimages; the Build
+patch omits only two owner-type context lines that differ between them. Run `git apply --check` at that exact source before applying a patch;
+a later source needs review and fresh measurements. These patches add private
+examples and the existing observer dependency only while the experiment runs.
+Neither patch belongs in the ordinary compiler configuration.
+
+| Artifact | SHA256 |
+| --- | --- |
+| `side_records.patch` | `7a22b37be34f8a814724781e31efb0252a16e7155c2abc8ae6ac48efe304ff6e` |
+| `nonempty.patch` | `425702a8f07d718ad0669e1d609c196cda1011c168861b2cd605f4953cac3f53` |
+| Common `nonempty.rs` | `317a36f43ef327193a086eccb37dd84eaf01125212acd4d86e9d6ee19a28b170` |
+
+For the Build routes, freeze byte copies of both fixtures in the measurement
+report, their Builds and the selected library tree. Keep those same copies,
+profile, feature union, toolchain and execution budget for both sources. Under
+the host's shared build guard, build and preserve both examples:
+
+```text
+git apply --check tools/benchmark/selected-bodies/side_records.patch
+git apply tools/benchmark/selected-bodies/side_records.patch
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build --locked -p compiler --example side_records_profile --example side_records_control < /dev/null
+```
+
+Copy `target/debug/examples/side_records_profile` and
+`target/debug/examples/side_records_control` into a new ignored directory and
+record their SHA256 identities before reversing the patch. Record the source
+commit, original input digests, complete command, environment and effective
+resource budget beside each saved executable.
+
+```text
+git apply --reverse tools/benchmark/selected-bodies/side_records.patch
+OMEGA_LIBRARY_ROOT=/absolute/frozen/library OMEGA_SELECTED_BODY_PROFILE=/absolute/new/typed timeout 120s SAVED/side_records_profile --check --targets windows_x86_64 /absolute/frozen/scalar/main.omg 1 1 1 0 < /dev/null
+```
+
+Repeat for the unchanged borrowed-root fixture. `SIDE_SELECTED` records the
+actual pending-body and source counts; an empty selected activation must not be
+reported as nonempty completion. `SIDE_COPY` windows measure each real clone
+without retaining another owner. The enclosing `tables` row is excluded because
+its children have their own windows. Disabled observer branches remain in the
+saved control, with the normal MiMalloc allocator and no counters. For timing,
+unset `OMEGA_SELECTED_BODY_PROFILE`, run the saved control on the same frozen
+input, verify exact output and exit, and alternate baseline/candidate order in
+fresh processes. Keep capture times out of the ordinary timing comparison.
+
+For nonempty completion, reverse the Build patch first: nested allocation
+windows are invalid. Apply `nonempty.patch` instead and build its examples:
+
+```text
+git apply --check tools/benchmark/selected-bodies/nonempty.patch
+git apply tools/benchmark/selected-bodies/nonempty.patch
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build --locked -p source-compiler --example side_records_nonempty_profile --example side_records_nonempty_control < /dev/null
+```
+
+Preserve the two executables and reverse the patch. The portable driver keeps the measured operations and guards, with formatting
+and the frontend fixture module path adapted to its new directory. Its
+registration patch includes the common file instead of embedding it twice as
+the archived private examples did. These rebuilt executables therefore need
+new binary identities and fresh observations.
+
+The input repeats the computed-array helper used by the existing
+`nonempty_selected_completion_retains_prior_refusal_rows` unit test, then keeps
+one pending length body. On Bash, generate the measured input once before
+comparing sources:
+
+```bash
+{
+    printf 'machine length() -> u64 { 4 }\n'
+    for helper_number in {0..63}; do
+        printf 'machine helper_%s() { let bytes: [u8; length()]; }\n' "$helper_number"
+    done
+} > /absolute/frozen/nonempty/main.omg
+```
+
+Its SHA256 must be
+`5faf1f435ea56953e3a9f3b4a08e6c738355585a97564f679ec84363032cbb90`.
+With 64 helpers it must print exactly
+`completed_nonempty_batches=64 retained_refusals=128 pending_length_body=1`.
+
+```text
+git apply --reverse tools/benchmark/selected-bodies/nonempty.patch
+OMEGA_SELECTED_BODY_PROFILE=/absolute/new/typed OMEGA_NONEMPTY_PHASES=/absolute/new/phases.json timeout 120s SAVED/side_records_nonempty_profile 64 /absolute/frozen/nonempty/main.omg window < /dev/null
+```
+
+`window` measures actual completion and preparation deferral together. The
+separate `fields` mode observes individual owner clones and isolated mutation
+and existing-key recorder probes; its repeated probe calls are not production
+call counts. In particular, a parent table total overlaps its child owners and
+must not be summed with them. All invariant and pointer observations occur
+outside the completion allocation window. Phase clocks separate setup,
+resolution, completion, request validation and pointer checks. Run the saved
+System-allocator control with `window` and the profile variable unset for
+counter-free timing. Preserve phase files, streams and acceptance receipts
+outside Git; do not add a growing result ledger.
+
+The two-helper unit test is the kept regression for exact request retention,
+predecessor isolation and refusal of unrelated work. The 64-helper observer is
+measurement evidence only, not acceptance of a complete program or proof of a
+total compiler speedup.

@@ -359,7 +359,7 @@ fn remove_machine_rows(program: &mut TypedTrees, removed: &SymbolMembership) {
         .collect::<Vec<_>>();
     let mut arguments = arena::Arena::default();
     arguments.insert_many(designated);
-    program.tables.designated_static_type_arguments = arguments;
+    program.tables.designated_static_type_arguments = arguments.into();
     let captures = program
         .captured_machine_applications
         .iter()
@@ -368,7 +368,7 @@ fn remove_machine_rows(program: &mut TypedTrees, removed: &SymbolMembership) {
         .collect::<Vec<_>>();
     let mut applications = arena::Arena::default();
     applications.insert_many(captures);
-    program.captured_machine_applications = applications;
+    program.captured_machine_applications = applications.into();
     program
         .authored_service_reach_rows
         .retain(|row| !removed.contains(row.owner));
@@ -427,7 +427,7 @@ fn remove_declaration_rows(program: &mut TypedTrees, removed: &SymbolMembership)
         .collect::<Vec<_>>();
     let mut lifecycle_catalog = arena::Arena::default();
     lifecycle_catalog.insert_many(lifecycle_plans);
-    program.access_lifecycle_plans = lifecycle_catalog;
+    program.access_lifecycle_plans = lifecycle_catalog.into();
     program
         .wire_schema_plans
         .retain(|row| !owner_removed(row.schema));

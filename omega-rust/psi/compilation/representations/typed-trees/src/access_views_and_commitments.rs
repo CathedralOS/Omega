@@ -1016,9 +1016,9 @@ pub(crate) mod access_views {
         pub fn target_layouts<'a>(
             &self,
             typed: &'a crate::TypedTrees,
-        ) -> &'a [PlanLaidTargetLayout] {
+        ) -> arena::RootRows<'a, PlanLaidTargetLayout> {
             match self.realizations {
-                PlanLaidRealizations::Invariant(_) => &[],
+                PlanLaidRealizations::Invariant(_) => Default::default(),
                 PlanLaidRealizations::TargetInputs(span) => {
                     typed.plan_laid_target_layouts.span_or_empty(span)
                 }
@@ -1680,7 +1680,7 @@ pub mod constant_recipes {
             let contexts = program
                 .constant_expression_contexts
                 .span_or_empty(program.constant_recipes.get(recipe).contexts);
-            assert_eq!(contexts, &[first, second, rebound]);
+            assert_eq!(contexts.to_vec(), vec![first, second, rebound]);
         }
     }
 }
@@ -1719,7 +1719,10 @@ pub(crate) mod wire_schema_queries {
             self.tables.wire_members.insert_many(members)
         }
 
-        pub fn wire_members(&self, span: HandleSpan<wire::WireMember>) -> &[wire::WireMember] {
+        pub fn wire_members(
+            &self,
+            span: HandleSpan<wire::WireMember>,
+        ) -> arena::RootRows<'_, wire::WireMember> {
             self.tables.wire_members.span_or_empty(span)
         }
     }

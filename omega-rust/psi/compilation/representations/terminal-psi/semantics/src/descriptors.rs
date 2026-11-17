@@ -3218,10 +3218,12 @@ pub mod descriptor_results {
             value_type: StructuralTypeId,
             removes_source: bool,
         ) -> Option<Vec<DescriptorContentsTransfer>> {
-            let slots = slot_kind.owned_slots(types, source.root, value_type)?;
-            if slots.is_empty() {
+            let inventory = slot_kind.owned_inventory(types, source.root, value_type)?;
+            if inventory.slots.is_empty() && inventory.unknown_contents.is_empty() {
                 return Some(Vec::new());
             }
+            let source_type = source.root_type;
+            let destination_type = destination.root_type;
             let source = descriptor_contents_query(
                 types,
                 source.root,
@@ -3236,8 +3238,27 @@ pub mod descriptor_results {
                 destination.path,
                 destination.field,
             )?;
+            if !inventory.unknown_contents.is_empty() {
+                // The ordinary value derivation carries every descendant
+                // packet. Require the same exact carrier at both locations;
+                // an unknown payload cannot supply a descriptor-slot query
+                // or justify a transfer through an unresolved address.
+                let source_location = source.exact_location()?;
+                let destination_location = destination.exact_location()?;
+                if inventory.unknown_contents.iter().any(|packet| {
+                    packet.kind != super::UnknownContentsKind::Value
+                        || packet.location.path.last()
+                            != Some(&DescriptorPathSegment::UnknownContents)
+                }) || descriptor_location_type(types, source_type, &source_location.path)
+                    != Some(value_type)
+                    || descriptor_location_type(types, destination_type, &destination_location.path)
+                        != Some(value_type)
+                {
+                    return None;
+                }
+            }
             let mut transfers = Vec::new();
-            for slot in slots {
+            for slot in inventory.slots {
                 let mut source = source.clone();
                 let mut destination = destination.clone();
                 let suffix = slot.path.into_iter().map(DescriptorContentsStep::Address);
@@ -3250,6 +3271,56 @@ pub mod descriptor_results {
                 });
             }
             Some(transfers)
+        }
+
+        #[cfg(test)]
+        #[test]
+        fn unknown_payload_transfers_require_the_same_exact_carrier() {
+            let first = StructuralTypeId::new(1).unwrap();
+            let second = StructuralTypeId::new(2).unwrap();
+            let declaration = |id| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                id,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                owns_linear_claim: true,
+                no_code_affine_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::TypeParameter,
+                scalar_restriction: None,
+            };
+            let types = [declaration(first), declaration(second)];
+            let operand = |root, root_type| DescriptorContentsOperand {
+                root: PlaceId::new(root).unwrap(),
+                root_type,
+                path: &[],
+                field: None,
+            };
+            assert!(
+                descriptor_contents_transfers(
+                    &types,
+                    DescriptorSlotKind::BorrowedStorage,
+                    operand(1, first),
+                    operand(2, first),
+                    first,
+                    false
+                )
+                .is_some()
+            );
+            assert!(
+                descriptor_contents_transfers(
+                    &types,
+                    DescriptorSlotKind::BorrowedStorage,
+                    operand(1, first),
+                    operand(2, second),
+                    first,
+                    false
+                )
+                .is_none()
+            );
         }
 
         impl DescriptorContentsQuery {
@@ -15986,9 +16057,24 @@ pub mod descriptor_results {
                             });
                             step.inputs.push((Some(selected), access));
                         } else {
-                            // An unresolved selection can retain authority,
-                            // never establish disjointness or an early end.
-                            step.may_escape = true;
+                            // A scalar access uses its reference to address
+                            // storage; it cannot carry a descriptor out of this
+                            // operation. Keep observing the root and retain the
+                            // exact memory query. Unknown or descriptor-bearing
+                            // selections still retain authority conservatively.
+                            let primitive = access.is_some()
+                                && match used {
+                                    StructuralStorageUse::Projection(projection) => {
+                                        crate::primitive_operation_projection_type(
+                                            module.structural_types.iter(),
+                                            *graph.place_types.get(&root)?,
+                                            projection,
+                                        )
+                                        .is_some()
+                                    }
+                                    _ => false,
+                                };
+                            step.may_escape |= !primitive;
                             let selected = DescriptorLocation::whole(root);
                             let access = access.map(|access| {
                                 (
@@ -16302,6 +16388,45 @@ pub mod descriptor_results {
                         }
                         _ => None,
                     };
+                    // Every constructor establishes the same case membership,
+                    // whether its payload contains scalars, values or no fields.
+                    if let OperationKind::EstablishScalarCase { result_case, .. }
+                    | OperationKind::EstablishStructuralCase { result_case, .. } =
+                        &operation.kind
+                    {
+                        graph.case_constructors.insert(
+                            position,
+                            vec![DescriptorCasePredicate {
+                                subject: DescriptorLocation::whole(result?.place).into(),
+                                case: *result_case,
+                            }],
+                        );
+                        let result_type = result?.structural_type;
+                        let shape = &module.structural_type(result_type)?.shape;
+                        let cases = match shape {
+                            StructuralTypeShape::Sum { cases }
+                            | StructuralTypeShape::Mixed { cases, .. } => cases,
+                            _ => return None,
+                        };
+                        terminal_psi::find_structural_case(cases, *result_case)?;
+                        for slot in slot_kind
+                            .inventory(
+                                &module.structural_types,
+                                result?.place,
+                                result?.structural_type,
+                            )?
+                            .slots
+                        {
+                            if matches!(slot.path.first(), Some(crate::descriptors::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
+                            {
+                                graph
+                                    .originations
+                                    .entry(position)
+                                    .or_default()
+                                    .push((slot, DescriptorCallOrigin::Empty));
+                            }
+                        }
+                    }
                     match &operation.kind {
                         OperationKind::DecomposeStructuralValue { subject } => {
                             // Observe every contained descriptor through the
@@ -16851,42 +16976,6 @@ pub mod descriptor_results {
                         }
                         OperationKind::EstablishRecord { fields }
                         | OperationKind::EstablishStructuralCase { fields, .. } => {
-                            if let OperationKind::EstablishStructuralCase { result_case, .. } =
-                                &operation.kind
-                            {
-                                graph.case_constructors.insert(
-                                    position,
-                                    vec![DescriptorCasePredicate {
-                                        subject: DescriptorLocation::whole(result?.place).into(),
-                                        case: *result_case,
-                                    }],
-                                );
-                                let result_type = result?.structural_type;
-                                let shape = &module.structural_type(result_type)?.shape;
-                                let cases = match shape {
-                                    StructuralTypeShape::Sum { cases }
-                                    | StructuralTypeShape::Mixed { cases, .. } => cases,
-                                    _ => return None,
-                                };
-                                terminal_psi::find_structural_case(cases, *result_case)?;
-                                for slot in slot_kind
-                                    .inventory(
-                                        &module.structural_types,
-                                        result?.place,
-                                        result?.structural_type,
-                                    )?
-                                    .slots
-                                {
-                                    if matches!(slot.path.first(), Some(crate::descriptors::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
-                                    {
-                                        graph
-                                            .originations
-                                            .entry(position)
-                                            .or_default()
-                                            .push((slot, DescriptorCallOrigin::Empty));
-                                    }
-                                }
-                            }
                             for (field_ordinal, field) in fields.iter().enumerate() {
                                 let destination = match &operation.kind {
                                     OperationKind::EstablishStructuralCase {
@@ -19156,17 +19245,6 @@ pub mod descriptor_results {
                     detail.push_str(&format!("; invocation target {:?}", call.callee));
                     if let Some(required) = call.required_contract {
                         detail.push_str(&format!("; required contract {required:?}"));
-                    }
-                    if let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee
-                        && let Some(name) =
-                            exactly_one(module.machines.iter(), |row| row.id == callee)
-                                .and_then(|callee| callee.declaration.as_ref())
-                                .and_then(|declaration| {
-                                    module.identities.text(declaration.callable)
-                                })
-                    {
-                        detail.push_str("; callee body ");
-                        detail.push_str(name);
                     }
                 }
             }

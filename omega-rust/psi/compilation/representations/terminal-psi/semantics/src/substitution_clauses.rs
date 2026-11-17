@@ -127,9 +127,11 @@ pub trait ClauseBindings {
 
 /// State a sufficient condition for a goal when one observation has several
 /// possible reaching values. Every alternative must satisfy the whole atom.
-/// Conjunctions split independently; an atom with two uncertain observations
-/// refuses instead of enumerating a product. This is never an assumption or a
-/// claim that any alternative equals the current cell.
+/// Conjunctions split independently. A disjunction first keeps any whole-goal
+/// substitution, then may require one branch for every alternative. An atom
+/// with two uncertain observations still refuses instead of enumerating a
+/// product. Implication weakens its premise and strengthens its conclusion.
+/// This is never an assumption or an equality with the current cell.
 pub fn substitute_sufficient_clause<Error: From<&'static str>>(
     proposition: &Proposition,
     bindings: &mut dyn ClauseBindings<Error = Error>,
@@ -152,6 +154,79 @@ pub fn substitute_sufficient_clause<Error: From<&'static str>>(
             _ => Proposition::Conjunction(goals),
         });
     }
+    match substitute_observed_goal(proposition, bindings, GoalApproximation::Sufficient) {
+        Ok(goal) => Ok(goal),
+        Err(_error)
+            if matches!(
+                proposition,
+                Proposition::Disjunction(_) | Proposition::Implication { .. }
+            ) =>
+        {
+            // Uniform branches can prove a disjunction. Implication instead
+            // weakens its premise and strengthens its conclusion. Keep the
+            // whole-goal attempt first so one observation retains correlation.
+            substitute_goal_parts(proposition, bindings, GoalApproximation::Sufficient)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Only a sufficient condition is returned as a goal. A necessary condition
+/// stays inside an implication's premise: whenever the original premise holds,
+/// this weaker premise holds too. It is never published as known truth.
+#[derive(Clone, Copy)]
+enum GoalApproximation {
+    Sufficient,
+    Necessary,
+}
+
+impl GoalApproximation {
+    fn opposite(self) -> Self {
+        match self {
+            Self::Sufficient => Self::Necessary,
+            Self::Necessary => Self::Sufficient,
+        }
+    }
+}
+
+/// After a whole compound fails, visit its Boolean structure once. Retrying
+/// each nested disjunction whole would repeatedly traverse the same subtree.
+fn substitute_goal_parts<Error: From<&'static str>>(
+    proposition: &Proposition,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+    approximation: GoalApproximation,
+) -> Result<Proposition, Error> {
+    match proposition {
+        Proposition::Conjunction(parts) => parts
+            .iter()
+            .map(|part| substitute_goal_parts(part, bindings, approximation))
+            .collect::<Result<Vec<_>, _>>()
+            .map(Proposition::Conjunction),
+        Proposition::Disjunction(parts) => parts
+            .iter()
+            .map(|part| substitute_goal_parts(part, bindings, approximation))
+            .collect::<Result<Vec<_>, _>>()
+            .map(Proposition::Disjunction),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Ok(Proposition::Implication {
+            premise: Box::new(substitute_goal_parts(
+                premise,
+                bindings,
+                approximation.opposite(),
+            )?),
+            conclusion: Box::new(substitute_goal_parts(conclusion, bindings, approximation)?),
+        }),
+        _ => substitute_observed_goal(proposition, bindings, approximation),
+    }
+}
+
+fn substitute_observed_goal<Error: From<&'static str>>(
+    proposition: &Proposition,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+    approximation: GoalApproximation,
+) -> Result<Proposition, Error> {
     if let Ok(exact) = substitute_clause(proposition, bindings) {
         return Ok(exact);
     }
@@ -174,7 +249,10 @@ pub fn substitute_sufficient_clause<Error: From<&'static str>>(
     goals.dedup();
     Ok(match goals.len() {
         1 => goals.pop().expect("one alternative"),
-        _ => Proposition::Conjunction(goals),
+        _ => match approximation {
+            GoalApproximation::Sufficient => Proposition::Conjunction(goals),
+            GoalApproximation::Necessary => Proposition::Disjunction(goals),
+        },
     })
 }
 
@@ -1296,6 +1374,93 @@ mod sufficient_goal_tests {
             Proposition::Equal(field(0), literal(1)),
             Proposition::Equal(field(1), literal(2)),
         ]);
-        assert!(substitute_sufficient_clause(&related_cells, &mut Alternatives).is_err());
+        assert!(!holds(
+            &substitute_sufficient_clause(&related_cells, &mut Alternatives).unwrap()
+        ));
+        let equality = Proposition::Equal(field(0), field(1));
+        assert!(substitute_sufficient_clause(&equality, &mut Alternatives).is_err());
+    }
+    fn holds(goal: &Proposition) -> bool {
+        let integer = |term: &ScalarTerm| match term {
+            ScalarTerm::Integer {
+                value: IntegerValue::Unsigned(value),
+                ..
+            } => *value,
+            other => panic!("expected a substituted literal: {other:?}"),
+        };
+        match goal {
+            Proposition::Truth => true,
+            Proposition::Falsehood => false,
+            Proposition::Conjunction(parts) => parts.iter().all(holds),
+            Proposition::Disjunction(parts) => parts.iter().any(holds),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => !holds(premise) || holds(conclusion),
+            Proposition::Equal(left, right) => integer(left) == integer(right),
+            Proposition::LessThan(left, right) => integer(left) < integer(right),
+            Proposition::LessOrEqual(left, right) => integer(left) <= integer(right),
+            other => panic!("expected a closed scalar condition: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sufficient_disjunctions_preserve_whole_goals_and_uniform_branches() {
+        let one_observation = Proposition::Disjunction(vec![
+            Proposition::Equal(field(0), literal(1)),
+            Proposition::Equal(field(0), literal(2)),
+        ]);
+        assert!(holds(
+            &substitute_sufficient_clause(&one_observation, &mut Alternatives).unwrap()
+        ));
+        let uniform_branch = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(field(0), literal(2)),
+                Proposition::LessOrEqual(field(1), literal(2)),
+            ]),
+            Proposition::Equal(field(0), literal(0)),
+        ]);
+        assert!(holds(
+            &substitute_sufficient_clause(&uniform_branch, &mut Alternatives).unwrap()
+        ));
+        let mixed = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![
+                Proposition::Equal(field(0), literal(1)),
+                Proposition::Equal(field(1), literal(1)),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::Equal(field(0), literal(2)),
+                Proposition::Equal(field(1), literal(2)),
+            ]),
+        ]);
+        assert!(
+            !holds(&substitute_sufficient_clause(&mixed, &mut Alternatives).unwrap()),
+            "different alternatives cannot each choose a favorable branch"
+        );
+    }
+    #[test]
+    fn sufficient_implications_weaken_the_premise_and_keep_correlated_cases() {
+        let vacuous = Proposition::Implication {
+            premise: Box::new(Proposition::Equal(field(0), literal(0))),
+            conclusion: Box::new(Proposition::Equal(field(1), literal(0))),
+        };
+        assert!(holds(
+            &substitute_sufficient_clause(&vacuous, &mut Alternatives).unwrap()
+        ));
+        let correlated = Proposition::Implication {
+            premise: Box::new(Proposition::Equal(field(0), literal(1))),
+            conclusion: Box::new(Proposition::Equal(field(0), literal(1))),
+        };
+        assert!(holds(
+            &substitute_sufficient_clause(&correlated, &mut Alternatives).unwrap()
+        ));
+        let unrelated = Proposition::Implication {
+            premise: Box::new(Proposition::Equal(field(0), literal(1))),
+            conclusion: Box::new(Proposition::Equal(field(1), literal(1))),
+        };
+        assert!(
+            !holds(&substitute_sufficient_clause(&unrelated, &mut Alternatives).unwrap()),
+            "strengthening the premise would hide the case where only it is true"
+        );
     }
 }

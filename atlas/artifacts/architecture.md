@@ -1,23 +1,32 @@
 # Interactive architecture
 
+In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dotted gray arrows show supporting calls and data. The teal checker marks its verdict.
+
 Use **Current / Proposed** above the drawing to compare the observed compiler
-with the recorded migration plan on the same canvas. Each view remembers its
-camera. Proposed boxes have dashed borders; selecting one opens its contract,
+with the recorded migration plan on the same canvas. Choose a detour under Trace and toggle to Proposed to see its planned repair. Select an operation in the repair note to jump to it. Toggling back restores your position and zoom for that detour. Selecting a proposed box opens its contract,
 plan citation and any unresolved planning obligation. Proposed stages are numbered
 00–10. These are draft ordering numbers, not current crate numbers or a claim
 that the migration is implemented. Every proposed handoff moves forward; each
 representation carries the requests and facts its successors need.
+Every proposed stage is unfolded by default: decimal labels expose its
+operations and intermediate forms. Source lexing, parsing, resolution, typing,
+preparation, lowering and checking remain visible. Source/native worklists may
+revisit operations; internal arrows show dependencies, not one-pass execution.
 
-Follow the bold route from START, top to bottom. Numbered stages show the
+The handler trace starts at 03.5 with the permitted nesting for each installation. Follow it to the pair guards in 03.6, the physical bodies in 04, and the fault checks and stack measurements in 05.
+
+The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
+
+Follow the main route from START, down each numbered run and across to the next group. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed
 connections show the observed supporting calls and returns; each shared component
 appears once, including the Psi interpreter. Proposed puts compiler evaluation
 inside its owning stage and ends at published products.
 
-Drag to pan, scroll or pinch to zoom, and select a component or arrow to trace
+Drag to pan, use the zoom controls, and select a component or arrow to trace
 its connections. Find moves to a component. Fit whole compiler and the minimap
 locate the current view; Start returns to Build and 100% restores natural-scale
-labels. Select a dashed arrow to reveal its label. The same SVG and source disclosures work without
+labels. Supporting arrows display their labels. Select one to inspect its endpoints and source. The same SVG and source disclosures work without
 JavaScript. Each connection cites the recorded compiler source.
 
 Current loops, retained inputs and late code generation remain visible.

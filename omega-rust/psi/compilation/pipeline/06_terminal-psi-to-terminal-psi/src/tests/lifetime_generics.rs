@@ -191,3 +191,79 @@ machine build_entry() {{ }}
         );
     }
 }
+
+/// A boundary requirement with its own lifetime, as std's
+/// `WindowsFilesystemRemovalIo::open<'scope>`. A trait's schema cannot state
+/// the requirement's own regions, so the requirement is a template: its
+/// contract is checked once in its own form, and the program checks each call
+/// at its actual arguments and regions (generics.md, "Publication and
+/// assumptions"). The closure comes first, then that form.
+fn lifetime_requirement(contract: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(&format!(
+            "data Holder {{ value: u32; }}
+boundary trait Source {{
+    machine take<'scope>(holder: &'scope Holder, used: u32) -> u32
+    reaches none
+    {contract}
+    crashes none;
+}}
+machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::take(&holder, 1) }}"
+        )),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(&[entry], &[None], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+}
+
+#[test]
+fn a_call_owes_a_lifetime_requirement_at_its_actual_arguments() {
+    // The holder the call lends has value 3.
+    let verdicts = lifetime_requirement("requires used > 0 && holder.value == 3");
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
+        panic!("the call establishes the requirement: {verdicts:?}")
+    };
+    closure.publish_invocation().unwrap();
+    assert!(
+        matches!(verdicts[1], Ok(RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+
+    let verdicts = lifetime_requirement("requires used > 0 && holder.value == 4");
+    assert!(
+        matches!(verdicts[0], Ok(RouteVerdict::Rejected { .. })),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_lifetime_requirement_is_checked_once_for_every_argument() {
+    // `used - 1` underflows at 0. The declaration's contract is formed for
+    // every `used`, both where the program reads the boundary and in the
+    // requirement's own form; the call passing 1 does not make it total.
+    let verdicts = lifetime_requirement("requires used - 1 < 10");
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { .. }))),
+        "{verdicts:?}"
+    );
+
+    let verdicts = lifetime_requirement("requires used > 0 && used - 1 < 10");
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+}

@@ -213,10 +213,11 @@ def render_layers(model, prefix):
 def render_architecture(atlas, prefix):
     model = architecture(atlas)
     revision = re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
-    return ('<section class="architecture" id="architecture" aria-labelledby="architecture-title">'
-            f'<header class="arch-header"><div><span class="arch-badge">Compiler snapshot · {revision[:12]}</span>'
-            '<h2 id="architecture-title">The whole compiler</h2></div>'
-            f'<a href="{prefix}foundation-backend-plan.html#start-with-the-extra-arrows">Proposed repairs for extra arrows →</a></header>'
+    return ('<section class="architecture" data-theme="dark" id="architecture" aria-labelledby="architecture-title">'
+            '<header class="arch-header"><div class="map-heading"><a class="atlas-mark" href="../index.html" aria-label="Atlas overview">Ω</a><div class="map-heading-text">'
+            '<h2 id="architecture-title">Compiler architecture</h2>'
+            f'<span class="arch-badge">Compiler snapshot · {revision[:12]}</span></div></div>'
+            f'<a class="map-plan" href="{prefix}foundation-backend-plan.html#start-with-the-extra-arrows">Repair plan <span aria-hidden="true">↗</span></a></header>'
             + render_layers(model, prefix)
             + '<script type="application/json" id="component-catalog">'
             + json.dumps([dict((key,n[key]) for key in ('id','title','family','page','source','description')) for n in model['nodes']],ensure_ascii=False).replace('<','\\u003c')

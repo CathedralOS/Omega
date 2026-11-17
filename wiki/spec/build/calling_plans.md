@@ -1,10 +1,18 @@
 # Boundary calling plans
 
-A boundary-trait requirement selects its calling policy. Omega's internal convention
-is compiler-owned and is not selected through this surface. Terminal Psi retains
-target-neutral demand; evaluated target plans travel as
-[realization inputs](../terminal-psi/boundary_calls.md), not target policy inside
-the portable module.
+A boundary-trait requirement selects its calling policy. Terminal Psi retains
+target-neutral demand. The evaluated plan for each target travels as a
+[realization input](../terminal-psi/boundary_calls.md).
+
+<a id="syscall-binding-calling-policy"></a>
+
+## Default calling convention
+
+A boundary requirement with no declared or inherited `Calling<Policy>` uses
+Omega's compiler-owned calling convention for the selected target. To use a
+C ABI, a kernel syscall ABI or another foreign convention, the boundary trait
+must select a package-authored policy through `Calling<Policy>`. Ordinary
+calls between Omega machines remain under compiler control.
 
 ## Authorship and evaluation
 
@@ -43,8 +51,17 @@ both follow [inline conformance members](../language/conformances.md#declaration
 Accepting a plan validates the calling description, not the truth of an opaque
 provider's claims or its authority to execute.
 
-Packages may author policies under the same rules as platform packages. The
-`std::calling` vocabulary describes normalized signatures, placement, machine
+Omega source owns each foreign convention's rules for classifying values,
+placing arguments and results, reserving stack space, and selecting entry
+control. Bundled platform policies belong in the
+[system library](declarations.md#library-responsibilities-and-names).
+Any package can define a new convention entirely in Omega using the same
+primitives, without registering an ABI name with the compiler. The selected
+policy's evaluated plan is the sole source of foreign ABI rules for that call.
+The compiler checks the plan against the signature and target and uses it to
+emit calls and entries.
+
+The `std::calling` vocabulary describes normalized signatures, placement, machine
 state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
 to a compiler field requires a checked range conversion. Policies choose from
 closed primitives; they cannot emit instructions, supply relocation bytes,
@@ -177,9 +194,14 @@ derives native backing from exact package-local Build binding intent. A
 `Build::bind<Requirement>(builder, target, locator)` row retains the requirement's
 complete signature and calling-policy application; it needs no source `via`
 clause or synthetic forwarding machine. Literal byte lengths are inferred.
-A locator, syscall number, or target label cannot
-select calling policy. A descendant boundary trait may own a selected inherited
-requirement's schema while the row retains the declaring requirement's identity.
+A locator, syscall number, or target label cannot select calling policy.
+The compiler checks the locator against the evaluated plan. A `Syscall`
+locator requires compatible `SupervisorCall` entry control for that target.
+The compiler therefore rejects a syscall binding for an ordinary Omega call.
+A `DllImport` locator requires a compatible `CallReturn` plan.
+
+A descendant boundary trait may own a selected inherited requirement's schema
+while the row retains the declaring requirement's identity.
 
 All selected import, vtable, and service-table consumers retain the evaluated
 plan through layout and emission. They cannot reselect it from the output target
@@ -189,11 +211,6 @@ added by a binding kind. Missing or unrealizable plans
 reject. A wider compiler scratch slot cannot redefine a retained foreign scalar
 type; insufficient storage rejects.
 
-The plan is the published promise. The final artifact's
-[machine-state evidence](machine_state_evidence.md) establishes that a particular
-implementation honors it without becoming part of that promise.
-
-A passing plan evaluator does not imply a replayed final state footprint;
-[machine-state evidence](machine_state_evidence.md) requires that separately.
-Selected consumers retain the evaluated plan through realization rather than
-reselecting it.
+The plan is the published promise. Backend stages carry the evaluated plan
+through realization. Emitted code must honor its
+[machine-state limits](machine_state_evidence.md).
