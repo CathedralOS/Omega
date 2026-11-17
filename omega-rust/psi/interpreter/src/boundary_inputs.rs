@@ -1820,6 +1820,104 @@ pub(crate) mod case_membership {
                 .collect()
         }
 
+        /// Reference backing can remain live without a guest-owned place. Its
+        /// validated typed view supplies storage metadata, never guest ownership
+        /// or native pointer authority. Walk only bindings reached by live roots.
+        pub(crate) fn live_reference_storage_owner(
+            &self,
+            target: &StructuralRuntimePlace,
+        ) -> Result<Option<&TerminalStructuralValue>, TerminalInterpretError> {
+            let mut pending = self
+                .live_structural_values()
+                .chain(
+                    self.borrowed_entry_storage
+                        .iter()
+                        .map(|(_, _, value)| value),
+                )
+                .collect::<Vec<_>>();
+            let mut visited = std::collections::BTreeSet::new();
+            let mut traversed = std::collections::BTreeSet::new();
+            let mut selected: Option<&TerminalStructuralValue> = None;
+            let mut actual = None;
+            while let Some(owner) = pending.pop() {
+                let root = StructuralRuntimePlace::from(owner);
+                if !visited.insert((root.clone(), owner.structural_type)) {
+                    continue;
+                }
+                for (carrier, reference) in
+                    crate::storage::structural_storage::cells(&self.reference_referents, &root)
+                {
+                    let mut path = carrier
+                        .path
+                        .strip_prefix(owner.path.as_slice())
+                        .ok_or(malformed())?
+                        .to_vec();
+                    // Retained rows can belong to an inactive case. The
+                    // current typed projection, not a cached row, owns reachability.
+                    if !case_projection_in_value_is_active(
+                        &self.structural_types(),
+                        owner,
+                        self.structural_cases.as_map(),
+                        &path,
+                    )? {
+                        continue;
+                    }
+                    let carrier_type = self.actual_storage_type(owner, carrier)?;
+                    let (_, access) = self.reference_contract(carrier_type)?;
+                    if !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    ) {
+                        continue;
+                    }
+                    path.push(StructuralPathSegment::Referent);
+                    let Some(projection) = self.resolve_reference_storage_projection(
+                        owner,
+                        &path,
+                        StructuralAccess::SharedBorrow,
+                    )?
+                    else {
+                        continue;
+                    };
+                    if !traversed.insert((carrier.clone(), carrier_type)) {
+                        continue;
+                    }
+                    let candidate = &reference.view;
+                    if candidate.opaque_identity == target.opaque_identity
+                        && target.path.starts_with(&candidate.path)
+                    {
+                        if reference.placed.is_some()
+                            || reference.byte_region.is_some()
+                            || reference.aggregate_view.is_some()
+                            || reference
+                                .primitive_loan
+                                .as_ref()
+                                .is_some_and(|loan| loan.storage.encoding.is_some())
+                            || projection.value.opaque_identity != candidate.opaque_identity
+                            || projection.value.path != candidate.path
+                            || projection.value.structural_type != candidate.structural_type
+                        {
+                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "reference storage owner needs its exact whole backing geometry",
+                            ));
+                        }
+                        let ty = self.actual_storage_type(candidate, target)?;
+                        if actual.is_some_and(|previous| previous != ty) {
+                            return Err(malformed());
+                        }
+                        actual = Some(ty);
+                        if selected
+                            .is_none_or(|previous| candidate.path.len() < previous.path.len())
+                        {
+                            selected = Some(candidate);
+                        }
+                    }
+                    pending.push(candidate);
+                }
+            }
+            Ok(selected)
+        }
+
         pub(crate) fn actual_storage_type_from_owner(
             &self,
             target: &StructuralRuntimePlace,
@@ -1844,7 +1942,13 @@ pub(crate) mod case_membership {
                 }
                 actual = Some(candidate);
             }
-            actual.ok_or(malformed())
+            if let Some(actual) = actual {
+                return Ok(actual);
+            }
+            let owner = self
+                .live_reference_storage_owner(target)?
+                .ok_or(malformed())?;
+            self.actual_storage_type(owner, target)
         }
 
         pub(crate) fn actual_storage_type(
