@@ -1564,9 +1564,26 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        if crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
-            .is_none_or(|selected| selected.id != parameter.structural_type)
-        {
+        let selected = crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
+            .map(|selected| selected.id)
+            .or_else(|| {
+                // A byte element is a real scalar leaf, not a separately
+                // declared aggregate. Use the same exact primitive carrier
+                // correspondence as other borrowed scalar projections.
+                if !matches!(
+                    crate::runtime_read_projection_tip(types.iter(), source, &argument.path),
+                    Some(crate::Position::ByteElement)
+                ) {
+                    return None;
+                }
+                crate::borrowed_primitive_projection_declaration(
+                    types.iter(),
+                    source,
+                    &argument.path,
+                    Some(parameter.structural_type),
+                )
+            });
+        if selected != Some(parameter.structural_type) {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
             ));
@@ -3931,6 +3948,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_byte_element_successor_keeps_its_actual_scalar_and_access() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::{ByteSequenceCarrier, StructuralMultiplicity};
+
+        let mut types = reconvergence_types();
+        types[0].shape = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            capacity: 2,
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+        for (declaration, bits) in types[1..].iter_mut().zip([8, 16]) {
+            declaration.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+            ));
+            declaration.copyable = true;
+        }
+        let mut machine = borrowed_backedge(StructuralAccess::SharedBorrow);
+        machine.contract.structural_parameters[0].structural_type = id(1);
+        machine.blocks[1].structural_parameters[0].structural_type = id(2);
+        let arguments = [StructuralArgument {
+            place: id(1),
+            path: vec![StructuralPathSegment::FixedIndex(0)],
+            access: StructuralAccess::SharedBorrow,
+        }];
+        let contracts = [Some((
+            id(1),
+            StructuralMultiplicity::Unrestricted,
+            StructuralAccess::SharedBorrow,
+            None,
+        ))];
+        validate_successor(&machine, &types, &contracts, id(2), &arguments)
+            .expect("the byte projection is the actual unqualified u8 scalar");
+        machine.blocks[1].structural_parameters[0].structural_type = id(3);
+        assert!(
+            validate_successor(&machine, &types, &contracts, id(2), &arguments).is_err(),
+            "a byte address cannot become a u16 address from the destination header"
+        );
+        machine.blocks[1].structural_parameters[0].structural_type = id(2);
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+        let mut exclusive = arguments;
+        exclusive[0].access = StructuralAccess::MutableBorrow;
+        assert!(
+            validate_successor(&machine, &types, &contracts, id(2), &exclusive).is_err(),
+            "a matching scalar type cannot strengthen the source view's permission"
+        );
     }
 
     #[test]

@@ -1728,8 +1728,17 @@ machine entry() -> u32 {
     let bypass = writing.replace("view[index].value = 9u32;", "cells[index].value = 9u32;");
     let verdict = check(&bypass);
     assert!(
-        matches!(verdict, Ok(RouteVerdict::Rejected { ref conflicts, .. })
-        if conflicts.iter().any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed)),
+        match &verdict {
+            Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts
+                .iter()
+                .any(|conflict| { conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed }),
+            Err(crate::CompilationRefusal::Elaboration(Refusal {
+                reason: RefusalReason::Conflict,
+                detail,
+                ..
+            })) => detail.starts_with("successor borrow conflicts with an original live loan:"),
+            _ => false,
+        },
         "the original owner cannot bypass its still-live view: {verdict:?}"
     );
     let missing = source.replace("index < cells.len", "index <= cells.len");

@@ -217,6 +217,29 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
             })
             .expect("the authored helper has its own source declaration")
             .symbol;
+        let application = typed
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| {
+                let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                let call = typed_trees::references::StaticArgumentCall::Expression(handle, call);
+                let selected = call.registration_operation(&typed);
+                (selected == template_symbol
+                    || typed
+                        .unique_machine_by_entry_state_symbol(selected)
+                        .is_some_and(|(machine, _)| machine.symbol == template_symbol))
+                .then_some(call.application())
+            })
+            .expect("the caller retains its exact authored helper application");
+        assert_eq!(
+            typed
+                .static_machine_application_arguments(application)
+                .len(),
+            2,
+            "the helper supplies both its type and callable arguments"
+        );
         let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -244,25 +267,19 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
                 .is_some(),
             "the pure callback has an authored reach bound"
         );
-        let path = prepared
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol != template.symbol)
-            .find_map(|machine| {
-                prepared
-                    .machine_instantiation_path(machine.symbol, template.symbol)
-                    .filter(|path| !path.is_empty())
-            })
-            .expect("the call must keep its exact capture and specialization path");
-        assert!(
-            path.iter().any(|receipt| !prepared
-                .expression_table
-                .static_machine_application(receipt.binding_application())
-                .arguments
-                .is_empty()),
-            "the selected helper keeps its original static tuple"
+        assert_eq!(
+            prepared
+                .static_machine_application_arguments(application)
+                .len(),
+            2,
+            "preparation keeps the exact application even when its callable has open lifetimes"
         );
-        super::boundary_calls::compilation_results_of(&prepared)
+        let verdicts = super::boundary_calls::compilation_results_of(&prepared);
+        assert!(
+            verdicts.len() > 1,
+            "the selected application and its declaration are both judged: {verdicts:?}"
+        );
+        verdicts
     };
     let accepted = judged(source);
     for (position, verdict) in accepted.iter().enumerate() {
