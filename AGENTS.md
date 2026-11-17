@@ -289,9 +289,9 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
-`cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified checksum-capable adapter pinned in
-`tools/mbx-version`; install or update it
-immediately before building (run these from the checkout root):
+`cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified
+checksum-capable adapter pinned in `tools/mbx-version`. If it is missing or
+unqualified, install or update it before building (from the checkout root):
 
 - **Linux / macOS / Cloud containers:**
   ```bash
