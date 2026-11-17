@@ -15,8 +15,8 @@ current program, the analyses Omega 04 already established for it, and the
 program's `SelectedOptimizationRecord` (the completed rewrite phase, if any,
 and the transformations it applied). The entrance takes the selected
 allocation-recovery catalog entry, if any, and gets legality under that entry's
-required allocator availability (all environment-allocatable views when no
-recovery is selected). An analysis Omega 04 supplied is reused when its
+required allocator availability (all allocatable views in the environment when
+no recovery is selected). An analysis Omega 04 supplied is reused when its
 availability matches. Otherwise allocation keeps the program's live ranges and
 derives legality under the required views, so a rewrite's private constraints
 do not restrict allocation. It then runs the procedure the entry's rule names

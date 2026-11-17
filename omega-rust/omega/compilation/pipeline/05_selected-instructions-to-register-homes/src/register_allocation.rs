@@ -5,9 +5,9 @@ catalog entry (or none), and gets legality under the allocator availability
 that entry requires, or all allocatable environment views without a recovery
 selection. Omega 04's analysis is reused only when its availability matches;
 otherwise allocation derives legality from the unchanged live ranges. It then
-runs the procedure the entry's rule names (plain assignment when nothing is selected), each falling
-back to runtime spilling under remaining register pressure, and admits the
-result.
+runs the procedure the entry's rule names (plain assignment when nothing is
+selected), each falling back to runtime spilling under remaining register
+pressure, and admits the result.
 
 Omega 04's history does not enter this decision. It arrives as the program's
 `SelectedOptimizationRecord` and the allocation manifest carries it as

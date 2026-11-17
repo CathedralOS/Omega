@@ -646,10 +646,10 @@ mod allocation_input {
         }
 
         /// The legality analysis allocation runs on uses the selected recovery
-        /// rule's availability, or all environment-allocatable views when no
-        /// recovery rule is selected. A rewrite's private availability is
-        /// reused only when it matches; otherwise its live ranges are kept and
-        /// legality is derived for allocation's own required view set.
+        /// rule's availability, or all allocatable views in the environment
+        /// when no recovery rule is selected. A rewrite's private availability
+        /// is reused only when it matches; otherwise its live ranges are kept
+        /// and legality is derived for allocation's own required view set.
         pub fn into_legality(
             self,
             required: Option<AllocatorAvailabilityRequirement>,
