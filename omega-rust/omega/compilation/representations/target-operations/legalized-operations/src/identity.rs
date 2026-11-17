@@ -8,7 +8,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v94\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v95\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -21,7 +21,8 @@ pub fn legalized_operation_plan_identity(
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
     encode_len(&mut bytes, plan.installation_operations.len());
-    for operation in &plan.installation_operations {
+    for (machine, operation) in &plan.installation_operations {
+        crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
     }
     encode_len(&mut bytes, plan.function_abis.len());
@@ -33,7 +34,7 @@ pub fn legalized_operation_plan_identity(
     encode_option(&mut bytes, plan.execution.as_ref(), |bytes, facts| {
         bytes.extend_from_slice(&facts.identity_bytes());
     });
-    bytes.extend_from_slice(b"ordinary-scalar-graph.v46\0");
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v47\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
     for function in &plan.scalar_functions {
@@ -48,8 +49,13 @@ mod tests {
     fn prepared_plan_identity_binds_installations() {
         let mut plan = crate::tests::scalar_call_unit_plan();
         let original = super::legalized_operation_plan_identity(&plan);
-        plan.installation_operations
-            .push(semantic_vocabulary::OperationId::new(99).unwrap());
+        plan.installation_operations.push((
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            semantic_vocabulary::OperationId::new(99).unwrap(),
+        ));
         assert_ne!(original, super::legalized_operation_plan_identity(&plan));
+        let first_owner = super::legalized_operation_plan_identity(&plan);
+        plan.installation_operations[0].0 = semantic_vocabulary::MachineId::new(2).unwrap();
+        assert_ne!(first_owner, super::legalized_operation_plan_identity(&plan));
     }
 }

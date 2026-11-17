@@ -14,7 +14,7 @@ use semantic_vocabulary::source_selections::{
 };
 use semantic_vocabulary::{
     CallableInvocationSite, ContractId, InvocationSite, MachineId, SelectionDeclarationId,
-    SelectionQuestionId, TargetMachineCallable,
+    SelectionQuestionId, StructuralTypeId, TargetMachineCallable,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
@@ -130,6 +130,13 @@ pub(crate) fn prepare(
 pub(crate) struct PreparedSelections {
     pub(crate) questions: SelectionQuestions,
     pub(crate) invocation_consent: Vec<SelectionQuestionId>,
+}
+
+struct CleanupSelectionBinding {
+    carrier: StructuralTypeId,
+    author: SelectionDeclarationId,
+    question: SelectionQuestionId,
+    target: MachineId,
 }
 
 struct Questions<'source> {
@@ -654,8 +661,127 @@ impl<'source> Questions<'source> {
         Ok(())
     }
 
+    /// Cleanup calls use the carrier author's actual choice, including its
+    /// type application and static arguments, rather than a caller expression.
+    fn cleanup_bindings(&mut self) -> Result<Vec<CleanupSelectionBinding>, Diagnostic> {
+        let source = self.source;
+        let typed = source.source();
+        let mut questions = self
+            .output
+            .questions
+            .iter()
+            .filter_map(|(id, question)| {
+                let SelectionReference::Declaration(target) = question.selected else {
+                    return None;
+                };
+                (question.form == SelectionForm::Published).then_some((
+                    (
+                        question.occurrence.lexical_owner,
+                        question.occurrence.node,
+                        target,
+                    ),
+                    id,
+                ))
+            })
+            .collect::<Vec<_>>();
+        questions.sort_unstable_by_key(|(key, _)| *key);
+        let mut bindings = Vec::new();
+        for record in &source.correspondence().records {
+            let Some(cleanup) = &record.cleanup else {
+                continue;
+            };
+            let subject = typed
+                .closed_data_field_definition(cleanup.selection.subject)
+                .ok_or_else(|| refused("cleanup source lost its actual carrier application"))?;
+            if subject.symbol != record.declaration {
+                return Err(refused(
+                    "cleanup source differs from its actual carrier application",
+                ));
+            }
+            if let Some(application) = &record.application {
+                let actual = typed
+                    .closed_data_field_definition(application.reference)
+                    .ok_or_else(|| {
+                        refused("cleanup carrier has no retained complete application")
+                    })?;
+                if actual != subject {
+                    return Err(refused("cleanup carrier changed its complete application"));
+                }
+            } else if subject.generic_instance.is_some() || !subject.type_parameters.is_empty() {
+                return Err(refused(
+                    "applied cleanup carrier lost its complete type arguments",
+                ));
+            }
+            let application = cleanup.selection.application;
+            if !typed
+                .expression_table
+                .static_machine_application_is_valid(application)
+            {
+                return Err(refused(
+                    "cleanup source lost its selected static application",
+                ));
+            }
+            let registered = typed
+                .expression_table
+                .static_machine_application(application)
+                .registration_operation;
+            let target = self.source_target(TargetMachineCallable::Machine(cleanup.target))?;
+            if self.declarations.dictionary_symbol(registered)? != target {
+                return Err(refused(
+                    "cleanup application differs from its selected executable",
+                ));
+            }
+            let occurrence = cleanup
+                .selection
+                .authorization
+                .ok_or_else(|| refused("cleanup source lost its authored selection occurrence"))?;
+            let ledger = typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| refused("cleanup source selection is outside its typed owner"))?;
+            if ledger.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainCleanupSelection {
+                return Err(refused("cleanup source occurrence is not a cleanup choice"));
+            }
+            let author = self
+                .declarations
+                .declaration(&mut self.output, record.declaration)?;
+            let selected = self.declarations.declaration(&mut self.output, target)?;
+            let node = SelectionNode::AuthoredSelection {
+                occurrence: occurrence.ordinal(),
+                partition: ledger
+                    .compiler_partition()
+                    .map(|partition| partition.ordinal()),
+            };
+            let key = (author, node, selected);
+            let start = questions.partition_point(|(candidate, _)| *candidate < key);
+            let end = questions.partition_point(|(candidate, _)| *candidate <= key);
+            let [(_, question)] = &questions[start..end] else {
+                return Err(refused(
+                    "cleanup application has no unique captured source question",
+                ));
+            };
+            bindings.push(CleanupSelectionBinding {
+                carrier: record.record,
+                author,
+                question: *question,
+                target: cleanup.target,
+            });
+        }
+        bindings.sort_unstable_by_key(|binding| binding.carrier);
+        if bindings
+            .windows(2)
+            .any(|pair| pair[0].carrier == pair[1].carrier)
+        {
+            return Err(refused(
+                "cleanup carrier has competing source application choices",
+            ));
+        }
+        Ok(bindings)
+    }
+
     fn retain_physical_joins(&mut self) -> Result<(), Diagnostic> {
         use semantic_vocabulary::source_selections::SelectionCallTarget;
+        let cleanup_bindings = self.cleanup_bindings()?;
         let module = self.module;
         let elaboration = &self.source.closure().elaboration;
         for machine in &module.machines {
@@ -757,6 +883,42 @@ impl<'source> Questions<'source> {
                             selected: declaration,
                             machine: machine.id,
                             operation: operation.id,
+                        });
+                    }
+                }
+                for (edge, actions) in block.terminator.cleanup_rosters() {
+                    for (ordinal, action) in actions.iter().enumerate() {
+                        let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
+                            action
+                        else {
+                            continue;
+                        };
+                        let position = cleanup_bindings
+                            .binary_search_by_key(&cleanup.structural_type, |binding| {
+                                binding.carrier
+                            })
+                            .map_err(|_| {
+                                refused("cleanup action lost its exact carrier source application")
+                            })?;
+                        let binding = &cleanup_bindings[position];
+                        if binding.target != cleanup.cleanup_machine {
+                            return Err(refused(
+                                "cleanup action changed its selected source target",
+                            ));
+                        }
+                        self.output.joins.push(SelectionJoin::Invocation {
+                            question: binding.question,
+                            original_caller: binding.author,
+                            machine: machine.id,
+                            site: CallableInvocationSite::CleanupAction {
+                                edge,
+                                action_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                    refused("cleanup action ordinal exceeds its namespace")
+                                })?,
+                            },
+                            target: SelectionCallTarget::Declared(TargetMachineCallable::Machine(
+                                binding.target,
+                            )),
                         });
                     }
                 }
@@ -2089,6 +2251,146 @@ machine entry() -> u32 crashes none {{
                 "{refusal:?}"
             );
         }
+    }
+
+    #[test]
+    fn generated_cleanup_calls_keep_the_carriers_actual_selection() {
+        let source = accepted_source(
+            r#"
+data First dropped by end_first { value: u64; }
+data Second dropped by end_second { value: u64; }
+machine end_first(owned: First) { let { value as _ } = move owned; }
+machine end_second(owned: Second) { let { value as _ } = move owned; }
+machine entry() {
+    let first: First = First { value: 7u64 };
+    let second: Second = Second { value: 7u64 };
+}
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).expect("cleanup choices must publish");
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .expect("each generated call must retain its carrier author's exact selection");
+        let calls = prepared
+            .questions
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Invocation {
+                    question,
+                    original_caller,
+                    site: CallableInvocationSite::CleanupAction { .. },
+                    target,
+                    ..
+                } => Some((position, *question, *original_caller, *target)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("two exact cleanup calls: {calls:?}")
+        };
+        assert_ne!(first.1, second.1);
+        assert_ne!(first.2, second.2);
+        assert_ne!(first.3, second.3);
+
+        let mut wrong_author = prepared.questions.clone();
+        wrong_author
+            .questions
+            .get_mut(first.1)
+            .unwrap()
+            .occurrence
+            .lexical_owner = second.2;
+        let SelectionJoin::Invocation {
+            original_caller, ..
+        } = &mut wrong_author.joins[first.0]
+        else {
+            unreachable!()
+        };
+        *original_caller = second.2;
+
+        let mut wrong_target = prepared.questions.clone();
+        let SelectionJoin::Invocation { target, .. } = &mut wrong_target.joins[first.0] else {
+            unreachable!()
+        };
+        *target = second.3;
+
+        let mut wrong_application = prepared.questions.clone();
+        let structures = wrong_application
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Structure {
+                    declaration,
+                    storage_identity,
+                    ..
+                } if *declaration == first.2 || *declaration == second.2 => {
+                    Some((position, *declaration, storage_identity.clone()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(structures.len(), 2, "two carrier applications");
+        let (first_structure, _, _) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == first.2)
+            .unwrap();
+        let (_, _, second_identity) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == second.2)
+            .unwrap();
+        let SelectionJoin::Structure {
+            storage_identity, ..
+        } = &mut wrong_application.joins[*first_structure]
+        else {
+            unreachable!()
+        };
+        *storage_identity = second_identity.clone();
+
+        // Collect every verdict before asserting, so a failure reports all
+        // mismatched ownership and target relationships in one test run.
+        let cases = [
+            (
+                "carrier author",
+                wrong_author,
+                "cleanup selection differs from its exact carrier application or author",
+            ),
+            (
+                "selected target",
+                wrong_target,
+                "invocation selection differs from its actual emitted target",
+            ),
+            (
+                "carrier application",
+                wrong_application,
+                "source selection structure differs from its applied storage identity",
+            ),
+        ];
+        let observations = cases
+            .into_iter()
+            .map(|(name, packet, expected)| {
+                (
+                    name,
+                    expected,
+                    terminal_installation::selection_questions::validate_selection_questions(
+                        module, &packet,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            observations.iter().all(|(_, expected, result)| {
+                result
+                    .as_ref()
+                    .is_err_and(|reason| reason.contains(expected))
+            }),
+            "{observations:?}"
+        );
     }
 
     #[test]

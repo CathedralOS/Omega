@@ -8,7 +8,7 @@ use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CallableContractId, EdgeId, InvocationSite, MachineDescriptorId,
     MachineId, OperationId, PlaceId, ScalarTerm, ScalarType, StructuralTypeId, ValueId,
 };
-use terminal_psi::{StructuralTypeDeclaration, TerminalCallableCatalog};
+use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, TerminalCallableCatalog};
 
 use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment, DescriptorPosition};
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorDefinition, DescriptorMachine};
@@ -409,7 +409,12 @@ impl CallableValueProgram<'_> {
                     .structural_parameters
                     .iter()
                     .zip(&invocation.structural_actual_types)
-                    .all(|(formal, actual)| (formal.structural_type, formal.access) == *actual)
+                    .all(|(formal, actual)| {
+                        self.structural_actual_matches(
+                            *actual,
+                            (formal.structural_type, formal.access),
+                        )
+                    })
             {
                 return Err("callable invocation actuals disagree with its authored contract");
             }
@@ -521,6 +526,47 @@ impl CallableValueProgram<'_> {
         Ok(CallableActualValue::Value(query))
     }
 
+    fn structural_actual_matches(
+        &self,
+        actual: (StructuralTypeId, StructuralAccess),
+        formal: (StructuralTypeId, StructuralAccess),
+    ) -> bool {
+        if actual == formal {
+            return true;
+        }
+        if actual.1 != formal.1 || formal.1 == StructuralAccess::Owned {
+            return false;
+        }
+        let declaration = |id: StructuralTypeId| {
+            self.structural_types
+                .binary_search_by_key(&id, |row| row.id)
+                .ok()
+                .map(|position| &self.structural_types[position])
+        };
+        let (Some(actual_type), Some(formal_type)) = (declaration(actual.0), declaration(formal.0))
+        else {
+            return false;
+        };
+        // A checked call may put borrowed access on the descriptor or on its
+        // formal. Match that presentation without changing its declared facts
+        // or deriving referent permission from ownership of the descriptor.
+        actual_type.declaration_identity == formal_type.declaration_identity
+            && actual_type.quotient_carrier == formal_type.quotient_carrier
+            && actual_type.owns_linear_claim == formal_type.owns_linear_claim
+            && actual_type.no_code_affine_cleanup == formal_type.no_code_affine_cleanup
+            && actual_type.descriptor_cleanup == formal_type.descriptor_cleanup
+            && actual_type.nominal_cleanup == formal_type.nominal_cleanup
+            && actual_type.scalar_restriction == formal_type.scalar_restriction
+            && actual_type.requires == formal_type.requires
+            && crate::descriptor_reborrow_shapes_match(
+                &actual_type.shape,
+                actual.1,
+                Some(actual.1),
+                &formal_type.shape,
+                formal.1,
+            )
+    }
+
     pub(crate) fn validate_actuals(
         &self,
         caller: MachineId,
@@ -530,7 +576,12 @@ impl CallableValueProgram<'_> {
         let body = self.body(callee)?;
         if invocation.scalar_arguments.len() != body.scalar_parameters.len()
             || invocation.structural_arguments.len() != body.structural_parameters.len()
-            || invocation.structural_actual_types != body.structural_parameters
+            || invocation.structural_actual_types.len() != body.structural_parameters.len()
+            || !invocation
+                .structural_actual_types
+                .iter()
+                .zip(&body.structural_parameters)
+                .all(|(actual, formal)| self.structural_actual_matches(*actual, *formal))
         {
             return Err("callable invocation actuals do not match the selected formal telescope");
         }

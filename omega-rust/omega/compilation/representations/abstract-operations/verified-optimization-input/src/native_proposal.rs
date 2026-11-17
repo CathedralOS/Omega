@@ -299,19 +299,32 @@ mod proposal {
         )?;
         let callback_arguments =
             provider_admission::provider_admission::project_native_callback_arguments(
+                terminal_module,
                 &callback_placements,
                 &callback_occurrences,
             )?;
+        let registrar_occurrences = callback_occurrences
+            .iter()
+            .map(|occurrence| {
+                let callback = terminal_module
+                    .callback_application(occurrence.application_index())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "callback occurrence lost its canonical application",
+                        )]
+                    })?;
+                Ok(crate::CallbackRegistrarOccurrence {
+                    placement_index: occurrence.placement_index(),
+                    registrar_machine: callback.registrar_machine,
+                    terminal_operation: occurrence.terminal_operation(),
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let external_binding_rows = crate::settle_callback_registrar_imports(
             terminal_module,
             &selected,
             &callback_placements,
-            callback_occurrences
-                .iter()
-                .map(|occurrence| crate::CallbackRegistrarOccurrence {
-                    placement_index: occurrence.placement_index(),
-                    terminal_operation: occurrence.terminal_operation(),
-                }),
+            registrar_occurrences.into_iter(),
             &request.boundaries.calling_applications,
             request.external_bindings,
         )
@@ -335,7 +348,16 @@ mod proposal {
                         )]
                     })?;
             let occurrence = callback_occurrence(placement_index, &placement, artifact)?;
+            let owner = terminal_module
+                .callback_application(occurrence.application_index())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "installed entry lost its exact callback occurrence",
+                    )]
+                })?
+                .registrar_machine;
             installed_interrupts.push(crate::InstalledInterruptNativeEntryProposal {
+                machine: owner,
                 operation: occurrence.terminal_operation(),
                 placement_index,
                 callback_function: occurrence.callback_thunk_identity(),
@@ -411,8 +433,12 @@ mod proposal {
             module
                 .callback_applications
                 .iter()
-                .map(|application| application.registrar),
-            module.operations(),
+                .map(|application| (application.registrar_machine, application.registrar)),
+            module.machines.iter().flat_map(|machine| {
+                machine
+                    .operations()
+                    .map(move |operation| (machine.id, operation))
+            }),
         );
         for application in &module.callback_applications {
             let first = application_indices.partition_point(|application_index| {
@@ -421,11 +447,13 @@ mod proposal {
             let last = application_indices.partition_point(|application_index| {
                 *application_index <= application.application_index
             });
-            let operation = operations.find(application.registrar).map_err(|_| {
-                vec![Diagnostic::error(
-                    "callback application has no unique canonical registrar operation",
-                )]
-            })?;
+            let operation = operations
+                .find((application.registrar_machine, application.registrar))
+                .map_err(|_| {
+                    vec![Diagnostic::error(
+                        "callback application has no unique canonical registrar operation",
+                    )]
+                })?;
             let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
                 return Err(vec![Diagnostic::error(
                     "callback application registrar is not a boundary operation",
@@ -558,8 +586,9 @@ pub struct RetainedTerminalArtifact {
     artifact: terminal_installation::AuthorizedTerminalArtifact,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
     /// The evidence seals produced beside this exact in-memory artifact by
-    /// the checker on the lowered form. Terminal Psi's bytes carry no
-    /// evidence, so a product rebuilt from bytes has none.
+    /// the checker on the lowered form. Psi bytes carry no seals; an optional
+    /// saved native companion retains them separately and rejoins their exact
+    /// goals only after the caller authorizes the canonical artifact.
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
 }
 

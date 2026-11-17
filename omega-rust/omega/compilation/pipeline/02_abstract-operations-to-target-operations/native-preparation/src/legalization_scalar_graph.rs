@@ -4096,19 +4096,16 @@ pub(crate) mod normalized_foreign {
             {
                 return Err(LegalizationError::custody());
             }
-            let mut row = None;
-            for function in &native.functions {
-                if let Some(found) = super::unique_row(function, |row| {
-                    matches!(
-                        row,
-                        TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
-                            if *psi_operation == callback.terminal_operation
-                    )
-                })? && row.replace(found).is_some()
-                {
-                    return Err(LegalizationError::custody());
-                }
-            }
+            let function = native
+                .function(callback.registrar_machine)
+                .ok_or_else(LegalizationError::custody)?;
+            let row = super::unique_row(function, |row| {
+                matches!(
+                    row,
+                    TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
+                        if *psi_operation == callback.terminal_operation
+                )
+            })?;
             let Some(TargetUnitOperation::NormalizedForeignCall { binding, .. }) = row else {
                 return Err(LegalizationError::custody());
             };
@@ -4121,6 +4118,7 @@ pub(crate) mod normalized_foreign {
 
     pub(crate) fn native_callbacks_at<'a>(
         native: &'a TargetOperationPlan,
+        machine: MachineId,
         operation: OperationId,
         boundary_entry_plan: &BoundaryEntryPlan,
     ) -> Result<Vec<&'a TargetNativeCallbackArgument>, LegalizationError> {
@@ -4128,7 +4126,9 @@ pub(crate) mod normalized_foreign {
         let matching: Vec<&'a TargetNativeCallbackArgument> = native
             .native_callback_arguments
             .iter()
-            .filter(|callback| callback.terminal_operation == operation)
+            .filter(|callback| {
+                callback.registrar_machine == machine && callback.terminal_operation == operation
+            })
             .collect();
         if materializations.is_empty() {
             return if matching.is_empty() {

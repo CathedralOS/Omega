@@ -715,7 +715,7 @@ pub(in crate::function_fragments) fn admit(
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || access_lifecycle_retained(operation, targeted)
                     || empty_run_release_retained(operation, targeted, abstract_plan)
-                    || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
+                    || static_interrupts::retained(abstracted.machine, operation, &interrupt_helpers, &interrupt_replay)?
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),

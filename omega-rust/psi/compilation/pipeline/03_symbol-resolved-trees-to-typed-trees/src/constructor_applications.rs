@@ -58,58 +58,12 @@ pub(crate) fn prepare(
 
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
-            let Some(collection) =
-                crate::typing_queries::declared_expression_type(program, caller, collection)
+            let Some(collection) = crate::typing_queries::DeclaredExpressionTypes::default()
+                .get(program, caller, collection)
             else {
                 continue;
             };
-            // A bare range observes the actual collection's elements,
-            // not one element. Retain its shared view before ordinary callers
-            // and borrow formations ask for its type. A selected user operator
-            // must supply its own result instead of acquiring a builtin type.
-            let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
-                continue;
-            };
-            let operands = [Some(collection), Some(count), Some(count)];
-            if !typed_trees::operator::resolve_indexed_spelling_for_operands(
-                program,
-                language_core::OperatorSpelling::Range,
-                &operands,
-                program.expression_table.source_span(expression),
-            )
-            .is_empty()
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    caller,
-                    expression,
-                    language_core::OperatorSpelling::Range,
-                    &operands,
-                )
-            {
-                continue;
-            }
-            let Ok(element_type) =
-                crate::typing_queries::collection_element_type(program, collection)
-            else {
-                continue;
-            };
-            let slice = program
-                .type_reference_table
-                .insert(TypeReferenceNode::Slice { element_type });
-            let view = program
-                .type_reference_table
-                .insert(TypeReferenceNode::Reference {
-                    referee: slice,
-                    access: language_core::ReferenceAccess::Shared,
-                    lifetime: None,
-                });
-            program
-                .type_reference_table
-                .retain_operand_lifetime_owner(view, caller)
-                .map_err(Diagnostic::error)?;
-            program
-                .expression_table
-                .set_constructed_value_type_reference(expression, view);
+            retain_builtin_range_type(program, caller, expression, collection)?;
             continue;
         }
         if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
@@ -277,7 +231,10 @@ pub(crate) fn prepare(
 /// Index and range lookup consumes the operand's complete declared type, not
 /// its storage carrier. Run after application views and casts are normalized:
 /// a template field has no applied type to retain during constructor inference.
-pub(crate) fn retain_indexed_operand_types(program: &mut TypedTrees, frontier: usize) {
+pub(crate) fn retain_indexed_operand_types(
+    program: &mut TypedTrees,
+    frontier: usize,
+) -> Result<(), Diagnostic> {
     let operands = program
         .expression_table
         .expression_entries()
@@ -305,7 +262,80 @@ pub(crate) fn retain_indexed_operand_types(program: &mut TypedTrees, frontier: u
         program
             .expression_table
             .set_constructed_value_type_reference(collection, reference);
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        else {
+            unreachable!("collected an indexed expression");
+        };
+        if program.expression_table.range_node(indexed.index).is_some() {
+            // Domain removal has settled since the first formation pass.
+            // Select the builtin from this exact cast result before lowering
+            // can fall back to the original descriptor's source type.
+            retain_builtin_range_type(program, owner, expression, reference)?;
+        }
     }
+    Ok(())
+}
+
+fn retain_builtin_range_type(
+    program: &mut TypedTrees,
+    caller: SymbolHandle,
+    expression: ExpressionHandle,
+    collection: TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
+    // A bare range observes the actual collection's elements,
+    // not one element. Retain its shared view before ordinary callers
+    // and borrow formations ask for its type. A selected user operator
+    // must supply its own result instead of acquiring a builtin type.
+    let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
+        return Ok(());
+    };
+    let operands = [Some(collection), Some(count), Some(count)];
+    if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+        program,
+        language_core::OperatorSpelling::Range,
+        &operands,
+        program.expression_table.source_span(expression),
+    )
+    .is_empty()
+        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            caller,
+            expression,
+            language_core::OperatorSpelling::Range,
+            &operands,
+        )
+    {
+        return Ok(());
+    }
+    if program.type_reference_table.contains_type_reference(
+        program
+            .expression_table
+            .constructed_value_type_reference(expression),
+    ) {
+        return Ok(());
+    }
+    let Ok(element_type) = crate::typing_queries::collection_element_type(program, collection)
+    else {
+        return Ok(());
+    };
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice { element_type });
+    let view = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        });
+    program
+        .type_reference_table
+        .retain_operand_lifetime_owner(view, caller)
+        .map_err(Diagnostic::error)?;
+    program
+        .expression_table
+        .set_constructed_value_type_reference(expression, view);
+    Ok(())
 }
 
 fn expression_owner(
@@ -1291,6 +1321,59 @@ mod tests {
     use crate::qualified_operator_home_tests::checked;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    #[test]
+    fn a_declared_qualified_range_keeps_its_exact_operand_selection() {
+        let mut program = checked(&[(
+            "main.omg",
+            r#"
+            domain [u8]::Marked;
+            machine [..] alternative(path: &[u8] in Marked, start: u64, end: u64) -> &[u8] {
+                "selected"
+            }
+            machine build_entry(path: &[u8] in Marked) {
+                let prefix: &[u8] = path[0..0];
+            }
+        "#,
+        )])
+        .unwrap();
+        let count = builtin(&mut program, BuiltinTypeAtom::U64).unwrap();
+        let owners = typed_trees::references::collect_program_operand_owners(&program);
+        let mut observed = 0;
+        for (expression, node) in program.expression_table.expression_entries() {
+            let ExpressionNode::Indexed(indexed) = node else {
+                continue;
+            };
+            let owner = expression_owner(&program, &owners, expression).unwrap();
+            let collection = program
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            let operands = [Some(collection), Some(count), Some(count)];
+            let spelling = language_core::OperatorSpelling::Range;
+            let candidates = typed_trees::operator::resolve_indexed_spelling_for_operands(
+                &program,
+                spelling,
+                &operands,
+                program.expression_table.source_span(expression),
+            );
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(
+                program
+                    .machine_by_symbol(candidates[0].operator.symbol)
+                    .unwrap()
+                    .name
+                    .as_str(),
+                "alternative"
+            );
+            assert!(
+                !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    &program, owner, expression, spelling, &operands,
+                )
+            );
+            observed += 1;
+        }
+        assert_eq!(observed, 1);
+    }
 
     #[test]
     fn indexed_operands_keep_qualified_field_and_borrowed_formal_types() {

@@ -37,7 +37,7 @@ def architecture(atlas):
     add("build", "Build orchestration", "build", 2, 0, "library", "l09", "Executes Build entries and collects source choices, target, providers and requested product. The compiler's current settlement still retains source-side authority.")
     add("library", "Bundled library", "library", 3, 0, "library", "l01", "Core toolchain declarations, std/alloc packages and target provider bindings enter through package and Build ownership. Exceptional sealed intrinsics require compiler custody, not names alone.")
     add("source", "Source driver", "psi", 4, 0, "psi", "source-state", "Coordinates fresh source and retained continuations. Resolution, typing, preparation and compile-time evaluation can resume; this is not one uninterrupted pass over all source.")
-    add("evaluation", "Compile-time execution", "runtime", 5, 0, "interpreter", "source-execute", "Source and calling-policy owners prepare checked invocations for execution. The executor runs admitted artifacts; it does not call source stages itself. Current preparation is still coupled to source work.")
+    add("evaluation", "Source evaluator", "runtime", 5, 0, "interpreter", "source-execute", "The source compiler requests a compile-time value. This owner prepares and admits its own checked invocation, runs it in the Psi interpreter, and returns the value and work usage to the source caller. The interpreter never calls source stages.")
     add("foundation", "Foundation crates", "support", 6, 0, "psi", "source-manifest", "Supporting ownership, not a processing stage. Current foundation includes primitives and semantic/planning code. The proposed migration retains only justified generic primitives.")
     add("docs", "Specification & atlas", "support", 7, 0, "repository", "r03", "The specification states required contracts. Guides and atlas explain them; proposals and this migration plan are not adopted implementation behavior.")
     psi = [
@@ -52,7 +52,9 @@ def architecture(atlas):
     for i, (title, description) in enumerate(psi):
         add(f"p{i}", f"Psi {i:02}\n{title}", "psi", i, 1, "psi", f"p{i:02}", description)
     add("checked", "Checked\nTerminal Psi", "psi", 7, 1, "psi", "publication", "Accepted portable code, evidence and exact publication identity form the hub. It states reached outside requirements; target/provider choice is separate.")
-    add("providers", "Provider closure", "native", 0, 2, "omega", "closure", "Planning, selection and trust reconstruction follow reached exact bodies and Build bindings. Newly reached requirements may require source preparation and repeat settlement. Available, demanded and retained code are different sets.")
+    add("providers", "Provider closure", "native", 0, 2, "omega", "closure", "Settlement follows reached exact bodies and Build bindings. When reach changes, it prepares policy inputs from the retained accepted publication and checked source custody, then realizes target supplies. It repeats until bindings stabilize; this loop does not restart source compilation. Available, demanded and retained code are different sets.")
+    add("policy-inputs", "Prepare provider\npolicy inputs", "native", 0, 6, "omega", "provider-inputs", "Publishes the retained accepted closure and admits its source-selection packet. Reached requirements and Build bindings determine which calling policies to evaluate. The resulting calling plans return to settlement; publication does not re-lex or re-type the source.")
+    add("policy", "Calling-policy\nevaluator", "runtime", 1, 6, "omega", "policy-evaluator", "Build settings prepares and admits a calling-policy invocation, invokes the Psi interpreter, validates the returned ABI calling plan, and accounts for work. This is a different caller from source compile-time evaluation.")
     add("selected", "Selected\nexecution", "native", 1, 2, "omega", "selected", "Retains selected bodies and plans for this program and target. This is early closure, not completion of all later native admission and installation work.")
     add("handlers", "Handlers\nif required", "native", 2, 2, "omega", "handler-demand", "The root can pause after Omega 02 while required handler objects are compiled, recursively if needed. Requirements include transitive body demand, bridge bytes, bias and fault evidence; cycles are refused.")
     add("binding", "Bind installations", "native", 3, 2, "omega", "bound", "Measured handler requirements meet admitted cohorts and prepared obligations before root Omega 03. The current implementation interleaves dependent native bodies.")
@@ -104,7 +106,7 @@ def architecture(atlas):
     edge("build", "source", "source request and retained authority", "invoke")
     edge("source", "p0", "fresh source", "invoke")
     edge("source", "p2", "retained resolution/typing continuation", "invoke")
-    edge("source", "evaluation", "prepared source invocation", "invoke")
+    edge("source", "evaluation", "evaluate compile-time value", "invoke", source=citations["psi"]["source-state"].split("/omega-rust/")[0]+"/omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L119")
     edge("evaluation", "engine", "admitted compile-time artifact", "invoke")
     edge("engine", "evaluation", "value, effects and work usage")
     edge("evaluation", "source", "execution result for continuation")
@@ -113,34 +115,37 @@ def architecture(atlas):
     edge("p6", "checked", "accepted code", main=True)
     edge("checked", "providers", "reached requirements and accepted publication")
     edge("build", "providers", "Build supplies and target")
-    edge("providers", "source", "newly reached bodies: repeat preparation", "invoke")
-    edge("providers", "evaluation", "calling-policy invocation", "invoke", source=citations["omega"]["policy-evaluator"])
-    edge("evaluation", "providers", "validated policy result and work usage")
+    edge("providers", "policy-inputs", "changed reach: prepare policy inputs", "invoke", source=citations["omega"]["closure-loop"])
+    edge("checked", "policy-inputs", "accepted publication and source-selection custody", source=citations["omega"]["provider-inputs"])
+    edge("policy-inputs", "policy", "evaluate demanded calling policies", "invoke")
+    edge("policy", "engine", "admitted policy invocation", "invoke")
+    edge("engine", "policy", "policy result and work usage", source=citations["omega"]["policy-evaluator"])
+    edge("policy", "policy-inputs", "validated calling plan")
+    edge("policy-inputs", "providers", "prepared target-supply inputs")
     edge("providers", "selected", "selected closure", main=True)
     edge("selected", "o0", "settled native inputs")
-    edge("selected", "runtime-admission", "Psi product admission request", "invoke")
-    edge("checked", "host", "retained portable artifact")
+    edge("selected", "runtime-admission", "selected runtime inputs", source=citations["omega"]["psi-admission"])
+    edge("checked", "host", "retained portable artifact", source=citations["omega"]["closure"].split("/omega-rust/")[0]+"/omega-rust/omega/application/src/execution/compilation.rs#L96")
     edge("runtime-admission", "host", "admitted provisions", main=True)
     edge("host", "engine", "bind and invoke", "invoke", main=True)
-    edge("engine", "host", "external calls and execution status")
-    edge("host", "worker", "private provider calls", "invoke")
-    edge("worker", "host", "checked replies")
+    edge("engine", "host", "execution status, output and work usage", source=citations["interpreter"]["host-owner"].replace("lib.rs#L1", "execution.rs#L421"))
+    edge("host", "worker", "private provider calls", "invoke", source=citations["interpreter"]["host-owner"].replace("lib.rs#L1", "execution/host_imports/native_provider.rs#L1"))
+    edge("worker", "host", "checked replies", source=citations["interpreter"]["host-owner"].replace("lib.rs#L1", "execution/host_imports/native_provider.rs#L1"))
     for i, label in enumerate(("abstract plan", "optimized plan", "target operations", "selected code", "allocation input", "register homes")):
         edge(f"o{i}", f"o{i+1}", label, main=True)
     edge("o2", "handlers", "compile required handlers, if any", "invoke")
     edge("handlers", "binding", "measured requirements", main=True)
     edge("o2", "binding", "prepared installation obligations")
-    edge("binding", "o3", "bound installation authority")
+    edge("binding", "o3", "bound installation authority", source=citations["omega"]["pipeline"].replace("#L84", "#L159"))
     edge("handlers", "o0", "recursive dependent-body compilation", "invoke")
     edge("o6", "frame-plan", "physical program", main=True)
     edge("frame-plan", "o7", "framed program", main=True)
     for a, b, label in (("o7","o8","encoded forms"),("o8","o9","resolved layout"),("o9","fragments","machine forms"),("fragments","frames","fragments"),("frames","text","framed fragments"),("text","objects","text and spans"),("objects","compose","objects"),("compose","bridges","composed bodies"),("bridges","image","entry/adapter bytes"),("image","products","retained image")):
         edge(a,b,label,main=True)
     edge("o2", "fragments", "EmissionFacts: separate retained abstract program", "bypass", source=citations["omega"]["emission-facts"])
-    edge("products", "native-run", "requested executable", main=True)
-    edge("cli", "native-run", "launch when requested", "invoke")
+    edge("products", "native-run", "requested executable", main=True, source=citations["repository"]["r02"].replace("main.rs#L47-L95", "execution/mod.rs#L244"))
+    edge("cli", "native-run", "launch when requested", "invoke", source=citations["repository"]["r02"].replace("main.rs#L47-L95", "execution/mod.rs#L244"))
     edge("source", "foundation", "representative Cargo dependency", "dependency")
-    edge("o0", "foundation", "shared vocabulary and primitives", "dependency")
     edge("docs", "source", "required language contracts", "normative")
     edge("docs", "omega-source", "specification governs both implementations", "normative")
     edge("source", "omega-source", "implementation correspondence, not runtime flow", "construction")
@@ -155,7 +160,9 @@ def architecture(atlas):
         ("cli","build"), ("packages","build"), ("library","packages"),
         ("build","source"), ("build","providers"), ("source","p0"),
         ("source","evaluation"), ("evaluation","engine"),
-        ("checked","providers"), ("providers","source"),
+        ("checked","providers"), ("providers","policy-inputs"),
+        ("policy-inputs","policy"), ("policy","engine"),
+        ("policy-inputs","providers"),
         ("selected","o0"), ("selected","runtime-admission"),
         ("checked","host"), ("host","worker"), ("o2","handlers"),
         ("o2","binding"), ("binding","o3"), ("handlers","o0"),
@@ -163,7 +170,7 @@ def architecture(atlas):
     }
     for e in edges:
         e["main"] = e["main"] or (e["start"],e["end"]) in spine
-    return dict(width=1760, height=950, nodes=nodes, edges=edges,
+    return dict(width=1760, height=1104, nodes=nodes, edges=edges,
                 families=FAMILIES, relations=RELATIONS)
 
 
@@ -186,20 +193,59 @@ def path_for(a, b, index):
     return f"M{start} {ay+40} H{channel} V{end_y} H{bx+90} V{end}", ((channel+bx+90)/2,end_y-5)
 
 
+def render_layers(model, prefix):
+    """Show the complete route before exposing per-stage explanations.
+
+    Boxes are representations and arrows are transforms, as in the authored
+    pipeline map. Return paths and late code production remain visible. Groups
+    attach the cited stage records without putting their prose on the diagram.
+    """
+    esc = html.escape
+    groups = [
+        ('inputs', 'build', 'Build and packages', ['cli', 'packages', 'library', 'build']),
+        ('source', 'psi', 'Source compilation · Psi 00–06', ['source']+[f'p{i}' for i in range(7)]+['checked']),
+        ('providers', 'native', 'Provider selection', ['providers', 'policy-inputs', 'selected']),
+        ('native', 'native', 'Native instructions · Omega 00–06', [f'o{i}' for i in range(7)]+['frame-plan', 'handlers', 'binding']),
+        ('encoding', 'native', 'Encoding and layout · Omega 07–09', ['o7', 'o8', 'o9']),
+        ('emission', 'native', 'Emission and objects', ['fragments', 'frames', 'text', 'objects', 'compose']),
+        ('image', 'native', 'Native image and publication', ['bridges', 'image', 'products']),
+        ('run', 'runtime', 'Native execution', ['native-run']),
+        ('runtime', 'runtime', 'Psi runtime', ['runtime-admission', 'host', 'engine', 'worker']),
+        ('evaluation', 'runtime', 'Compile-time execution', ['evaluation', 'policy']),
+        ('support', 'support', 'Supporting systems', ['omega-source', 'bootstrap', 'foundation', 'docs', 'tests', 'tools']),
+    ]
+    nodes = {n['id']: n for n in model['nodes']}
+    members = [node_id for *_, ids in groups for node_id in ids]
+    if len(members) != len(nodes) or set(members) != nodes.keys():
+        raise ValueError('Overview groups must include every architecture node exactly once')
+    from .overview import render_overview
+    parts = [render_overview(model)]
+    parts.append('<details class="arch-component-list"><summary>Inspect layers and pinned source</summary>')
+    for key, family, title, ids in groups:
+        parts.append(f'<details class="arch-layer family-{family}" id="layer-{key}"><summary>{esc(title)}</summary><p><a href="#compiler-overview">↑ Back to the whole compiler</a></p><dl>')
+        for node_id in ids:
+            n = nodes[node_id]
+            parts.append(f'<dt>{esc(n["title"].replace(chr(10), " · "))}</dt><dd><p>{esc(n["description"])}</p><a href="{prefix}{n["page"]}.html">Read subsystem</a> · <a href="{n["source"]}">Pinned source</a></dd>')
+        parts.append('</dl></details>')
+    parts.append('</details></div>')
+    return ''.join(parts)
+
 def render_architecture(atlas, prefix):
     model = architecture(atlas)
     esc = html.escape
     claim = "Current Omega architecture connects source and native pipelines to Build, realization, runtime, construction and supporting owners. Relationship styles distinguish data, invocation, dependencies and non-execution links."
-    pieces = ['<section class="architecture" id="architecture" aria-labelledby="architecture-title"><header class="arch-header"><div><span class="arch-badge">Current architecture · source map</span><h2 id="architecture-title">The whole system</h2></div><a href="'+prefix+'foundation-backend-plan.html">Read the proposed migration plan →</a></header>',
+    pieces = ['<section class="architecture" id="architecture" aria-labelledby="architecture-title"><header class="arch-header"><div><span class="arch-badge">Current architecture · source map</span><h2 id="architecture-title">Compiler at a glance</h2></div><a href="'+prefix+'foundation-backend-plan.html">Read the proposed migration plan →</a></header>',
+              render_layers(model, prefix),
+              '<details class="arch-full-map"><summary>Explore the full relationship map</summary>',
               '<div class="arch-legend" aria-label="Subsystem families">' + ''.join(f'<span class="family-{key}"><i aria-hidden="true"></i>{name}</span>' for key,name in FAMILIES.items()) + '</div>',
-              '<div class="arch-toolbar" hidden><div class="arch-zoom"><button type="button" data-map="out" aria-label="Zoom out">−</button><button type="button" data-map="natural" aria-label="Show at natural scale"><output class="arch-scale">100%</output></button><button type="button" data-map="in" aria-label="Zoom in">+</button><button type="button" data-map="fit">Fit all</button><button type="button" data-map="reset">Reset</button><button type="button" data-map="fullscreen">Fullscreen</button></div><label class="arch-extra"><input class="arch-all-relations" type="checkbox"> All relationships</label><label class="arch-jump">Jump to <select aria-label="Find a stage or subsystem"><option value="">Choose a box…</option>' + ''.join(f'<optgroup label="{name}">'+''.join(f'<option value="{n["id"]}">{esc(n["title"].replace(chr(10)," · "))}</option>' for n in model['nodes'] if n['family']==key)+'</optgroup>' for key,name in FAMILIES.items()) + '</select></label></div>',
+              '<div class="arch-toolbar" hidden><div class="arch-zoom"><button type="button" data-map="out" aria-label="Zoom out">−</button><button type="button" data-map="natural" aria-label="Show at natural scale"><output class="arch-scale">100%</output></button><button type="button" data-map="in" aria-label="Zoom in">+</button><button type="button" data-map="fit">Fit all</button><button type="button" data-map="reset">Reset</button><button type="button" data-map="fullscreen">Expand diagram</button></div><label class="arch-extra"><input class="arch-all-relations" type="checkbox"> All relationships</label><label class="arch-jump">Jump to <select aria-label="Find a stage or subsystem"><option value="">Choose a box…</option>' + ''.join(f'<optgroup label="{name}">'+''.join(f'<option value="{n["id"]}">{esc(n["title"].replace(chr(10)," · "))}</option>' for n in model['nodes'] if n['family']==key)+'</optgroup>' for key,name in FAMILIES.items()) + '</select></label></div>',
               '<details class="arch-key"><summary>Relationship legend · primary paths shown; select a box for every connection</summary><div class="arch-relations">' + ''.join(f'<span><svg class="relation-{key}" viewBox="0 0 40 12" aria-hidden="true"><path d="M0 6 H40"/></svg>{name}</span>' for key,name in RELATIONS.items()) + '</div></details>',
-              '<div class="arch-workspace"><figure class="architecture-figure"><div class="arch-viewport" tabindex="0" role="region" aria-label="Full architecture map. Drag or scroll to pan; Control plus wheel zooms. Arrow keys pan, Home resets, F fits all. Use Jump to select any stage or subsystem."><canvas class="arch-canvas" aria-hidden="true" hidden></canvas><svg class="arch-svg" viewBox="0 0 1760 950" role="img" aria-label="'+claim+'"><title>'+claim+'</title><defs>'+''.join(f'<marker id="arch-arrow{suffix}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--{token})"/></marker>' for suffix,token in (("","ink-muted"),("-trap","trap"),("-quiet","rule")))+'</defs><g class="arch-scene">']
+              '<div class="arch-workspace"><figure class="architecture-figure"><div class="arch-viewport" tabindex="0" role="region" aria-label="Full architecture map. Drag or scroll to pan; Control plus wheel zooms. Arrow keys pan, Home resets, F fits all. Use Jump to select any stage or subsystem."><canvas class="arch-canvas" aria-hidden="true" hidden></canvas><svg class="arch-svg" viewBox="0 0 1760 1104" role="img" aria-label="'+claim+'"><title>'+claim+'</title><defs>'+''.join(f'<marker id="arch-arrow{suffix}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--{token})"/></marker>' for suffix,token in (("","ink-muted"),("-trap","trap"),("-quiet","rule")))+'</defs><g class="arch-scene">']
     nodes = {n["id"]:n for n in model["nodes"]}
     for i,e in enumerate(model["edges"]):
         path,(x,y)=path_for(nodes[e["start"]],nodes[e["end"]],i)
         pieces.append(f'<g class="arch-edge relation-{e["kind"]}{" main-edge" if e["main"] else ""}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}"><title>{esc(e["label"])}</title><path d="{path}" marker-end="url(#arch-arrow{"-trap" if e["kind"] == "bypass" else ""})"/><text x="{x}" y="{y}" text-anchor="middle">{esc(e["label"])}</text></g>')
-    for row,label in enumerate(("Inputs, coordination & supporting ownership", "Source: Psi 00–06", "Realization & execution", "Native lowering: Omega 00–06", "Native encoding & emission", "Products, construction & verification")):
+    for row,label in enumerate(("Inputs, coordination & supporting ownership", "Source: Psi 00–06", "Realization & execution", "Native lowering: Omega 00–06", "Native encoding & emission", "Products, construction & verification", "Provider policy evaluation")):
         pieces.append(f'<text class="arch-row-label" x="32" y="{28+154*row}">{esc(label)}</text>')
     for n in model["nodes"]:
         pieces.append(f'<g class="arch-node family-{n["family"]}" data-node="{n["id"]}" transform="translate({n["x"]} {n["y"]})"><title>{esc(n["title"])}</title><rect width="180" height="80"/><path class="family-stripe" d="M0 0 H180 V7 H0 Z"/>')
@@ -214,5 +260,5 @@ def render_architecture(atlas, prefix):
             if e['start']==n['id']:
                 pieces.append(f'<li>{esc(RELATIONS[e["kind"]])} → {esc(nodes[e["end"]]["title"].replace(chr(10)," · "))}: {esc(e["label"])} · <a href="{e["source"]}">Relationship source</a></li>')
         pieces.append('</ul></dd>')
-    pieces.append('</dl></details><script type="application/json" id="architecture-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script></section>')
+    pieces.append('</dl></details></details><script type="application/json" id="architecture-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script></section>')
     return ''.join(pieces)

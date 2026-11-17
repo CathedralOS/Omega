@@ -22,7 +22,7 @@ h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: an
 .glance div { padding: var(--space-3); }
 .glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
 .glance span { color: var(--ink-muted); font: var(--type-label); }
-.atlas-nav { font: var(--type-label); }
+.atlas-nav { font: var(--type-body); }
 .atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
 .atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
 .atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
@@ -83,16 +83,11 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
 @media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
 
-/* The overview is a reading tool; ink selection is not a proof verdict. */
-.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
-.overview-page h1 { font: var(--type-heading); }
-.overview-page .lede { font: var(--type-body); max-width: 90ch; }
-.overview-page .publication { max-width: 100ch; }
-.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
-.overview-page .topline { grid-column: 2; grid-row: 1; }
-.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
-.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
-.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+/* The overview and subject pages share one reading and navigation layout. */
+.top h1 { font: var(--type-heading); }
+.source-details { font: var(--type-label); color: var(--ink-muted); }
+.source-details .meta { margin-top: var(--space-3); }
+.source-details .publication { margin-bottom: 0; }
 .flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
 .explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
 .explorer-heading p { margin: 0 0 var(--space-2); }

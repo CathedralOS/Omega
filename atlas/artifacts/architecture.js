@@ -16,7 +16,7 @@
   const rows = [...svg.querySelectorAll('.arch-row-label')].map(t=>({x:+t.getAttribute('x'),y:+t.getAttribute('y'),text:t.textContent}));
   const lines = new Map([...svg.querySelectorAll('.arch-node')].map(g=>[g.dataset.node,[...g.querySelectorAll('text')].map(t=>({y:+t.getAttribute('y'),text:t.textContent}))]));
   const dashes = {data:[],invoke:[8,5],dependency:[2,5],construction:[12,4,2,4],validation:[2,7],normative:[12,7],bypass:[6,4]};
-  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false;
+  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false, expandTrigger=null;
   const make = (tag,text) => {const e=document.createElement(tag);if(text)e.textContent=text;return e;};
   const dimensions = () => ({w:viewport.clientWidth,h:viewport.clientHeight});
   const color = name => getComputedStyle(root).getPropertyValue('--'+name).trim();
@@ -105,6 +105,13 @@
     cameraChanged();if(focus)heading.focus({preventScroll:true});
   }
   root.classList.add('is-enhanced');root.querySelector('.arch-toolbar').hidden=false;
+  root.querySelectorAll('.overview-node[data-layer]').forEach(link=>{
+    link.addEventListener('click',()=>{
+      if(root.classList.contains('is-expanded'))expandTrigger?.click();
+      const layer=root.querySelector('#layer-'+link.dataset.layer);
+      layer.closest('.arch-component-list').open=true;layer.open=true;
+    });
+  });
   canvas.hidden=false;svg.hidden=true;root.querySelector('.arch-minimap').hidden=false;
   // The DOM outline and grouped selector expose every node without relying on
   // canvas hit targets or a screen reader interpreting pixels.
@@ -115,7 +122,14 @@
   root.querySelectorAll('[data-map]').forEach(button=>button.addEventListener('click',async()=>{
     const action=button.dataset.map;
     if(action==='fit')fit();if(action==='reset')reset();if(action==='in')zoom(camera.scale*1.3);if(action==='out')zoom(camera.scale/1.3);if(action==='natural')zoom(1);
-    if(action==='fullscreen')try{if(document.fullscreenElement===root)await document.exitFullscreen();else await root.requestFullscreen();}catch{button.textContent='Fullscreen unavailable';}
+    if(action==='fullscreen'){
+      root.classList.toggle('show-full-map',!!button.closest('.arch-full-map'));
+      const expanded=root.classList.toggle('is-expanded');
+      if(expanded)expandTrigger=button;
+      root.querySelectorAll('[data-map="fullscreen"]').forEach(control=>{control.textContent=expanded?'Close expanded view':'Expand diagram';});
+      if(!expanded)expandTrigger?.focus({preventScroll:true});
+      invalidate();
+    }
   }));
   root.querySelector('.arch-all-relations').addEventListener('change',e=>{allRelations=e.target.checked;invalidate();});
   jump.addEventListener('change',()=>{if(jump.value)select(jump.value,true);});
@@ -145,7 +159,17 @@
     const actions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
     if(actions[e.key]){e.preventDefault();camera.x+=actions[e.key][0];camera.y+=actions[e.key][1];cameraChanged();}
   });
-  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);}});
+  root.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);return;}
+    if(!root.classList.contains('is-expanded'))return;
+    if(e.key==='Escape'){e.preventDefault();expandTrigger.click();return;}
+    if(e.key==='Tab'){
+      const controls=[...root.querySelectorAll('a[href],button,select,input,summary,[tabindex="0"]')].filter(control=>control.getClientRects().length);
+      const first=controls[0],last=controls.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
+    }
+  });
   new ResizeObserver(()=>{const next=dimensions();if(size.w&&size.h){camera.x+=(size.w-next.w)/2/camera.scale;camera.y+=(size.h-next.h)/2/camera.scale;}size=next;invalidate();}).observe(viewport);
   new MutationObserver(invalidate).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',invalidate);
@@ -153,6 +177,5 @@
   const watchDpr=()=>matchMedia('(resolution: '+devicePixelRatio+'dppx)').addEventListener('change',()=>{invalidate();watchDpr();},{once:true});
   watchDpr();
   document.fonts.ready.then(invalidate);document.fonts.addEventListener('loadingdone',invalidate);
-  document.addEventListener('fullscreenchange',()=>{root.querySelector('[data-map="fullscreen"]').textContent=document.fullscreenElement===root?'Exit fullscreen':'Fullscreen';invalidate();});
   reset();
 })();

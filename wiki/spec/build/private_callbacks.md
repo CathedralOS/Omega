@@ -35,7 +35,7 @@ not readable/writable views.
 
 | Record | Binds |
 | --- | --- |
-| Callback use | Registration call/operation, static-machine argument ordinal, selected machine and satisfaction row, exact canonical requirement overload, and target entry recipe. |
+| Callback use | Owning machine and its registration call/operation, static-machine argument ordinal, selected machine and satisfaction row, exact canonical requirement overload, and target entry recipe. |
 | Registrar materialization | Exact binder slot and one declared native parameter or private layout-field destination, independently of the later callback selection. |
 | Callback root | Exact canonical entry, activation-local flow/dispatch/storage/frame identities, validated inbound entry plan, and internal argument/result bridge. |
 

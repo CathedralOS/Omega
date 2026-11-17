@@ -6,6 +6,12 @@ same distinction between selected plans, installed authority, and runtime
 liveness. OS table schemas, publication policy, and device protocols belong to
 consumer packages, not compiler-owned lifecycle types.
 
+Callback and interrupt registration records identify their owning machine and
+its local operation together. An admitted environment assumption that names an
+entry and a local installation operation must resolve to one exact checked
+installation in that entry's selected call closure. Equal operation numbers in
+different machines do not share authority; ambiguity is refused.
+
 ## Admission and removal
 
 A reclaimable inbound stub needs a registration owning the foreign-held edge

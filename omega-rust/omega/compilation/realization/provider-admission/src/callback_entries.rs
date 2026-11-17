@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 use terminal_psi::{TerminalCallbackApplication, TerminalMachine};
 
 pub fn project_native_callback_arguments(
+    module: &terminal_psi::TerminalModule,
     placements: &[backend_plan::NativeCallbackPlacement],
     occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
 ) -> Result<Option<Vec<crate::NativeCallbackArgumentProposal>>, Vec<Diagnostic>> {
@@ -39,9 +40,16 @@ pub fn project_native_callback_arguments(
         let Some(materialization) = placement.private_materialization.as_ref() else {
             return Ok(None);
         };
+        let callback = module
+            .callback_application(occurrence.application_index())
+            .filter(|callback| callback.registrar == occurrence.terminal_operation())
+            .ok_or_else(|| {
+                callback_error("callback occurrence lost its exact checked registrar")
+            })?;
         let application = materialization.destination_application.application();
         admitted.push(crate::NativeCallbackArgumentProposal {
             registrar_invokes_callback: materialization.registrar_invokes_callback,
+            registrar_machine: callback.registrar_machine,
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
@@ -86,6 +94,9 @@ pub(super) fn admit_entries(
                 .module()
                 .callback_application(occurrence.application_index())
                 .ok_or("callback entry lost its checked application")?;
+            if proposal.registrar_machine != callback.registrar_machine {
+                return Err("callback argument changed its registrar machine".into());
+            }
             let entry = entries.admit(callback, occurrence)?;
             Ok(AdmittedNativeCallbackArgument::admit(
                 proposal.clone(),
