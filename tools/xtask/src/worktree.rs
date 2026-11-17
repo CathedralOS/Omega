@@ -429,13 +429,31 @@ fn reset_slot_to(worktree_path: &Path, commit: &str) -> bool {
         .stdin(Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
+    if !checkout_ok {
+        return false;
+    }
+    // A recycled baseline may omit tracked fixtures through sparse checkout.
+    // Workers need complete source; Git restores it without touching ignored builds.
+    let source_complete = Command::new("git")
+        .args(["sparse-checkout", "disable"])
+        .current_dir(worktree_path)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if !source_complete {
+        eprintln!(
+            "worktree: cannot restore all tracked files in `{}`",
+            worktree_path.display()
+        );
+        return false;
+    }
     let clean_ok = Command::new("git")
         .args(["clean", "-fd"])
         .current_dir(worktree_path)
         .stdin(Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
-    if !checkout_ok || !clean_ok {
+    if !clean_ok {
         return false;
     }
     if let Err(error) = remove_dangling_target(&worktree_path.join("target")) {
@@ -1174,6 +1192,106 @@ mod tests {
     use std::path::Path;
     use std::process::{Command, Stdio};
     use std::time::Duration;
+
+    #[test]
+    fn recycled_worker_restores_tracked_inputs_without_removing_its_build() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        fn git(root: &Path, arguments: &[&str]) -> String {
+            let output = Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Worktree test",
+                    "-c",
+                    "user.email=worktree@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/nonexistent",
+                ])
+                .args(arguments)
+                .current_dir(root)
+                .stdin(Stdio::null())
+                .output()
+                .expect("run temporary repository command");
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        }
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "omega-worker-inputs-{}-{unique}",
+            std::process::id(),
+        )));
+        let repository = scratch.0.join("repository");
+        let worker = scratch.0.join("worker-1");
+        fs::create_dir_all(repository.join("src")).unwrap();
+        fs::create_dir_all(repository.join("samples")).unwrap();
+        fs::write(repository.join(".gitignore"), "/target/\n").unwrap();
+        fs::write(repository.join("src/lib.rs"), "// source\n").unwrap();
+        fs::write(
+            repository.join("samples/input.omg"),
+            "// retained test input\n",
+        )
+        .unwrap();
+        git(&repository, &["init"]);
+        git(&repository, &["add", "."]);
+        git(&repository, &["commit", "-m", "tracked inputs"]);
+        let head = git(&repository, &["rev-parse", "HEAD"]);
+        git(
+            &repository,
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                worker.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+        git(&worker, &["sparse-checkout", "set", "src"]);
+        assert!(!worker.join("samples/input.omg").exists());
+        assert!(git(&worker, &["status", "--porcelain"]).is_empty());
+        fs::create_dir(worker.join("target")).unwrap();
+        fs::write(worker.join("target/keep"), "warm build").unwrap();
+
+        assert!(super::reset_slot_to(&worker, &head));
+        assert!(
+            worker.join("samples/input.omg").is_file(),
+            "a worker must restore every tracked test input"
+        );
+        assert_eq!(
+            fs::read_to_string(worker.join("samples/input.omg")).unwrap(),
+            "// retained test input\n"
+        );
+        assert_eq!(
+            fs::read_to_string(worker.join("target/keep")).unwrap(),
+            "warm build"
+        );
+        assert!(git(&worker, &["status", "--porcelain"]).is_empty());
+        assert_eq!(git(&worker, &["rev-parse", "HEAD"]), head);
+        assert!(repository.join("samples/input.omg").is_file());
+        assert!(super::reset_slot_to(&worker, &head));
+        assert_eq!(
+            fs::read_to_string(worker.join("target/keep")).unwrap(),
+            "warm build"
+        );
+        fs::write(worker.join("keep-work"), "untracked work").unwrap();
+        assert!(!super::reset_slot_to(&worker, "refs/heads/missing"));
+        assert_eq!(
+            fs::read_to_string(worker.join("keep-work")).unwrap(),
+            "untracked work"
+        );
+    }
 
     #[cfg(unix)]
     #[test]
