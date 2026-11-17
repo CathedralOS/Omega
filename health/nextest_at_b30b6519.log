@@ -1,0 +1,2293 @@
+mbx[target]: copied 113 registry build units from /home/user/Omega/.agents/worktree/worker-1
+   Compiling compiler-storage-derive v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/compiler-storage/derive)
+   Compiling optimization v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/optimization)
+   Compiling mutation-matrix v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/mutation-matrix)
+   Compiling x86_64-encoding v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/isa/x86_64-encoding)
+   Compiling optimization-core v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/foundation/optimization-core)
+   Compiling execution-admission v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/execution-admission)
+   Compiling syntax-trees-derive v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/syntax-trees/derive)
+   Compiling compiler-storage v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/compiler-storage)
+   Compiling bounded-process v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/foundation/bounded-process)
+   Compiling numerics v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/numerics)
+   Compiling arena v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/arena)
+   Compiling language-core v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/language-core)
+   Compiling semantic-vocabulary v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling extents v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/extents)
+   Compiling filesystem-authority v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/filesystem-authority)
+   Compiling source v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/source)
+   Compiling layout-plans v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/layout-plans)
+   Compiling build-time-values v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/build-time-values)
+   Compiling symbols v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/symbols)
+   Compiling language-semantics v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/language-semantics)
+   Compiling flow-effects v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/flow-effects)
+   Compiling access-plans v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/access-plans)
+   Compiling diagnostics v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/diagnostics)
+   Compiling terminal-psi v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling target v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/target)
+   Compiling evaluation-accounting v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/evaluation-accounting)
+   Compiling runtime-abi v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/runtime/runtime-abi)
+   Compiling proof-admission v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/proof-admission)
+   Compiling effects v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/effects)
+   Compiling terminal-semantics v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi/semantics)
+   Compiling calling-conventions v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/calling-conventions)
+   Compiling function-identity v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/foundation/function-identity)
+   Compiling installation-evidence v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/runtime/installation-evidence)
+   Compiling task-plans v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/runtime/task-plans)
+   Compiling register-model v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/register-model)
+   Compiling terminal-work v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi/work)
+   Compiling terminal-wire v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi/wire)
+   Compiling post-handoff-writer-plan v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan)
+   Compiling boundary-applications v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/artifacts/boundary-applications)
+   Compiling layout v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/layout)
+   Compiling bound-installations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/runtime/bound-installations)
+   Compiling program-entry-plan v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/program-entry-plan)
+   Compiling typed-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/typed-trees)
+   Compiling native-vocabulary v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/native-vocabulary)
+   Compiling terminal-codec v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi/codec)
+   Compiling target-vocabulary v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/target-operations/target-vocabulary)
+   Compiling legalized-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/target-operations/legalized-operations)
+   Compiling terminal-installation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/terminal-installation)
+   Compiling selected-instructions v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/selected-instructions)
+   Compiling encoded-scalar-plan v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/encoded-scalar-plan)
+   Compiling normalized-foreign-call-plan v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/normalized-foreign-call-plan)
+   Compiling backend-plan v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/plans/backend-plan)
+   Compiling isa-x86_64 v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/isa/isa-x86_64)
+   Compiling abstract-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/abstract-operations)
+   Compiling register-homes v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/register-homes)
+   Compiling isa-aarch64 v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/isa/isa-aarch64)
+   Compiling target-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/target-operations)
+   Compiling provider-selection v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/realization/provider-selection)
+   Compiling optimization-unit v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit)
+   Compiling component-description v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/artifacts/component-description)
+   Compiling register-environment v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/register-environment)
+   Compiling provider-admission v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/realization/provider-admission)
+   Compiling post-allocation-machine v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/post-allocation-machine)
+   Compiling optimization-unit-semantics v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics)
+   Compiling verified-optimization-input v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input)
+   Compiling machine-code v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/machine-code)
+   Compiling tokens v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/tokens)
+   Compiling selected-instruction-analyses v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/representations/selected-instructions/analyses)
+   Compiling syntax-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/syntax-trees)
+   Compiling terminal-check-tables v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/terminal-psi/check-tables)
+   Compiling symbol-resolved-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+   Compiling source-files-to-tokens v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/00_source-files-to-tokens)
+   Compiling native-preparation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation)
+   Compiling tokens-to-syntax-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+   Compiling abstract-operations-to-target-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations)
+   Compiling typed-trees-to-terminal-psi v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi)
+   Compiling selected-instructions-to-register-homes v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes)
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout)
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout)
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
+   Compiling terminal-psi-to-terminal-psi v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi)
+   Compiling machine-emission v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/machine-emission)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees)
+   Compiling typed-trees-to-typed-trees v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees)
+   Compiling object-file v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/object-file)
+   Compiling terminal-interpreter v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/interpreter)
+   Compiling image v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/images/image)
+   Compiling platform-custody v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/foundation/platform-custody)
+   Compiling terminal-production v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/terminal-production)
+   Compiling build-time-evaluation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/build-time-evaluation)
+   Compiling target-operations-to-selected-instructions v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions)
+   Compiling source-compiler v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/compilation/source-compiler)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations)
+   Compiling resolver-execution v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/resolver-execution)
+   Compiling image-pe v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/images/image-pe)
+   Compiling image-elf v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/images/image-elf)
+   Compiling image-macho v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/images/image-macho)
+   Compiling image-emission v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/images/image-emission)
+   Compiling source-acquisition v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/source-acquisition)
+   Compiling build-declarations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/build-declarations)
+   Compiling build-output v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/build-output)
+   Compiling artifacts v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/foundation/artifacts)
+   Compiling package-compilation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/package-compilation)
+   Compiling native-artifact v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/artifacts/native-artifact)
+   Compiling trust-model v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/realization/trust-model)
+   Compiling native-provider-runtime v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/interpreter/native-provider-runtime)
+   Compiling provider-planning v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling selected-dispatch v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling products v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/products)
+   Compiling terminal-runtime v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/interpreter/terminal-runtime)
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations)
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions)
+   Compiling build-settings v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/build-system/build-settings)
+   Compiling native-compiler v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/native-compiler)
+   Compiling compiler v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/compiler)
+   Compiling review-evidence v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/review-evidence)
+   Compiling omega v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/application)
+   Compiling source-audit v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/psi/foundation/source-audit)
+   Compiling isa-conformance v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/compilation/backend/isa/isa-conformance)
+   Compiling xtask v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/tools/xtask)
+   Compiling package-manager v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/packages/package-manager)
+   Compiling orchestration v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/omega-rust/omega/build-system/orchestration)
+   Compiling sample-runner v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/sample-runner)
+   Compiling spectral-power-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/spectral_power/validation)
+   Compiling laminate-stiffness-response-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/laminate_stiffness_response/validation)
+   Compiling wavelet-transient-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/wavelet_transient_denoising/validation)
+   Compiling layered-seismic-refraction-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/layered_seismic_refraction/validation)
+   Compiling ind11-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/pareto_experiment_selection/validation)
+   Compiling sci04-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/spatial_diffusion/validation)
+   Compiling thin-film-reflectometry-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/thin_film_reflectometry/validation)
+   Compiling hmm-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/hidden_markov_inference/validation/terminal-driver)
+   Compiling molecular-pair-distribution-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/molecular_pair_distribution/validation)
+   Compiling advection-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/conservative_advection/validation)
+   Compiling new087-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/travel_time_tomography/validation/terminal)
+   Compiling new031-terminal-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/nonlinear_diode_sweep/validation/terminal-driver)
+   Compiling ind19-spectrum-validation v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/samples/cli/scientific/spectrometer_attribution)
+   Compiling omega-bench v0.1.0 (/home/user/Omega/.agents/worktree/worker-2/tools/benchmark)
+warning: unused dependency `terminal-codec`
+  --> omega-rust/omega/compilation/representations/abstract-operations/Cargo.toml:18:1
+   |
+18 | terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `terminal-codec`
+warning: `abstract-operations` (manifest) generated 1 warning
+warning: unused dependency `syntax-trees-to-symbol-resolved-trees`
+  --> omega-rust/psi/compilation/build-time-evaluation/Cargo.toml:38:1
+   |
+38 | syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `syntax-trees-to-symbol-resolved-trees`
+help: to still use for development builds, move to `dev-dependencies`
+warning: `build-time-evaluation` (manifest) generated 1 warning
+warning: unused dependency `iced-x86`
+  --> omega-rust/omega/compilation/backend/images/image-emission/Cargo.toml:56:1
+   |
+56 | iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `iced-x86`
+help: to still use for development builds, move to `dev-dependencies`
+warning: `image-emission` (manifest) generated 1 warning
+    Finished `test` profile [optimized] target(s) in 21m 03s
+────────────
+ Nextest run ID ed4a0159-9aef-4159-a624-3171abbf5b2c with nextest profile: default
+    Starting 234 tests across 45 binaries (1845 tests and 184 binaries skipped)
+        FAIL [   1.408s] (  1/234) build-time-evaluation source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions
+  stdout ───
+
+    running 1 test
+    test source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions ... FAILED
+
+    failures:
+
+    failures:
+        source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 150 filtered out; finished in 1.39s
+
+  stderr ───
+
+    thread 'source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions' (15182) panicked at omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.rs:703:10:
+    called `Result::unwrap()` on an `Err` value: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::allow_readers` while reading the body of `construct_observed_plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: build_time_evaluation::source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions
+       4: <build_time_evaluation::source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.974s] (  2/234) build-time-evaluation source_jobs::access_plan_construction::ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape
+        PASS [   0.899s] (  3/234) build-time-evaluation source_jobs::borrowed_views::a_closed_core_borrow_cannot_invent_a_different_view_interpretation
+        PASS [   2.980s] (  4/234) build-time-evaluation source_jobs::borrowed_views::a_closed_core_borrow_returns_the_original_storage_and_excludes_its_parent
+        PASS [   1.979s] (  5/234) build-time-evaluation source_jobs::borrowed_views::a_mutable_view_returned_by_a_call_keeps_the_exclusive_loan_of_its_input
+        PASS [  10.630s] (  6/234) build-time-evaluation source_jobs::access_plan_construction::actual_policy_callers_keep_their_selected_declaration_after_transport
+        PASS [   2.717s] (  7/234) build-time-evaluation source_jobs::borrowed_views::a_named_requirement_instantiates_its_borrowed_inputs_by_owned_lifetime
+        PASS [   1.166s] (  8/234) build-time-evaluation source_jobs::borrowed_views::a_prepared_bodyless_contract_cannot_follow_changed_application_bindings
+        PASS [   1.849s] (  9/234) build-time-evaluation source_jobs::borrowed_views::a_selected_reference_keeps_its_public_input_and_the_original_loan
+        PASS [   3.105s] ( 10/234) build-time-evaluation source_jobs::borrowed_views::a_selected_reference_keeps_every_public_input_even_when_the_body_returns_left
+        PASS [   1.902s] ( 11/234) build-time-evaluation source_jobs::borrowed_views::ending_one_returned_view_preserves_the_other_caller_loan
+        PASS [   0.017s] ( 12/234) build-time-evaluation source_jobs::sequence_values::shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabrication
+        PASS [   0.029s] ( 13/234) build-time-evaluation source_jobs::sequence_values::shared_typed_sequence_inputs_in_owned_records_and_cases_keep_applied_lifetimes
+        PASS [   0.010s] ( 14/234) build-time-evaluation source_jobs::source_selection::tests::a_build_constant_uses_capture_consent_without_acquiring_an_owner
+        PASS [   0.007s] ( 15/234) build-time-evaluation source_jobs::source_selection::tests::capture_consent_keeps_the_written_service_ceiling
+        PASS [   2.801s] ( 16/234) build-time-evaluation source_jobs::borrowed_views::a_view_returned_by_a_call_keeps_the_loan_of_its_input
+        PASS [   1.298s] ( 17/234) build-time-evaluation source_jobs::tests::actual_float_bit_views_keep_their_declared_scalar_homes
+        PASS [   1.142s] ( 18/234) build-time-evaluation source_jobs::tests::an_empty_layout_scope_preserves_the_unrequested_application
+        PASS [   0.650s] ( 19/234) build-time-evaluation source_jobs::tests::callable_queries_use_the_same_landed_application_as_invocation
+        PASS [   1.074s] ( 20/234) build-time-evaluation source_jobs::tests::field_queries_reject_values_and_data_heads_without_reclassifying_ordinary_calls
+        PASS [   0.727s] ( 21/234) build-time-evaluation source_jobs::tests::field_queries_return_the_selected_declaration_and_its_complete_application
+        PASS [  27.642s] ( 22/234) build-time-evaluation source_jobs::access_plan_construction::a_selected_access_plan_returns_its_declared_route_element_lifetimes
+        PASS [  21.303s] ( 23/234) build-time-evaluation source_jobs::tests::fixed_layout_policy_installs_the_retained_pairs_authored_geometry
+        PASS [  21.069s] ( 24/234) build-time-evaluation source_jobs::tests::fixed_layout_policy_keeps_the_retained_pair_in_a_record_field
+        PASS [  39.076s] ( 25/234) build-time-evaluation source_jobs::tests::a_layout_storage_constant_folds_one_snapshot_from_every_deployment
+        PASS [   0.977s] ( 26/234) build-time-evaluation source_jobs::tests::layout_schema_members_keep_their_applied_type_without_lifetime_bindings
+        PASS [   0.067s] ( 27/234) build-time-evaluation source_jobs::tests::selected_calls_keep_public_promises_through_source_free_roundtrip
+        PASS [   1.069s] ( 28/234) build-time-evaluation source_jobs::tests::source_call_requests_keep_their_authored_operand_and_owner
+        PASS [   0.968s] ( 29/234) build-time-evaluation source_jobs::tests::source_callable_queries_execute_with_exact_declarations_and_immutable_fields
+        PASS [  16.591s] ( 30/234) build-time-evaluation source_jobs::tests::fixed_layout_policy_reaches_the_retained_field_cast_refusal
+        PASS [   1.070s] ( 31/234) build-time-evaluation source_jobs::tests::source_callable_queries_refuse_a_value_holding_a_description
+        SLOW [> 60.000s] (───────) build-time-evaluation source_jobs::access_plan_construction::actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails
+        PASS [   1.156s] ( 32/234) build-time-evaluation source_jobs::tests::source_jobs_transport_only_the_issued_layout_context
+        PASS [   1.630s] ( 33/234) build-time-evaluation source_jobs::tests::source_jobs_run_the_kept_ranked_control_loop
+        PASS [   0.923s] ( 34/234) build-time-evaluation source_jobs::tests::source_schema_query_materializes_its_bare_type_operand
+        PASS [   0.008s] ( 35/234) build-time-evaluation source_jobs::tests::subject_requirements_keep_their_full_headers_without_becoming_bodies
+        PASS [   0.872s] ( 36/234) build-time-evaluation source_jobs::tests::source_schema_query_retains_the_requested_application_and_structural_home
+        PASS [   0.019s] ( 37/234) build-time-evaluation tests::an_unowned_constant_request_cannot_bypass_declaration_admission
+        PASS [  20.207s] ( 38/234) build-time-evaluation source_jobs::tests::generic_layout_policy_retains_its_declared_machine_and_publishes_its_plan
+        PASS [  90.862s] ( 39/234) build-time-evaluation source_jobs::access_plan_construction::actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails
+        SLOW [> 60.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [> 60.000s] (───────) compiler::access_view_calls exclusive_backing_aliases_refuse_before_effects
+        SLOW [> 60.000s] (───────) compiler::access_view_calls later_state_helper
+        SLOW [> 60.000s] (───────) compiler::access_view_calls mixed_parameters_rejoin_checked_dense_coordinate
+        FAIL [ 117.462s] ( 40/234) compiler::access_view_calls exclusive_backing_aliases_refuse_before_effects
+  stdout ───
+
+    running 1 test
+    test exclusive_backing_aliases_refuse_before_effects has been running for over 60 seconds
+    test exclusive_backing_aliases_refuse_before_effects ... FAILED
+
+    failures:
+
+    failures:
+        exclusive_backing_aliases_refuse_before_effects
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 117.35s
+
+  stderr ───
+
+    thread 'exclusive_backing_aliases_refuse_before_effects' (15317) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: <access_view_calls::exclusive_backing_aliases_refuse_before_effects::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>120.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        FAIL [ 116.608s] ( 41/234) compiler::access_view_calls later_state_helper
+  stdout ───
+
+    running 1 test
+    test later_state_helper has been running for over 60 seconds
+    test later_state_helper ... FAILED
+
+    failures:
+
+    failures:
+        later_state_helper
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 116.54s
+
+  stderr ───
+
+    thread 'later_state_helper' (15347) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::qualify_helper
+       5: <access_view_calls::later_state_helper::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [ 117.311s] ( 42/234) compiler::access_view_calls mixed_parameters_rejoin_checked_dense_coordinate
+  stdout ───
+
+    running 1 test
+    test mixed_parameters_rejoin_checked_dense_coordinate has been running for over 60 seconds
+    test mixed_parameters_rejoin_checked_dense_coordinate ... FAILED
+
+    failures:
+
+    failures:
+        mixed_parameters_rejoin_checked_dense_coordinate
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 117.17s
+
+  stderr ───
+
+    thread 'mixed_parameters_rejoin_checked_dense_coordinate' (15401) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: <access_view_calls::mixed_parameters_rejoin_checked_dense_coordinate::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::access_view_calls mutable_helper
+        SLOW [>180.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [> 60.000s] (───────) compiler::access_view_calls nested_helper
+        SLOW [> 60.000s] (───────) compiler::access_view_calls reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+        FAIL [ 114.329s] ( 43/234) compiler::access_view_calls mutable_helper
+  stdout ───
+
+    running 1 test
+    test mutable_helper has been running for over 60 seconds
+    test mutable_helper ... FAILED
+
+    failures:
+
+    failures:
+        mutable_helper
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 114.25s
+
+  stderr ───
+
+    thread 'mutable_helper' (15529) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::qualify_helper
+       5: <access_view_calls::mutable_helper::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [ 114.698s] ( 44/234) compiler::access_view_calls nested_helper
+  stdout ───
+
+    running 1 test
+    test nested_helper has been running for over 60 seconds
+    test nested_helper ... FAILED
+
+    failures:
+
+    failures:
+        nested_helper
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 114.59s
+
+  stderr ───
+
+    thread 'nested_helper' (15562) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::qualify_helper
+       5: <access_view_calls::nested_helper::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>240.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [>120.000s] (───────) compiler::access_view_calls reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+        FAIL [ 123.318s] ( 45/234) compiler::access_view_calls reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+  stdout ───
+
+    running 1 test
+    test reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors has been running for over 60 seconds
+    test reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors ... FAILED
+
+    failures:
+
+    failures:
+        reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 123.23s
+
+  stderr ───
+
+    thread 'reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors' (15613) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+       5: <access_view_calls::reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::access_view_calls shared_helper
+        SLOW [> 60.000s] (───────) compiler::access_view_calls unit_helper_preserves_mutable_custody
+        SLOW [>300.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [> 60.000s] (───────) compiler::anonymous_module_owner anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+        FAIL [ 115.677s] ( 46/234) compiler::access_view_calls shared_helper
+  stdout ───
+
+    running 1 test
+    test shared_helper has been running for over 60 seconds
+    test shared_helper ... FAILED
+
+    failures:
+
+    failures:
+        shared_helper
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 115.55s
+
+  stderr ───
+
+    thread 'shared_helper' (15712) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::qualify_helper
+       5: <access_view_calls::shared_helper::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [ 113.997s] ( 47/234) compiler::access_view_calls unit_helper_preserves_mutable_custody
+  stdout ───
+
+    running 1 test
+    test unit_helper_preserves_mutable_custody has been running for over 60 seconds
+    test unit_helper_preserves_mutable_custody ... FAILED
+
+    failures:
+
+    failures:
+        unit_helper_preserves_mutable_custody
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 113.87s
+
+  stderr ───
+
+    thread 'unit_helper_preserves_mutable_custody' (15755) panicked at omega-rust/omega/compilation/compiler/tests/access_view_calls.rs:25:65:
+    sealed fixture inputs: [Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose callee's parameter types typing does not select yet while reading the signature of `access::observe` while reading the body of `RegisterAccess::plan`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(143), span: Span { start: 4214, end: 4217 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/source/library/core/access.omg", line: 108, column: 42 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `observe`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2616, end: 2623 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 57, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `mutate`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2820, end: 2826 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("placed_view_call_custody"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/layouts/placed_view_call_custody/main.omg", line: 63, column: 9 }) }, Diagnostic { severity: Error, message: "not supported yet: call static machine arguments while reading the body of `write_only`; the chec ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: access_view_calls::produce
+       4: access_view_calls::qualify_helper
+       5: <access_view_calls::unit_helper_preserves_mutable_custody::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>360.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [>120.000s] (───────) compiler::anonymous_module_owner anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+        SLOW [> 60.000s] (───────) compiler::anonymous_module_owner anonymous_publication_reloads_without_rebasing_and_copied_owner_differs
+        SLOW [> 60.000s] (───────) compiler::byte_view_arrivals reopened_byte_views_read_the_original_backing_after_arrival
+        SLOW [>420.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [>180.000s] (───────) compiler::anonymous_module_owner anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+        PASS [ 111.219s] ( 48/234) compiler::anonymous_module_owner anonymous_publication_reloads_without_rebasing_and_copied_owner_differs
+        FAIL [ 189.382s] ( 49/234) compiler::anonymous_module_owner anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+  stdout ───
+
+    running 1 test
+    test anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution has been running for over 60 seconds
+    test anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution ... FAILED
+
+    failures:
+
+    failures:
+        anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 189.26s
+
+  stderr ───
+
+    thread 'anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution' (15803) panicked at omega-rust/omega/compilation/compiler/tests/support/sealed_fixture_staging.rs:265:9:
+    fixture root /home/user/Omega/.agents/worktree/worker-2/samples/cli/facts/nominal_declaration_owner/local/invalid cannot be resolved: No such file or directory (os error 2)
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: anonymous_module_owner::fixture_package_inputs::sealed_fixture_staging::relative_fixture_path::{closure#1}
+       3: anonymous_module_owner::fixture_package_inputs::sealed_fixture_staging::relative_fixture_path
+       4: anonymous_module_owner::fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot
+       5: <anonymous_module_owner::anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   8.803s] ( 50/234) compiler::domain_casts a_child_kept_without_its_parent_is_rejected
+  stdout ───
+
+    running 1 test
+    test a_child_kept_without_its_parent_is_rejected ... FAILED
+
+    failures:
+
+    failures:
+        a_child_kept_without_its_parent_is_rejected
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 8.76s
+
+  stderr ───
+
+    thread 'a_child_kept_without_its_parent_is_rejected' (16245) panicked at omega-rust/omega/compilation/compiler/tests/domain_casts.rs:130:5:
+    [
+        "cast entry `=Positive::Small` names no visible domain `Positive::Small` of `i32`. A `+` or `-` after a cast always begins a domain entry; for arithmetic on the cast result, parenthesise the cast",
+    ]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: domain_casts::rejected_with
+       3: <domain_casts::a_child_kept_without_its_parent_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>120.000s] (───────) compiler::byte_view_arrivals reopened_byte_views_read_the_original_backing_after_arrival
+        FAIL [   8.535s] ( 51/234) compiler::domain_casts each_entry_of_an_accounted_cast_carries_its_result_type
+  stdout ───
+
+    running 1 test
+    test each_entry_of_an_accounted_cast_carries_its_result_type ... FAILED
+
+    failures:
+
+    failures:
+        each_entry_of_an_accounted_cast_carries_its_result_type
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 8.47s
+
+  stderr ───
+
+    thread 'each_entry_of_an_accounted_cast_carries_its_result_type' (16282) panicked at omega-rust/omega/compilation/compiler/tests/domain_casts.rs:43:39:
+    Psi 00 through 04 must complete: ["cast entry `-Positive::Small` names no visible domain `Positive::Small` of `i32`. A `+` or `-` after a cast always begins a domain entry; for arithmetic on the cast result, parenthesise the cast"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: domain_casts::each_entry_of_an_accounted_cast_carries_its_result_type::{closure#0}
+       3: <domain_casts::each_entry_of_an_accounted_cast_carries_its_result_type::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>480.000s] (───────) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [> 60.000s] (───────) compiler::core_build_activation source_compile_has_no_core_provider_defaults_activation
+        PASS [ 519.187s] ( 52/234) build-time-evaluation source_jobs::tests::the_library_c_layout_policy_keeps_its_existing_scalar_record
+        SLOW [>180.000s] (───────) compiler::byte_view_arrivals reopened_byte_views_read_the_original_backing_after_arrival
+        SLOW [> 60.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        FAIL [  82.718s] ( 53/234) compiler::core_build_activation source_compile_has_no_core_provider_defaults_activation
+  stdout ───
+
+    running 1 test
+    test source_compile_has_no_core_provider_defaults_activation has been running for over 60 seconds
+    test source_compile_has_no_core_provider_defaults_activation ... FAILED
+
+    failures:
+
+    failures:
+        source_compile_has_no_core_provider_defaults_activation
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 82.64s
+
+  stderr ───
+
+    thread 'source_compile_has_no_core_provider_defaults_activation' (16233) panicked at omega-rust/omega/compilation/compiler/tests/core_build_activation.rs:19:39:
+    tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg package inputs: [
+        Diagnostic {
+            severity: Error,
+            message: "provider selection `CheckedMathProvider` is not a static operation record from a named implementation; a data type is not a provider value",
+            exceeded_provision: None,
+            source_span: Some(
+                SourceSpan {
+                    source_id: SourceId(
+                        3,
+                    ),
+                    span: Span {
+                        start: 370,
+                        end: 385,
+                    },
+                },
+            ),
+            resolved_location: Some(
+                ResolvedSourceLocation {
+                    package: None,
+                    path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/build.omg",
+                    line: 6,
+                    column: 12,
+                },
+            ),
+        },
+    ]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core_build_activation::terminal_product::{closure#0}
+       3: <core_build_activation::source_compile_has_no_core_provider_defaults_activation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::executed_fixture_discovery native_project_build_publishes_the_reached_boundary_calling_application
+        PASS [ 233.887s] ( 54/234) compiler::byte_view_arrivals reopened_byte_views_read_the_original_backing_after_arrival
+        SLOW [>120.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        SLOW [> 60.000s] (───────) compiler::executed_fixture_discovery reviewed_fixture_discovers_an_empty_dangerous_service_roster
+        PASS [  82.797s] ( 55/234) compiler::executed_fixture_discovery native_project_build_publishes_the_reached_boundary_calling_application
+        FAIL [  75.700s] ( 56/234) compiler::executed_fixture_discovery reviewed_fixture_discovers_an_empty_dangerous_service_roster
+  stdout ───
+
+    running 1 test
+    test reviewed_fixture_discovers_an_empty_dangerous_service_roster has been running for over 60 seconds
+    test reviewed_fixture_discovers_an_empty_dangerous_service_roster ... FAILED
+
+    failures:
+
+    failures:
+        reviewed_fixture_discovers_an_empty_dangerous_service_roster
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 75.66s
+
+  stderr ───
+
+    thread 'reviewed_fixture_discovers_an_empty_dangerous_service_roster' (16514) panicked at omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs:23:6:
+    the checked program needs no dangerous service: [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 844, end: 845 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("compound_index_guard_call_result"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg", line: 27, column: 18 }) }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: <executed_fixture_discovery::reviewed_fixture_discovers_an_empty_dangerous_service_roster::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [  18.587s] ( 57/234) compiler::lowered_route_clause_calls a_call_in_a_predicate_term_is_its_callee_body
+        SLOW [> 60.000s] (───────) compiler::executed_fixture_discovery target_audit_checks_the_retained_indirect_result_register
+        SLOW [>180.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        SLOW [> 60.000s] (───────) compiler::executed_fixture_discovery target_audit_rejoins_compiled_foreign_operands
+        PASS [  88.866s] ( 58/234) compiler::executed_fixture_discovery target_audit_rejoins_compiled_foreign_operands
+        SLOW [> 60.000s] (───────) compiler::lowered_route_float_values canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
+        PASS [ 111.674s] ( 59/234) compiler::executed_fixture_discovery target_audit_checks_the_retained_indirect_result_register
+        SLOW [>240.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        FAIL [  81.496s] ( 60/234) compiler::lowered_route_float_values canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
+  stdout ───
+
+    running 1 test
+    test canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers has been running for over 60 seconds
+    test canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers ... FAILED
+
+    failures:
+
+    failures:
+        canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 81.42s
+
+  stderr ───
+
+    thread 'omega-compile' (16702) panicked at omega-rust/omega/compilation/compiler/tests/lowered_route_float_values.rs:202:5:
+    assertion `left == right` failed
+      left: Err("numeric primitive is outside the authored Core operation roster")
+     right: Err("numeric primitive has no exact admitted catalog declaration")
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<core::result::Result<(), &str>, core::result::Result<(), &str>>
+       4: lowered_route_float_values::refuse_undeclared_conversion
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::lowered_route_float_values exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
+        SLOW [> 60.000s] (───────) compiler::lowered_route_float_values exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss
+        SLOW [>300.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        SLOW [> 60.000s] (───────) compiler::lowered_route_float_values exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_operand
+        SLOW [>120.000s] (───────) compiler::lowered_route_float_values exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
+        SLOW [>120.000s] (───────) compiler::lowered_route_float_values exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss
+        PASS [ 105.954s] ( 61/234) compiler::lowered_route_float_values exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_operand
+        SLOW [>360.000s] (───────) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        PASS [ 365.577s] ( 62/234) compiler::executed_fixture_discovery executed_bindings_select_targets_and_retained_legs_keep_separate_staging
+        PASS [ 152.630s] ( 63/234) compiler::lowered_route_float_values exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
+        PASS [ 150.898s] ( 64/234) compiler::lowered_route_float_values exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss
+        PASS [   8.283s] ( 65/234) compiler::lowered_route_generics a_finite_family_alternative_that_breaks_its_contract_is_refused
+        PASS [   9.604s] ( 66/234) compiler::lowered_route_generics a_finite_family_is_checked_once_per_alternative_and_carried
+        PASS [  18.580s] ( 67/234) compiler::lowered_route_generics a_value_parameter_body_is_checked_once_and_carried
+        SLOW [> 60.000s] (───────) compiler::lowered_route_float_values exact_integer_float_casts_require_precision_and_keep_the_converter_contract
+        PASS [  19.110s] ( 68/234) compiler::lowered_route_generics a_value_parameter_member_that_asks_more_than_its_requirement_is_refused
+        SLOW [> 60.000s] (───────) compiler::lowered_route_generics a_static_callable_receipt_cannot_open_an_explicit_empty_bound
+        SLOW [> 60.000s] (───────) compiler::lowered_route_generics a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder
+        PASS [  79.898s] ( 69/234) compiler::lowered_route_generics a_static_callable_receipt_cannot_open_an_explicit_empty_bound
+        PASS [  42.987s] ( 70/234) compiler::lowered_route_generics named_structural_const_arguments_keep_their_closed_receiving_application
+        SLOW [>120.000s] (───────) compiler::lowered_route_float_values exact_integer_float_casts_require_precision_and_keep_the_converter_contract
+        PASS [ 102.442s] ( 71/234) compiler::lowered_route_generics a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder
+        PASS [ 145.706s] ( 72/234) compiler::lowered_route_float_values exact_integer_float_casts_require_precision_and_keep_the_converter_contract
+        SLOW [> 60.000s] (───────) compiler::lowered_route_generics the_default_product_publishes_generic_named_map_captures
+        SLOW [> 60.000s] (───────) compiler::lowered_route_generics the_default_product_publishes_width_parameter_identity
+        SLOW [> 60.000s] (───────) compiler::lowered_route_governance a_named_predicate_is_formed_at_its_declaration
+        SLOW [> 60.000s] (───────) compiler::lowered_route_governance a_rejection_is_reported_as_the_route_reports_it
+        PASS [  76.064s] ( 73/234) compiler::lowered_route_governance a_rejection_is_reported_as_the_route_reports_it
+        SLOW [>120.000s] (───────) compiler::lowered_route_generics the_default_product_publishes_generic_named_map_captures
+        SLOW [>120.000s] (───────) compiler::lowered_route_generics the_default_product_publishes_width_parameter_identity
+        PASS [  22.503s] ( 74/234) compiler::lowered_route_ownership constructor_assignments_keep_the_referent_type_and_reference_access
+        PASS [   0.030s] ( 75/234) compiler::lowered_route_ownership transferred_on_one_path::a_field_moved_on_one_path_is_discarded_on_the_other_and_its_sibling_stays_owned
+        PASS [   0.038s] ( 76/234) compiler::lowered_route_ownership transferred_on_one_path::a_field_vacated_at_a_join_can_be_restored_after_either_arrival
+        PASS [   0.026s] ( 77/234) compiler::lowered_route_ownership transferred_on_one_path::a_value_moved_whole_on_one_path_is_disposed_of_on_the_other
+        PASS [   0.042s] ( 78/234) compiler::lowered_route_ownership whole_owned_transfers_consume_their_homes_once
+        SLOW [>120.000s] (───────) compiler::lowered_route_governance a_named_predicate_is_formed_at_its_declaration
+        PASS [ 150.303s] ( 79/234) compiler::lowered_route_generics the_default_product_publishes_generic_named_map_captures
+        PASS [ 148.538s] ( 80/234) compiler::lowered_route_generics the_default_product_publishes_width_parameter_identity
+        SLOW [> 60.000s] (───────) compiler::lowered_route_publication an_indexed_discriminator_keeps_its_pre_dispatch_evidence
+        SLOW [>180.000s] (───────) compiler::lowered_route_governance a_named_predicate_is_formed_at_its_declaration
+        SLOW [> 60.000s] (───────) compiler::lowered_route_publication the_default_compile_builds_the_application_from_the_routes_module
+        SLOW [> 60.000s] (───────) compiler::lowered_route_publication the_published_module_states_each_machines_declaration_identity
+        FAIL [  85.054s] ( 81/234) compiler::lowered_route_publication an_indexed_discriminator_keeps_its_pre_dispatch_evidence
+  stdout ───
+
+    running 1 test
+    test an_indexed_discriminator_keeps_its_pre_dispatch_evidence has been running for over 60 seconds
+    test an_indexed_discriminator_keeps_its_pre_dispatch_evidence ... FAILED
+
+    failures:
+
+    failures:
+        an_indexed_discriminator_keeps_its_pre_dispatch_evidence
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 84.97s
+
+  stderr ───
+
+    thread 'an_indexed_discriminator_keeps_its_pre_dispatch_evidence' (17688) panicked at omega-rust/omega/compilation/compiler/tests/lowered_route_publication.rs:59:6:
+    the source's indexed dispatch has complete receiving evidence: StructuralReturnSourceContractMismatch(OperationSite { machine: MachineId(5), block: BlockId(2), node: 0 })
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: <lowered_route_publication::an_indexed_discriminator_keeps_its_pre_dispatch_evidence::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  82.879s] ( 82/234) compiler::lowered_route_publication the_published_module_states_each_machines_declaration_identity
+  stdout ───
+
+    running 1 test
+    test the_published_module_states_each_machines_declaration_identity has been running for over 60 seconds
+    test the_published_module_states_each_machines_declaration_identity ... FAILED
+
+    failures:
+
+    failures:
+        the_published_module_states_each_machines_declaration_identity
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 82.86s
+
+  stderr ───
+
+    thread 'the_published_module_states_each_machines_declaration_identity' (17751) panicked at omega-rust/omega/compilation/compiler/tests/lowered_route_publication.rs:485:5:
+    assertion `left == right` failed: the fixture declares six machines
+      left: 78
+     right: 6
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<usize, usize>
+       4: <lowered_route_publication::the_published_module_states_each_machines_declaration_identity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [  16.625s] ( 83/234) compiler::lowered_route_subjects a_declaration_the_build_selects_is_judged_or_handed_back
+        PASS [ 223.893s] ( 84/234) compiler::lowered_route_governance a_named_predicate_is_formed_at_its_declaration
+        PASS [  20.252s] ( 85/234) compiler::lowered_route_subjects a_parent_naming_a_policy_implementation_is_judged
+        PASS [  18.067s] ( 86/234) compiler::lowered_route_subjects arithmetic_contract_defects_keep_their_proof_refusals
+        SLOW [>120.000s] (───────) compiler::lowered_route_publication the_default_compile_builds_the_application_from_the_routes_module
+        PASS [  49.652s] ( 87/234) compiler::lowered_route_subjects a_generic_body_that_applies_another_generic_machine_is_judged
+        FAIL [ 136.376s] ( 88/234) compiler::lowered_route_publication the_default_compile_builds_the_application_from_the_routes_module
+  stdout ───
+
+    running 1 test
+    test the_default_compile_builds_the_application_from_the_routes_module has been running for over 60 seconds
+    test the_default_compile_builds_the_application_from_the_routes_module ... FAILED
+
+    failures:
+
+    failures:
+        the_default_compile_builds_the_application_from_the_routes_module
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 136.33s
+
+  stderr ───
+
+    thread 'the_default_compile_builds_the_application_from_the_routes_module' (17728) panicked at omega-rust/omega/compilation/compiler/tests/lowered_route_publication.rs:331:5:
+    assertion `left != right` failed
+      left: TerminalPsiIdentity { vocabulary_marker: VocabularyMarker, program_fingerprint: d709792825382046e4fb09d0a3a5f993fee0eb617e5a16dd5c2893febdb21c84 }
+     right: TerminalPsiIdentity { vocabulary_marker: VocabularyMarker, program_fingerprint: d709792825382046e4fb09d0a3a5f993fee0eb617e5a16dd5c2893febdb21c84 }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<terminal_psi::identity::semantic::TerminalPsiIdentity, terminal_psi::identity::semantic::TerminalPsiIdentity>
+       4: <lowered_route_publication::the_default_compile_builds_the_application_from_the_routes_module::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [  39.417s] ( 89/234) compiler::lowered_route_subjects borrowed_generic_schemas_close_only_at_their_selected_callables
+        SLOW [> 60.000s] (───────) compiler::lowered_route_subjects each_kind_of_unused_subject_declaration_is_judged_or_handed_back
+        SLOW [> 60.000s] (───────) compiler::package_review build_constant_captured_source_cost_survives_real_readiness_and_cleanup
+        SLOW [> 60.000s] (───────) compiler::package_review completed_scalar_call_preserves_wrapping_index_guard
+        SLOW [> 60.000s] (───────) compiler::package_review historical_constant_closure_requires_exact_target_and_provider
+        PASS [  80.665s] ( 90/234) compiler::package_review build_constant_captured_source_cost_survives_real_readiness_and_cleanup
+        SLOW [>120.000s] (───────) compiler::lowered_route_subjects each_kind_of_unused_subject_declaration_is_judged_or_handed_back
+        SLOW [>120.000s] (───────) compiler::package_review completed_scalar_call_preserves_wrapping_index_guard
+        SLOW [>120.000s] (───────) compiler::package_review historical_constant_closure_requires_exact_target_and_provider
+        SLOW [> 60.000s] (───────) compiler::package_review imported_provider_review_keeps_reach_and_invocation_separate
+        SLOW [>180.000s] (───────) compiler::lowered_route_subjects each_kind_of_unused_subject_declaration_is_judged_or_handed_back
+        FAIL [ 149.918s] ( 91/234) compiler::package_review historical_constant_closure_requires_exact_target_and_provider
+  stdout ───
+
+    running 1 test
+    test historical_constant_closure_requires_exact_target_and_provider has been running for over 60 seconds
+    test historical_constant_closure_requires_exact_target_and_provider ... FAILED
+
+    failures:
+
+    failures:
+        historical_constant_closure_requires_exact_target_and_provider
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 149.90s
+
+  stderr ───
+
+    thread 'historical_constant_closure_requires_exact_target_and_provider' (18314) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:891:37:
+    source reaches its requested product: cannot compile admitted project: checked compilation failed for package `target_layout_derived_constant` with 1 diagnostic(s)
+      error: semantic entry Calling policy: folded constant realization `named-callable(path(nominal\\(package-owner\\(32:42ae9290a37e246a0d76d57daa63028d49e9855a3c795959539f1d85c634c0db\\)\\,path\\(Answer::get\\)\\)),parameters(),result-dispatch())` differs from the selected provider plan
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: package_review::historical_constant_closure_requires_exact_target_and_provider::produce::{closure#1}
+       3: package_review::historical_constant_closure_requires_exact_target_and_provider::produce
+       4: <package_review::historical_constant_closure_requires_exact_target_and_provider::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [ 166.003s] ( 92/234) compiler::package_review completed_scalar_call_preserves_wrapping_index_guard
+  stdout ───
+
+    running 1 test
+    test completed_scalar_call_preserves_wrapping_index_guard has been running for over 60 seconds
+    test completed_scalar_call_preserves_wrapping_index_guard ... FAILED
+
+    failures:
+
+    failures:
+        completed_scalar_call_preserves_wrapping_index_guard
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 165.97s
+
+  stderr ───
+    SOURCE_CHECK fail/facts/compound_index_guard_through_call_result_rejected: intended bound refusal [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 814, end: 815 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/fail/facts/compound_index_guard_through_call_result_rejected/main.omg", line: 27, column: 18 }) }]
+    SOURCE_CHECK fail/facts/compound_index_guard_wrong_call_actual: intended bound refusal [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 844, end: 845 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/fail/facts/compound_index_guard_wrong_call_actual/main.omg", line: 27, column: 18 }) }]
+
+    thread 'completed_scalar_call_preserves_wrapping_index_guard' (18201) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:1632:5:
+    pass/facts/compound_index_guard_through_call_result_exit: [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 844, end: 845 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg", line: 27, column: 18 }) }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::panic_display::<alloc::string::String>
+       3: package_review::check_wrapping_index_guards
+       4: <package_review::completed_scalar_call_preserves_wrapping_index_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [ 189.162s] ( 93/234) compiler::lowered_route_subjects each_kind_of_unused_subject_declaration_is_judged_or_handed_back
+        PASS [  99.414s] ( 94/234) compiler::package_review imported_provider_review_keeps_reach_and_invocation_separate
+        SLOW [> 60.000s] (───────) compiler::package_review match_join_preserves_wrapping_index_guard
+        SLOW [> 60.000s] (───────) compiler::package_review narrow_installation_bound_uses_the_selected_child_row
+        SLOW [> 60.000s] (───────) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        SLOW [> 60.000s] (───────) compiler::package_review numeric_review_retains_calls_inside_a_selected_provider
+        PASS [  77.071s] ( 95/234) compiler::package_review numeric_review_retains_calls_inside_a_selected_provider
+        FAIL [  92.920s] ( 96/234) compiler::package_review match_join_preserves_wrapping_index_guard
+  stdout ───
+
+    running 1 test
+    test match_join_preserves_wrapping_index_guard has been running for over 60 seconds
+    test match_join_preserves_wrapping_index_guard ... FAILED
+
+    failures:
+
+    failures:
+        match_join_preserves_wrapping_index_guard
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 92.89s
+
+  stderr ───
+    SOURCE_CHECK fail/facts/compound_index_guard_through_match_join_rejected: intended bound refusal [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 1048, end: 1049 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/fail/facts/compound_index_guard_through_match_join_rejected/main.omg", line: 35, column: 18 }) }, Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 1398, end: 1399 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/fail/facts/compound_index_guard_through_match_join_rejected/main.omg", line: 42, column: 18 }) }]
+
+    thread 'match_join_preserves_wrapping_index_guard' (18859) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:1632:5:
+    pass/facts/compound_index_guard_through_match_join_exit: [Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 1078, end: 1079 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/facts/compound_index_guard_through_match_join_exit/main.omg", line: 35, column: 18 }) }, Diagnostic { severity: Error, message: "cannot prove operation safety in machine `put` state `entry`: cannot prove index is within length 200. (no proof found from the facts available here: the bounds do not decide the comparison)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 1428, end: 1429 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/facts/compound_index_guard_through_match_join_exit/main.omg", line: 42, column: 18 }) }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::panic_display::<alloc::string::String>
+       3: package_review::check_wrapping_index_guards
+       4: <package_review::match_join_preserves_wrapping_index_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  29.247s] ( 97/234) compiler::package_review reusable_package_checks_invalid_unused_declarations
+  stdout ───
+
+    running 1 test
+    test reusable_package_checks_invalid_unused_declarations ... FAILED
+
+    failures:
+
+    failures:
+        reusable_package_checks_invalid_unused_declarations
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 29.22s
+
+  stderr ───
+
+    thread 'reusable_package_checks_invalid_unused_declarations' (19072) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:76:5:
+    fail/proofs/ordinary_denotational_call_requires_normal_return: expected "has no observation-free, reach-free, crash-free value denotation", got [Diagnostic { severity: Error, message: "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set: declared result domains `arithmetic:Saturating`; expected `` while reading the signature of `harmless`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 241, end: 248 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("ordinary_denotational_call_requires_normal_return"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/fail/proofs/ordinary_denotational_call_requires_normal_return/main.omg", line: 8, column: 10 }) }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::panic_display::<alloc::string::String>
+       3: package_review::check_reusable_package_cases
+       4: <package_review::reusable_package_checks_invalid_unused_declarations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>120.000s] (───────) compiler::package_review narrow_installation_bound_uses_the_selected_child_row
+        SLOW [>120.000s] (───────) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        SLOW [> 60.000s] (───────) compiler::package_review opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement
+        SLOW [> 60.000s] (───────) compiler::package_review review_keeps_the_target_selected_fixed_layout_delivery_contract
+        SLOW [>180.000s] (───────) compiler::package_review narrow_installation_bound_uses_the_selected_child_row
+        SLOW [>180.000s] (───────) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        PASS [ 100.912s] ( 98/234) compiler::package_review opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement
+        PASS [ 232.353s] ( 99/234) compiler::package_review narrow_installation_bound_uses_the_selected_child_row
+        SLOW [>120.000s] (───────) compiler::package_review review_keeps_the_target_selected_fixed_layout_delivery_contract
+        SLOW [>240.000s] (───────) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        SLOW [> 60.000s] (───────) compiler::package_review review_policy_round_trip_preserves_authored_reach_slack
+        PASS [  81.288s] (100/234) compiler::package_review review_policy_round_trip_preserves_authored_reach_slack
+        FAIL [   1.702s] (101/234) compiler::package_review review_records_dynamic_slot_origin_and_qualification
+  stdout ───
+
+    running 1 test
+    test review_records_dynamic_slot_origin_and_qualification ... FAILED
+
+    failures:
+
+    failures:
+        review_records_dynamic_slot_origin_and_qualification
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 1.67s
+
+  stderr ───
+
+    thread 'review_records_dynamic_slot_origin_and_qualification' (19472) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:1049:14:
+    slot metadata fixture inputs: [Diagnostic { severity: Error, message: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/traits/runtime_dyn_slot_metadata_exit/main.omg:17:19: `dyn` types are retired; use machine values and `some` packages", exceeded_provision: None, source_span: None, resolved_location: None }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: <package_review::review_records_dynamic_slot_origin_and_qualification::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::package_review review_policy_round_trip_preserves_inferred_imported_reach
+        SLOW [>180.000s] (───────) compiler::package_review review_keeps_the_target_selected_fixed_layout_delivery_contract
+        SLOW [>300.000s] (───────) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        PASS [ 187.583s] (102/234) compiler::package_review review_keeps_the_target_selected_fixed_layout_delivery_contract
+        PASS [ 320.266s] (103/234) compiler::package_review native_process_exit_review_preserves_its_source_type_without_a_calling_result
+        PASS [  98.340s] (104/234) compiler::package_review review_policy_round_trip_preserves_inferred_imported_reach
+        SLOW [> 60.000s] (───────) compiler::package_review review_refuses_a_boundary_without_a_checked_provider_policy
+        PASS [  17.493s] (105/234) compiler::package_review rootless_package_reviews_its_explicit_provider_without_an_entry
+        PASS [  78.552s] (106/234) compiler::package_review review_refuses_a_boundary_without_a_checked_provider_policy
+        FAIL [   8.607s] (107/234) compiler::route_probe a_call_that_never_returns_inside_an_expression_ends_only_its_own_path
+  stdout ───
+
+    running 1 test
+    test a_call_that_never_returns_inside_an_expression_ends_only_its_own_path ... FAILED
+
+    failures:
+
+    failures:
+        a_call_that_never_returns_inside_an_expression_ends_only_its_own_path
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 8.53s
+
+  stderr ───
+
+    thread 'a_call_that_never_returns_inside_an_expression_ends_only_its_own_path' (19688) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1367:5:
+    assertion `left == right` failed
+      left: "this expression cannot complete normally"
+     right: "this call never returns"
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::string::String, &str>
+       4: <route_probe::a_call_that_never_returns_inside_an_expression_ends_only_its_own_path::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  24.999s] (108/234) compiler::package_review trait_requirement_contract_binders_recover_in_the_declared_static_telescope
+  stdout ───
+
+    running 1 test
+    test trait_requirement_contract_binders_recover_in_the_declared_static_telescope ... FAILED
+
+    failures:
+
+    failures:
+        trait_requirement_contract_binders_recover_in_the_declared_static_telescope
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 35 filtered out; finished in 24.89s
+
+  stderr ───
+
+    thread 'trait_requirement_contract_binders_recover_in_the_declared_static_telescope' (19642) panicked at omega-rust/omega/compilation/compiler/tests/package_review.rs:1144:10:
+    fixture review: Compilation(Diagnostics([Diagnostic { severity: Error, message: "not supported yet: declaration holding a call whose static arguments no pass specializes yet while reading the signature of `main`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 2020, end: 2028 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("static_callback_reach_probe"), path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg", line: 62, column: 37 }) }]))
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: package_review::reviewed_and_recovered
+       4: <package_review::trait_requirement_contract_binders_recover_in_the_declared_static_telescope::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::package_review review_retains_installation_reach_across_staggered_dependency_resolution
+        PASS [  11.185s] (109/234) compiler::route_probe a_finite_family_alternative_that_breaks_its_contract_is_rejected
+        FAIL [  12.717s] (110/234) compiler::route_probe a_generic_machine_valid_only_for_its_selections_is_rejected_as_written
+  stdout ───
+
+    running 1 test
+    test a_generic_machine_valid_only_for_its_selections_is_rejected_as_written ... FAILED
+
+    failures:
+
+    failures:
+        a_generic_machine_valid_only_for_its_selections_is_rejected_as_written
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 12.66s
+
+  stderr ───
+
+    thread 'a_generic_machine_valid_only_for_its_selections_is_rejected_as_written' (19734) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1049:5:
+    assertion `left == right` failed
+      left: ["rejected", "rejected", "accepted", "accepted", "accepted", "accepted"]
+     right: ["rejected", "rejected", "accepted", "accepted"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, [&str; 4]>
+       4: <route_probe::a_generic_machine_valid_only_for_its_selections_is_rejected_as_written::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  12.073s] (111/234) compiler::route_probe a_generic_operator_reaches_domain_lowering_with_its_complete_application
+  stdout ───
+
+    running 1 test
+    test a_generic_operator_reaches_domain_lowering_with_its_complete_application ... FAILED
+
+    failures:
+
+    failures:
+        a_generic_operator_reaches_domain_lowering_with_its_complete_application
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 12.03s
+
+  stderr ───
+
+    thread 'a_generic_operator_reaches_domain_lowering_with_its_complete_application' (19760) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:517:9:
+    [Ok(Accepted(AcceptedClosure { elaboration: Elaboration { installation_bound_refinement: None, module: TerminalModule { scalar_applications: ScalarApplications { declarations: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, conditions: ScalarConditions { ranges: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, steps: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, predicates: Arena { dummy: ScalarPredicateCondition { subject: Module, role: Prerequisite, description: "", nodes: Arena { dummy: ScalarPredicateNode(Missing), items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, root: Handle { arena_index: 0, generation: 0 } }, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, completions: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true } }, proof_scope: ProofApplicationScope { declarations: Arena { dummy: Missing, items: [Callable(CheckedMachineDeclaration { machine: NominalDeclarationIdentity(TerminalIdentityIndex(4)), state: NominalDeclarationIdentity(TerminalIdentityIndex(5)), semantic_declaration: TerminalIdentityIndex(3), parameter_types: [], callable: TerminalIdentityIndex(6), result_type: TerminalIdentityIndex(7), contract: [1, 163, 192, 21, 5, 209, 202, 138, 185, 33, 143, 108, 196, 137, 122, 58, 232, 22, 99, 162, 205, 43, 226, 230, 150, 190, 108, 116, 35, 92, 119, 156], published_may_suspend: false, published_may_block: false, specialization: None }), Callable(CheckedMachineDeclaration { machine: NominalDeclarationIdentity(TerminalIdentityIndex(9)), state: NominalDeclarationIdentity(TerminalId ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <route_probe::a_generic_operator_reaches_domain_lowering_with_its_complete_application::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   9.064s] (112/234) compiler::route_probe a_process_exit_outside_the_written_reach_is_rejected
+  stdout ───
+
+    running 1 test
+    test a_process_exit_outside_the_written_reach_is_rejected ... FAILED
+
+    failures:
+
+    failures:
+        a_process_exit_outside_the_written_reach_is_rejected
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 9.03s
+
+  stderr ───
+
+    thread 'a_process_exit_outside_the_written_reach_is_rejected' (19787) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1208:5:
+    assertion `left == right` failed
+      left: ["not-supported"]
+     right: ["rejected"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, [&str; 1]>
+       4: <route_probe::a_process_exit_outside_the_written_reach_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) compiler::package_review selected_affine_provider_reopens_with_its_published_authority
+        PASS [   6.576s] (113/234) compiler::route_probe a_program_applying_a_finite_family_is_judged
+        FAIL [   6.519s] (114/234) compiler::route_probe a_program_applying_a_generic_machine_at_implementations_is_judged
+  stdout ───
+
+    running 1 test
+    test a_program_applying_a_generic_machine_at_implementations_is_judged ... FAILED
+
+    failures:
+
+    failures:
+        a_program_applying_a_generic_machine_at_implementations_is_judged
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 6.49s
+
+  stderr ───
+
+    thread 'a_program_applying_a_generic_machine_at_implementations_is_judged' (19884) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1017:9:
+    four parts, the entry closure accepted: [Ok(Accepted(AcceptedClosure { elaboration: Elaboration { installation_bound_refinement: None, module: TerminalModule { scalar_applications: ScalarApplications { declarations: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, conditions: ScalarConditions { ranges: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, steps: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, predicates: Arena { dummy: ScalarPredicateCondition { subject: Module, role: Prerequisite, description: "", nodes: Arena { dummy: ScalarPredicateNode(Missing), items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, root: Handle { arena_index: 0, generation: 0 } }, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true }, completions: Arena { dummy: Missing, items: [], generations: [], occupied: [], free_indices: [], active_count: 0, fresh_generation: 1, fresh: true } }, proof_scope: ProofApplicationScope { declarations: Arena { dummy: Missing, items: [Callable(CheckedMachineDeclaration { machine: NominalDeclarationIdentity(TerminalIdentityIndex(2)), state: NominalDeclarationIdentity(TerminalIdentityIndex(3)), semantic_declaration: TerminalIdentityIndex(1), parameter_types: [], callable: TerminalIdentityIndex(4), result_type: TerminalIdentityIndex(5), contract: [169, 247, 152, 66, 72, 232, 6, 90, 199, 79, 168, 142, 60, 122, 225, 120, 218, 126, 130, 8, 41, 81, 20, 156, 136, 247, 146, 195, 122, 222, 218, 115], published_may_suspend: false, published_may_block: false, specialization: None }), Callable(CheckedMachineDeclaration { machine: NominalDeclarationIdentity(TerminalIdentityIndex(7)), stat ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <route_probe::a_program_applying_a_generic_machine_at_implementations_is_judged::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   5.886s] (115/234) compiler::route_probe a_program_that_ends_through_process_exit_is_judged
+  stdout ───
+
+    running 1 test
+    test a_program_that_ends_through_process_exit_is_judged ... FAILED
+
+    failures:
+
+    failures:
+        a_program_that_ends_through_process_exit_is_judged
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 5.86s
+
+  stderr ───
+
+    thread 'a_program_that_ends_through_process_exit_is_judged' (19920) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1162:9:
+    the entry closure accepted: [Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(2), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(240), span: Span { start: 450, end: 465 } }), detail: "typing arm value type while reading the body of `require_success`" }))]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <route_probe::a_program_that_ends_through_process_exit_is_judged::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   6.018s] (116/234) compiler::route_probe a_returning_arm_beside_a_process_exit_still_owes_its_guarantee
+  stdout ───
+
+    running 1 test
+    test a_returning_arm_beside_a_process_exit_still_owes_its_guarantee ... FAILED
+
+    failures:
+
+    failures:
+        a_returning_arm_beside_a_process_exit_still_owes_its_guarantee
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 5.98s
+
+  stderr ───
+
+    thread 'a_returning_arm_beside_a_process_exit_still_owes_its_guarantee' (19990) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1220:5:
+    assertion `left == right` failed
+      left: ["not-supported"]
+     right: ["rejected"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, [&str; 1]>
+       4: <route_probe::a_returning_arm_beside_a_process_exit_still_owes_its_guarantee::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [  71.054s] (117/234) compiler::package_review selected_affine_provider_reopens_with_its_published_authority
+        FAIL [   6.260s] (118/234) compiler::route_probe a_statement_after_a_call_that_may_return_is_checked
+  stdout ───
+
+    running 1 test
+    test a_statement_after_a_call_that_may_return_is_checked ... FAILED
+
+    failures:
+
+    failures:
+        a_statement_after_a_call_that_may_return_is_checked
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 6.24s
+
+  stderr ───
+
+    thread 'a_statement_after_a_call_that_may_return_is_checked' (20016) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1332:5:
+    assertion `left == right` failed
+      left: ["not-supported"]
+     right: ["rejected"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, [&str; 1]>
+       4: <route_probe::a_statement_after_a_call_that_may_return_is_checked::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   9.061s] (119/234) compiler::route_probe a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning
+  stdout ───
+
+    running 1 test
+    test a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning ... FAILED
+
+    failures:
+
+    failures:
+        a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 9.02s
+
+  stderr ───
+
+    thread 'a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning' (20071) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1313:5:
+    assertion `left == right` failed
+      left: "this expression cannot complete normally"
+     right: "this call never returns"
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::string::String, &str>
+       4: <route_probe::a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   6.482s] (120/234) compiler::route_probe an_implementation_that_promises_less_than_its_requirement_is_rejected
+  stdout ───
+
+    running 1 test
+    test an_implementation_that_promises_less_than_its_requirement_is_rejected ... FAILED
+
+    failures:
+
+    failures:
+        an_implementation_that_promises_less_than_its_requirement_is_rejected
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 6.45s
+
+  stderr ───
+
+    thread 'an_implementation_that_promises_less_than_its_requirement_is_rejected' (20211) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1075:5:
+    assertion `left == right` failed
+      left: ["accepted", "accepted", "accepted", "rejected", "accepted", "rejected"]
+     right: ["accepted", "accepted", "accepted", "rejected"]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, [&str; 4]>
+       4: <route_probe::an_implementation_that_promises_less_than_its_requirement_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   8.584s] (121/234) compiler::route_probe an_unknown_machine_after_a_call_that_never_returns_is_rejected
+  stdout ───
+
+    running 1 test
+    test an_unknown_machine_after_a_call_that_never_returns_is_rejected ... FAILED
+
+    failures:
+
+    failures:
+        an_unknown_machine_after_a_call_that_never_returns_is_rejected
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 8.55s
+
+  stderr ───
+
+    thread 'an_unknown_machine_after_a_call_that_never_returns_is_rejected' (20291) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:1400:9:
+    the unknown name rejects the program: [Ok(Rejected { formations: [], violations: [RuleViolation { machine: MachineId(2), site: Some(SourceSpan { source_id: SourceId(240), span: Span { start: 438, end: 456 } }), statement: "this call has no visible declaration in its source scope: an unknown machine name is an error wherever it appears, in a statement that never executes as in any other while reading the signature of `main`" }], unproved: [], unestablished: [], conflicts: [], exceeded: [] }), Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(2), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(240), span: Span { start: 481, end: 492 } }), detail: "machine a call of a machine whose signature is refused above (`main`) while reading the body of `entry_start`" }))]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <route_probe::an_unknown_machine_after_a_call_that_never_returns_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>120.000s] (───────) compiler::package_review review_retains_installation_reach_across_staggered_dependency_resolution
+        PASS [  26.426s] (122/234) compiler::route_probe a_symbolic_width_is_judged_at_each_applied_width
+        PASS [  26.950s] (123/234) compiler::route_probe a_width_generic_body_is_judged_at_every_width
+        PASS [   0.068s] (124/234) compiler::target_supply a_native_binding_supplies_only_its_reached_requirement
+        PASS [  14.220s] (125/234) compiler::route_probe generic_array_extents_keep_their_lexical_value_binding
+        PASS [   0.006s] (126/234) language-semantics tests::array_extent_identity::generic_arguments_visit_type_and_const_owners_without_widening_type_roots
+        PASS [   0.005s] (127/234) language-semantics tests::type_identity::dynamic_trait_identity_reads_generic_arguments
+        FAIL [  24.805s] (128/234) compiler::route_probe closed_domain_applications_keep_carriers_and_indices_through_checking
+  stdout ───
+
+    running 1 test
+    test closed_domain_applications_keep_carriers_and_indices_through_checking ... FAILED
+
+    failures:
+
+    failures:
+        closed_domain_applications_keep_carriers_and_indices_through_checking
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 52 filtered out; finished in 24.75s
+
+  stderr ───
+
+    thread 'closed_domain_applications_keep_carriers_and_indices_through_checking' (20493) panicked at omega-rust/omega/compilation/compiler/tests/route_probe.rs:386:5:
+    [Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(2), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(240), span: Span { start: 47, end: 51 } }), detail: "declaration using a type written as an expression, which no pass evaluates yet while reading the signature of `keep`" })), Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(240), span: Span { start: 27, end: 34 } }), detail: "declaration using a type written as an expression, which no pass evaluates yet" }))]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <route_probe::closed_domain_applications_keep_carriers_and_indices_through_checking::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   6.820s] (129/234) omega::build_applied_provider_choices a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice
+  stdout ───
+
+    running 1 test
+    test a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice ... FAILED
+
+    failures:
+
+    failures:
+        a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 6.81s
+
+  stderr ───
+
+    thread 'a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice' (20747) panicked at omega-rust/omega/application/tests/build_applied_provider_choices.rs:92:5:
+    cannot compile admitted project: checked compilation failed for package `reading` with 1 diagnostic(s)
+      error: provider `FirstReading` does not satisfy the selected application of `Reading`: it satisfies `trait-application(declaration(nominal\\(package-owner\\(32:b7f03a2fe94f05fe798f57e3d37aa35e31ced794556c87e446fa4d23e7328510\\)\\,path\\(main::Reading\\)\\)),arguments(const-name(nominal\\(unresolved-owner\\,path\\(Tag\\)\\))),lifetimes())` and the choice selects `trait-application(declaration(nominal\\(package-owner\\(32:b7f03a2fe94f05fe798f57e3d37aa35e31ced794556c87e446fa4d23e7328510\\)\\,path\\(main::Reading\\)\\)),arguments(integer(17)),lifetimes())`
+        at /tmp/omega-build-applied-provider-20746-chosen/reading/build.omg:6:12
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <build_applied_provider_choices::a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   7.118s] (130/234) omega::build_applied_provider_choices a_provider_applied_to_another_tag_than_its_slot_is_rejected
+        PASS [   6.663s] (131/234) omega::build_applied_provider_choices a_tag_stated_in_another_integer_type_is_rejected
+        FAIL [   0.605s] (132/234) omega::build_deferred_imports a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown
+  stdout ───
+
+    running 1 test
+    test a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown ... FAILED
+
+    failures:
+
+    failures:
+        a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.60s
+
+  stderr ───
+
+    thread 'a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown' (20799) panicked at omega-rust/omega/application/tests/build_deferred_imports.rs:112:5:
+    error: project source discovery failed: 
+      error: this call has no visible declaration in its source scope: an unknown machine name is an error wherever it appears, in a statement that never executes as in any other while reading the signature of `build`
+        at /tmp/omega-build-deferred-imports-20798-used-unprepared/build.omg:12:27
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <build_deferred_imports::a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   6.823s] (133/234) omega::build_applied_provider_choices an_application_with_the_wrong_number_of_arguments_is_rejected
+        PASS [  13.622s] (134/234) omega::build_native_bindings a_dependency_binding_the_program_reaches_is_judged
+        FAIL [  52.792s] (135/234) compiler::terminal_decode_once realization_and_execution_borrow_the_retained_terminal_module
+  stdout ───
+
+    running 1 test
+    test realization_and_execution_borrow_the_retained_terminal_module ... FAILED
+
+    failures:
+
+    failures:
+        realization_and_execution_borrow_the_retained_terminal_module
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 52.75s
+
+  stderr ───
+
+    thread 'realization_and_execution_borrow_the_retained_terminal_module' (20595) panicked at omega-rust/omega/compilation/compiler/tests/terminal_decode_once.rs:38:39:
+    tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg package inputs: [
+        Diagnostic {
+            severity: Error,
+            message: "provider selection `CheckedMathProvider` is not a static operation record from a named implementation; a data type is not a provider value",
+            exceeded_provision: None,
+            source_span: Some(
+                SourceSpan {
+                    source_id: SourceId(
+                        3,
+                    ),
+                    span: Span {
+                        start: 370,
+                        end: 385,
+                    },
+                },
+            ),
+            resolved_location: Some(
+                ResolvedSourceLocation {
+                    package: None,
+                    path: "/home/user/Omega/.agents/worktree/worker-2/tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/build.omg",
+                    line: 6,
+                    column: 12,
+                },
+            ),
+        },
+    ]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_decode_once::realization_and_execution_borrow_the_retained_terminal_module::{closure#0}
+       3: <terminal_decode_once::realization_and_execution_borrow_the_retained_terminal_module::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>180.000s] (───────) compiler::package_review review_retains_installation_reach_across_staggered_dependency_resolution
+        PASS [ 180.668s] (136/234) compiler::package_review review_retains_installation_reach_across_staggered_dependency_resolution
+        FAIL [   0.735s] (137/234) omega::build_staged_dependency_calls a_call_written_before_the_wait_names_nothing
+  stdout ───
+
+    running 1 test
+    test a_call_written_before_the_wait_names_nothing ... FAILED
+
+    failures:
+
+    failures:
+        a_call_written_before_the_wait_names_nothing
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.73s
+
+  stderr ───
+
+    thread 'a_call_written_before_the_wait_names_nothing' (20852) panicked at omega-rust/omega/application/tests/build_staged_dependency_calls.rs:177:5:
+    error: project source discovery failed: 
+      error: this call has no visible declaration in its source scope: an unknown machine name is an error wherever it appears, in a statement that never executes as in any other while reading the signature of `build`
+        at /tmp/omega-build-staged-dependency-calls-20851-used-before/build.omg:11:27
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <build_staged_dependency_calls::a_call_written_before_the_wait_names_nothing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   5.364s] (138/234) omega::build_staged_dependency_calls a_product_dependency_is_not_selectable_from_the_build
+  stdout ───
+
+    running 1 test
+    test a_product_dependency_is_not_selectable_from_the_build ... FAILED
+
+    failures:
+
+    failures:
+        a_product_dependency_is_not_selectable_from_the_build
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 5.36s
+
+  stderr ───
+
+    thread 'a_product_dependency_is_not_selectable_from_the_build' (20859) panicked at omega-rust/omega/application/tests/build_staged_dependency_calls.rs:194:5:
+    error: project source discovery failed: 
+      error: this call has no visible declaration in its source scope: an unknown machine name is an error wherever it appears, in a statement that never executes as in any other while reading the signature of `build`
+        at /tmp/omega-build-staged-dependency-calls-20858-product-dependency/build.omg:15:27
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <build_staged_dependency_calls::a_product_dependency_is_not_selectable_from_the_build::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [  11.861s] (139/234) omega::build_provider_readiness the_call_after_the_wait_goes_through_the_provider_the_build_named
+        PASS [  21.834s] (140/234) omega::build_static_arguments the_choice_a_configured_helper_makes_is_a_choice_of_the_build
+        PASS [  50.632s] (141/234) omega::build_provider_readiness a_build_waits_for_its_named_provider_and_calls_through_it
+        SLOW [> 60.000s] (───────) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        SLOW [> 60.000s] (───────) omega::build_static_arguments a_build_helper_is_given_a_boolean_and_a_calculated_number
+        SLOW [> 60.000s] (───────) omega::data_layout_queries a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused
+        SLOW [> 60.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>120.000s] (───────) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        SLOW [>120.000s] (───────) omega::build_static_arguments a_build_helper_is_given_a_boolean_and_a_calculated_number
+        PASS [ 121.618s] (142/234) omega::build_static_arguments a_build_helper_is_given_a_boolean_and_a_calculated_number
+        SLOW [>120.000s] (───────) omega::data_layout_queries a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused
+        SLOW [>120.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>180.000s] (───────) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        PASS [  36.619s] (143/234) omega::incoming_reference_match a_match_of_two_incoming_references_has_no_single_lender
+        SLOW [>180.000s] (───────) omega::data_layout_queries a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused
+        SLOW [>180.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>240.000s] (───────) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        SLOW [> 60.000s] (───────) omega::named_psi_inspection named_inspection_publishes_the_requested_reference_machine
+        PASS [  78.569s] (144/234) omega::named_psi_inspection named_inspection_publishes_the_requested_reference_machine
+        SLOW [>240.000s] (───────) omega::data_layout_queries a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused
+        SLOW [>240.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>300.000s] (───────) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        PASS [ 306.821s] (145/234) omega::build_native_bindings windows_console_emits_with_its_authored_imports
+        PASS [  42.975s] (146/234) omega::named_psi_inspection named_inspection_refuses_missing_or_ambiguous_names_before_writing
+        PASS [ 258.191s] (147/234) omega::data_layout_queries a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused
+        SLOW [>300.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        PASS [  52.915s] (148/234) omega::policy_operators a_wrapping_count_cannot_relax_an_exact_shift_requirement
+        SLOW [> 60.000s] (───────) omega::named_psi_inspection saved_console_provider_keeps_the_direct_mutable_byte_window
+        SLOW [> 60.000s] (───────) omega::policy_operators every_shift_policy_pair_and_total_bitwise_operation_runs_in_both_engines
+        PASS [  66.147s] (149/234) omega::policy_operators every_shift_policy_pair_and_total_bitwise_operation_runs_in_both_engines
+        SLOW [>360.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [> 60.000s] (───────) omega::psi_runtime_admission psi_admission_retains_the_native_borrowed_storage_layouts
+        SLOW [>120.000s] (───────) omega::named_psi_inspection saved_console_provider_keeps_the_direct_mutable_byte_window
+        SLOW [> 60.000s] (───────) omega::stage_validator_requests a_named_validator_runs_on_the_compiled_target_operations_and_passes
+        PASS [  62.537s] (150/234) omega::stage_validator_requests a_named_validator_runs_on_the_compiled_target_operations_and_passes
+        SLOW [>420.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>120.000s] (───────) omega::psi_runtime_admission psi_admission_retains_the_native_borrowed_storage_layouts
+        SLOW [>180.000s] (───────) omega::named_psi_inspection saved_console_provider_keeps_the_direct_mutable_byte_window
+        SLOW [> 60.000s] (───────) omega::stage_validator_requests default_compilation_runs_no_validator
+        PASS [ 139.194s] (151/234) omega::psi_runtime_admission psi_admission_retains_the_native_borrowed_storage_layouts
+        PASS [  64.461s] (152/234) omega::stage_validator_requests default_compilation_runs_no_validator
+        SLOW [>480.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>240.000s] (───────) omega::named_psi_inspection saved_console_provider_keeps_the_direct_mutable_byte_window
+        SLOW [> 60.000s] (───────) omega::stage_validator_requests every_validator_reports_what_ran_and_what_was_inapplicable
+        SLOW [> 60.000s] (───────) omega::stored_descriptor_boundary a_checked_boundary_returns_its_stored_descriptor
+        PASS [  77.287s] (153/234) omega::stored_descriptor_boundary a_checked_boundary_returns_its_stored_descriptor
+        PASS [ 289.969s] (154/234) omega::named_psi_inspection saved_console_provider_keeps_the_direct_mutable_byte_window
+        SLOW [>540.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>120.000s] (───────) omega::stage_validator_requests every_validator_reports_what_ran_and_what_was_inapplicable
+        PASS [ 129.930s] (155/234) omega::stage_validator_requests every_validator_reports_what_ran_and_what_was_inapplicable
+        FAIL [  58.141s] (156/234) omega::target_selected_implementations a_target_without_a_build_row_has_no_implementation
+  stdout ───
+
+    running 1 test
+    test a_target_without_a_build_row_has_no_implementation ... FAILED
+
+    failures:
+
+    failures:
+        a_target_without_a_build_row_has_no_implementation
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 58.13s
+
+  stderr ───
+
+    thread 'a_target_without_a_build_row_has_no_implementation' (21161) panicked at omega-rust/omega/application/tests/target_selected_implementations.rs:79:9:
+    Psi compile FAILED:
+      error: cannot compile admitted project: checked compilation failed for package `target_selected_implementation_missing_row` with 2 diagnostic(s)
+      error: boundary requirement `TargetConstants::record` has no provider on target `windows_x86_64`: the Build selects none and the target package declares no default
+        and 1 more with this cause; --verbose lists every one
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: <target_selected_implementations::a_target_without_a_build_row_has_no_implementation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  11.048s] (157/234) omega::validation_subjects a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
+  stdout ───
+
+    running 1 test
+    test a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations ... FAILED
+
+    failures:
+
+    failures:
+        a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 11.04s
+
+  stderr ───
+
+    thread 'a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations' (21188) panicked at omega-rust/omega/application/tests/validation_subjects.rs:171:5:
+    /home/user/Omega/.agents/worktree/worker-2/target/tmp/validation_subjects/dependency_build_unrelated must check: cannot compile admitted project: checked compilation failed for package `acceptance_app` with 1 diagnostic(s)
+      error: import `vendor::main` does not select one declaration, callable family, or module in its checked package
+        in package `acceptance_app`, /root/.cache/mbx/targets/v1/66b7cd7309eafba7a5aa2e4b17f075fed07ac74d4fdebf4ebf547049535e4130/tmp/validation_subjects/dependency_build_unrelated/main.omg:1:5
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: validation_subjects::assert_accepted
+       3: <validation_subjects::a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  14.661s] (158/234) omega::validation_subjects an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject
+  stdout ───
+
+    running 1 test
+    test an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject ... FAILED
+
+    failures:
+
+    failures:
+        an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 14.64s
+
+  stderr ───
+
+    thread 'an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject' (21195) panicked at omega-rust/omega/application/tests/validation_subjects.rs:146:5:
+    /home/user/Omega/.agents/worktree/worker-2/target/tmp/validation_subjects/dependency_unused_invalid must check: cannot compile admitted project: checked compilation failed for package `acceptance_app` with 1 diagnostic(s)
+      error: import `vendor::main` does not select one declaration, callable family, or module in its checked package
+        in package `acceptance_app`, /root/.cache/mbx/targets/v1/66b7cd7309eafba7a5aa2e4b17f075fed07ac74d4fdebf4ebf547049535e4130/tmp/validation_subjects/dependency_unused_invalid/main.omg:1:5
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: validation_subjects::assert_accepted
+       3: <validation_subjects::an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [> 60.000s] (───────) omega::target_selected_implementations each_target_runs_the_implementation_its_build_row_selects
+        SLOW [>600.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        FAIL [  14.513s] (159/234) omega::validation_subjects an_unused_invalid_declaration_of_the_subject_fails
+  stdout ───
+
+    running 1 test
+    test an_unused_invalid_declaration_of_the_subject_fails ... FAILED
+
+    failures:
+
+    failures:
+        an_unused_invalid_declaration_of_the_subject_fails
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 14.50s
+
+  stderr ───
+
+    thread 'an_unused_invalid_declaration_of_the_subject_fails' (21202) panicked at omega-rust/omega/application/tests/validation_subjects.rs:134:5:
+    /home/user/Omega/.agents/worktree/worker-2/target/tmp/validation_subjects/subject_unused_invalid must be refused for `unused`: cannot compile admitted project: checked compilation failed for package `acceptance_app` with 1 diagnostic(s)
+      error: import `vendor::main` does not select one declaration, callable family, or module in its checked package
+        in package `acceptance_app`, /root/.cache/mbx/targets/v1/66b7cd7309eafba7a5aa2e4b17f075fed07ac74d4fdebf4ebf547049535e4130/tmp/validation_subjects/subject_unused_invalid/main.omg:1:5
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: validation_subjects::assert_refused_in
+       3: <validation_subjects::an_unused_invalid_declaration_of_the_subject_fails::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  13.350s] (160/234) omega::validation_subjects an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails
+  stdout ───
+
+    running 1 test
+    test an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails ... FAILED
+
+    failures:
+
+    failures:
+        an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 13.34s
+
+  stderr ───
+
+    thread 'an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails' (21210) panicked at omega-rust/omega/application/tests/validation_subjects.rs:159:5:
+    /home/user/Omega/.agents/worktree/worker-2/target/tmp/validation_subjects/subject_helper_reaches_invalid must be refused for `bump`: cannot compile admitted project: checked compilation failed for package `acceptance_app` with 1 diagnostic(s)
+      error: import `vendor::main` does not select one declaration, callable family, or module in its checked package
+        in package `acceptance_app`, /root/.cache/mbx/targets/v1/66b7cd7309eafba7a5aa2e4b17f075fed07ac74d4fdebf4ebf547049535e4130/tmp/validation_subjects/subject_helper_reaches_invalid/main.omg:1:5
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: validation_subjects::assert_refused_in
+       3: <validation_subjects::an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  13.798s] (161/234) omega::validation_subjects the_valid_program_checks
+  stdout ───
+
+    running 1 test
+    test the_valid_program_checks ... FAILED
+
+    failures:
+
+    failures:
+        the_valid_program_checks
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 13.78s
+
+  stderr ───
+
+    thread 'the_valid_program_checks' (21217) panicked at omega-rust/omega/application/tests/validation_subjects.rs:125:5:
+    /home/user/Omega/.agents/worktree/worker-2/target/tmp/validation_subjects/valid must check: cannot compile admitted project: checked compilation failed for package `acceptance_app` with 1 diagnostic(s)
+      error: import `vendor::main` does not select one declaration, callable family, or module in its checked package
+        in package `acceptance_app`, /root/.cache/mbx/targets/v1/66b7cd7309eafba7a5aa2e4b17f075fed07ac74d4fdebf4ebf547049535e4130/tmp/validation_subjects/valid/main.omg:1:5
+
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: validation_subjects::assert_accepted
+       3: <validation_subjects::the_valid_program_checks::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>120.000s] (───────) omega::target_selected_implementations each_target_runs_the_implementation_its_build_row_selects
+        SLOW [>660.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [> 60.000s] (───────) orchestration::executed_commands dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+        SLOW [> 60.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>180.000s] (───────) omega::target_selected_implementations each_target_runs_the_implementation_its_build_row_selects
+        SLOW [>720.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>120.000s] (───────) orchestration::executed_commands dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+        SLOW [>120.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        FAIL [ 157.117s] (162/234) orchestration::executed_commands dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+  stdout ───
+
+    running 1 test
+    test dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished has been running for over 60 seconds
+    test dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished ... FAILED
+
+    failures:
+
+    failures:
+        dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 157.08s
+
+  stderr ───
+
+    thread 'dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished' (21233) panicked at omega-rust/omega/build-system/orchestration/tests/executed_commands.rs:549:9:
+    assertion `left == right` failed: a fresh inspection session executes its provider-default supplier once
+      left: 0
+     right: 1
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<u64, u64>
+       4: executed_commands::audit_with_options
+       5: executed_commands::audit
+       6: executed_commands::dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+       7: <executed_commands::dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>240.000s] (───────) omega::target_selected_implementations each_target_runs_the_implementation_its_build_row_selects
+        SLOW [>780.000s] (───────) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [>180.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        PASS [ 825.190s] (163/234) omega::data_layout_queries layout_queries_observe_the_selected_c_layout_in_native_and_psi
+        SLOW [> 60.000s] (───────) orchestration::executed_commands pure_build_reuse_preserves_review_discovery_and_changed_requests
+        FAIL [   7.955s] (164/234) orchestration::shared_compilation matching_body_hash_with_different_dependency_context_is_refused
+  stdout ───
+
+    running 1 test
+    test matching_body_hash_with_different_dependency_context_is_refused ... FAILED
+
+    failures:
+
+    failures:
+        matching_body_hash_with_different_dependency_context_is_refused
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 7.93s
+
+  stderr ───
+
+    thread 'matching_body_hash_with_different_dependency_context_is_refused' (21401) panicked at omega-rust/omega/build-system/orchestration/tests/shared_compilation.rs:70:33:
+    called `Result::unwrap()` on an `Err` value: "[Diagnostic { severity: Error, message: \"cannot prove ensures contract for exit from seven at statement 0: result == 7. (no proof found from the facts available here: the bounds do not decide the comparison)\", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(242), span: Span { start: 91, end: 99 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: \"/tmp/omega-dependency-context-refusal-21400-0/good.omg\", line: 2, column: 53 }) }, Diagnostic { severity: Error, message: \"cannot prove ensures contract for exit from seven at statement 0: result == 7. (no proof found from the facts available here: the bounds do not decide the comparison)\", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(243), span: Span { start: 91, end: 99 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: \"/tmp/omega-dependency-context-refusal-21400-0/bad.omg\", line: 2, column: 53 }) }]"
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: <shared_compilation::matching_body_hash_with_different_dependency_context_is_refused::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   1.453s] (165/234) orchestration::shared_compilation shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal
+  stdout ───
+
+    running 1 test
+    test shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal ... FAILED
+
+    failures:
+
+    failures:
+        shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 1.44s
+
+  stderr ───
+
+    thread 'shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal' (21427) panicked at omega-rust/omega/build-system/orchestration/tests/shared_compilation.rs:36:34:
+    called `Result::unwrap()` on an `Err` value: "[Diagnostic { severity: Error, message: \"import `dependency` does not select one declaration, callable family, or module in its checked package\", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(244), span: Span { start: 4, end: 14 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: \"/tmp/omega-shared-project-compilation-21426-0/first.omg\", line: 1, column: 5 }) }]"
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: <shared_compilation::shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.686s] (166/234) package-compilation source::source_assembly::requirement_preparation_tests::original_build_bindings_retain_their_real_toolchain_requirement_calls
+        PASS [   0.025s] (167/234) symbol-resolved-trees-to-typed-trees constructor_applications::tests::closed_call_families_refuse_missing_incompatible_access_domains_and_ambiguity
+        FAIL [   0.070s] (168/234) symbol-resolved-trees-to-typed-trees qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return
+  stdout ───
+
+    running 1 test
+    test qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return ... FAILED
+
+    failures:
+
+    failures:
+        qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 93 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return' (21464) panicked at omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/qualified_operator_home_tests.rs:592:5:
+    [DeferredRefusal { declaration: Handle { arena_index: 138, generation: 1 }, request: CallResultDomainMismatch, source_span: SourceSpan { source_id: SourceId(2), span: Span { start: 85, end: 86 } }, detail: "declared result domains `declared:package:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f:product::units::u32::Distance`; expected ``" }]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: symbol_resolved_trees_to_typed_trees::qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return
+       3: <symbol_resolved_trees_to_typed_trees::qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.013s] (169/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_collects_scalar_jobs_only_from_reached_execution
+        PASS [   0.008s] (170/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_demands_successor_cleanup_import
+        PASS [   0.005s] (171/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_dynamic_call_demands_closed_external_completion_in_later_table
+        PASS [   0.006s] (172/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_dynamic_call_demands_exact_slot_imports_and_providers
+        PASS [   0.005s] (173/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_dynamic_call_ignores_trap_and_unreachable_rows
+        PASS [   0.005s] (174/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_dynamic_call_refuses_external_completion_in_later_table
+        PASS [   0.006s] (175/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_external_completion_does_not_hide_malformed_closure
+        PASS [   0.006s] (176/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_ignores_unreachable_cleanup_import
+        PASS [   0.005s] (177/234) terminal-interpreter engine_execution::capabilities::tests::capability_graph_missing_declaration_remains_malformed
+        PASS [   0.024s] (178/234) terminal-psi-to-terminal-psi tests::a_disequality_guard_splits_into_cases
+        PASS [   0.007s] (179/234) terminal-psi-to-terminal-psi tests::a_true_branch_bounds_its_arm
+        PASS [   0.045s] (180/234) terminal-psi-to-terminal-psi tests::atomic_wake::computed_subject_is_retired_on_a_real_backedge
+        PASS [   0.017s] (181/234) terminal-psi-to-terminal-psi tests::boundary_calls::a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at
+        PASS [   0.016s] (182/234) terminal-psi-to-terminal-psi tests::boundary_calls::a_requirement_does_not_replace_written_inputs_or_donate_them_to_a_selection
+        PASS [   0.009s] (183/234) terminal-psi-to-terminal-psi tests::boundary_calls::an_anonymous_parameter_application_cannot_transfer_its_template_identity
+        PASS [   0.010s] (184/234) terminal-psi-to-terminal-psi tests::boundary_calls::generic_named_map_full_subject_judges_its_schema_and_owning_body
+        PASS [   0.009s] (185/234) terminal-psi-to-terminal-psi tests::boundary_calls::source_boundary_calls_retain_independent_input_lifetime_binders
+        PASS [   0.009s] (186/234) terminal-psi-to-terminal-psi tests::boundary_calls::source_boundary_effects_still_require_their_invocation_proof
+        PASS [   0.008s] (187/234) terminal-psi-to-terminal-psi tests::boundary_calls::source_boundary_schema_and_header_share_elided_input_lifetimes
+        PASS [   0.406s] (188/234) terminal-psi-to-terminal-psi tests::byte_domains::a_fixed_byte_array_is_cast_into_its_domain_only_when_its_bytes_are_in_it
+        PASS [   0.026s] (189/234) terminal-psi-to-terminal-psi tests::byte_domains::a_fixed_byte_array_of_unknown_bytes_is_not_cast_into_its_domain
+        FAIL [   0.075s] (190/234) terminal-psi-to-terminal-psi tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes
+  stdout ───
+
+    running 1 test
+    test tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes ... FAILED
+
+    failures:
+
+    failures:
+        tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes' (21508) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/case_payloads.rs:254:9:
+    the exact selected payload store must be checked: Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(1), span: Span { start: 298, end: 302 } }), detail: "declaration holding a literal assigned to a place whose declared type is not computed yet while reading the signature of `build_entry`" }))
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::case_payloads::execute_owned_store
+       3: terminal_psi_to_terminal_psi::tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes
+       4: <terminal_psi_to_terminal_psi::tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.069s] (191/234) terminal-psi-to-terminal-psi tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement
+  stdout ───
+
+    running 1 test
+    test tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement ... FAILED
+
+    failures:
+
+    failures:
+        tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement' (21510) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/case_payloads.rs:254:9:
+    the exact selected payload store must be checked: Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(1), span: Span { start: 376, end: 380 } }), detail: "declaration holding a literal assigned to a place whose declared type is not computed yet while reading the signature of `build_entry`" }))
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::case_payloads::execute_owned_store
+       3: terminal_psi_to_terminal_psi::tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement
+       4: <terminal_psi_to_terminal_psi::tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [ 297.831s] (192/234) omega::target_selected_implementations each_target_runs_the_implementation_its_build_row_selects
+        FAIL [   0.069s] (193/234) terminal-psi-to-terminal-psi tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case
+  stdout ───
+
+    running 1 test
+    test tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case ... FAILED
+
+    failures:
+
+    failures:
+        tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case' (21512) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/case_payloads.rs:293:9:
+    a different selected case cannot receive the payload: Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(1), span: Span { start: 274, end: 278 } }), detail: "declaration holding a literal assigned to a place whose declared type is not computed yet while reading the signature of `build_entry`" }))
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case
+       3: <terminal_psi_to_terminal_psi::tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.073s] (194/234) terminal-psi-to-terminal-psi tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root
+  stdout ───
+
+    running 1 test
+    test tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root ... FAILED
+
+    failures:
+
+    failures:
+        tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root' (21514) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/case_payloads.rs:310:9:
+    the immutable root cannot receive the payload: Ok(FallBack(Refusal { reason: Unsupported, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(1), span: Span { start: 294, end: 298 } }), detail: "declaration holding a literal assigned to a place whose declared type is not computed yet while reading the signature of `build_entry`" }))
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root
+       3: <terminal_psi_to_terminal_psi::tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.007s] (195/234) terminal-psi-to-terminal-psi tests::entry_inputs::a_private_call_without_normal_return_still_owes_its_inferred_input
+        PASS [   0.007s] (196/234) terminal-psi-to-terminal-psi tests::entry_inputs::a_private_helper_that_returns_nothing_receives_its_inferred_input
+        PASS [   0.053s] (197/234) terminal-psi-to-terminal-psi tests::contract_formation::source_contract_alternatives_keep_both_inputs_and_refuse_a_third
+        PASS [   0.016s] (198/234) terminal-psi-to-terminal-psi tests::floats::literal_landing_rounds_once_and_preserves_the_chosen_format
+        PASS [   0.061s] (199/234) terminal-psi-to-terminal-psi tests::indexed_contracts::a_storage_snapshot_requires_its_exact_establishing_call
+        PASS [   0.010s] (200/234) terminal-psi-to-terminal-psi tests::indexed_contracts::an_indexed_data_requirement_proves_the_consuming_arithmetic
+        PASS [   0.013s] (201/234) terminal-psi-to-terminal-psi tests::indexed_contracts::an_indexed_domain_formal_supplies_only_its_actual_array_leaf
+        PASS [   0.012s] (202/234) terminal-psi-to-terminal-psi tests::indexed_contracts::an_owned_array_domain_is_proved_again_at_its_declared_result
+        PASS [   0.513s] (203/234) terminal-psi-to-terminal-psi tests::indexed_contracts::an_exclusive_call_does_not_restore_the_caller_record_around_its_argument
+        PASS [   0.785s] (204/234) terminal-psi-to-terminal-psi tests::indexed_contracts::indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf
+        PASS [   0.024s] (205/234) terminal-psi-to-terminal-psi tests::owned_cleanup::owned_cleanup_requires_are_proved_at_the_exact_action
+        PASS [   0.014s] (206/234) terminal-psi-to-terminal-psi tests::owned_cleanup::receiving_rejects_missing_reordered_or_relocated_cleanup_requirements
+        PASS [   0.014s] (207/234) terminal-psi-to-terminal-psi tests::owned_cleanup::undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition
+        PASS [   0.015s] (208/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_boundary_formal_keeps_its_domain_and_independent_requirement
+        PASS [   0.012s] (209/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_data_formal_in_a_predicated_domain_assumes_its_predicates
+        PASS [   0.482s] (210/234) terminal-psi-to-terminal-psi tests::indexed_contracts::repeated_exclusive_calls_create_distinct_versions_of_the_same_leaf
+        PASS [   0.010s] (211/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_mutably_borrowed_data_formal_keeps_its_domain_at_handback
+        FAIL [   0.070s] (212/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty
+  stdout ───
+
+    running 1 test
+    test tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty ... FAILED
+
+    failures:
+
+    failures:
+        tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty' (21548) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/qualified_terms.rs:102:51:
+    called `Result::unwrap()` on an `Err` value: Refusal { reason: Violation, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(0), span: Span { start: 109, end: 114 } }), detail: "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set: declared result domains `declared:unmanaged:product::u32::Span`; expected `` while reading the signature of `entry`" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: terminal_psi_to_terminal_psi::tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty
+       4: <terminal_psi_to_terminal_psi::tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.010s] (213/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_record_clause_reads_through_a_stored_shared_reference
+        PASS [   0.014s] (214/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_stored_referents_domain_is_established_by_its_proved_cast
+        FAIL [   0.073s] (215/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge
+  stdout ───
+
+    running 1 test
+    test tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge ... FAILED
+
+    failures:
+
+    failures:
+        tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge' (21552) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/qualified_terms.rs:85:51:
+    called `Result::unwrap()` on an `Err` value: Refusal { reason: Violation, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(0), span: Span { start: 109, end: 114 } }), detail: "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set: declared result domains `declared:unmanaged:product::u32::Span`; expected `` while reading the signature of `entry`" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: terminal_psi_to_terminal_psi::tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge
+       4: <terminal_psi_to_terminal_psi::tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.071s] (216/234) terminal-psi-to-terminal-psi tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast
+  stdout ───
+
+    running 1 test
+    test tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast ... FAILED
+
+    failures:
+
+    failures:
+        tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast' (21558) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/qualified_terms.rs:706:5:
+    Rejected { formations: [], violations: [], unproved: [UnprovedObligation { machine: MachineId(2), obligation: ObligationId(2), kind: NormalGuarantee { exit: EdgeId(2), clause: 0, published: ObligationId(1) }, site: Authored(SourceSpan { source_id: SourceId(0), span: Span { start: 180, end: 181 } }), cause: NoDerivation, detail: "the bounds do not decide the comparison", statement: "cannot prove ensures contract for exit from last at statement 1: result == 0", consumed: None }], unestablished: [], conflicts: [], exceeded: [] }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast
+       3: <terminal_psi_to_terminal_psi::tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.068s] (217/234) terminal-psi-to-terminal-psi tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier
+  stdout ───
+
+    running 1 test
+    test tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier ... FAILED
+
+    failures:
+
+    failures:
+        tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.06s
+
+  stderr ───
+
+    thread 'tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier' (21560) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/qualified_terms.rs:36:51:
+    called `Result::unwrap()` on an `Err` value: Refusal { reason: Violation, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(0), span: Span { start: 109, end: 114 } }), detail: "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set: declared result domains `declared:unmanaged:product::u32::Span`; expected `` while reading the signature of `entry`" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: terminal_psi_to_terminal_psi::tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier
+       4: <terminal_psi_to_terminal_psi::tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.072s] (218/234) terminal-psi-to-terminal-psi tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain
+  stdout ───
+
+    running 1 test
+    test tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain ... FAILED
+
+    failures:
+
+    failures:
+        tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain' (21562) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/qualified_terms.rs:10:47:
+    called `Result::unwrap()` on an `Err` value: Refusal { reason: Violation, machine: MachineId(1), concerns: Machine, source_span: Some(SourceSpan { source_id: SourceId(0), span: Span { start: 109, end: 114 } }), detail: "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set: declared result domains `declared:unmanaged:product::u32::Span`; expected `` while reading the signature of `entry`" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: terminal_psi_to_terminal_psi::tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain
+       4: <terminal_psi_to_terminal_psi::tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.105s] (219/234) terminal-psi-to-terminal-psi tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing
+  stdout ───
+
+    running 1 test
+    test tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing ... FAILED
+
+    failures:
+
+    failures:
+        tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.10s
+
+  stderr ───
+
+    thread 'tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing' (21564) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/rankings.rs:359:22:
+    borrowed iteration did not pass: Ok(Rejected { formations: [], violations: [], unproved: [], unestablished: [], conflicts: [ConflictingUse { machine: MachineId(2), loan: ObligationId(1), conflict: ChangeWhileBorrowed, site: Authored(SourceSpan { source_id: SourceId(0), span: Span { start: 758, end: 760 } }), statement: "storage is changed while a conflicting reference remains live" }], exceeded: [] })
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing
+       3: <terminal_psi_to_terminal_psi::tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.074s] (220/234) terminal-psi-to-terminal-psi tests::references::a_rigid_requirement_call_borrows_its_declared_input_region
+  stdout ───
+
+    running 1 test
+    test tests::references::a_rigid_requirement_call_borrows_its_declared_input_region ... FAILED
+
+    failures:
+
+    failures:
+        tests::references::a_rigid_requirement_call_borrows_its_declared_input_region
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::references::a_rigid_requirement_call_borrows_its_declared_input_region' (21566) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs:1640:5:
+    Refusal { reason: Unsupported, machine: MachineId(1), concerns: Operation(OperationId(1)), source_span: None, detail: "dynamic result has more borrowed leaves than public regions for machine MachineId(1) at block BlockId(1), position 0; checking CallStructuralWithScalarArguments (OperationId(1)); invocation target Machine(MachineId(2))" }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::references::a_rigid_requirement_call_borrows_its_declared_input_region
+       3: <terminal_psi_to_terminal_psi::tests::references::a_rigid_requirement_call_borrows_its_declared_input_region::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.010s] (221/234) terminal-psi-to-terminal-psi tests::structural_domains::zeroed_arrays_keep_unrestricted_record_element_domains
+        FAIL [   0.085s] (222/234) terminal-psi-to-terminal-psi tests::references::a_selected_reference_result_needs_its_public_requirement_contract
+  stdout ───
+
+    running 1 test
+    test tests::references::a_selected_reference_result_needs_its_public_requirement_contract ... FAILED
+
+    failures:
+
+    failures:
+        tests::references::a_selected_reference_result_needs_its_public_requirement_contract
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.08s
+
+  stderr ───
+
+    thread 'tests::references::a_selected_reference_result_needs_its_public_requirement_contract' (21568) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs:828:5:
+    assertion `left == right` failed
+      left: Some("dynamic result has more borrowed leaves than public regions")
+     right: Some("public reference result has an unresolved declared lifetime frontier")
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::panicking::assert_failed_inner
+       3: core::panicking::assert_failed::<core::option::Option<&str>, core::option::Option<&str>>
+       4: terminal_psi_to_terminal_psi::tests::references::a_selected_reference_result_needs_its_public_requirement_contract
+       5: <terminal_psi_to_terminal_psi::tests::references::a_selected_reference_result_needs_its_public_requirement_contract::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [   0.072s] (223/234) terminal-psi-to-terminal-psi tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view
+  stdout ───
+
+    running 1 test
+    test tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view ... FAILED
+
+    failures:
+
+    failures:
+        tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view' (21572) panicked at omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/successor_loans.rs:195:22:
+    the short-circuit path must accept: Ok(Rejected { formations: [], violations: [], unproved: [], unestablished: [], conflicts: [ConflictingUse { machine: MachineId(1), loan: ObligationId(1), conflict: ChangeWhileBorrowed, site: Authored(SourceSpan { source_id: SourceId(0), span: Span { start: 275, end: 280 } }), statement: "storage is changed while a conflicting reference remains live" }], exceeded: [] })
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: terminal_psi_to_terminal_psi::tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view
+       3: <terminal_psi_to_terminal_psi::tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   0.007s] (224/234) terminal-psi-to-terminal-psi tests::table_faults::an_invocation_row_with_another_callee_is_refused
+        PASS [   0.009s] (225/234) terminal-psi-to-terminal-psi tests::termination::every_rank_obligation_of_an_accepted_loop_has_checked_evidence
+        PASS [   0.008s] (226/234) terminal-psi-to-terminal-psi tests::type_parameters::an_empty_generic_schema_retains_its_real_binder_without_an_entry
+        PASS [   0.019s] (227/234) terminal-wire semantic_module::routed_scalar_tests::declaration_contract_roundtrip_keeps_public_promises_separate_from_body
+        PASS [   0.015s] (228/234) typed-trees type_identity::package_policy_reading_tests::every_index_form_the_renderer_writes_reads_back
+        PASS [   0.006s] (229/234) typed-trees type_identity::package_policy_reading_tests::every_type_form_the_renderer_writes_reads_back
+        PASS [   0.007s] (230/234) typed-trees type_identity::package_policy_reading_tests::witnesses_reach_every_node_kind
+        PASS [   0.011s] (231/234) typed-trees-to-typed-trees passes::specialization::tests::a_literal_value_application_enters_a_machine_with_the_value_in_place
+        PASS [   0.013s] (232/234) typed-trees-to-typed-trees passes::specialization::tests::a_generated_machine_is_named_for_its_value
+        FAIL [  70.867s] (233/234) orchestration::executed_commands pure_build_reuse_preserves_review_discovery_and_changed_requests
+  stdout ───
+
+    running 1 test
+    test pure_build_reuse_preserves_review_discovery_and_changed_requests has been running for over 60 seconds
+    test pure_build_reuse_preserves_review_discovery_and_changed_requests ... FAILED
+
+    failures:
+
+    failures:
+        pure_build_reuse_preserves_review_discovery_and_changed_requests
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 70.83s
+
+  stderr ───
+
+    thread 'pure_build_reuse_preserves_review_discovery_and_changed_requests' (21351) panicked at omega-rust/omega/build-system/orchestration/tests/executed_commands.rs:117:10:
+    called `Result::unwrap()` on an `Err` value: PackageCommandError { cause: Change(Compilation(CompileResolvedPackageReviewsError { cause: Projection { package: PackageKey { name: PackageName("executed_project_identity_exit"), source_lineage: ExternalLocal(ExternalLocalLineage { canonical_path: "/tmp/omega-pure-build-review-21350-0/executed_project_identity_exit", source_context: ExternalSourceContext([179, 96, 166, 174, 108, 45, 187, 4, 56, 39, 158, 174, 136, 177, 23, 213, 151, 158, 140, 131, 253, 191, 175, 178, 217, 121, 250, 44, 11, 195, 175, 41]) }) }, diagnostics: [Diagnostic { severity: Error, message: "package review cannot retain Build-scope public or bodyless callable contracts from the accepted declaration", exceeded_provision: None, source_span: None, resolved_location: None }] }, accounting: SourceCompletionAccounting { receipts: [], reused: false } })), accounting: SourceCompletionAccounting { receipts: [], reused: false } }
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: executed_commands::pure_build_reuse_preserves_review_discovery_and_changed_requests
+       4: <executed_commands::pure_build_reuse_preserves_review_discovery_and_changed_requests::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        SLOW [>240.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>300.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>360.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>420.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>480.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>540.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>600.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>660.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>720.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>780.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>840.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+ TERMINATING [>900.000s] (───────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+     TIMEOUT [ 900.113s] (234/234) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+  stdout ───
+
+    running 1 test
+    test product_entry_queries_reuse_build_across_accepted_targets has been running for over 60 seconds
+
+    (test timed out)
+
+────────────
+     Summary [3478.401s] 234 tests run: 168 passed (44 slow), 65 failed, 1 timed out, 1845 skipped
+        FAIL [   1.408s] (  1/234) build-time-evaluation source_jobs::access_plan_construction::actual_access_plan_normalization_preserves_rules_and_authenticates_descriptions
+        FAIL [ 117.462s] ( 40/234) compiler::access_view_calls exclusive_backing_aliases_refuse_before_effects
+        FAIL [ 116.608s] ( 41/234) compiler::access_view_calls later_state_helper
+        FAIL [ 117.311s] ( 42/234) compiler::access_view_calls mixed_parameters_rejoin_checked_dense_coordinate
+        FAIL [ 114.329s] ( 43/234) compiler::access_view_calls mutable_helper
+        FAIL [ 114.698s] ( 44/234) compiler::access_view_calls nested_helper
+        FAIL [ 123.318s] ( 45/234) compiler::access_view_calls reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors
+        FAIL [ 115.677s] ( 46/234) compiler::access_view_calls shared_helper
+        FAIL [ 113.997s] ( 47/234) compiler::access_view_calls unit_helper_preserves_mutable_custody
+        FAIL [ 189.382s] ( 49/234) compiler::anonymous_module_owner anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution
+        FAIL [   8.803s] ( 50/234) compiler::domain_casts a_child_kept_without_its_parent_is_rejected
+        FAIL [   8.535s] ( 51/234) compiler::domain_casts each_entry_of_an_accounted_cast_carries_its_result_type
+        FAIL [  82.718s] ( 53/234) compiler::core_build_activation source_compile_has_no_core_provider_defaults_activation
+        FAIL [  75.700s] ( 56/234) compiler::executed_fixture_discovery reviewed_fixture_discovers_an_empty_dangerous_service_roster
+        FAIL [  81.496s] ( 60/234) compiler::lowered_route_float_values canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
+        FAIL [  85.054s] ( 81/234) compiler::lowered_route_publication an_indexed_discriminator_keeps_its_pre_dispatch_evidence
+        FAIL [  82.879s] ( 82/234) compiler::lowered_route_publication the_published_module_states_each_machines_declaration_identity
+        FAIL [ 136.376s] ( 88/234) compiler::lowered_route_publication the_default_compile_builds_the_application_from_the_routes_module
+        FAIL [ 149.918s] ( 91/234) compiler::package_review historical_constant_closure_requires_exact_target_and_provider
+        FAIL [ 166.003s] ( 92/234) compiler::package_review completed_scalar_call_preserves_wrapping_index_guard
+        FAIL [  92.920s] ( 96/234) compiler::package_review match_join_preserves_wrapping_index_guard
+        FAIL [  29.247s] ( 97/234) compiler::package_review reusable_package_checks_invalid_unused_declarations
+        FAIL [   1.702s] (101/234) compiler::package_review review_records_dynamic_slot_origin_and_qualification
+        FAIL [   8.607s] (107/234) compiler::route_probe a_call_that_never_returns_inside_an_expression_ends_only_its_own_path
+        FAIL [  24.999s] (108/234) compiler::package_review trait_requirement_contract_binders_recover_in_the_declared_static_telescope
+        FAIL [  12.717s] (110/234) compiler::route_probe a_generic_machine_valid_only_for_its_selections_is_rejected_as_written
+        FAIL [  12.073s] (111/234) compiler::route_probe a_generic_operator_reaches_domain_lowering_with_its_complete_application
+        FAIL [   9.064s] (112/234) compiler::route_probe a_process_exit_outside_the_written_reach_is_rejected
+        FAIL [   6.519s] (114/234) compiler::route_probe a_program_applying_a_generic_machine_at_implementations_is_judged
+        FAIL [   5.886s] (115/234) compiler::route_probe a_program_that_ends_through_process_exit_is_judged
+        FAIL [   6.018s] (116/234) compiler::route_probe a_returning_arm_beside_a_process_exit_still_owes_its_guarantee
+        FAIL [   6.260s] (118/234) compiler::route_probe a_statement_after_a_call_that_may_return_is_checked
+        FAIL [   9.061s] (119/234) compiler::route_probe a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning
+        FAIL [   6.482s] (120/234) compiler::route_probe an_implementation_that_promises_less_than_its_requirement_is_rejected
+        FAIL [   8.584s] (121/234) compiler::route_probe an_unknown_machine_after_a_call_that_never_returns_is_rejected
+        FAIL [  24.805s] (128/234) compiler::route_probe closed_domain_applications_keep_carriers_and_indices_through_checking
+        FAIL [   6.820s] (129/234) omega::build_applied_provider_choices a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice
+        FAIL [   0.605s] (132/234) omega::build_deferred_imports a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown
+        FAIL [  52.792s] (135/234) compiler::terminal_decode_once realization_and_execution_borrow_the_retained_terminal_module
+        FAIL [   0.735s] (137/234) omega::build_staged_dependency_calls a_call_written_before_the_wait_names_nothing
+        FAIL [   5.364s] (138/234) omega::build_staged_dependency_calls a_product_dependency_is_not_selectable_from_the_build
+        FAIL [  58.141s] (156/234) omega::target_selected_implementations a_target_without_a_build_row_has_no_implementation
+        FAIL [  11.048s] (157/234) omega::validation_subjects a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
+        FAIL [  14.661s] (158/234) omega::validation_subjects an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject
+        FAIL [  14.513s] (159/234) omega::validation_subjects an_unused_invalid_declaration_of_the_subject_fails
+        FAIL [  13.350s] (160/234) omega::validation_subjects an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails
+        FAIL [  13.798s] (161/234) omega::validation_subjects the_valid_program_checks
+        FAIL [ 157.117s] (162/234) orchestration::executed_commands dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished
+        FAIL [   7.955s] (164/234) orchestration::shared_compilation matching_body_hash_with_different_dependency_context_is_refused
+        FAIL [   1.453s] (165/234) orchestration::shared_compilation shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal
+        FAIL [   0.070s] (168/234) symbol-resolved-trees-to-typed-trees qualified_operator_home_tests::an_enclosing_domain_cast_reads_the_selected_operators_declared_return
+        FAIL [   0.075s] (190/234) terminal-psi-to-terminal-psi tests::case_payloads::a_known_owned_case_payload_replacement_publishes_and_executes
+        FAIL [   0.069s] (191/234) terminal-psi-to-terminal-psi tests::case_payloads::a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement
+        FAIL [   0.069s] (193/234) terminal-psi-to-terminal-psi tests::case_payloads::an_owned_payload_store_requires_its_exact_selected_case
+        FAIL [   0.073s] (194/234) terminal-psi-to-terminal-psi tests::case_payloads::an_owned_payload_store_requires_mutability_of_the_existing_root
+        FAIL [   0.070s] (212/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty
+        FAIL [   0.073s] (215/234) terminal-psi-to-terminal-psi tests::qualified_terms::a_qualified_result_annotation_does_not_replace_its_cast_edge
+        FAIL [   0.071s] (216/234) terminal-psi-to-terminal-psi tests::qualified_terms::an_arrays_domain_is_established_by_its_proved_cast
+        FAIL [   0.068s] (217/234) terminal-psi-to-terminal-psi tests::qualified_terms::the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier
+        FAIL [   0.072s] (218/234) terminal-psi-to-terminal-psi tests::qualified_terms::the_lowered_scalar_type_retains_its_declared_domain
+        FAIL [   0.105s] (219/234) terminal-psi-to-terminal-psi tests::rankings::borrowed_slice_iterations_keep_their_measure_and_backing
+        FAIL [   0.074s] (220/234) terminal-psi-to-terminal-psi tests::references::a_rigid_requirement_call_borrows_its_declared_input_region
+        FAIL [   0.085s] (222/234) terminal-psi-to-terminal-psi tests::references::a_selected_reference_result_needs_its_public_requirement_contract
+        FAIL [   0.072s] (223/234) terminal-psi-to-terminal-psi tests::successor_loans::cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view
+        FAIL [  70.867s] (233/234) orchestration::executed_commands pure_build_reuse_preserves_review_discovery_and_changed_requests
+     TIMEOUT [ 900.113s] (234/234) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+error: test run failed
+mbx[cache]: 0 hits, 0 misses, 378 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+exit 100
