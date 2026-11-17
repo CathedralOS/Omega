@@ -142,3 +142,64 @@ Drawing rules:
 - [ ] Every number and quote has its evidence; *unverified* and *judgment*
       are marked.
 - [ ] The page is linked from the table in `atlas/README.md`.
+
+## The custom parts
+
+### Omega Serif, the custom font
+
+Omega Serif is generated, not drawn. Every glyph is assembled from a few
+shapes (stems, rings cut into arches, stone-cut wedge serifs) whose sizes come
+from one weight setting in [font-source/build.py](font-source/build.py), so
+changing one number changes every letter. The three files in `fonts/` (Light
+300, Regular 400, Medium 500) are its output. Change the font by editing
+`build.py`, never the `.woff2` files.
+
+```bash
+python3 -m pip install fonttools skia-pathops ttfautohint-py brotli
+cd /tmp && python3 /path/to/Omega/atlas/design/font-source/build.py Light Regular Medium
+python3 /path/to/Omega/atlas/design/font-source/check_pieces.py OmegaSerif-Regular.ttf
+```
+
+`build.py` writes `.otf`, `.ttf` and `.woff2` for each weight into the current
+directory; copy the `.woff2` files into `fonts/`. `check_pieces.py` reports
+letters whose outline falls into the wrong number of pieces. The font covers
+ASCII, Western European accents, Greek, and the proof and logic notation
+Omega's docs use (− ≤ ≥ ≠ ≡ ∧ ∨ ∈ ⊆ ∀ ∃ ⊢ ↦ ⇒ ⟨ ⟩ …); anything else falls back
+to Georgia.
+
+*Unverified:* rebuilding the fonts from this copy of `build.py` has not been
+run yet in this repository (installing the font tools was blocked in the
+session that copied it), so whether a rebuild reproduces the shipped files
+byte for byte is untested.
+
+### Components
+
+The design system defines five components. [components/bundle.js](components/bundle.js)
+is the React 18 version (`window.Omega`); [components/bundle.css](components/bundle.css)
+styles them and works on plain HTML too, so a page without React can use the
+same classes. Link it after `tokens.css`:
+`<link rel="stylesheet" href="../design/components/bundle.css">`.
+
+| Component | Use | Plain HTML |
+| --- | --- | --- |
+| Status | One result, never color alone | `<span class="om-status om-status-checked"><span class="om-pip" aria-hidden="true">✓</span><span class="om-status-word">Checked</span></span>`; states `checked`, `trap`, `open` |
+| Tile | One idea; `outline` for target-neutral (Psi), `solid` for realized (Omega) | `<section class="om-tile om-tile-outline"><span class="om-tile-label">Psi</span><h3 class="om-tile-title">Checked source</h3><div class="om-tile-body">…</div></section>` |
+| CodeBlock | Code or a command | `<figure class="om-code"><figcaption class="om-code-caption">Expected exit: 0</figcaption><pre class="om-code-pre"><code>omega run --both main.omg</code></pre></figure>` |
+| PlaceGrid | One fact across the nine places, 3×3, in place order | `<ol class="om-place-grid">` with nine `<li class="om-place om-place-checked">` items in order: local, field, parameter, call result, match join, const name, nested machine, another machine, another target |
+| Button | One action: `solid` runs, `outline` checks, `quiet` navigates | `<button class="om-button om-button-solid">Run natively</button>` |
+
+Each component's own rules are in `components/<Name>/README.md`, and
+`components/Cover/preview.html` is the system's cover: an ink slab with three
+arched openings, a green column and a small red stone.
+
+### The source system, for reference
+
+[system-reference/](system-reference/) is an untouched copy of the design
+system's own README, token cards, component cards and manifest, as published
+in the owner's design-system artifact. Use it to check where a rule came from.
+
+One inconsistency there: the system's generated `tokens.generated.css` and
+`tokens.md` set body text in IBM Plex Sans and labels in IBM Plex Mono, while
+its README ("Omega Serif for words, IBM Plex Mono for code. Nothing else.")
+and its `tokens.json` set both in Omega Serif. This kit follows the README and
+`tokens.json`; the owner should settle which is meant.

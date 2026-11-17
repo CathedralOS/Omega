@@ -25,6 +25,11 @@ planning workspace beside the code, not part of it.
 
 ## Pages
 
+The atlas is published on the repository's GitHub Pages site under `/atlas/`
+(beside the Omega book), from [index.html](index.html), every page in
+[pages/](pages/), and the design kit they load. The site redeploys whenever
+`atlas/` changes on `main`.
+
 Every page lives in [pages/](pages/) as a static HTML file. The online copies
 are the same pages published as Claude artifacts.
 

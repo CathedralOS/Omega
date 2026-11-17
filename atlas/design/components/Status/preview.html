@@ -1,0 +1,17 @@
+<!-- @dsCard group="Status" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Status preview</title></head>
+<body>
+<div id="root" class="om-row"></div>
+<script>
+  var O = window.Omega, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(O.Status, { state: 'checked' }),
+    h(O.Status, { state: 'trap' }),
+    h(O.Status, { state: 'open' }),
+    h(O.Status, { state: 'checked' }, 'Exit 0'),
+    h(O.Status, { state: 'trap' }, 'Rejected')));
+</script>
+</body>
+</html>
