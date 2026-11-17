@@ -99,7 +99,7 @@ pub(crate) struct SourceCallingInstance {
     pub(crate) signatures: Vec<CallingSignatureId>,
     pub(crate) schema: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
     pub(super) headers: Vec<(
-        typed_trees::trait_definition::RetainedTraitScope,
+        typed_trees::trait_definition::TraitApplicationEnvironment,
         SymbolHandle,
     )>,
 }
@@ -390,7 +390,7 @@ impl Program<'_> {
                         "Calling instance lost an exact requirement declaration",
                     )
                 })?;
-                let declaring = signature.declaring_scope.ok_or_else(|| {
+                let declaring = signature.declaring_scope.as_ref().ok_or_else(|| {
                     services::unavailable(
                         context,
                         "Calling signature lost its exact declaring application",
@@ -405,7 +405,7 @@ impl Program<'_> {
                 // The selected declaration is retained now; its full contract
                 // is read with ABI metadata after the executable body closure.
                 // Describing a linear carrier must not admit it as a body value.
-                headers.push((declaring, source.symbol));
+                headers.push((declaring.clone(), source.symbol));
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
                         .abi_signatures()
