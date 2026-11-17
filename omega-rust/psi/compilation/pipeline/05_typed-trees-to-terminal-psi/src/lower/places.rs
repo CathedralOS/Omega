@@ -1960,8 +1960,9 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
-        // Entering the cast result always owes its conjunction. Empty source
-        // theory is Truth; it is not a missing arrival for the saved domain.
+        // New membership or predicate evidence always owes its conjunction.
+        // Empty theory contributes Truth and still records an arrival for a
+        // saved domain.
         let subject = crate::body::self_place()
             .ok_or_else(|| self.internal("cast subject place identity"))?;
         let mut predicate = Vec::with_capacity(clauses.len());
@@ -1980,12 +1981,18 @@ impl<'a> Lowering<'a> {
                 .predicate_establishments
                 .push((cast, stated.clone()));
         }
-        self.invariants.push(terminal_psi::ScalarBlockInvariant {
-            machine: id,
-            header: cast,
-            predicate: crate::canonical::conjunction(predicate, id)?,
-            arrivals: Vec::new(),
-        });
+        // A predicate-free removal transfers the same whole value. As with
+        // scalar removals, keep its dominating bindings in ordinary join scope.
+        let predicate_free_removal =
+            changes_memberships && added.is_empty() && clauses.is_empty() && stated.is_none();
+        if !predicate_free_removal {
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: cast,
+                predicate: crate::canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge_ordinal = self.tables.edges.len() as u64 + 1;
         self.jump_with_structural(
             cast,

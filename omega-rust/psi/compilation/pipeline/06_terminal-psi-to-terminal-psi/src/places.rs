@@ -4581,7 +4581,19 @@ impl<'a> Storage<'a> {
         let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
         required.insert(predicate);
         if actual.segments.is_empty()
-            && let Ok(before) = u32::try_from(position.1)
+            // Graph ordering uses a sentinel for the terminator. Descriptor
+            // replay needs the actual checked boundary within this block.
+            && let Some(before) = self.block(position.0).ok().and_then(|block| {
+                let end = block.operations.len();
+                let before = if position.1 == usize::MAX {
+                    end
+                } else {
+                    position.1
+                };
+                (before <= end)
+                    .then_some(before)
+                    .and_then(|before| u32::try_from(before).ok())
+            })
             && terminal_semantics::incoming_byte_sequence_argument_predicates(
                 self.module,
                 self.lowered,

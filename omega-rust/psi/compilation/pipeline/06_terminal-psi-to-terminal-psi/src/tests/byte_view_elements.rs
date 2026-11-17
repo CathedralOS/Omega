@@ -1902,3 +1902,62 @@ fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
         "the short arrival must fail only its own length requirement: {rejected:?}"
     );
 }
+
+/// Whole-path calls and explicitly unqualified byte operations must observe
+/// the same shared descriptor through nested helpers. Keep the mutable context
+/// first so the path is the second input in the structural argument lane.
+#[test]
+fn nested_shared_path_calls_keep_their_predicate_and_extent() {
+    let source = r#"
+domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+
+data Context { code: i32; }
+data UnitResult { case Ok; case Error(kind: i32); }
+
+// The diagnostic keeps the caller's borrowed inputs and result shape. This
+// pure leaf makes no filesystem or foreign-completion claim.
+machine posix_filesystem_create_dir_existing(filesystem: &mut Context, path: &[u8] in Path) -> UnitResult {
+    UnitResult::Ok
+}
+
+machine posix_filesystem_mkall_walk(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+terminates by remaining
+{
+    transition i < path.len && remaining > 0 {
+        true -> inspect(filesystem, path, i, remaining)
+        false -> posix_filesystem_create_dir_existing(filesystem, path)
+    }
+    machine inspect(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    requires i < path.len && remaining > 0
+    terminates by remaining
+    {
+        transition (path as -Path)[i] == 47 {
+            true -> create(filesystem, path, i, remaining)
+            false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
+        }
+    }
+    machine create(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    requires i < path.len && remaining > 0
+    terminates by remaining
+    {
+        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, (path as -Path)[0..i] as +Path);
+        transition result {
+            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
+            UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
+        }
+    }
+}
+
+machine build_entry(filesystem: &mut Context, path: &[u8] in Path) {
+    let result: UnitResult = posix_filesystem_mkall_walk(filesystem, path, 1, path.len);
+}
+"#;
+    let result = judge_build(source)
+        .unwrap_or_else(|failure| panic!("nested Path source preparation failed: {failure:#?}"));
+    match result {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("nested Path calls must preserve their exact shared input: {other:#?}"),
+    }
+}
