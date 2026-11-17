@@ -159,8 +159,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 @media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 
-/* Keep the authored map's typography, fills and square geometry. D3 moves
-   one SVG scene; ELK's coordinates never choose colors or proof status. */
+/* Both compiler views share a camera and the Atlas design tokens. */
 .architecture { grid-column:1/-1; min-width:0; border:1px solid var(--rule); background:var(--surface); }
 .arch-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 24px; padding:12px 16px; }
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
@@ -354,6 +353,53 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   .architecture.is-expanded #compiler-overview .connected-workspace { grid-area:3/1; }
 }
 
+/* Shape and line pattern still distinguish the three routes in monochrome. */
+.connected-tools .trace-picker[hidden],.trace-explanation[hidden] { display:none; }
+.connected-tools .trace-picker select { width:170px; font:var(--type-reading-small); }
+.trace-explanation { margin:3px 0 8px; max-width:none; padding:7px 12px; border-left:3px solid var(--trap); background:var(--ground); font:var(--type-reading-small); }
+.key-main::before,.key-service::before,.key-detour::before { content:''; width:22px; display:inline-block; margin-right:6px; border-top:3px solid var(--ink); vertical-align:middle; }
+.key-service::before { border-top:2px dashed var(--family-runtime); }
+.key-detour::before { border-color:var(--trap); }
+#overview-service path { fill:var(--family-runtime); }
+.connected-scene:not(.proposed-scene) .connected-group rect { fill:var(--surface); fill-opacity:.7; stroke:var(--rule); }
+.connected-group .connected-phase { fill:var(--ink); font:500 20px var(--font-serif); }
+.connected-scene:not(.proposed-scene) .overview-node { --tone:var(--family-native); --paper:var(--family-native-surface); }
+.connected-scene .overview-node:is([data-layer="runtime"],[data-layer="providers"],[data-layer="evaluation"]) { --tone:var(--family-runtime); --paper:var(--family-runtime-surface); }
+.connected-scene .overview-node[data-layer="source"] { --tone:var(--family-psi); --paper:var(--family-psi-surface); }
+.connected-scene .overview-node:is([data-layer="inputs"],[data-layer="run"]) { --tone:var(--family-build); --paper:var(--family-build-surface); }
+.connected-scene:not(.proposed-scene) .overview-node rect { fill:var(--paper); stroke:var(--tone); stroke-width:1.25; }
+.connected-scene:not(.proposed-scene) .overview-node .current-title { fill:var(--tone); font:450 16px var(--font-reading); }
+.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] rect { fill:var(--tone); }
+.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] text { fill:var(--surface); font-weight:600; }
+.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) { --tone:var(--trap); --paper:var(--surface); }
+.connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--family-runtime); stroke-width:2; stroke-dasharray:5 3; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:3; stroke-dasharray:none; }
+.connected-scene:not(.proposed-scene) .overview-edge .wire-caption { font:500 13px var(--font-reading); stroke:var(--surface); fill:var(--family-runtime); stroke-width:4; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { fill:var(--trap); }
+.has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
+#compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
+#compiler-overview[data-view="current"] .connected-viewport { height:clamp(520px,75dvh,1000px); }
+.architecture.is-expanded #compiler-overview[data-view="current"] .connected-viewport { height:100%; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto minmax(0,1fr); }
+.architecture.is-expanded #compiler-overview .trace-explanation { grid-area:2/1/3/-1; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-area:3/1/4/-1; }
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto auto minmax(0,1fr); }
+  .architecture.is-expanded #compiler-overview .trace-explanation { grid-row:3; }
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-row:4; }
+}
+
+.architecture.is-expanded #compiler-overview[data-view="current"] [data-legend="current"] {
+  position:absolute; right:12px; bottom:6px; z-index:1; pointer-events:none;
+  display:flex; gap:14px; margin:0; padding:3px 8px; background:var(--surface); font:12px/18px var(--font-reading);
+}
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview[data-view="current"] [data-legend="current"] { position:static; grid-area:1/1; display:none; }
+}
+
+.connected-scene:not(.proposed-scene) .overview-node.check rect { fill:var(--checked); stroke:var(--checked); }
+.connected-scene:not(.proposed-scene) .overview-node.accepted rect { stroke:var(--checked); stroke-width:2; }
+
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
 .site-bar { max-width:1320px; margin:auto; padding:var(--space-3); display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
@@ -472,7 +518,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Omega stages and realization</h1>
       <p class="lede">Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/be047ab4986740ac4dec63e2592557d794bc3272/atlas"><code>be047ab49867</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/be047ab4986740ac4dec63e2592557d794bc3272/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/be047ab4986740ac4dec63e2592557d794bc3272/atlas/subsystems/omega.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas"><code>27b0519d6850</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/subsystems/omega.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -501,7 +547,7 @@ numbered stages. The map below shows that current route before the proposed
 linear pipeline.</p>
 <p><strong>Evidence:</strong> source revision
 <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>; pinned source links below and the
-<a href="https://github.com/CathedralOS/Omega/blob/be047ab4986740ac4dec63e2592557d794bc3272/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/be047ab4986740ac4dec63e2592557d794bc3272/atlas/evidence/data/graph.json">dependency graph</a>.
+<a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/evidence/data/graph.json">dependency graph</a>.
 This is a source review, not a fresh native execution test. Stage destination
 names and migration recommendations are <strong>judgment</strong>. The six
 <a href="rulings.html">owner rulings</a> are unchanged.</p>
@@ -1161,7 +1207,7 @@ ruling changes in this atlas update.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/be047ab4986740ac4dec63e2592557d794bc3272/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/27b0519d685059bc4819b6b40bbb8ec91091261b/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1314,6 +1360,9 @@ ruling changes in this atlas update.</p></main>
   const cameras=new Map();
   const detail=root.querySelector('.connected-detail');
   const scale=root.querySelector('.connected-scale');
+  const tracePicker=root.querySelector('.trace-picker');
+  const traceSelect=tracePicker.querySelector('select');
+  const traceNote=root.querySelector('.trace-explanation');
   const jump=root.querySelector('.connected-jump');
   const mini=root.querySelector('.connected-minimap svg');
   const NS='http://www.w3.org/2000/svg';
@@ -1377,7 +1426,7 @@ ruling changes in this atlas update.</p></main>
   }
   stageSelect.addEventListener('change',()=>visitStage(stageSelect.value));
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
-    const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
+    const k=Math.min(1.2,(viewport.clientWidth-20)/bounds.width,(viewport.clientHeight-20)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
   }
   function focusNode(n){const k=Math.max(0.75,Math.min(1,current.k));move(viewport.clientWidth/2-(n.x+n.width/2)*k,viewport.clientHeight/2-(n.y+n.height/2)*k,k);}
@@ -1392,7 +1441,32 @@ ruling changes in this atlas update.</p></main>
   }
   function link(text,href,parent){const a=document.createElement('a');a.textContent=text;a.href=href;parent.append(a);return a;}
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
-  function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function clear(){traceNote.hidden=true;traceSelect.value='';selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function traceDetour(id){
+    stopFlight();clear();
+    const trace=model.traces.find(t=>t.id===id);
+    if(!trace){fit();return;}
+    traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
+    const points=[];
+    for(const edgeId of trace.edges){
+      const e=edges.get(edgeId);
+      scene.querySelector(`[data-edge="${e.id}"]`).classList.add('is-traced');
+      for(const key of [e.start,e.end]){
+        scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+        const n=nodes.get(key);points.push(n,{x:n.x+n.width,y:n.y+n.height});
+      }
+      for(const section of e.sections)points.push(...section.points);
+    }
+    traceNote.replaceChildren(trace.description+' ');
+    link('Repair plan','foundation-backend-plan.html#start-with-the-extra-arrows',traceNote);
+    for(const [i,edgeId] of trace.edges.entries()){
+      traceNote.append(' · ');link(trace.edges.length===1?'Source':'Source '+(i+1),edges.get(edgeId).source,traceNote);
+    }
+    traceNote.hidden=false;
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    fit({x:x-24,y:y-32,width:Math.max(...points.map(p=>p.x))-x+48,height:Math.max(...points.map(p=>p.y))-y+64});
+  }
+  traceSelect.addEventListener('change',()=>traceDetour(traceSelect.value));
   function inspect(id,isEdge=false,trigger=null){
     stopFlight();clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
@@ -1433,6 +1507,7 @@ ruling changes in this atlas update.</p></main>
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
+    tracePicker.hidden=view!=='current';
     stagePicker.hidden=view!=='proposed';
     const help='Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
     root.querySelector('.connected-help').textContent=help;
@@ -1457,7 +1532,7 @@ ruling changes in this atlas update.</p></main>
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
     const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
+    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else if(view==='current')fit();else start();
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
@@ -1466,12 +1541,12 @@ ruling changes in this atlas update.</p></main>
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
     stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
-    if(action==='fit')fit();
+    if(action==='fit'){clear();fit();}
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
     if(action==='expand'){
-      const fitted=view==='proposed' && root.dataset.whole==='true';
+      const fitted=root.dataset.whole==='true';
       expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
       control.textContent=expanded?'Collapse':'Expand';
       if(fitted)fit();
@@ -1504,9 +1579,13 @@ ruling changes in this atlas update.</p></main>
       const t=stagePosition(null);move(t.x,t.y,t.k);
       return;
     }
-    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+    const k=Math.min(1,(viewport.clientWidth-30)/240);move(8,8,k);
   }
-  start();
+  fit();
+  if(location.hash==='#detours'){
+    root.querySelector('[data-camera="expand"]').click();
+    fit();
+  }
   if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>
