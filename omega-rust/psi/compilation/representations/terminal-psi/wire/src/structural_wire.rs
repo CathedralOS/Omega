@@ -1552,10 +1552,10 @@ pub(crate) mod structural_signature_wire {
     }
 
     struct NumericIntrinsic;
-    impl Field<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>> for NumericIntrinsic {
+    impl Field<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>> for NumericIntrinsic {
         fn write(
             writer: &mut Writer,
-            value: &Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+            value: &Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
         ) -> Result<(), CodecError> {
             writer.boolean(value.is_some());
             if let Some(meaning) = value {
@@ -1568,17 +1568,17 @@ pub(crate) mod structural_signature_wire {
         }
         fn read(
             reader: &mut Reader<'_>,
-        ) -> Result<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>, CodecError>
+        ) -> Result<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>, CodecError>
         {
             if !reader.boolean()? {
                 return Ok(None);
             }
             let mut bytes =
-                [0; language_semantics::numeric_intrinsics::NumericIntrinsic::ENCODED_SIZE];
+                [0; declaration_contracts::numeric_intrinsics::NumericIntrinsic::ENCODED_SIZE];
             for byte in &mut bytes {
                 *byte = reader.u8()?;
             }
-            language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
+            declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
                 .map(Some)
                 .ok_or({
                     CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")

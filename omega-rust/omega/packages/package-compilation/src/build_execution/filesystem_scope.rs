@@ -33,7 +33,7 @@ use crate::BuildCanonicalSourceMetadataIdentity;
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
 };
-use build_time_evaluation::{
+use source_compiler::evaluation::{
     BuildMachineCapturedFilesystemRoot, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
     BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor,
@@ -67,7 +67,7 @@ pub struct BuildMachineFilesystemScope {
     root_role: Option<crate::BuildDeclarationKind>, // Bound root declaration role (`Library` or `Product`).
     build_execution_profile: Option<target::TargetProfile>, // Admitted execution profile for build-scope evaluation.
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
-    captured_source_view: Option<source::SourceSnapshot>, // Read-only memory snapshot view of `captured_source_input`.
+    captured_source_view: Option<source_capture::SourceSnapshot>, // Read-only memory snapshot view of `captured_source_input`.
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
     named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
 }
@@ -76,7 +76,7 @@ pub struct BuildMachineFilesystemScope {
 struct NamedBuildInput {
     name: Vec<u8>,                                 // Validated UTF-8 slot name.
     input: CapturedBuildSourceInput,               // Immutable captured input inventory.
-    snapshot: source::SourceSnapshot,              // Memory snapshot view for interpreter reads.
+    snapshot: source_capture::SourceSnapshot,              // Memory snapshot view for interpreter reads.
     root: BuildMachineFilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
 }
 
@@ -279,8 +279,8 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    pub(crate) fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
-        use build_time_evaluation::BuildTimeValue;
+    pub(crate) fn named_input_facet(&self) -> source_compiler::evaluation::BuildTimeValue {
+        use source_compiler::evaluation::BuildTimeValue;
         BuildTimeValue::Struct {
             type_name: "$OmegaBuildInputSlots".to_owned(),
             fields: self

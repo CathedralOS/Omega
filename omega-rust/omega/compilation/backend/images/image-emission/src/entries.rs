@@ -91,27 +91,18 @@ pub(crate) mod callable_entry_transport {
             entry: MachineId,
             preemption: Preemption,
         ) -> Result<NativeBodyCpuState, Error> {
-            let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-                "interrupt body lacks retained emission custody",
-            ))?;
-            let source = replay.0.source().source().source().source();
-            let callable_invocations = crate::callable_calls::prepare_from(source, entry)
-                .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
-            let model = source.register_environment().physical().model();
-            let encoding = source.encoding();
-            let encoded_rows = index_encoded_rows(
-                source
-                    .physical_program()
-                    .machine
-                    .functions
-                    .iter()
-                    .flat_map(|function| {
-                        function
-                            .instructions()
-                            .map(|instruction| (function.machine, instruction.instruction))
-                    }),
-                encoding.rows(),
-            )?;
+            let source = &body.body_readback;
+            let callable_invocations = crate::callable_calls::prepare_with(
+                body.call_origins(),
+                &body.program_contracts,
+                entry,
+            )
+            .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
+            let model = source.physical.model();
+            let encoding = &source.encoding;
+            let origins = &source.cpu;
+            let encoded_rows =
+                index_encoded_rows(origins.instruction_roster.iter().copied(), encoding.rows())?;
             let call_effects = direct_call_effects(body.target.architecture)?;
             let mut footprint = Footprint::default();
             let mut generated_effects = StateEffectsEvidence::new(
@@ -120,7 +111,7 @@ pub(crate) mod callable_entry_transport {
                 MachineStateSet::empty(),
                 MachineStateSet::empty(),
             );
-            let mut visited = semantic_vocabulary::IdSet::<MachineId>::default();
+            let mut visited = arena::IdSet::<MachineId>::default();
             let mut pending = vec![entry];
             pending.extend(callable_invocations.roots.iter().copied());
             let mut frame_floating_control = false;
@@ -130,14 +121,13 @@ pub(crate) mod callable_entry_transport {
                     continue;
                 }
                 let function = source
-                    .resolved_layout()
+                    .layout
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
-                let selected = source
-                    .physical_program()
-                    .function(machine)
-                    .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
-                let protocols = source.frame_protocol();
+                let origin = origins.function(machine).ok_or(Error::Mismatch(
+                    "interrupt callee lacks physical CPU origins",
+                ))?;
+                let protocols = &source.protocol;
                 let frame = protocols
                     .functions
                     .iter()
@@ -146,7 +136,7 @@ pub(crate) mod callable_entry_transport {
                         "entry callee lacks its actual frame protocol",
                     ))?;
                 let frame_layout = source
-                    .frame_layout()
+                    .frame
                     .functions
                     .iter()
                     .find(|frame| frame.machine == machine)
@@ -171,16 +161,13 @@ pub(crate) mod callable_entry_transport {
                     let decoded = match body.target.architecture {
                         target::Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(bytes, None),
                         target::Architecture::Aarch64 => isa_aarch64::decode_aarch64_generated_entry(bytes, None),
-                    }.map_err(|reason| Error::NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
+                    }.map_err(|reason| Error::NativeEntryBridge(physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
                     generated_effects = generated_effects.compose(&decoded.effects);
                 }
-                for instruction in selected.instructions() {
-                    if let selected_instructions::SelectedInstructionKind::RegisterAccess {
-                        operation,
-                    } = instruction.kind
-                    {
-                        check_mask_operation(preemption, operation)?;
-                    }
+                if preemption == Preemption::Masked && !origin.unmasks_interrupts.is_empty() {
+                    return Err(Error::Unsupported(
+                        "masked interrupt handler can enable nested interrupts",
+                    ));
                 }
                 for row in function.blocks.iter().flat_map(|block| &block.instructions) {
                     if let Some(fixup) = row.internal_machine_fixup() {
@@ -212,38 +199,70 @@ pub(crate) mod callable_entry_transport {
                             "interrupt instruction lacks retained encoded effects",
                         ))?;
                     if is_call(encoded.encoded.control) {
-                        let instruction = selected
-                            .instructions()
-                            .find(|instruction| instruction.id == row.instruction)
-                            .ok_or(Error::Mismatch(
-                                "native call has no exact selected instruction",
-                            ))?;
+                        let mut targets = origin
+                            .indirect_calls
+                            .iter()
+                            .filter(|(instruction, _)| *instruction == row.instruction);
+                        let target = targets.next().map(|(_, target)| *target);
+                        if targets.next().is_some() {
+                            return Err(Error::Mismatch(
+                                "native call has ambiguous physical source",
+                            ));
+                        }
                         if matches!(
-                            instruction.kind.call_target(),
+                            target,
                             Some(selected_instructions::SelectedCallTarget::Callable { .. })
                         ) {
-                            let call = selected_instructions::calls::dynamic::call_record(
-                                selected,
-                                instruction,
-                            )
-                            .ok_or(Error::Mismatch(
+                            let calls =
+                                body.call_origins()
+                                    .function(machine)
+                                    .ok_or(Error::Mismatch(
+                                        "callable CPU footprint lost its physical caller",
+                                    ))?;
+                            let mut matching = calls
+                                .calls
+                                .iter()
+                                .filter(|call| call.instruction == row.instruction);
+                            let call = matching.next().ok_or(Error::Mismatch(
                                 "callable CPU footprint lost its selected call contract",
                             ))?;
-                            if let Some(callees) =
-                                callable_cpu_targets(source, callable_invocations, machine, call)?
+                            if matching.next().is_some()
+                                || call
+                                    .occurrence
+                                    .as_ref()
+                                    .is_none_or(|occurrence| occurrence.target != target)
                             {
+                                return Err(Error::Mismatch(
+                                    "callable CPU footprint lost its selected call contract",
+                                ));
+                            }
+                            if let Some(callees) = callable_cpu_targets(
+                                &body.program_contracts,
+                                callable_invocations,
+                                machine,
+                                call.owner,
+                                call.call.target,
+                            )? {
                                 pending.extend(callees.iter().copied());
                             }
                             footprint.decoded(model, encoded)?;
                             continue;
                         }
-                        let call = selected
-                            .normalized_foreign_calls
-                            .iter()
-                            .find(|call| call.instruction == row.instruction)
+                        let plans = body.foreign_call_plans();
+                        let mut calls = plans.calls.iter().filter(|call| {
+                            call.machine == machine && call.record.instruction == row.instruction
+                        });
+                        let call = &calls
+                            .next()
                             .ok_or(Error::Unsupported(
                                 "interrupt indirect call lacks admitted provider state",
-                            ))?;
+                            ))?
+                            .record;
+                        if calls.next().is_some() {
+                            return Err(Error::Mismatch(
+                                "interrupt indirect call has ambiguous physical source",
+                            ));
+                        }
                         if !call.call.callbacks.is_empty() {
                             return Err(Error::Unsupported(
                                 "interrupt provider callback closure has no retained state footprint",
@@ -315,13 +334,288 @@ pub(crate) mod callable_entry_transport {
                                     "MSR architectural state requires x86-64",
                                 ));
                             }
+                            let access = if row.alternative.family
+                                == MachineAlternativeFamily::ModelSpecificRead
+                            {
+                                machine_code::cpu_origins::ModelSpecificAccess::Read
+                            } else {
+                                machine_code::cpu_origins::ModelSpecificAccess::Write
+                            };
+                            let mut registers = origin
+                                .model_specific_registers
+                                .iter()
+                                .filter(|query| query.instruction == row.instruction);
+                            let query = registers.next().ok_or(Error::Mismatch(
+                                "MSR row has no function-local physical source",
+                            ))?;
+                            if registers.next().is_some() || query.access != access {
+                                return Err(Error::Mismatch(
+                                    "MSR row and selected operation disagree",
+                                ));
+                            }
+                            let expected = match access {
+                                machine_code::cpu_origins::ModelSpecificAccess::Read => {
+                                    selected_instructions::RegisterOperation::ModelSpecificRead
+                                }
+                                machine_code::cpu_origins::ModelSpecificAccess::Write => {
+                                    selected_instructions::RegisterOperation::ModelSpecificWrite
+                                }
+                            };
+                            let selector = query
+                                .selector
+                                .as_ref()
+                                .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?
+                                .and_then(|value| u32::try_from(value).ok());
+                            let architectural = isa_x86_64::x86_64_model_specific_register_state(
+                                expected, selector,
+                            )
+                            .map_err(Error::Unsupported)?;
+                            footprint.states =
+                                footprint.states.union(architectural.machine_state());
+                            footprint.clobbered =
+                                footprint.clobbered.union(architectural.clobbered_state());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            let mut collected = footprint.finish(model)?;
+            collected.effects = collected.effects.compose(&generated_effects);
+            collected.generated_effects = generated_effects;
+            collected.floating_control |= frame_floating_control;
+            collected.opaque_control = opaque_control;
+            Ok(collected)
+        }
+
+        pub(super) fn plan(
+            frame_program: &physical_planning::PhysicalFrameProgram,
+            entry: MachineId,
+            preemption: Preemption,
+        ) -> Result<NativeBodyCpuState, Error> {
+            let source = &frame_program.instructions;
+            let target = source.machine.target;
+            let callable_invocations = source
+                .contracts
+                .execution()
+                .and_then(|facts| facts.callable_invocations_from(entry))
+                .ok_or(Error::Mismatch(
+                    "entry has no exact prepared callable invocation summary",
+                ))?;
+            let model = source.physical().model();
+            let call_effects = planned_call_effects(target.architecture);
+            let mut footprint = Footprint::default();
+            let mut generated_effects = StateEffectsEvidence::new(
+                RegisterSet::default(),
+                RegisterSet::default(),
+                MachineStateSet::empty(),
+                MachineStateSet::empty(),
+            );
+            let mut visited = arena::IdSet::<MachineId>::default();
+            let mut pending = vec![entry];
+            pending.extend(callable_invocations.roots.iter().copied());
+            let mut frame_floating_control = false;
+            let mut opaque_control = false;
+            while let Some(machine) = pending.pop() {
+                if !visited.insert(machine) {
+                    continue;
+                }
+                let function = source
+                    .machine
+                    .functions
+                    .iter()
+                    .find(|function| function.machine == machine)
+                    .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
+                let selected = source
+                    .function(machine)
+                    .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
+                let frame_layout = frame_program
+                    .frame
+                    .plan()
+                    .functions
+                    .iter()
+                    .find(|frame| frame.machine == machine)
+                    .ok_or(Error::Mismatch(
+                        "entry callee lacks its actual frame layout",
+                    ))?;
+                for restore in &frame_layout.unwind.restores {
+                    let view = model
+                        .view(restore.view)
+                        .ok_or(Error::Mismatch("entry frame names unknown register view"))?;
+                    for unit in view.units.iter().chain(&view.write_units) {
+                        let unit = model
+                            .unit(*unit)
+                            .ok_or(Error::Mismatch("entry frame names unknown register unit"))?;
+                        frame_floating_control |= unit.kind == RegisterUnitKind::FloatingControl;
+                    }
+                }
+                generated_effects =
+                    generated_effects.compose(
+                        frame_program.protocols.function_effects(machine).ok_or(
+                            Error::Mismatch("entry callee lacks its planned frame effects"),
+                        )?,
+                    );
+                for instruction in selected.instructions() {
+                    if let selected_instructions::SelectedInstructionKind::RegisterAccess {
+                        operation,
+                    } = instruction.kind
+                    {
+                        check_mask_operation(preemption, operation)?;
+                    }
+                }
+                for row in function.instructions() {
+                    let instruction = selected
+                        .blocks
+                        .iter()
+                        .flat_map(|block| {
+                            block.instructions.iter().chain(std::iter::once(
+                                selected_instructions::terminator_instruction(&block.terminator),
+                            ))
+                        })
+                        .find(|instruction| instruction.id == row.instruction)
+                        .ok_or(Error::Mismatch(
+                            "physical instruction has no exact selected contract",
+                        ))?;
+                    if let Some(callee) = instruction
+                        .kind
+                        .call_target()
+                        .and_then(|target| target.machine())
+                    {
+                        generated_effects = generated_effects.compose(&call_effects);
+                        pending.push(callee);
+                        continue;
+                    }
+                    let effects = &row.alternative.encoded;
+                    let operands = |ordinals: &[u16]| {
+                        ordinals
+                            .iter()
+                            .map(|ordinal| {
+                                row.operand_footprint(*ordinal).map(|operand| operand.view)
+                            })
+                            .collect::<Option<Vec<_>>>()
+                            .ok_or(Error::Mismatch("physical effect has no exact operand"))
+                    };
+                    let encoded = SelectedFormDecodedFootprint {
+                        register_reads: operands(&effects.external_operand_reads)?,
+                        register_writes: operands(&effects.external_operand_writes)?,
+                        implicit_defs: effects.implicit_unit_defs.clone(),
+                        implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+                        encoded: effects.clone(),
+                    };
+                    if is_call(encoded.encoded.control) {
+                        let instruction = selected
+                            .instructions()
+                            .find(|instruction| instruction.id == row.instruction)
+                            .ok_or(Error::Mismatch(
+                                "native call has no exact selected instruction",
+                            ))?;
+                        if matches!(
+                            instruction.kind.call_target(),
+                            Some(selected_instructions::SelectedCallTarget::Callable { .. })
+                        ) {
+                            let call = selected_instructions::calls::dynamic::call_record(
+                                selected,
+                                instruction,
+                            )
+                            .ok_or(Error::Mismatch(
+                                "callable CPU footprint lost its selected call contract",
+                            ))?;
+                            if let Some(callees) = callable_cpu_targets(
+                                &source.contracts,
+                                callable_invocations,
+                                machine,
+                                call.owner,
+                                call.call.target,
+                            )? {
+                                pending.extend(callees.iter().copied());
+                            }
+                            footprint.decoded(model, &encoded)?;
+                            continue;
+                        }
+                        let call = selected
+                            .normalized_foreign_calls
+                            .iter()
+                            .find(|call| call.instruction == row.instruction)
+                            .ok_or(Error::Unsupported(
+                                "interrupt indirect call lacks admitted provider state",
+                            ))?;
+                        if !call.call.callbacks.is_empty() {
+                            return Err(Error::Unsupported(
+                                "interrupt provider callback closure has no retained state footprint",
+                            ));
+                        }
+                        if preemption == Preemption::Masked
+                            && call.call.binding.boundary_entry_plan.state.preemption
+                                != Preemption::Masked
+                        {
+                            return Err(Error::Unsupported(
+                                "opaque interrupt callee does not promise masked execution",
+                            ));
+                        }
+                        let ceiling = call
+                            .call
+                            .binding
+                            .boundary_entry_plan
+                            .state
+                            .permitted_transitive_use;
+                        opaque_control |= !ceiling
+                            .intersection(MachineStateSet::new([
+                                MachineState::ControlState,
+                                MachineState::ExtendedState,
+                            ]))
+                            .is_empty();
+                        footprint.states = footprint.states.union(ceiling);
+                        footprint.clobbered = footprint.clobbered.union(ceiling);
+                    }
+                    footprint.decoded(model, &encoded)?;
+                    match row.alternative.key.family {
+                        MachineAlternativeFamily::CodeSegmentReload
+                        | MachineAlternativeFamily::DataSegmentReload => {
+                            footprint.state(MachineState::ControlState);
+                            footprint.state(MachineState::SegmentState);
+                            footprint.clobbered = footprint
+                                .clobbered
+                                .union(MachineStateSet::new([MachineState::SegmentState]));
+                        }
+                        MachineAlternativeFamily::SegmentSelectorRead => {
+                            footprint.state(MachineState::SegmentState);
+                        }
+                        MachineAlternativeFamily::ControlRegisterRead
+                        | MachineAlternativeFamily::GlobalDescriptorTableLoad
+                        | MachineAlternativeFamily::GlobalDescriptorTableStore
+                        | MachineAlternativeFamily::TaskRegisterActivate
+                        | MachineAlternativeFamily::InstalledInterruptCpuCheck
+                        | MachineAlternativeFamily::InstalledInterruptTaskCommit
+                        | MachineAlternativeFamily::InstalledInterruptTablePublication
+                        | MachineAlternativeFamily::TaskRegisterRead
+                        | MachineAlternativeFamily::ControlRegisterWrite => {
+                            footprint.state(MachineState::ControlState);
+                            if matches!(
+                                row.alternative.key.family,
+                                MachineAlternativeFamily::GlobalDescriptorTableLoad
+                                    | MachineAlternativeFamily::TaskRegisterActivate
+                                    | MachineAlternativeFamily::InstalledInterruptTaskCommit
+                                    | MachineAlternativeFamily::InstalledInterruptTablePublication
+                                    | MachineAlternativeFamily::ControlRegisterWrite
+                            ) {
+                                footprint.clobbered = footprint
+                                    .clobbered
+                                    .union(MachineStateSet::new([MachineState::ControlState]));
+                            }
+                        }
+                        MachineAlternativeFamily::ModelSpecificRead
+                        | MachineAlternativeFamily::ModelSpecificWrite => {
+                            if target.architecture != target::Architecture::X86_64 {
+                                return Err(Error::Unsupported(
+                                    "MSR architectural state requires x86-64",
+                                ));
+                            }
                             let instruction = selected
                                 .instructions()
                                 .find(|instruction| instruction.id == row.instruction)
                                 .ok_or(Error::Mismatch(
                                     "MSR row has no function-local selected instruction",
                                 ))?;
-                            let expected = if row.alternative.family
+                            let expected = if row.alternative.key.family
                                 == MachineAlternativeFamily::ModelSpecificRead
                             {
                                 selected_instructions::RegisterOperation::ModelSpecificRead
@@ -336,9 +630,8 @@ pub(crate) mod callable_entry_transport {
                                 return Err(Error::Mismatch("MSR row and selected operation disagree"));
                             }
                             let selector =
-                                crate::object::function_fragments::selected_constant_operand(
-                                    &replay.0,
-                                    machine,
+                                crate::object::function_fragments::planned_constant_operand(
+                                    selected,
                                     row.instruction,
                                     0,
                                 )?
@@ -365,26 +658,23 @@ pub(crate) mod callable_entry_transport {
         }
 
         fn callable_cpu_targets<'a>(
-            source: &machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+            source: &selected_instructions::SelectedProgramContracts,
             invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
             machine: MachineId,
-            call: &selected_instructions::SelectedCallContract,
+            owner: target_operations::CallSiteOwner,
+            target: target_operations::NativeCallTarget,
         ) -> Result<Option<&'a [MachineId]>, Error> {
-            let target_operations::NativeCallTarget::Callable { callee, contract } =
-                call.call.target
-            else {
+            let target_operations::NativeCallTarget::Callable { callee, contract } = target else {
                 return Err(Error::Mismatch(
                     "callable CPU footprint has another native call target",
                 ));
             };
-            let target_operations::CallSiteOwner::Operation(operation) = call.owner else {
+            let target_operations::CallSiteOwner::Operation(operation) = owner else {
                 return Err(Error::Mismatch(
                     "callable CPU footprint has another source invocation route",
                 ));
             };
             let body = source
-                .physical_program()
-                .contracts
                 .publication()
                 .function(machine)
                 .ok_or(Error::Mismatch(
@@ -527,6 +817,25 @@ pub(crate) mod callable_entry_transport {
             )
         }
 
+        fn planned_call_effects(architecture: target::Architecture) -> StateEffectsEvidence {
+            use calling_conventions::MachineRegister as R;
+            use calling_conventions::MachineState as S;
+            match architecture {
+                target::Architecture::X86_64 => StateEffectsEvidence::new(
+                    RegisterSet::new([R::X86Rsp]),
+                    RegisterSet::new([R::X86Rsp]),
+                    MachineStateSet::new([S::StackPointer]),
+                    MachineStateSet::new([S::StackPointer, S::InstructionPointer]),
+                ),
+                target::Architecture::Aarch64 => StateEffectsEvidence::new(
+                    RegisterSet::default(),
+                    RegisterSet::new([R::Aarch64X(30)]),
+                    MachineStateSet::empty(),
+                    MachineStateSet::new([S::InstructionPointer]),
+                ),
+            }
+        }
+
         fn direct_call_effects(
             architecture: target::Architecture,
         ) -> Result<StateEffectsEvidence, Error> {
@@ -542,7 +851,7 @@ pub(crate) mod callable_entry_transport {
             }
             .map_err(|reason| {
                 Error::NativeEntryBridge(
-                    machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+                    physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                         reason,
                     ),
                 )
@@ -1100,10 +1409,17 @@ pub(crate) mod callable_entry_transport {
     };
     use calling_conventions::BoundaryEntryPlan;
     use function_identity::MachineFunctionIdentity;
-    use machine_emission::native_entry_bridge::{
+    use physical_planning::native_entry_bridge::{
         InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
-        emit_installed_interrupt_entry_bridge, emit_native_entry_bridge,
     };
+
+    pub fn plan_native_body_cpu_state(
+        body: &physical_planning::PhysicalFrameProgram,
+        entry: semantic_vocabulary::MachineId,
+        preemption: calling_conventions::Preemption,
+    ) -> Result<NativeBodyCpuState, Error> {
+        body_footprint::plan(body, entry, preemption)
+    }
 
     pub fn observe_native_body_cpu_state(
         body: &ObjectArtifact,
@@ -1147,7 +1463,7 @@ pub(crate) mod callable_entry_transport {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct CallableEntryTransport {
-        pub(crate) bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+        pub(crate) bridge: Option<native_encoding::native_entry_bridge::NativeEntryBridge>,
         pub(crate) effects: calling_conventions::StateEffectsEvidence,
         pub(crate) inbound: BoundaryEntryPlan,
         pub(crate) ordinals: Vec<u32>,
@@ -1159,93 +1475,255 @@ pub(crate) mod callable_entry_transport {
         body: &ObjectArtifact,
         transport: &CallableEntryTransport,
     ) -> Result<(), Error> {
-        let expected =
-            create_callable_entry_transport(body, &transport.inbound, &transport.ordinals)?;
-        if expected != *transport {
+        if transport.source_psi != body.psi() || transport.entry != body.entry() {
             return Err(Error::Mismatch(
                 "callable entry transport belongs to another body, ABI or state promise",
             ));
         }
-        Ok(())
-    }
-
-    pub fn create_private_function_object(
-        identity: MachineFunctionIdentity,
-        body: Arc<ObjectArtifact>,
-        inbound: &BoundaryEntryPlan,
-        inbound_ordinals: &[u32],
-    ) -> Result<PrivateFunctionObject, Error> {
-        let transport = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
-        Ok(PrivateFunctionObject {
-            identity,
+        check_entry_contract(
             body,
-            entry_bridge: transport.bridge,
-            entry_effects: transport.effects,
-            inbound: inbound.clone(),
-            inbound_ordinals: inbound_ordinals.to_vec(),
-        })
+            &transport.inbound,
+            &transport.ordinals,
+            None,
+            transport.bridge.as_ref(),
+            &transport.effects,
+        )
     }
 
-    pub fn create_installed_private_function_object(
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct PlannedCallableEntryTransport {
+        psi: terminal_psi::TerminalPsiIdentity,
+        entry: semantic_vocabulary::MachineId,
+        bridge: Option<physical_planning::native_entry_bridge::NativeEntryBridgePlan>,
+        effects: calling_conventions::StateEffectsEvidence,
+        cpu: NativeBodyCpuState,
+        inbound: BoundaryEntryPlan,
+        ordinals: Vec<u32>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct PlannedPrivateEntry {
         identity: MachineFunctionIdentity,
-        body: Arc<ObjectArtifact>,
-        inbound: &BoundaryEntryPlan,
-        inbound_ordinals: &[u32],
-        installed_plan: InstalledInterruptEntryPlan,
-    ) -> Result<PrivateFunctionObject, Error> {
-        let execution = body.installed_entry_execution().ok_or(Error::Mismatch(
-            "installed private entry has no retained execution domain",
-        ))?;
-        if execution.entry().callback_function != identity
-            || execution.entry().entry().inbound() != inbound
-            || execution.entry().entry().inbound_ordinals() != inbound_ordinals
-        {
-            return Err(Error::Mismatch(
-                "installed private entry changed its execution domain",
-            ));
+        transport: PlannedCallableEntryTransport,
+    }
+
+    impl PlannedPrivateEntry {
+        pub fn bridge(
+            &self,
+        ) -> Option<&physical_planning::native_entry_bridge::NativeEntryBridgePlan> {
+            self.transport.bridge.as_ref()
         }
-        let request = native_entry_request(&body, inbound, inbound_ordinals)?;
-        let bridge = emit_installed_interrupt_entry_bridge(request, installed_plan)
-            .map_err(Error::NativeEntryBridge)?;
-        Ok(PrivateFunctionObject {
-            identity,
+        pub fn cpu_state(&self) -> &NativeBodyCpuState {
+            &self.transport.cpu
+        }
+    }
+
+    pub fn plan_private_function_entry(
+        identity: MachineFunctionIdentity,
+        body: &physical_planning::PhysicalFrameProgram,
+        authority: &physical_planning::installation_resources::PlannedInstallationResources,
+        inbound: &BoundaryEntryPlan,
+        inbound_ordinals: &[u32],
+        installed_plan: Option<InstalledInterruptEntryPlan>,
+    ) -> Result<PlannedPrivateEntry, Error> {
+        let transport = plan_entry_transport(
             body,
-            entry_effects: bridge.complete_effects().clone(),
-            entry_bridge: Some(bridge),
-            inbound: inbound.clone(),
-            inbound_ordinals: inbound_ordinals.to_vec(),
+            authority,
+            inbound,
+            inbound_ordinals,
+            installed_plan.map(|plan| (identity, plan)),
+        )?;
+        Ok(PlannedPrivateEntry {
+            identity,
+            transport,
         })
     }
 
-    pub fn create_callable_entry_transport(
+    pub fn plan_callable_entry_transport(
+        body: &physical_planning::PhysicalFrameProgram,
+        authority: &physical_planning::installation_resources::PlannedInstallationResources,
+        inbound: &BoundaryEntryPlan,
+        inbound_ordinals: &[u32],
+    ) -> Result<PlannedCallableEntryTransport, Error> {
+        plan_entry_transport(body, authority, inbound, inbound_ordinals, None)
+    }
+
+    fn plan_entry_transport(
+        body: &physical_planning::PhysicalFrameProgram,
+        authority: &physical_planning::installation_resources::PlannedInstallationResources,
+        inbound: &BoundaryEntryPlan,
+        inbound_ordinals: &[u32],
+        installed_plan: Option<(MachineFunctionIdentity, InstalledInterruptEntryPlan)>,
+    ) -> Result<PlannedCallableEntryTransport, Error> {
+        let source = &body.instructions;
+        let abi = source
+            .contracts
+            .function_abi(source.entry)
+            .ok_or(Error::Mismatch("callable body entry plan missing"))?;
+        let cpu = body_footprint::plan(body, source.entry, inbound.state.preemption)?;
+        let request = native_entry_request_from_abi(
+            source.machine.target,
+            abi,
+            cpu.effects().clone(),
+            inbound,
+            inbound_ordinals,
+        )?;
+        let (bridge, effects) = match installed_plan {
+            Some((identity, plan)) => {
+                let execution = authority
+                    .installed_entry_execution()
+                    .ok_or(Error::Mismatch(
+                        "installed private entry has no retained execution domain",
+                    ))?;
+                if execution.entry().callback_function != identity
+                    || execution.entry().entry().inbound() != inbound
+                    || execution.entry().entry().inbound_ordinals() != inbound_ordinals
+                {
+                    return Err(Error::Mismatch(
+                        "installed private entry changed its execution domain",
+                    ));
+                }
+                let bridge =
+                    physical_planning::native_entry_bridge::plan_installed_interrupt_entry_bridge(
+                        request, plan,
+                    )
+                    .map_err(Error::NativeEntryBridge)?;
+                let effects = bridge.complete_effects().clone();
+                (Some(bridge), effects)
+            }
+            None => {
+                if authority.installed_entry_execution().is_some() {
+                    return Err(Error::Mismatch(
+                        "a privileged installed body cannot become an ordinary callable entry",
+                    ));
+                }
+                if identity_transport(&request) {
+                    let effects = request
+                        .checked_complete_effects(
+                            &calling_conventions::StateEffectsEvidence::empty(),
+                        )
+                        .map_err(Error::NativeEntryBridge)?;
+                    (None, effects)
+                } else {
+                    let bridge =
+                        physical_planning::native_entry_bridge::plan_native_entry_bridge(request)
+                            .map_err(Error::NativeEntryBridge)?;
+                    let effects = bridge.complete_effects().clone();
+                    (Some(bridge), effects)
+                }
+            }
+        };
+        Ok(PlannedCallableEntryTransport {
+            psi: source.psi,
+            entry: source.entry,
+            bridge,
+            effects,
+            cpu,
+            inbound: inbound.clone(),
+            ordinals: inbound_ordinals.to_vec(),
+        })
+    }
+
+    pub fn encode_callable_entry_transport(
+        plan: PlannedCallableEntryTransport,
+    ) -> Result<CallableEntryTransport, Error> {
+        let bridge = plan
+            .bridge
+            .map(native_encoding::native_entry_bridge::encode_native_entry_bridge)
+            .transpose()
+            .map_err(Error::NativeEntryBridge)?;
+        Ok(CallableEntryTransport {
+            bridge,
+            effects: plan.effects,
+            inbound: plan.inbound,
+            ordinals: plan.ordinals,
+            source_psi: plan.psi,
+            entry: plan.entry,
+        })
+    }
+
+    pub struct EncodedPrivateEntry {
+        identity: MachineFunctionIdentity,
+        transport: CallableEntryTransport,
+    }
+
+    pub fn encode_private_function_entry(
+        plan: PlannedPrivateEntry,
+    ) -> Result<EncodedPrivateEntry, Error> {
+        Ok(EncodedPrivateEntry {
+            identity: plan.identity,
+            transport: encode_callable_entry_transport(plan.transport)?,
+        })
+    }
+
+    impl EncodedPrivateEntry {
+        pub fn bind(self, body: Arc<ObjectArtifact>) -> Result<PrivateFunctionObject, Error> {
+            let transport = self.transport;
+            if body.psi() != transport.source_psi || body.entry() != transport.entry {
+                return Err(Error::Mismatch(
+                    "private entry plan belongs to another body",
+                ));
+            }
+            Ok(PrivateFunctionObject {
+                identity: self.identity,
+                body,
+                entry_bridge: transport.bridge,
+                entry_effects: transport.effects,
+                inbound: transport.inbound,
+                inbound_ordinals: transport.ordinals,
+            })
+        }
+    }
+
+    fn check_entry_contract(
         body: &ObjectArtifact,
         inbound: &BoundaryEntryPlan,
-        inbound_ordinals: &[u32],
-    ) -> Result<CallableEntryTransport, Error> {
-        if body.installed_entry_execution().is_some() {
+        ordinals: &[u32],
+        installed: Option<(MachineFunctionIdentity, InstalledInterruptEntryPlan)>,
+        bridge: Option<&native_encoding::native_entry_bridge::NativeEntryBridge>,
+        effects: &calling_conventions::StateEffectsEvidence,
+    ) -> Result<(), Error> {
+        if let Some((identity, _)) = installed {
+            let execution = body.installed_entry_execution().ok_or(Error::Mismatch(
+                "installed private entry has no retained execution domain",
+            ))?;
+            if execution.entry().callback_function != identity
+                || execution.entry().entry().inbound() != inbound
+                || execution.entry().entry().inbound_ordinals() != ordinals
+            {
+                return Err(Error::Mismatch(
+                    "installed private entry changed its execution domain",
+                ));
+            }
+        } else if body.installed_entry_execution().is_some() {
             return Err(Error::Mismatch(
                 "a privileged installed body cannot become an ordinary callable entry",
             ));
         }
-        let request = native_entry_request(body, inbound, inbound_ordinals)?;
-        let (bridge, effects) = if identity_transport(&request) {
-            let effects = request
-                .checked_complete_effects(&calling_conventions::StateEffectsEvidence::empty())
-                .map_err(Error::NativeEntryBridge)?;
-            (None, effects)
-        } else {
-            let bridge = emit_native_entry_bridge(request).map_err(Error::NativeEntryBridge)?;
-            let effects = bridge.complete_effects().clone();
-            (Some(bridge), effects)
-        };
-        Ok(CallableEntryTransport {
-            bridge,
-            effects,
-            inbound: inbound.clone(),
-            ordinals: inbound_ordinals.to_vec(),
-            source_psi: body.psi(),
-            entry: body.entry(),
-        })
+        let request = native_entry_request(body, inbound, ordinals)?;
+        let needs_bridge = installed.is_some() || !identity_transport(&request);
+        match bridge {
+            Some(bridge)
+                if needs_bridge
+                    && bridge.request() == &request
+                    && bridge.installed_interrupt() == installed.map(|(_, plan)| plan)
+                    && bridge.complete_effects() == effects =>
+            {
+                native_verification::bridges::validate_native_entry_bridge(bridge)
+                    .map_err(Error::NativeEntryBridge)
+            }
+            None if !needs_bridge
+                && &request
+                    .checked_complete_effects(&calling_conventions::StateEffectsEvidence::empty())
+                    .map_err(Error::NativeEntryBridge)?
+                    == effects =>
+            {
+                Ok(())
+            }
+            _ => Err(Error::Mismatch(
+                "callable entry transport belongs to another body, ABI or state promise",
+            )),
+        }
     }
 
     pub(crate) fn native_entry_request(
@@ -1257,6 +1735,22 @@ pub(crate) mod callable_entry_transport {
             .program_contracts
             .function_abi(body.entry)
             .ok_or(Error::Mismatch("callable body entry plan missing"))?;
+        native_entry_request_from_abi(
+            body.target,
+            abi,
+            body_footprint::collect(body, inbound.state.preemption)?.into_effects(),
+            inbound,
+            inbound_ordinals,
+        )
+    }
+
+    pub(super) fn native_entry_request_from_abi(
+        target: target::NativeTarget,
+        abi: &target_operations::LegalizedFunctionAbi,
+        effects: calling_conventions::StateEffectsEvidence,
+        inbound: &BoundaryEntryPlan,
+        inbound_ordinals: &[u32],
+    ) -> Result<NativeEntryBridgeRequest, Error> {
         let internal = &abi.call_plan;
         if inbound_ordinals.len() != internal.parameters.len()
             || inbound.call.parameters.len() != internal.parameters.len()
@@ -1294,12 +1788,10 @@ pub(crate) mod callable_entry_transport {
             });
         }
         Ok(NativeEntryBridgeRequest {
-            target: body.target,
+            target,
             internal: internal.clone(),
             inbound: inbound.clone(),
-            body_footprint: Some(
-                body_footprint::collect(body, inbound.state.preemption)?.into_effects(),
-            ),
+            body_footprint: Some(effects),
             parameters,
         })
     }
@@ -1333,29 +1825,14 @@ pub(crate) mod callable_entry_transport {
             .entry_bridge
             .as_ref()
             .and_then(|bridge| bridge.installed_interrupt());
-        let expected = match installed {
-            Some(plan) => create_installed_private_function_object(
-                private.identity,
-                Arc::clone(&private.body),
-                &private.inbound,
-                &private.inbound_ordinals,
-                plan,
-            )?,
-            None => create_private_function_object(
-                private.identity,
-                Arc::clone(&private.body),
-                &private.inbound,
-                &private.inbound_ordinals,
-            )?,
-        };
-        if expected.entry_bridge != private.entry_bridge
-            || expected.entry_effects != private.entry_effects
-        {
-            return Err(Error::Mismatch(
-                "private native entry differs from ordinary body transport",
-            ));
-        }
-        Ok(())
+        check_entry_contract(
+            &private.body,
+            &private.inbound,
+            &private.inbound_ordinals,
+            installed.map(|plan| (private.identity, plan)),
+            private.entry_bridge.as_ref(),
+            &private.entry_effects,
+        )
     }
 }
 
@@ -1366,7 +1843,7 @@ pub(crate) mod foreign_adapter {
         FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
         FinalImageSection, FinalImageSymbol,
     };
-    use machine_emission::native_foreign_bridge::NativeForeignBridge;
+    use native_encoding::native_foreign_bridge::NativeForeignBridge;
     use object_file::{RelocationKind, SymbolKind};
 
     #[derive(Debug)]
@@ -1408,6 +1885,7 @@ pub(crate) mod foreign_adapter {
         bridge: NativeForeignBridge,
         locator: target::NormalizedForeignLocator,
         application: [u8; 32],
+        imports: machine_code::import_code::EncodedImportProgram,
     ) -> Result<NativeForeignAdapterImage, Box<NativeForeignAdapterEmissionError>> {
         let emitted = (|| {
             if application == [0; 32] || locator.target().native_target() != bridge.request().target
@@ -1416,7 +1894,7 @@ pub(crate) mod foreign_adapter {
                     "foreign ABI adapter has no exact application or matching locator target",
                 ));
             }
-            let mut identity = optimization_core::digest_encoder::DomainDigestEncoder::new(
+            let mut identity = ::wire::digest_encoder::DomainDigestEncoder::new(
                 b"omega.native-foreign-frame-export.v1",
             );
             identity.raw(&application);
@@ -1444,6 +1922,7 @@ pub(crate) mod foreign_adapter {
                 1,
                 1,
             );
+            image.import_program = imports;
             let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
                 name: symbol.clone(),
                 section: FinalImageSection::Text,
@@ -2875,7 +3354,6 @@ pub(crate) mod hosted_receiver {
         }
     }
 
-    pub(crate) use aarch64::prepare as prepare_aarch64_entry;
     pub(crate) use instructions::validate_aarch64 as validate_aarch64_entry;
 
     use diagnostics::Diagnostic;
@@ -2883,11 +3361,11 @@ pub(crate) mod hosted_receiver {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct HostedReceiverBinding {
-        source: SelectedProgramEntrySignature,
-        checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-        physical: ProgramEntryPhysicalContractPlan,
-        demand: crate::StackDemand,
-        private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+        pub(crate) source: SelectedProgramEntrySignature,
+        pub(crate) checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+        pub(crate) physical: ProgramEntryPhysicalContractPlan,
+        pub(crate) demand: crate::StackDemand,
+        pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -3054,7 +3532,7 @@ pub(crate) mod hosted_receiver {
                 bytes.extend([0xc6, 0x05, 0, 0, 0, 0, *byte]);
             }
         }
-        let (function, _) = crate::object::function_fragments::replay::entry_source(artifact)?;
+        let (function, _) = artifact.entry_facts()?;
         for (ordinal, _) in function.structural_parameters.iter().enumerate() {
             let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
                 .ok_or_else(invalid)?;
@@ -3125,40 +3603,11 @@ pub(crate) mod hosted_receiver {
             .copied()
     }
 
-    pub fn bind_hosted_receiver(
-        artifact: &mut crate::ObjectArtifact,
-        source: &SelectedProgramEntrySignature,
-        checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-        physical: &ProgramEntryPhysicalContractPlan,
-        demand: &crate::StackDemand,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-    ) -> Result<(), Diagnostic> {
-        if artifact.hosted_receiver.is_some() || artifact.physical_entry.is_some() {
-            return Err(invalid(artifact.target));
-        }
-        validate_entry_arguments(artifact, source, checked_entry, private_entry_ram)?;
-        let binding = HostedReceiverBinding {
-            source: source.clone(),
-            checked_entry: checked_entry.clone(),
-            physical: physical.clone(),
-            demand: demand.clone(),
-            private_entry_ram: private_entry_ram.to_vec(),
-        };
-        validate_binding(artifact, &binding)?;
-        artifact.hosted_receiver = Some(binding);
-        Ok(())
-    }
-
     pub(crate) fn validate_binding(
         artifact: &crate::ObjectArtifact,
         binding: &HostedReceiverBinding,
     ) -> Result<(), Diagnostic> {
         let invalid = || invalid(artifact.target);
-        artifact
-            .fragment_replay
-            .as_ref()
-            .map(|replay| replay.terminal_module())
-            .ok_or_else(invalid)?;
         if !physical_contract_matches(&binding.physical, artifact.target)
             || artifact.profile != Some(binding.physical.target_slot().owner)
             || binding.physical.target_slot() != binding.source.target_slot()
@@ -3236,7 +3685,7 @@ pub(crate) mod hosted_receiver {
         })
     }
 
-    fn physical_contract_matches(
+    pub(crate) fn physical_contract_matches(
         physical: &ProgramEntryPhysicalContractPlan,
         target: target::NativeTarget,
     ) -> bool {
@@ -3271,42 +3720,52 @@ pub(crate) mod hosted_receiver {
             && physical.guaranteed_entry_stack_application().is_none()
     }
 
-    fn validate_entry_arguments(
-        artifact: &crate::ObjectArtifact,
+    pub(crate) struct ReceiverArgumentInput<'a> {
+        pub target: target::NativeTarget,
+        pub admission: &'a verified_optimization_input::EmissionAdmission,
+        pub function: &'a verified_optimization_input::publication::EmissionFunctionFacts,
+        pub abi: &'a legalized_operations::LegalizedFunctionAbi,
+    }
+
+    pub(crate) fn validate_planned_entry_arguments(
+        input: ReceiverArgumentInput<'_>,
         source: &SelectedProgramEntrySignature,
         checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
     ) -> Result<(), Diagnostic> {
+        let ReceiverArgumentInput {
+            target,
+            admission,
+            function,
+            abi,
+        } = input;
         use calling_conventions::CallingPolicy;
-        let invalid = || invalid(artifact.target);
+        let invalid = || invalid(target);
         if ![
             target::NativeTarget::linux_x64(),
             target::NativeTarget::linux_arm64(),
             target::NativeTarget::macos_arm64(),
             target::NativeTarget::windows_x64(),
         ]
-        .contains(&artifact.target)
+        .contains(&target)
             || private_entry_ram.is_empty()
         {
             return Err(invalid());
         }
-        let (function, abi) = crate::object::function_fragments::replay::entry_source(artifact)?;
-        let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
-        let terminal = replay.terminal_module();
-        let identity = terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
+        let identity = admission.terminal();
         let selected = checked_entry.terminal_entry();
-        if source.target_slot().owner.native_realization() != Some(artifact.target)
+        if source.target_slot().owner.native_realization() != Some(target)
             || checked_entry.source_signature_identity() != source.identity().bytes()
             || checked_entry.terminal_psi_identity() != identity
             || checked_entry.terminal_entry() != function.machine
-            || terminal
-                .identities
+            || admission
+                .identities()
                 .text(checked_entry.declaration().identity())
                 != Some(source.declaration())
-            || terminal
-                .machine(selected)
-                .and_then(|machine| machine.declaration.as_ref())
-                .and_then(|declaration| terminal.identities.text(declaration.machine.identity()))
+            || admission.entry() != selected
+            || admission
+                .entry_declaration()
+                .and_then(|declaration| admission.identities().text(declaration.machine.identity()))
                 != Some(source.declaration())
             || !matches!(
                 function.result,
@@ -3316,7 +3775,7 @@ pub(crate) mod hosted_receiver {
             || !function.entry_claims.is_empty()
             || !source.visible_parameters().is_empty()
             || function.attachment.is_some()
-            || abi.call_plan.policy != CallingPolicy::native_for_target(artifact.target)
+            || abi.call_plan.policy != CallingPolicy::native_for_target(target)
             || function.structural_parameters.len() != private_entry_ram.len()
             || abi.structural_parameters.len() != private_entry_ram.len()
             || abi.call_plan.parameters.len() != private_entry_ram.len()
@@ -3324,20 +3783,16 @@ pub(crate) mod hosted_receiver {
         {
             return Err(invalid());
         }
-        if let Some(selections) = replay.target_context() {
+        if let Some(selections) = admission.target_context() {
             if selections.target() != source.target_slot().owner.target_name()
-                || selections
-                    .entry(
-                        identity,
-                        terminal,
-                        terminal_psi::TargetMachineCallable::Machine(selected),
-                    )
-                    .map_err(|_| invalid())?
-                    != selected
+                || selections.terminal_psi() != identity
+                || admission.entry() != selected
             {
                 return Err(invalid());
             }
-        } else if terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(selected)) {
+        } else if admission.original_entry()
+            != Some(terminal_psi::TargetMachineCallable::Machine(selected))
+        {
             return Err(invalid());
         }
         for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
@@ -3352,8 +3807,7 @@ pub(crate) mod hosted_receiver {
             if recipe.terminal() != identity
                 || recipe.target() != source.target_slot().owner.target_name()
                 || recipe.input().machine != selected
-                || terminal_semantics::access_view_input_parameter(terminal, recipe.input()).ok()
-                    != Some(parameter)
+                || admission.access_view_input_parameter(recipe.input()) != Some(parameter)
                 || actual.structural_type != parameter.structural_type
                 || actual.access != parameter.access
                 || actual.shape.byte_size as usize != recipe.contents().len()
@@ -3361,7 +3815,7 @@ pub(crate) mod hosted_receiver {
                 || !receiver_pointer_matches(
                     actual.shape,
                     &actual.placement,
-                    if artifact.target == target::NativeTarget::windows_x64() {
+                    if target == target::NativeTarget::windows_x64() {
                         use calling_conventions::{IndirectPointerLocation, MachineRegister};
                         match ordinal {
                             0 => IndirectPointerLocation::Register(MachineRegister::X86Rcx),
@@ -3376,7 +3830,7 @@ pub(crate) mod hosted_receiver {
                         }
                     } else {
                         calling_conventions::IndirectPointerLocation::Register(
-                            if artifact.target.architecture == target::Architecture::Aarch64 {
+                            if target.architecture == target::Architecture::Aarch64 {
                                 (ordinal < 8).then_some(
                                     calling_conventions::MachineRegister::Aarch64X(ordinal as u8),
                                 )
@@ -3393,6 +3847,27 @@ pub(crate) mod hosted_receiver {
             }
         }
         Ok(())
+    }
+
+    fn validate_entry_arguments(
+        artifact: &crate::ObjectArtifact,
+        source: &SelectedProgramEntrySignature,
+        checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ) -> Result<(), Diagnostic> {
+        let (function, abi) = artifact.entry_facts()?;
+        let admission = &artifact.semantic.admission;
+        validate_planned_entry_arguments(
+            ReceiverArgumentInput {
+                target: artifact.target,
+                admission,
+                function,
+                abi,
+            },
+            source,
+            checked_entry,
+            private_entry_ram,
+        )
     }
 
     fn receiver_pointer_matches(
@@ -3554,7 +4029,7 @@ pub(crate) mod hosted_unit_entry {
                 profile.program_entry_slot().schema != target::ProgramEntrySchema::HostedApplication
             }) || artifact.physical_entry_binding().is_some()
                 || artifact.hosted_receiver_binding().is_some()
-                || !crate::object::function_fragments::replay::has_free_unit_entry(artifact)?
+                || !artifact.has_free_unit_entry()?
             {
                 return Err(invalid("requires the exact free Unit hosted program entry"));
             }
@@ -3591,7 +4066,7 @@ pub(crate) mod hosted_unit_entry {
             })
         }
 
-        fn encode(
+        pub(super) fn encode(
             target: target::NativeTarget,
             start: usize,
             entry: usize,
@@ -3695,18 +4170,15 @@ pub(crate) mod hosted_unit_entry {
     }
 
     mod owned_stack {
-        use super::{EntryShim, PreparedEntry, UnitEntryForm};
-        use crate::entries::hosted_entry_storage::{HostedEntryPartitions, HostedEntryStorage};
+        use super::{EntryShim, UnitEntryForm};
+        use crate::entries::hosted_entry_storage::HostedEntryPartitions;
         use diagnostics::Diagnostic;
-        use object_file::{
-            ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord,
-            SectionKind,
-        };
+        use object_file::{ObjectPlan, SectionKind};
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub(crate) struct HostedUnitStackPlan {
-            pub(super) demand: crate::StackDemand,
-            pub(super) partitions: HostedEntryPartitions,
+            pub(in crate::entries) demand: crate::StackDemand,
+            pub(in crate::entries) partitions: HostedEntryPartitions,
         }
 
         fn invalid() -> Diagnostic {
@@ -3723,130 +4195,6 @@ pub(crate) mod hosted_unit_entry {
             } else {
                 8
             }
-        }
-
-        pub(super) fn prepare(
-            artifact: &crate::ObjectArtifact,
-            form: &UnitEntryForm,
-        ) -> Result<PreparedEntry, Diagnostic> {
-            if !crate::object::function_fragments::replay::has_free_unit_entry(artifact)? {
-                return Err(invalid());
-            }
-            let demand = crate::derive_stack_demand(artifact, artifact.entry).map_err(|error| {
-                Diagnostic::error(format!("free Unit entry stack demand: {error}"))
-            })?;
-            let (object, partitions, storage) = crate::entries::hosted_entry_storage::provision(
-                artifact,
-                &demand,
-                &[],
-                call_overhead(artifact.target),
-            )?;
-            let mut prepared = if artifact.target.architecture == target::Architecture::Aarch64 {
-                crate::entries::hosted_receiver::prepare_aarch64_entry(
-                    artifact,
-                    &[],
-                    object,
-                    storage,
-                )?
-            } else {
-                prepare_x86_64(artifact, form, object, storage)?
-            };
-            prepared.shim.surface = super::EntrySurface::ProvisionedUnit;
-            prepared.shim.stack = Some(HostedUnitStackPlan { demand, partitions });
-            Ok(prepared)
-        }
-
-        fn prepare_x86_64(
-            artifact: &crate::ObjectArtifact,
-            form: &UnitEntryForm,
-            mut object: ObjectPlan,
-            storage: HostedEntryStorage,
-        ) -> Result<PreparedEntry, Diagnostic> {
-            let (bytes, pointers) = encode_x86_64(
-                artifact.target,
-                artifact.text_bytes.len(),
-                artifact.entry_function().text_offset,
-                &storage,
-            )?;
-            let mut text = artifact.text_bytes.clone();
-            let (symbol, offset) =
-                super::install_entry_shim(&mut object, &mut text, &bytes, form.name, &invalid)?;
-            let mut relocations = artifact.relocations.clone();
-            for (field, destination) in pointers {
-                relocations.push_record(RelocationRecord {
-                    origin: RelocationOrigin::Materialization {
-                        object_symbol_handle: symbol,
-                    },
-                    section: SectionKind::Text,
-                    offset: offset + field,
-                    byte_width: 4,
-                    symbol_handle: destination,
-                    addend: 0,
-                    kind: RelocationKind::X86_64Relative32,
-                });
-            }
-            Ok(PreparedEntry {
-                object,
-                text,
-                relocations,
-                shim: form.surface.shim(symbol, offset),
-            })
-        }
-
-        fn encode_x86_64(
-            target: target::NativeTarget,
-            offset: usize,
-            destination: usize,
-            storage: &HostedEntryStorage,
-        ) -> Result<(Vec<u8>, Vec<(usize, ObjectSymbolHandle)>), Diagnostic> {
-            let mut bytes = Vec::new();
-            let mut pointers = Vec::new();
-            pointer(
-                &mut bytes,
-                &mut pointers,
-                &[0x48, 0x89, 0x25],
-                storage.scratch,
-            );
-            pointer(
-                &mut bytes,
-                &mut pointers,
-                &[0x48, 0x8d, 0x25],
-                storage.stack_top,
-            );
-            if target == target::NativeTarget::windows_x64() {
-                bytes.extend([0x48, 0x83, 0xec, 0x20]);
-            }
-            bytes.push(0xe8);
-            let after_call = offset
-                .checked_add(bytes.len())
-                .and_then(|n| n.checked_add(4))
-                .ok_or_else(invalid)?;
-            let displacement =
-                i32::try_from(destination as i128 - after_call as i128).map_err(|_| invalid())?;
-            bytes.extend(displacement.to_le_bytes());
-            pointer(
-                &mut bytes,
-                &mut pointers,
-                &[0x48, 0x8b, 0x25],
-                storage.scratch,
-            );
-            if target == target::NativeTarget::linux_x64() {
-                bytes.extend(isa_x86_64::encode_hosted_exit_process_i32(0));
-            } else {
-                bytes.extend([0x31, 0xc0, 0xc3]);
-            }
-            Ok((bytes, pointers))
-        }
-
-        fn pointer(
-            bytes: &mut Vec<u8>,
-            pointers: &mut Vec<(usize, ObjectSymbolHandle)>,
-            opcode: &[u8],
-            destination: ObjectSymbolHandle,
-        ) {
-            bytes.extend_from_slice(opcode);
-            pointers.push((bytes.len(), destination));
-            bytes.extend([0; 4]);
         }
 
         pub(super) fn validate(
@@ -4027,6 +4375,7 @@ pub(crate) mod hosted_unit_entry {
         #[cfg(test)]
         mod tests {
             use super::*;
+            use crate::entries::hosted_entry_storage::HostedEntryStorage;
 
             #[test]
             fn stack_switch_replay_rejects_changed_backing_call_restore_and_completion() {
@@ -4054,8 +4403,30 @@ pub(crate) mod hosted_unit_entry {
                     target::NativeTarget::linux_x64(),
                     target::NativeTarget::macos_x64(),
                 ] {
-                    let (mut bytes, pointers) =
-                        encode_x86_64(target, address as usize, entry as usize, &storage).unwrap();
+                    use machine_code::hosted_entry::{EntrySymbol, HostedEntryMode};
+                    use native_encoding::hosted_entry::encode_hosted_entry;
+                    use physical_planning::hosted_entry::plan_hosted_entry;
+                    let plan = plan_hosted_entry(target, HostedEntryMode::OwnedStack, &[]).unwrap();
+                    let encoded = encode_hosted_entry(plan).unwrap();
+                    let mut bytes = encoded.bytes;
+                    let mut pointers = Vec::new();
+                    for fixup in encoded.fixups {
+                        match fixup.destination {
+                            EntrySymbol::Body => {
+                                let delta = i32::try_from(
+                                    entry as i128 - address as i128 - fixup.offset as i128 - 4,
+                                )
+                                .unwrap();
+                                bytes[fixup.offset..fixup.offset + 4]
+                                    .copy_from_slice(&delta.to_le_bytes());
+                            }
+                            EntrySymbol::Scratch => pointers.push((fixup.offset, storage.scratch)),
+                            EntrySymbol::StackTop => {
+                                pointers.push((fixup.offset, storage.stack_top))
+                            }
+                            _ => panic!("unexpected unit entry relocation"),
+                        }
+                    }
                     for (field, symbol) in pointers {
                         let destination = if symbol == scratch {
                             bss
@@ -4145,6 +4516,15 @@ pub(crate) mod hosted_unit_entry {
         pub(crate) const fn symbol_offset(&self) -> (ObjectSymbolHandle, usize) {
             (self.symbol, self.offset)
         }
+        pub(crate) fn with_stack(
+            mut self,
+            demand: crate::StackDemand,
+            partitions: crate::entries::hosted_entry_storage::HostedEntryPartitions,
+        ) -> Self {
+            self.surface = EntrySurface::ProvisionedUnit;
+            self.stack = Some(owned_stack::HostedUnitStackPlan { demand, partitions });
+            self
+        }
     }
 
     pub(crate) struct PreparedEntry {
@@ -4181,14 +4561,14 @@ pub(crate) mod hosted_unit_entry {
         )
     }
 
-    struct UnitEntryForm {
-        name: &'static str,
-        surface: EntrySurface,
+    pub(crate) struct UnitEntryForm {
+        pub(crate) name: &'static str,
+        pub(crate) surface: EntrySurface,
         header_check: fn(&image::EmittedImageOutput, usize, &[u8]) -> bool,
         header_error: &'static str,
     }
 
-    fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
+    pub(crate) fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
         Some(if target == target::NativeTarget::macos_arm64() {
             UnitEntryForm {
                 name: "omega_darwin_unit_entry",
@@ -4259,22 +4639,7 @@ pub(crate) mod hosted_unit_entry {
         if artifact.physical_entry_binding().is_some() {
             return crate::entries::physical_entry::prepare(artifact).map(Some);
         }
-        if artifact.hosted_receiver_binding().is_some() {
-            return crate::entries::hosted_receiver::prepare(artifact).map(Some);
-        }
-        if !crate::object::function_fragments::replay::has_free_unit_entry(artifact)? {
-            return Ok(None);
-        }
-        let Some(form) = unit_entry_form(artifact.target) else {
-            return Ok(None);
-        };
-        let demand = crate::derive_stack_demand(artifact, artifact.entry)
-            .map_err(|error| Diagnostic::error(format!("hosted entry stack demand: {error}")))?;
-        if demand.requires_host_stack() {
-            loader_stack::prepare(artifact, &form).map(Some)
-        } else {
-            owned_stack::prepare(artifact, &form).map(Some)
-        }
+        crate::hosted_program::prepare(artifact)
     }
 
     pub(crate) fn install_entry_shim(
@@ -4645,6 +5010,127 @@ pub(crate) mod hosted_unit_entry {
 
     #[cfg(test)]
     mod tests {
+        fn placed_hosted_code(
+            target: target::NativeTarget,
+            mode: machine_code::hosted_entry::HostedEntryMode,
+            address: u64,
+            entry: u64,
+            scratch: u64,
+            stack_top: u64,
+        ) -> Vec<u8> {
+            use machine_code::hosted_entry::{EntryFixupKind, EntrySymbol};
+            use native_encoding::hosted_entry::encode_hosted_entry;
+            use physical_planning::hosted_entry::plan_hosted_entry;
+            let code = encode_hosted_entry(plan_hosted_entry(target, mode, &[]).unwrap()).unwrap();
+            let mut bytes = code.bytes;
+            for fixup in code.fixups {
+                let destination = match fixup.destination {
+                    EntrySymbol::Body => entry,
+                    EntrySymbol::Scratch => scratch,
+                    EntrySymbol::StackTop => stack_top,
+                    _ => panic!("unexpected unit entry address"),
+                };
+                let origin = address + fixup.offset as u64;
+                let field = &mut bytes[fixup.offset..fixup.offset + 4];
+                let mut word = u32::from_le_bytes(field.try_into().unwrap());
+                match fixup.kind {
+                    EntryFixupKind::X86Relative32 => {
+                        word =
+                            i32::try_from(destination as i128 - origin as i128 - 4).unwrap() as u32
+                    }
+                    EntryFixupKind::Aarch64Branch26 => {
+                        word |= ((destination as i128 - origin as i128) / 4) as u32 & 0x03ff_ffff
+                    }
+                    EntryFixupKind::Aarch64Page21 => {
+                        let pages =
+                            ((destination & !4095) as i128 - (origin & !4095) as i128) / 4096;
+                        let value = pages as u32 & 0x1f_ffff;
+                        word |= (value & 3) << 29 | (value >> 2) << 5;
+                    }
+                    EntryFixupKind::Aarch64PageOffset12 => {
+                        word |= (destination as u32 & 4095) << 10
+                    }
+                }
+                field.copy_from_slice(&word.to_le_bytes());
+            }
+            bytes
+        }
+
+        #[test]
+        fn planned_loader_entries_preserve_all_hosted_target_encodings() {
+            use machine_code::hosted_entry::HostedEntryMode;
+            for target in [
+                target::NativeTarget::linux_x64(),
+                target::NativeTarget::linux_arm64(),
+                target::NativeTarget::macos_x64(),
+                target::NativeTarget::macos_arm64(),
+                target::NativeTarget::windows_x64(),
+            ] {
+                for (address, entry) in [(0x4000, 0x1000), (0x2000, 0x7800)] {
+                    assert_eq!(
+                        placed_hosted_code(
+                            target,
+                            HostedEntryMode::LoaderStack,
+                            address,
+                            entry,
+                            0,
+                            0
+                        ),
+                        super::loader_stack::encode(target, address as usize, entry as usize)
+                            .unwrap(),
+                        "{target:?}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn planned_aarch64_owned_entries_pass_independent_byte_and_address_checks() {
+            use machine_code::hosted_entry::HostedEntryMode;
+            let partitions = crate::entries::hosted_entry_storage::HostedEntryPartitions {
+                saved_continuation_offset: 0,
+                stack_offset: 16,
+                stack_byte_count: 9 * 1024 * 1024,
+                allocation_offset: 16 + 9 * 1024 * 1024,
+                end_offset: 16 + 9 * 1024 * 1024,
+            };
+            for target in [
+                target::NativeTarget::linux_arm64(),
+                target::NativeTarget::macos_arm64(),
+            ] {
+                for address in [0x1000, 0x1ffc] {
+                    let entry = 0x6000;
+                    let bss = 0x30000;
+                    let bytes = placed_hosted_code(
+                        target,
+                        HostedEntryMode::OwnedStack,
+                        address,
+                        entry,
+                        bss,
+                        bss + partitions.allocation_offset,
+                    );
+                    let validate = |bytes: &[u8], destination| {
+                        crate::entries::hosted_receiver::instructions::validate_aarch64(
+                            target,
+                            bytes,
+                            address,
+                            destination,
+                            bss,
+                            partitions,
+                            &[],
+                        )
+                    };
+                    validate(&bytes, entry).unwrap();
+                    assert!(validate(&bytes, entry + 4).is_err());
+                    for bit in 0..bytes.len() * 8 {
+                        let mut corrupt = bytes.clone();
+                        corrupt[bit / 8] ^= 1 << (bit % 8);
+                        assert!(validate(&corrupt, entry).is_err(), "{target:?} bit {bit}");
+                    }
+                }
+            }
+        }
+
         use super::{elf_entry_points_to, main_points_to, pe_entry_points_to};
         #[test]
         fn darwin_main_requires_exact_adapter_offset_and_target_header() {
@@ -4801,7 +5287,7 @@ pub(crate) mod physical_entry {
     use crate::object::object_artifact::stack_demand::derive_body_stack_demand;
     use calling_conventions::BoundaryEntryPlan;
     use diagnostics::Diagnostic;
-    use machine_emission::native_entry_bridge::{NativeEntryBridge, emit_native_entry_bridge};
+    use native_encoding::native_entry_bridge::NativeEntryBridge;
     use object_file::{
         ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, SectionKind, SectionPlan,
         SymbolKind, SymbolPlan, SymbolSection,
@@ -4816,7 +5302,7 @@ pub(crate) mod physical_entry {
         use crate::{ObjectArtifact, StackDemand};
         use calling_conventions::BoundaryEntryPlan;
         use diagnostics::Diagnostic;
-        use machine_emission::native_entry_bridge::NativeEntryBridge;
+        use native_encoding::native_entry_bridge::NativeEntryBridge;
         use program_entry_plan::ProgramEntryPhysicalContractPlan;
         use semantic_vocabulary::{MachineId, OperationId};
 
@@ -4889,13 +5375,7 @@ pub(crate) mod physical_entry {
 
         pub use cpu::InstalledPhysicalCpuRequirement;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct PhysicalIncomingStackRequirement {
-            pub bytes_below_entry_rsp: u64,
-            pub readable_bytes_from_entry_rsp: u64,
-            pub caller_alignment: u64,
-            pub caller_rsp_bias: u64,
-        }
+        pub use physical_planning::physical_stack_switch::PhysicalIncomingStackRequirement;
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum PhysicalEntryStackRequirement {
@@ -4974,6 +5454,145 @@ pub(crate) mod physical_entry {
                 stack_demand,
                 arrival.guaranteed_available_bytes(),
             )
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub(super) struct PlannedRequirements {
+            psi: terminal_psi::TerminalPsiIdentity,
+            target: target::NativeTarget,
+            semantic_entry: MachineId,
+            adapter: MachineId,
+            contract: ProgramEntryPhysicalContractPlan,
+            stack: PhysicalEntryStackRequirement,
+            stack_bytes: u64,
+            alignment: u64,
+            minimum_stack_bytes: u64,
+            installed_scopes: Vec<(MachineId, OperationId)>,
+            installed_cpu: Option<InstalledPhysicalCpuRequirement>,
+        }
+
+        impl PlannedRequirements {
+            pub(super) fn place(
+                self,
+                existing_bss: u64,
+            ) -> Result<PhysicalEntryRequirements, Diagnostic> {
+                let retained_storage = PhysicalEntryPartitions::derive(
+                    existing_bss,
+                    self.alignment,
+                    self.stack_bytes,
+                    self.minimum_stack_bytes,
+                )?;
+                Ok(PhysicalEntryRequirements {
+                    psi: self.psi,
+                    target: self.target,
+                    semantic_entry: self.semantic_entry,
+                    adapter: self.adapter,
+                    contract: self.contract,
+                    stack: self.stack,
+                    retained_storage,
+                    installed_scopes: self.installed_scopes,
+                    installed_cpu: self.installed_cpu,
+                })
+            }
+        }
+
+        pub(super) fn plan(
+            input: &super::PhysicalEntryPlanningRequest<'_>,
+            switch: &super::stack_switch::StackSwitchPlan,
+            installed_reserve: u64,
+        ) -> Result<PlannedRequirements, Diagnostic> {
+            let program = &input.frame.instructions;
+            let contract = input.contract;
+            let arrival = contract
+                .guaranteed_entry_stack()
+                .ok_or_else(|| invalid("physical memory requirement lost its arrival contract"))?;
+            let incoming = switch.incoming();
+            if !arrival.admits_demand(incoming.bytes_below_entry_rsp, incoming.caller_alignment)
+                || incoming.caller_alignment
+                    != u64::from(contract.boundary_entry_plan().call.stack_alignment)
+            {
+                return Err(invalid(
+                    "physical switch incoming demand changed its target contract",
+                ));
+            }
+            let stack_bytes = input
+                .demand
+                .ceiling_bytes()
+                .ok_or_else(|| {
+                    invalid("private entry requires an admitted finite foreign-stack bound")
+                })?
+                .checked_add(u64::from(switch.bridge().frame_bytes()))
+                .and_then(|bytes| bytes.checked_add(u64::from(switch.bridge().call_stack_bias())))
+                .and_then(|bytes| bytes.checked_add(switch.stack_overhead_bytes()))
+                .and_then(|bytes| bytes.checked_add(arrival.admission_reserve_bytes()))
+                .and_then(|bytes| bytes.checked_add(installed_reserve))
+                .ok_or_else(|| invalid("private entry stack demand overflows"))?;
+            let mut scopes = Vec::new();
+            for requirement in input.authority.installed_stack_requirements() {
+                if requirement.arrival.is_some() {
+                    scopes.push((requirement.installation_machine, requirement.operation));
+                }
+            }
+            scopes.sort_unstable();
+            scopes.dedup();
+            let mut observed = vec![false; scopes.len()];
+            for private in input.private_entries {
+                let Some(bridge) = private.entry.bridge() else {
+                    continue;
+                };
+                let Some(plan) = bridge.installed_interrupt() else {
+                    continue;
+                };
+                let execution = private
+                    .authority
+                    .installed_entry_execution()
+                    .ok_or_else(|| {
+                        invalid("installed CPU transition has no admitted parent execution")
+                    })?;
+                let Ok(index) = scopes.binary_search(&(execution.scope().machine(), execution.scope().operation())) else {
+                    continue;
+                };
+                if bridge.request().target != program.target
+                    || private.psi != program.psi
+                    || private.target != program.target
+                    || bridge.request().inbound.call.entry_control
+                        != calling_conventions::EntryControl::InterruptReturn
+                    || !plan.has_canonical_geometry()
+                {
+                    return Err(invalid(
+                        "installed CPU transition changed its physical owner or protocol",
+                    ));
+                }
+                match plan.protocol {
+                    runtime_abi::static_interrupts::InstalledInterruptProtocol::Acknowledgement
+                    | runtime_abi::static_interrupts::InstalledInterruptProtocol::FatalContext {
+                        ..
+                    } => observed[index] = true,
+                }
+            }
+            if observed.contains(&false) {
+                return Err(invalid(
+                    "installed CPU requirement has no actual entry transition",
+                ));
+            }
+            let installed_cpu = (!scopes.is_empty())
+                .then_some(InstalledPhysicalCpuRequirement::X86LongModeCpl0WithoutCet);
+            Ok(PlannedRequirements {
+                psi: program.psi,
+                target: program.target,
+                semantic_entry: input.semantic_entry,
+                adapter: program.entry,
+                contract: contract.clone(),
+                stack: PhysicalEntryStackRequirement::CheckedPrivateImage {
+                    incoming,
+                    minimum_private_stack_bytes: arrival.guaranteed_available_bytes(),
+                },
+                stack_bytes,
+                alignment: u64::from(contract.boundary_entry_plan().call.stack_alignment),
+                minimum_stack_bytes: arrival.guaranteed_available_bytes(),
+                installed_scopes: scopes,
+                installed_cpu,
+            })
         }
 
         pub(super) fn derive(
@@ -5058,202 +5677,8 @@ pub(crate) mod physical_entry {
         PhysicalIncomingStackRequirement,
     };
     mod stack_switch {
-        use arena::Arena;
-        use calling_conventions::{CallPlan, EntryControl, IndirectPointerLocation, ValueLocation};
-        use diagnostics::Diagnostic;
-        use machine_emission::native_entry_bridge::NativeEntryBridge;
-
-        use super::{PhysicalIncomingStackRequirement, invalid};
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-        pub(super) enum Destination {
-            #[default]
-            SavedStack,
-            SavedAccumulator,
-            SavedScratch,
-            StackTop,
-            Body,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, Default)]
-        pub(super) struct Fixup {
-            pub field: usize,
-            pub destination: Destination,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub(super) struct StackSwitch {
-            pub bytes: Vec<u8>,
-            pub fixups: Arena<Fixup>,
-            pub outgoing_frame_bytes: u32,
-            pub incoming: PhysicalIncomingStackRequirement,
-            pub generated: calling_conventions::GeneratedEntryEvidence,
-            pub complete_effects: calling_conventions::StateEffectsEvidence,
-        }
-
-        impl StackSwitch {
-            pub fn stack_overhead_bytes(&self) -> u64 {
-                u64::from(self.outgoing_frame_bytes) + 8
-            }
-        }
-
-        fn incoming_stack_piece(location: &ValueLocation) -> Option<(u32, u32)> {
-            match *location {
-                ValueLocation::Stack {
-                    stack_byte_offset,
-                    byte_size,
-                    ..
-                } => Some((stack_byte_offset, byte_size)),
-                ValueLocation::Indirect {
-                    pointer:
-                        IndirectPointerLocation::Stack {
-                            stack_byte_offset, ..
-                        },
-                    ..
-                } => Some((stack_byte_offset, 8)),
-                _ => None,
-            }
-        }
-
-        pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic> {
-            let inbound: &CallPlan = &bridge.request().inbound.call;
-            let alignment = u32::from(inbound.stack_alignment);
-            if inbound.policy.architecture() != target::Architecture::X86_64
-                || inbound.entry_control != EntryControl::CallReturn
-                || alignment < 16
-                || !alignment.is_power_of_two()
-            {
-                return Err(invalid("private entry stack requires an aligned x64 call"));
-            }
-            let stack_pieces = inbound
-                .parameters
-                .iter()
-                .flat_map(|value| &value.locations)
-                .chain(
-                    inbound
-                        .result
-                        .iter()
-                        .flat_map(|value| &value.locations)
-                        .filter(|location| matches!(location, ValueLocation::Indirect { .. })),
-                )
-                .filter_map(incoming_stack_piece)
-                .collect::<Vec<_>>();
-            let mut frame_end = u32::from(inbound.shadow_bytes);
-            let mut incoming_readable_bytes = 8u32;
-            for &(offset, byte_count) in &stack_pieces {
-                let argument_end = offset
-                    .checked_add(byte_count)
-                    .ok_or_else(|| invalid("incoming stack argument extent overflows"))?;
-                frame_end = frame_end.max(argument_end);
-                incoming_readable_bytes = incoming_readable_bytes.max(
-                    argument_end
-                        .checked_add(8)
-                        .ok_or_else(|| invalid("incoming stack argument return bias overflows"))?,
-                );
-            }
-            let outgoing_frame_bytes = frame_end
-                .checked_add(alignment - 1)
-                .map(|bytes| bytes & !(alignment - 1))
-                .filter(|bytes| *bytes <= i32::MAX as u32 - 8)
-                .ok_or_else(|| {
-                    invalid("private entry call frame exceeds x64 displacement range")
-                })?;
-            let mut bytes = Vec::new();
-            let mut fixups = Arena::new();
-            let mut reference = |bytes: &mut Vec<u8>, opcode: &[u8], destination| {
-                bytes.extend_from_slice(opcode);
-                fixups.insert(Fixup {
-                    field: bytes.len(),
-                    destination,
-                });
-                bytes.extend_from_slice(&[0; 4]);
-            };
-            reference(&mut bytes, &[0x48, 0x89, 0x25], Destination::SavedStack);
-            reference(
-                &mut bytes,
-                &[0x48, 0x89, 0x05],
-                Destination::SavedAccumulator,
-            );
-            reference(&mut bytes, &[0x4c, 0x89, 0x15], Destination::SavedScratch);
-            bytes.extend_from_slice(&[0x49, 0x89, 0xe2]); // mov r10, rsp
-            reference(&mut bytes, &[0x48, 0x8d, 0x25], Destination::StackTop);
-            bytes.extend_from_slice(&[0x48, 0x81, 0xec]); // sub rsp, outgoing frame
-            bytes.extend_from_slice(&outgoing_frame_bytes.to_le_bytes());
-            for (offset, byte_count) in stack_pieces {
-                let mut copied = 0;
-                while copied < byte_count {
-                    let remaining = byte_count - copied;
-                    let width = if remaining >= 8 {
-                        8
-                    } else if remaining >= 4 {
-                        4
-                    } else if remaining >= 2 {
-                        2
-                    } else {
-                        1
-                    };
-                    let destination = offset + copied;
-                    let source = destination + 8;
-                    match width {
-                        8 => bytes.extend_from_slice(&[0x49, 0x8b, 0x82]),
-                        4 => bytes.extend_from_slice(&[0x41, 0x8b, 0x82]),
-                        2 => bytes.extend_from_slice(&[0x41, 0x0f, 0xb7, 0x82]),
-                        _ => bytes.extend_from_slice(&[0x41, 0x0f, 0xb6, 0x82]),
-                    }
-                    bytes.extend_from_slice(&source.to_le_bytes());
-                    match width {
-                        8 => bytes.extend_from_slice(&[0x48, 0x89, 0x84, 0x24]),
-                        4 => bytes.extend_from_slice(&[0x89, 0x84, 0x24]),
-                        2 => bytes.extend_from_slice(&[0x66, 0x89, 0x84, 0x24]),
-                        _ => bytes.extend_from_slice(&[0x88, 0x84, 0x24]),
-                    }
-                    bytes.extend_from_slice(&destination.to_le_bytes());
-                    copied += width;
-                }
-            }
-            reference(
-                &mut bytes,
-                &[0x48, 0x8b, 0x05],
-                Destination::SavedAccumulator,
-            );
-            reference(&mut bytes, &[0x4c, 0x8b, 0x15], Destination::SavedScratch);
-            bytes.push(0xe8);
-            let bridge_call_field = bytes.len();
-            bytes.extend_from_slice(&[0; 4]);
-            reference(&mut bytes, &[0x48, 0x8b, 0x25], Destination::SavedStack);
-            bytes.push(0xc3);
-            let bridge_offset = bytes.len();
-            let distance = i32::try_from(bridge_offset - (bridge_call_field + 4))
-                .map_err(|_| invalid("private entry bridge is outside rel32 range"))?;
-            bytes[bridge_call_field..bridge_call_field + 4]
-                .copy_from_slice(&distance.to_le_bytes());
-            fixups.insert(Fixup {
-                field: bridge_offset + bridge.call_field_offset(),
-                destination: Destination::Body,
-            });
-            bytes.extend_from_slice(bridge.bytes());
-            let body_call = u32::try_from(bridge_offset + bridge.call_field_offset())
-                .map_err(|_| invalid("physical entry body call exceeds u32"))?;
-            let generated = isa_x86_64::decode_x86_64_generated_entry(&bytes, Some(body_call))
-                .map_err(|reason| invalid(&reason))?;
-            let complete_effects = bridge
-                .request()
-                .checked_complete_effects(&generated.effects)
-                .map_err(|reason| invalid(&reason.to_string()))?;
-            Ok(StackSwitch {
-                bytes,
-                fixups,
-                outgoing_frame_bytes,
-                incoming: PhysicalIncomingStackRequirement {
-                    bytes_below_entry_rsp: 0,
-                    readable_bytes_from_entry_rsp: u64::from(incoming_readable_bytes),
-                    caller_alignment: u64::from(alignment),
-                    caller_rsp_bias: 8,
-                },
-                generated,
-                complete_effects,
-            })
-        }
+        pub(super) use native_encoding::physical_stack_switch::{Destination, StackSwitch, encode};
+        pub(super) use physical_planning::physical_stack_switch::{StackSwitchPlan, plan};
     }
 
     use stack_switch::{Destination, StackSwitch};
@@ -5264,8 +5689,9 @@ pub(crate) mod physical_entry {
         use calling_conventions::{
             CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
         };
-        use machine_emission::native_entry_bridge::{
-            NativeEntryBridgeRequest, NativeEntryParameter, emit_native_entry_bridge,
+        use native_encoding::test_support::emit_native_entry_bridge;
+        use physical_planning::native_entry_bridge::{
+            NativeEntryBridgeRequest, NativeEntryParameter,
         };
 
         #[test]
@@ -5341,7 +5767,14 @@ pub(crate) mod physical_entry {
                     parameters,
                 })
                 .unwrap();
-                let wrapper = super::stack_switch::emit(&bridge).unwrap();
+                let physical = physical_planning::native_entry_bridge::plan_native_entry_bridge(
+                    bridge.request().clone(),
+                )
+                .unwrap();
+                let (_, wrapper) =
+                    super::stack_switch::encode(super::stack_switch::plan(physical).unwrap())
+                        .unwrap();
+                wrapper.validate_published_code(&wrapper.bytes).unwrap();
                 assert_eq!(wrapper.incoming.bytes_below_entry_rsp, 0);
                 assert_eq!(wrapper.incoming.caller_alignment, 16);
                 assert_eq!(wrapper.incoming.caller_rsp_bias, 8);
@@ -5508,65 +5941,182 @@ pub(crate) mod physical_entry {
         }
     }
 
-    pub fn bind_physical_entry(
-        artifact: &mut ObjectArtifact,
+    pub struct PrivatePhysicalEntry<'a> {
+        pub psi: terminal_psi::TerminalPsiIdentity,
+        pub target: target::NativeTarget,
+        pub authority: &'a physical_planning::installation_resources::PlannedInstallationResources,
+        pub entry: &'a crate::PlannedPrivateEntry,
+    }
+
+    pub struct PhysicalEntryPlanningRequest<'a> {
+        pub frame: &'a physical_planning::PhysicalFrameProgram,
+        pub admission: &'a verified_optimization_input::EmissionAdmission,
+        pub authority: &'a physical_planning::installation_resources::PlannedInstallationResources,
+        pub private_entries: &'a [PrivatePhysicalEntry<'a>],
+        pub semantic_entry: MachineId,
+        pub physical: &'a BoundaryEntryPlan,
+        pub inbound_ordinals: &'a [u32],
+        pub contract: &'a program_entry_plan::ProgramEntryPhysicalContractPlan,
+        pub demand: crate::StackDemand,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct PlannedPhysicalEntry {
+        psi: terminal_psi::TerminalPsiIdentity,
+        target: target::NativeTarget,
+        entry: MachineId,
         semantic_entry: MachineId,
-        physical: &BoundaryEntryPlan,
-        inbound_ordinals: &[u32],
-        contract: &program_entry_plan::ProgramEntryPhysicalContractPlan,
-    ) -> Result<(), Diagnostic> {
-        if artifact.physical_entry.is_some() || artifact.hosted_receiver.is_some() {
-            return Err(invalid("object already has an arrival binding"));
-        }
-        if artifact.target.object_format != target::ObjectFormat::Coff
-            || artifact.target.architecture != target::Architecture::X86_64
+        installed_reserve_bytes: u64,
+        plan: BoundaryEntryPlan,
+        body_demand: crate::StackDemand,
+        arrival_stack: target::TargetEntryStackGuarantee,
+        stack_switch: stack_switch::StackSwitchPlan,
+        requirements: requirements::PlannedRequirements,
+    }
+
+    pub struct EncodedPhysicalEntry {
+        plan: PlannedPhysicalEntry,
+        bridge: NativeEntryBridge,
+        stack_switch: StackSwitch,
+    }
+
+    pub fn plan_physical_entry(
+        input: PhysicalEntryPlanningRequest<'_>,
+    ) -> Result<PlannedPhysicalEntry, Diagnostic> {
+        let program = &input.frame.instructions;
+        if program.target.object_format != target::ObjectFormat::Coff
+            || program.target.architecture != target::Architecture::X86_64
         {
             return Err(invalid(
                 "explicit physical arrival currently requires x86-64 PE",
             ));
         }
-        let arrival_stack = contract.guaranteed_entry_stack().ok_or_else(|| {
+        let arrival_stack = input.contract.guaranteed_entry_stack().ok_or_else(|| {
             invalid("physical entry contract has no numeric arrival-stack requirement")
         })?;
-        if contract.target_slot().owner != target::TargetProfile::UefiX64
-            || artifact.profile != Some(contract.target_slot().owner)
-            || contract.boundary_entry_plan() != physical
+        if input.contract.target_slot().owner != target::TargetProfile::UefiX64
+            || program.contracts.profile() != Some(input.contract.target_slot().owner)
+            || input.contract.boundary_entry_plan() != input.physical
+            || input.admission.terminal() != program.psi
+            || input.admission.entry() != program.entry
+            || input.demand.psi() != program.psi
+            || input.demand.target() != program.target
+            || input.demand.entry() != program.entry
         {
             return Err(invalid("physical entry changed its selected UEFI contract"));
         }
-        let request = native_entry_request(artifact, physical, inbound_ordinals)
+        let abi = program
+            .contracts
+            .function_abi(program.entry)
+            .ok_or_else(|| invalid("physical entry has no current calling contract"))?;
+        let cpu = crate::plan_native_body_cpu_state(
+            input.frame,
+            program.entry,
+            input.physical.state.preemption,
+        )
+        .map_err(|error| invalid(&error.to_string()))?;
+        let request = crate::entries::callable_entry_transport::native_entry_request_from_abi(
+            program.target,
+            abi,
+            cpu.effects().clone(),
+            input.physical,
+            input.inbound_ordinals,
+        )
+        .map_err(|error| invalid(&error.to_string()))?;
+        let bridge = physical_planning::native_entry_bridge::plan_native_entry_bridge(request)
             .map_err(|error| invalid(&error.to_string()))?;
-        let bridge =
-            emit_native_entry_bridge(request).map_err(|error| invalid(&error.to_string()))?;
-        let stack_switch = stack_switch::emit(&bridge)?;
-        let body_demand = derive_body_stack_demand(artifact, artifact.entry)
-            .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
-        let installed_reserve_bytes =
-            crate::object::object_artifact::installed_stack::root_reserve(
-                artifact,
-                installation_evidence::InstalledPhysicalStackRoot {
-                    semantic_entry,
-                    adapter: artifact.entry,
-                },
+        let stack_switch = stack_switch::plan(bridge)?;
+        let root = installation_evidence::InstalledPhysicalStackRoot {
+            semantic_entry: input.semantic_entry,
+            adapter: program.entry,
+        };
+        let mut installed_reserve_bytes = 0;
+        for (is_root, psi, target, authority) in
+            std::iter::once((true, program.psi, program.target, input.authority)).chain(
+                input
+                    .private_entries
+                    .iter()
+                    .map(|private| (false, private.psi, private.target, private.authority)),
             )
-            .map_err(|error| invalid(&error.to_string()))?;
-        let requirements = requirements::derive(
-            artifact,
-            semantic_entry,
-            contract,
-            &body_demand,
-            &bridge,
-            &stack_switch,
+        {
+            for requirement in authority.installed_stack_requirements() {
+                let Some(arrival) = &requirement.arrival else {
+                    continue;
+                };
+                if !is_root
+                    || arrival.physical_entry != root
+                    || requirement.psi != program.psi
+                    || requirement.target != program.target
+                    || psi != program.psi
+                    || target != program.target
+                {
+                    return Err(invalid(
+                        "arrival root demand differs from the actual physical entry binding",
+                    ));
+                }
+                installed_reserve_bytes = installed_reserve_bytes.max(arrival.root_reserve_bytes);
+            }
+        }
+        let requirements = requirements::plan(&input, &stack_switch, installed_reserve_bytes)?;
+        Ok(PlannedPhysicalEntry {
+            psi: program.psi,
+            target: program.target,
+            entry: program.entry,
+            semantic_entry: input.semantic_entry,
             installed_reserve_bytes,
-        )?;
-        artifact.physical_entry = Some(PhysicalEntryBinding {
-            entry: artifact.entry,
-            semantic_entry,
-            installed_reserve_bytes,
-            plan: physical.clone(),
-            bridge,
-            body_demand,
+            plan: input.physical.clone(),
+            body_demand: input.demand,
             arrival_stack: arrival_stack.clone(),
+            stack_switch,
+            requirements,
+        })
+    }
+
+    pub fn encode_physical_entry(
+        plan: PlannedPhysicalEntry,
+    ) -> Result<EncodedPhysicalEntry, Diagnostic> {
+        let (bridge, stack_switch) = stack_switch::encode(plan.stack_switch.clone())?;
+        Ok(EncodedPhysicalEntry {
+            plan,
+            bridge,
+            stack_switch,
+        })
+    }
+
+    pub fn bind_encoded_physical_entry(
+        artifact: &mut ObjectArtifact,
+        encoded: EncodedPhysicalEntry,
+    ) -> Result<(), Diagnostic> {
+        let EncodedPhysicalEntry {
+            plan,
+            bridge,
+            stack_switch,
+        } = encoded;
+        if artifact.physical_entry.is_some() || artifact.hosted_entry.is_some() {
+            return Err(invalid("object already has an arrival binding"));
+        }
+        if artifact.psi() != plan.psi
+            || artifact.entry() != plan.entry
+            || artifact.target() != plan.target
+            || artifact.profile != Some(target::TargetProfile::UefiX64)
+        {
+            return Err(invalid(
+                "physical entry plan belongs to another body or target",
+            ));
+        }
+        // Only storage placement remains: stack size, effects, calls and frame
+        // geometry were fixed before encoding the executable program.
+        let requirements = plan
+            .requirements
+            .place(original_bss(artifact)?.map_or(0, |(_, size, _)| size as u64))?;
+        artifact.physical_entry = Some(PhysicalEntryBinding {
+            entry: plan.entry,
+            semantic_entry: plan.semantic_entry,
+            installed_reserve_bytes: plan.installed_reserve_bytes,
+            plan: plan.plan,
+            bridge,
+            body_demand: plan.body_demand,
+            arrival_stack: plan.arrival_stack,
             stack_switch,
             requirements,
         });
@@ -5577,7 +6127,7 @@ pub(crate) mod physical_entry {
         let Some(binding) = &artifact.physical_entry else {
             return Ok(());
         };
-        if binding.entry != artifact.entry || artifact.hosted_receiver.is_some() {
+        if binding.entry != artifact.entry || artifact.hosted_entry.is_some() {
             return Err(invalid("selected ordinary body or arrival kind changed"));
         }
         let ordinals = binding
@@ -5594,7 +6144,7 @@ pub(crate) mod physical_entry {
                 "physical plan differs from the retained body transport",
             ));
         }
-        machine_emission::native_entry_bridge::validate_native_entry_bridge(&binding.bridge)
+        native_verification::bridges::validate_native_entry_bridge(&binding.bridge)
             .map_err(|error| invalid(&error.to_string()))?;
         let demand = derive_body_stack_demand(artifact, artifact.entry)
             .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
@@ -5621,11 +6171,10 @@ pub(crate) mod physical_entry {
                 != Some(&binding.arrival_stack)
             || installed_reserve != binding.installed_reserve_bytes
             || demand != binding.body_demand
-            || stack_switch::emit(&binding.bridge)? != binding.stack_switch
         {
             return Err(invalid("private stack differs from its exact invocation"));
         }
-        Ok(())
+        native_verification::bridges::validate_stack_switch(&binding.bridge, &binding.stack_switch)
     }
 
     pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagnostic> {
@@ -5676,12 +6225,12 @@ pub(crate) mod physical_entry {
     pub(crate) fn generated_state_effects(
         artifact: &ObjectArtifact,
     ) -> Option<(
-        &calling_conventions::GeneratedEntryEvidence,
+        &native_encoding::physical_stack_switch::StackSwitch,
         &calling_conventions::StateEffectsEvidence,
     )> {
         let binding = artifact.physical_entry.as_ref()?;
         Some((
-            &binding.stack_switch.generated,
+            &binding.stack_switch,
             &binding.stack_switch.complete_effects,
         ))
     }

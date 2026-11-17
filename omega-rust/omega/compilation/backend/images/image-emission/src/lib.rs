@@ -41,7 +41,7 @@ verifiers that `image.rs` and `object.rs` orchestrate.
 mod callable_calls;
 
 mod codec_bytes {
-    pub(crate) use optimization_core::codec_bytes::u32_at;
+    pub(crate) use ::wire::codec_bytes::u32_at;
 
     pub(crate) fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {
         let end = offset.checked_add(2)?;
@@ -54,25 +54,30 @@ mod codec_bytes {
     }
 }
 
+mod companion_images;
 mod entries;
+pub use companion_images::NativeCompanionImage;
+
 pub(crate) mod function_fragments;
 mod image;
 mod object;
 pub(crate) mod object_artifact;
 mod retained_working_program;
 pub use entries::callable_entry_transport::{
-    CallableEntryTransport, NativeBodyCpuState, create_callable_entry_transport,
-    create_installed_private_function_object, create_private_function_object,
+    CallableEntryTransport, EncodedPrivateEntry, NativeBodyCpuState, PlannedCallableEntryTransport,
+    PlannedPrivateEntry, encode_callable_entry_transport, encode_private_function_entry,
     observe_native_body_cpu_state, observe_native_constant_operand,
-    observe_native_function_cpu_state,
+    observe_native_function_cpu_state, plan_callable_entry_transport, plan_native_body_cpu_state,
+    plan_private_function_entry,
 };
 pub use entries::foreign_adapter::{
     NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
 };
 pub use entries::physical_entry::{
-    InstalledPhysicalCpuRequirement, PhysicalEntryBinding, PhysicalEntryPartitions,
-    PhysicalEntryRequirements, PhysicalEntryStackRequirement, PhysicalIncomingStackRequirement,
-    bind_physical_entry,
+    EncodedPhysicalEntry, InstalledPhysicalCpuRequirement, PhysicalEntryBinding,
+    PhysicalEntryPartitions, PhysicalEntryPlanningRequest, PhysicalEntryRequirements,
+    PhysicalEntryStackRequirement, PhysicalIncomingStackRequirement, PlannedPhysicalEntry,
+    PrivatePhysicalEntry, bind_encoded_physical_entry, encode_physical_entry, plan_physical_entry,
 };
 pub use object::component_object::{
     ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
@@ -104,11 +109,9 @@ pub(crate) use object::object_artifact::stack_demand::StackDemand;
 pub use object::object_artifact::stack_demand::derive_stack_demand;
 pub use object::object_artifact::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
-    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectSemanticSource,
-    ObjectUnitCallStack, derive_normalized_foreign_call_custody, durable_home_offsets,
-    foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
-    producer_instruction, scalar_call_result_producer, scalar_immediate_span,
-    structural_result_capture, transported_span_end, unique_block_instruction,
+    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
+    derive_normalized_foreign_call_custody, fragment_instruction_span, place_foreign_call,
+    resolve_instruction_sequence,
 };
 pub(crate) use object::object_artifact::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError,
@@ -120,7 +123,12 @@ pub use object::function_fragments::{
 };
 
 pub(crate) use entries::hosted_receiver::HostedReceiverBinding;
-pub use entries::hosted_receiver::bind_hosted_receiver;
+mod hosted_program;
+pub use hosted_program::{
+    EncodedHostedProgramEntry, HostedProgramEntryRequest, PlannedHostedProgramEntry,
+    bind_hosted_program_entry, encode_hosted_program_entry, needs_hosted_entry,
+    plan_hosted_program_entry,
+};
 pub use image::dynamic_elf::{RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
 pub use image::final_image_validation::native_code_layouts::{
     LinkedNativeCodeLayout, LinkedNativeCodeRegion, inspect_native_code_layouts,
@@ -134,6 +142,28 @@ pub use image::image_output::{
 pub use machine_code::BoundaryExecutionRecord;
 
 pub use object::object_artifact::installed_stack::{
-    compose_installed_arrival_demands, correlate_native_instruction_sources,
-    installed_interrupt_stack_requirement, require_installed_root_provision,
+    correlate_native_instruction_sources, installed_interrupt_stack_requirement,
+    plan_installed_interrupt_stack_requirement, require_installed_root_provision,
 };
+
+mod cpu_origins;
+pub use cpu_origins::prepare_native_cpu_origins;
+
+/// Capture source classifications before common encoding. Byte readback still
+/// checks the exact roster, decoded effects and relative branch destinations.
+pub fn prepare_native_fault_origins(
+    program: &post_allocation_machine::PostAllocationMachineProgram,
+) -> Result<machine_code::fault_origins::PhysicalFaultOrigins, String> {
+    object_artifact::installed_stack::prepare_fault_origins(program)
+}
+
+mod body_readback;
+
+mod object_input;
+
+pub fn prepare_privileged_termination(
+    execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    program: &post_allocation_machine::PostAllocationMachineProgram,
+) -> Result<(), String> {
+    function_fragments::prepare_privileged_termination(execution, program)
+}

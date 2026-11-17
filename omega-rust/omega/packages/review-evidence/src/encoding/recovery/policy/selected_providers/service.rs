@@ -9,9 +9,12 @@ use effects::provider_plan::{
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim,
 };
-use language_semantics::{
-    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
-};
+use declaration_contracts::CarryAddress;
+use declaration_contracts::CarryCpu;
+use declaration_contracts::CarryHostThread;
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::CarrySuspension;
+use declaration_contracts::DomainPredicatePresence;
 
 pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,

@@ -301,21 +301,31 @@ use object_file::{
     entry_symbol_name,
 };
 
+pub(crate) fn validate_available(artifact: &ObjectArtifact) -> Result<(), Error> {
+    if let Some(replay) = &artifact.fragment_replay {
+        validate_function_fragment_object_artifact(replay, artifact)
+    } else {
+        validate_current(artifact)
+    }
+}
+
 pub(crate) fn validate_function_fragment_object_artifact(
     replay: &super::replay::FragmentReplay,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
     let source = replay.0.as_ref();
+    if source.publication().custody() != artifact.emission_input.publication().custody() {
+        return Err(Error::Mismatch("composition source custody changed"));
+    }
+    if artifact.composition_source.is_none() {
+        validate_original(source, replay.1.as_ref(), artifact)?;
+    }
+    validate_current(artifact)
+}
+
+fn validate_current(artifact: &ObjectArtifact) -> Result<(), Error> {
     crate::entries::physical_entry::validate_binding(artifact).map_err(Error::PhysicalEntry)?;
     if artifact.composition_source.is_some() {
-        let root = artifact
-            .composition_source
-            .as_ref()
-            .and_then(|root| root.fragment_replay.as_ref())
-            .ok_or(Error::Mismatch("composition root lacks fragment custody"))?;
-        if root.0.custody() != source.custody() {
-            return Err(Error::Mismatch("composition source custody changed"));
-        }
         crate::object::private_object_composition::validate_composition(artifact)?;
         if let Some(binding) = artifact.hosted_receiver_binding() {
             crate::entries::hosted_receiver::validate_binding(artifact, binding)
@@ -323,29 +333,208 @@ pub(crate) fn validate_function_fragment_object_artifact(
         }
         return Ok(());
     }
-    validate(source, replay.1.as_ref(), artifact)
+    if !crate::object::object_artifact::stack_demand::validate_carried_stack_facts(artifact) {
+        return Err(Error::Mismatch(
+            "carried physical stack facts differ from the emitted call graph",
+        ));
+    }
+    validate(&artifact.emission_input, artifact)
 }
 
-fn validate(
+fn validate_original(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     original: Option<&crate::RetainedTargetOperations>,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
+    if artifact.emission_input.as_ref()
+        != &crate::object_input::ObjectEmissionInput::capture(source)?
+    {
+        return Err(Error::Mismatch(
+            "body readback records differ from retained original",
+        ));
+    }
     let current = source.source().source().source().source();
     source::privileged_termination::validate(
         current.installation_authority().installed_entry_execution(),
-        current.physical_program(),
+        current.original_physical_program().ok_or(Error::Mismatch(
+            "original physical instructions were not retained (ReplayUnavailable)",
+        ))?,
     )?;
     if let Some(original) = original {
         source::retained_source_validation::admit(source, original)?;
         source::retained_source_validation::establish_geometry(source, original)?;
     }
-    if artifact.profile != source::profile(source) {
+    if crate::prepare_privileged_termination(
+        current.installation_authority().installed_entry_execution(),
+        current.original_physical_program().ok_or(Error::Mismatch(
+            "original physical instructions were not retained (ReplayUnavailable)",
+        ))?,
+    ) != source.emission_facts().termination
+    {
+        return Err(Error::Mismatch(
+            "privileged termination obligation differs from original",
+        ));
+    }
+    if artifact.profile != source.emission_facts().contracts.profile() {
         return Err(Error::Mismatch("object deployment profile changed"));
     }
-    let text = source.source().text_section();
+    if artifact.publication != source.publication() {
+        return Err(Error::Mismatch(
+            "current object publication differs from retained original",
+        ));
+    }
+    let call_origins = physical_planning::call_origins::capture(
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .original_physical_program()
+            .ok_or(Error::Mismatch(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            ))?,
+    );
+    if &call_origins != artifact.call_origins.as_ref()
+        || call_origins != source.emission_facts().calls
+    {
+        return Err(Error::Mismatch(
+            "object call origins differ from retained physical instructions",
+        ));
+    }
+    let physical = source.source().source().source().source();
+    let foreign_calls = physical_planning::foreign_call_plans::capture(
+        physical.original_physical_program().ok_or(Error::Mismatch(
+            "original physical instructions were not retained (ReplayUnavailable)",
+        ))?,
+        physical.frame_layout(),
+    );
+    if foreign_calls != source.emission_facts().foreign_calls
+        || foreign_calls.as_ref().ok() != Some(artifact.foreign_call_plans.as_ref())
+    {
+        return Err(Error::Mismatch(
+            "object foreign call plans differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::image_origins::capture(
+        physical
+            .original_physical_program()
+            .ok_or(Error::Mismatch(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            ))?
+            .functions
+            .iter(),
+    ) != source.emission_facts().image_origins
+    {
+        return Err(Error::Mismatch(
+            "image address origins differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::physical_facts::port_writes(physical.original_physical_program().ok_or(
+        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
+    )?) != source.emission_facts().port_writes
+    {
+        return Err(Error::Mismatch(
+            "port event origins differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::boundary_settlements::capture(physical.original_physical_program().ok_or(
+        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
+    )?) != source.emission_facts().boundary_settlements
+    {
+        return Err(Error::Mismatch(
+            "boundary settlements differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::internal_call_plans::capture(
+        physical.original_physical_program().ok_or(Error::Mismatch(
+            "original physical instructions were not retained (ReplayUnavailable)",
+        ))?,
+        physical.frame_layout(),
+        &source.emission_facts().semantic,
+    ) != source.emission_facts().internal_calls
+    {
+        return Err(Error::Mismatch(
+            "internal call plans differ from retained physical instructions",
+        ));
+    }
+    if crate::prepare_native_cpu_origins(physical.original_physical_program().ok_or(
+        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
+    )?) != source.emission_facts().cpu
+    {
+        return Err(Error::Mismatch(
+            "CPU origins differ from retained physical instructions",
+        ));
+    }
+    if crate::prepare_native_fault_origins(physical.original_physical_program().ok_or(
+        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
+    )?) != source.emission_facts().faults
+    {
+        return Err(Error::Mismatch(
+            "fault origins differ from retained physical instructions",
+        ));
+    }
+    if source::replayed_temporary_stack_bytes_by_function(source)?
+        != source::temporary_stack_bytes_by_function(&artifact.emission_input)?
+    {
+        return Err(Error::Mismatch(
+            "temporary stack plan differs from retained instructions",
+        ));
+    }
+    if let Some(original) = original {
+        for function in artifact.functions() {
+            let (_, targeted) = source::retained_source_validation::audited_function(
+                source,
+                original,
+                function.machine,
+            )?;
+            let parameter_matches = match (&function.parameter_abi, source::parameter_abi(targeted))
+            {
+                (None, None) => true,
+                (Some(actual), Some((plan, parameters, _))) => {
+                    actual.call_plan == *plan && actual.parameters == parameters
+                }
+                _ => false,
+            };
+            if function.scalar_abi != targeted.scalar_abi
+                || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
+                || !parameter_matches
+            {
+                return Err(Error::Mismatch(
+                    "shared object function differs from retained original",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate(
+    source: &crate::object_input::ObjectEmissionInput,
+    artifact: &ObjectArtifact,
+) -> Result<(), Error> {
+    source
+        .termination
+        .as_ref()
+        .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?;
+    if artifact.profile != source::profile(source)
+        || artifact.publication != source.publication()
+        || artifact.call_origins.as_ref() != &source.emission_facts().calls
+        || source.emission_facts().foreign_calls.as_ref().ok()
+            != Some(artifact.foreign_call_plans.as_ref())
+        || artifact.body_readback != source.readback
+        || artifact.emission_facts() != &source.emission_facts().semantic
+        || artifact.stack_program.as_ref() != &source.emission_facts().stack
+        || artifact.program_contracts != source.emission_facts().contracts
+        || &artifact.installation_authority != source.installation_authority()
+        || artifact.statistics != source.statistics
+    {
+        return Err(Error::Mismatch(
+            "object differs from its current publication input",
+        ));
+    }
+    let text = source.text_section();
     let layout = &artifact.object.layout;
     let code_text_len =
         artifact
@@ -357,18 +546,14 @@ fn validate(
                     .ok_or(Error::Overflow)
             })?;
     super::byte_literals::validate(source, artifact, code_text_len)?;
-    let current = source
-        .source()
-        .source()
-        .source()
-        .source()
-        .physical_program();
-    let image_selections = super::current_image_selections::CurrentImageSelections::prepare_for(
-        &text.unresolved_image_addresses,
-        current.functions.iter(),
-    )?;
-    super::code_descriptors::validate(source, artifact, image_selections.as_ref())?;
-    super::native_code_layouts::validate(source, artifact, image_selections.as_ref())?;
+    let image_data = super::image_data::ObjectImageData::prepare(source)?;
+    if image_data != artifact.image_data {
+        return Err(Error::Mismatch(
+            "object image data differs from its retained physical source",
+        ));
+    }
+    super::code_descriptors::validate(artifact, image_data.selections.as_ref())?;
+    super::native_code_layouts::validate(artifact, image_data.selections.as_ref())?;
     super::image_residence::validate(source, artifact)?;
     let private_identities = super::private_addresses::identities(
         &artifact.foreign_calls,
@@ -396,9 +581,9 @@ fn validate(
         text.functions
             .iter()
             .try_fold(false, |required, placed| -> Result<bool, Error> {
-                let abstracted = source::abstract_function(source, placed.machine)?;
+                let abstracted = source::function_facts(source, placed.machine)?;
                 Ok(required
-                    || source::requires_graph_storage_replay(abstracted.operations())
+                    || abstracted.requires_graph_storage_replay
                     || super::structural::requires_call_graph_replay(source, placed.machine)?)
             })?;
     if artifact.requires_graph_storage_replay != requires_graph_storage_replay
@@ -441,7 +626,15 @@ fn validate(
     let temporary_stack_bytes = if text.functions.is_empty() {
         std::collections::BTreeMap::new()
     } else {
-        source::temporary_stack_bytes_by_function(source)?
+        {
+            let replayed = source::decoded_temporary_stack_bytes_by_function(source)?;
+            if replayed != source::temporary_stack_bytes_by_function(source)? {
+                return Err(Error::Mismatch(
+                    "temporary stack plan differs from independently decoded instruction effects",
+                ));
+            }
+            replayed
+        }
     };
     let mut attribution_cursor = 0usize;
     for ((placed, function), (symbol_handle, symbol)) in text
@@ -450,7 +643,7 @@ fn validate(
         .zip(&artifact.functions)
         .zip(layout.symbols.iter())
     {
-        let abstracted = source::abstract_function(source, placed.machine)?;
+        let abstracted = source::function_facts(source, placed.machine)?;
         let abi = source::function_abi(source, placed.machine)?;
         let fragment = fragments
             .function(placed.machine)
@@ -475,28 +668,12 @@ fn validate(
             }
             _ => false,
         };
-        // The current contract is what the object was built from; stage 02's
-        // function, when retained, must agree with both.
-        let original_abi_matches = match original {
-            None => true,
-            Some(original) => {
-                let (_, targeted) = source::retained_source_validation::audited_function(
-                    source,
-                    original,
-                    placed.machine,
-                )?;
-                function.scalar_abi == targeted.scalar_abi
-                    && function.mixed_structural_scalar_abi == targeted.mixed_structural_scalar_abi
-                    && parameter_abi_matches(source::parameter_abi(targeted))
-            }
-        };
         if function.machine != placed.machine
             || function.attachment != attachment
             || function.provenance != *provenance
             || function.scalar_abi != abi.scalar
             || function.mixed_structural_scalar_abi != abi.mixed_structural_scalar
             || !parameter_abi_matches(abi.parameter_abi())
-            || !original_abi_matches
             || function.text_offset != offset
             || function.byte_count != length
             || function.symbol != symbol_handle

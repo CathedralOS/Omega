@@ -32,9 +32,9 @@
 20 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_reference_custody.rs
 1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs
 1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_target.rs
-7 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection.rs
-1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs
-1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_scalar_graph.rs
+7 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection.rs
+1 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection_inputs.rs
+1 omega-rust/omega/compilation/pipeline/01_physical-program-planning/src/instruction_selection/selection_scalar_graph.rs
 1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation.rs
 2 omega-rust/omega/compilation/realization/provider-admission/src/access_lifecycles.rs
 1 omega-rust/omega/compilation/realization/provider-admission/src/settlements_source_imports.rs

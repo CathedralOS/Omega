@@ -20,19 +20,31 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) emission_input: std::sync::Arc<crate::object_input::ObjectEmissionInput>,
+        pub(crate) body_readback: std::sync::Arc<crate::body_readback::NativeBodyReadback>,
+        pub(crate) publication: object_file::ObjectPublication,
+        pub(crate) semantic: std::sync::Arc<verified_optimization_input::publication::SemanticEmissionFacts>,
+        pub(crate) statistics: crate::function_fragments::reporting::FunctionPublicationStatistics,
+        pub(crate) image_data: crate::function_fragments::image_data::ObjectImageData,
+        pub(crate) foreign_call_plans:
+            std::sync::Arc<machine_code::foreign_call_plans::PhysicalForeignCallPlans>,
+        pub(crate) call_origins: std::sync::Arc<machine_code::call_origins::PhysicalCallOrigins>,
+        pub(crate) imports: machine_code::import_code::EncodedImportProgram,
+        pub(crate) windows_internet: Option<machine_code::WindowsInternetProviderCode>,
+        pub(crate) stack_program:
+            std::sync::Arc<physical_planning::stack_demand::PhysicalStackProgram>,
         pub(crate) installation_authority:
-            std::sync::Arc<provider_admission::BoundInstallationAuthority>,
+            std::sync::Arc<installation_binding::BoundInstallationAuthority>,
         pub(crate) program_contracts:
             std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
-        pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
+        pub(crate) hosted_entry: Option<crate::hosted_program::EncodedHostedProgramEntry>,
         pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
         pub(crate) retained_entry_storage: ObjectSymbolHandle,
         pub(crate) requires_graph_storage_replay: bool,
         pub(crate) fragment_replay:
             Option<crate::object::function_fragments::replay::FragmentReplay>,
         pub(crate) composition_source: Option<std::sync::Arc<ObjectArtifact>>,
-        pub(crate) semantic_source: Option<ObjectSemanticSource>,
         pub(crate) psi: TerminalPsiIdentity,
         pub(crate) target: NativeTarget,
         pub(crate) profile: Option<target::TargetProfile>,
@@ -54,41 +66,6 @@ mod carriers {
             Option<crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool>,
     }
 
-    /// Retains the exact semantic owner and occurrence coverage of a separately
-    /// emitted body. Linking its bytes does not change this source namespace.
-    #[derive(Clone)]
-    pub struct ObjectSemanticSource {
-        code: terminal_codec::RetainedTerminalCode,
-        coverage: std::sync::Arc<boundary_applications::TerminalBoundaryApplicationCoverage>,
-    }
-
-    impl std::fmt::Debug for ObjectSemanticSource {
-        fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            output
-                .debug_struct("ObjectSemanticSource")
-                .field("identity", &self.code.view().custody_identity())
-                .field("coverage", &self.coverage)
-                .finish()
-        }
-    }
-
-    impl PartialEq for ObjectSemanticSource {
-        fn eq(&self, other: &Self) -> bool {
-            self.code.view().custody_identity() == other.code.view().custody_identity()
-                && self.coverage == other.coverage
-        }
-    }
-    impl Eq for ObjectSemanticSource {}
-
-    impl ObjectSemanticSource {
-        pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
-            self.code.view()
-        }
-        pub fn coverage(&self) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
-            &self.coverage
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectByteLiteralPool {
         pub symbol: ObjectSymbolHandle,
@@ -107,26 +84,90 @@ mod carriers {
     }
 
     impl ObjectArtifact {
-        pub fn with_semantic_source(
+        /// Settled allocation decisions are data; inspecting them does not retain a compiler stage.
+        pub fn allocation_manifest(&self) -> &register_homes::PostAllocationOptimizationManifest {
+            &self.emission_input.allocation
+        }
+
+        pub fn publication(&self) -> &object_file::ObjectPublication {
+            &self.publication
+        }
+
+        pub fn emission_facts(&self) -> &verified_optimization_input::publication::SemanticEmissionFacts {
+            &self.semantic
+        }
+
+        pub fn foreign_call_plans(
+            &self,
+        ) -> &std::sync::Arc<machine_code::foreign_call_plans::PhysicalForeignCallPlans> {
+            &self.foreign_call_plans
+        }
+        pub fn call_origins(
+            &self,
+        ) -> &std::sync::Arc<machine_code::call_origins::PhysicalCallOrigins> {
+            &self.call_origins
+        }
+
+        pub(crate) fn has_free_unit_entry(&self) -> Result<bool, diagnostics::Diagnostic> {
+            let (function, _) = self.entry_facts()?;
+            Ok(matches!(
+                function.result,
+                abstract_operations::AbstractFunctionResult::Unit
+            ) && function.entry_claims.is_empty()
+                && function.parameters.is_empty()
+                && function.structural_parameters.is_empty())
+        }
+
+        pub fn entry_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
+            self.program_contracts
+                .function_abi(self.entry)
+                .map(|abi| &abi.call_plan)
+        }
+
+        pub(crate) fn entry_facts(
+            &self,
+        ) -> Result<
+            (
+                &verified_optimization_input::publication::EmissionFunctionFacts,
+                &legalized_operations::LegalizedFunctionAbi,
+            ),
+            diagnostics::Diagnostic,
+        > {
+            let absent = || {
+                diagnostics::Diagnostic::error("entry has no current function or calling contract")
+            };
+            let function = self
+                .semantic
+                .program
+                .functions
+                .iter()
+                .find(|row| row.machine == self.entry)
+                .ok_or_else(absent)?;
+            let abi = self
+                .program_contracts
+                .function_abi(self.entry)
+                .ok_or_else(absent)?;
+            Ok((function, abi))
+        }
+
+        pub fn with_import_program(
             mut self,
-            code: terminal_codec::RetainedTerminalCode,
-            coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+            code: machine_code::import_code::EncodedImportProgram,
         ) -> Result<Self, &'static str> {
-            if self.psi != code.view().identity() || self.semantic_source.is_some() {
-                return Err(
-                    "object semantic source differs from its emitted namespace or is already attached",
-                );
-            }
-            coverage.validate_for_terminal(self.psi)?;
-            self.semantic_source = Some(ObjectSemanticSource {
-                code,
-                coverage: std::sync::Arc::new(coverage),
-            });
+            self.imports.join(&code)?;
             Ok(self)
         }
 
-        pub fn semantic_source(&self) -> Option<&ObjectSemanticSource> {
-            self.semantic_source.as_ref()
+        pub fn with_windows_internet_provider(
+            mut self,
+            code: machine_code::WindowsInternetProviderCode,
+        ) -> Result<Self, &'static str> {
+            if self.target != target::NativeTarget::windows_x64() || self.windows_internet.is_some()
+            {
+                return Err("Windows helper code requires one Windows object owner");
+            }
+            self.windows_internet = Some(code);
+            Ok(self)
         }
 
         /// Borrows the retained producer for the root object, including after
@@ -147,8 +188,7 @@ mod carriers {
         /// compile retained native stage inputs for a correspondence audit.
         pub fn retained_target_operations(
             &self,
-        ) -> Option<&abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-        {
+        ) -> Option<&native_program_planning::ValidatedOptimizedTargetOperations> {
             self.composition_source
                 .as_deref()
                 .unwrap_or(self)
@@ -171,9 +211,9 @@ mod carriers {
                 .source();
             Some(NativeInstructionSourceRows {
                 frame_application: source.fragment_replay.as_ref()?.0.source().source(),
-                selected: current.physical_program(),
+                selected: current.original_physical_program()?,
                 physical: current
-                    .physical_program()
+                    .original_physical_program()?
                     .machine
                     .functions
                     .iter()
@@ -230,7 +270,10 @@ mod carriers {
         }
 
         pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
-            self.hosted_receiver.as_ref()
+            match &self.hosted_entry {
+                Some(entry) => entry.receiver.as_ref(),
+                None => None,
+            }
         }
         pub const fn psi(&self) -> TerminalPsiIdentity {
             self.psi
@@ -265,12 +308,8 @@ mod carriers {
             selected_provider_closure: [u8; 32],
         ) -> Result<Option<&verified_optimization_input::NativeExecutionScope>, &'static str>
         {
-            let source = self.composition_source.as_deref().unwrap_or(self);
-            let Some(replay) = &source.fragment_replay else {
-                return Ok(None);
-            };
-            replay.selected_terminal_entry(artifact, self.entry, self.target)?;
-            let facts = &replay.0.emission_facts().lowering;
+            let facts = &self.semantic.admission;
+            facts.selected_terminal_entry(artifact, self.entry, self.target)?;
             facts.native_execution_scope_for(
                 artifact.view().identity(),
                 self.target,
@@ -288,12 +327,11 @@ mod carriers {
             if self.psi != identity || module.machine(self.entry).is_none() {
                 return Err("native object entry has no exact Terminal body or identity");
             }
-            let installed_entry = self
-                .fragment_replay
-                .as_ref()
-                .map(|replay| replay.selected_terminal_entry(artifact, self.entry, self.target))
-                .transpose()?
-                .flatten();
+            let installed_entry = self.semantic.admission.selected_terminal_entry(
+                artifact,
+                self.entry,
+                self.target,
+            )?;
             let selected_entry = if let Some(entry) = installed_entry {
                 entry
             } else {
@@ -344,12 +382,6 @@ mod carriers {
             &self.private_functions
         }
 
-        pub fn terminal_module(&self) -> Option<&terminal_psi::TerminalModule> {
-            self.fragment_replay
-                .as_ref()
-                .map(|replay| replay.terminal_module())
-        }
-
         pub(crate) fn entry_function(&self) -> &ObjectFunction {
             self.function_on_machine(self.entry)
                 .expect("artifact construction requires one entry function")
@@ -373,7 +405,7 @@ mod carriers {
     }
 
     pub struct NativeInstructionSourceRows<'a> {
-        pub frame_application: &'a machine_emission::StagedFunctionFragmentFrameApplication,
+        pub frame_application: &'a function_layout::StagedFunctionFragmentFrameApplication,
         pub selected: &'a post_allocation_machine::PostAllocationMachineProgram,
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
     }
@@ -477,7 +509,7 @@ mod carriers {
         pub source_psi: TerminalPsiIdentity,
         pub function: ObjectPrivateFunctionEntry,
         pub body: std::sync::Arc<ObjectArtifact>,
-        pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+        pub entry_bridge: Option<native_encoding::native_entry_bridge::NativeEntryBridge>,
         pub entry_effects: calling_conventions::StateEffectsEvidence,
         pub inbound: calling_conventions::BoundaryEntryPlan,
         pub inbound_ordinals: Vec<u32>,
@@ -524,7 +556,7 @@ mod carriers {
     pub struct PrivateFunctionObject {
         pub identity: function_identity::MachineFunctionIdentity,
         pub body: std::sync::Arc<ObjectArtifact>,
-        pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+        pub entry_bridge: Option<native_encoding::native_entry_bridge::NativeEntryBridge>,
         pub entry_effects: calling_conventions::StateEffectsEvidence,
         pub inbound: calling_conventions::BoundaryEntryPlan,
         pub inbound_ordinals: Vec<u32>,
@@ -617,6 +649,7 @@ mod errors {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ObjectError {
+        ForeignCallProgramMismatch,
         EmptyPlan,
         NonCanonicalFunctionOrder {
             previous: MachineId,
@@ -906,243 +939,6 @@ mod errors {
 pub(crate) mod installed_stack {
     use crate::{FunctionFragmentObjectArtifactError as Error, PrivateFunctionObject};
     use installation_evidence::InstalledInterruptStackRequirement;
-    mod arrival {
-        use crate::FunctionFragmentObjectArtifactError as Error;
-        use calling_conventions::EntryStack;
-        use installation_evidence::InstalledPhysicalStackRoot;
-        use installation_evidence::{
-            InstalledArrivalStackDemand, InstalledInterruptStackRequirement,
-        };
-        use provider_admission::{
-            AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptScope,
-        };
-
-        struct Entry {
-            placement: usize,
-            vector: u16,
-            domain: Option<u16>,
-            bytes: u64,
-            alignment: u32,
-        }
-
-        pub fn compose(
-            scope: &AdmittedInstalledInterruptScope,
-            entries: &[&AdmittedInstalledInterruptEntry],
-            requirements: &mut [InstalledInterruptStackRequirement],
-            physical_entry: Option<InstalledPhysicalStackRoot>,
-        ) -> Result<(), Error> {
-            if scope.fatal_entries().is_empty() {
-                if requirements.iter().any(|row| row.arrival.is_some()) {
-                    return Err(Error::Mismatch(
-                        "single timer demand has an unrelated arrival composition",
-                    ));
-                }
-                return Ok(());
-            }
-            let delivery = scope
-                .interrupt_delivery_assumption()
-                .ok_or(Error::Mismatch(
-                    "fatal arrival composition lacks its explicit delivery condition",
-                ))?;
-            if entries.len() != scope.fatal_entries().len() + 1
-                || requirements.len() != entries.len()
-            {
-                return Err(Error::Mismatch(
-                    "fatal arrival composition lost part of its entry roster",
-                ));
-            }
-            let anchor = scope.context_anchor().ok_or(Error::Mismatch(
-                "arrival composition has no exact timer anchor",
-            ))?;
-            let mut inputs = Vec::with_capacity(entries.len());
-            for entry in entries {
-                let mut matching = requirements
-                    .iter()
-                    .filter(|row| row.placement_index == entry.placement_index);
-                let Some(row) = matching.next() else {
-                    return Err(Error::Mismatch("arrival entry has no measured body"));
-                };
-                if matching.next().is_some()
-                    || row.installation_machine != scope.machine()
-                    || row.operation != scope.operation()
-                    || entry.machine != scope.machine()
-                    || entry.operation != scope.operation()
-                    || row.psi != entry.entry().psi()
-                    || row.target != entry.entry().target()
-                    || row.entry != entry.entry().machine()
-                    || row.fault_exclusion.is_none()
-                    || delivery.psi != row.psi
-                    || delivery.installation != row.operation
-                {
-                    return Err(Error::Mismatch(
-                        "arrival entry changed its body, installation or fault premises",
-                    ));
-                }
-                let gate =
-                    if entry.placement.application_index == scope.acknowledgement_application() {
-                        anchor.gate_byte_offset()
-                    } else {
-                        let mut matching = scope.fatal_entries().iter().filter(|fatal| {
-                            fatal.application() == entry.placement.application_index
-                                && fatal.machine() == row.entry
-                        });
-                        let Some(fatal) = matching.next() else {
-                            return Err(Error::Mismatch(
-                                "arrival entry has no admitted fatal identity",
-                            ));
-                        };
-                        if matching.next().is_some() {
-                            return Err(Error::Mismatch("fatal arrival identity is duplicated"));
-                        }
-                        fatal.gate_byte_offset()
-                    };
-                if gate % 16 != 0 || gate / 16 > 255 {
-                    return Err(Error::Mismatch(
-                        "arrival vector is outside its exact x86 gate",
-                    ));
-                }
-                let domain = match entry.entry().inbound().state.stack {
-                    EntryStack::Interrupted => None,
-                    EntryStack::Dedicated { class } => Some(class),
-                    EntryStack::ProviderSelected => {
-                        return Err(Error::Mismatch("arrival stack domain is unresolved"));
-                    }
-                };
-                inputs.push(Entry {
-                    placement: row.placement_index,
-                    vector: (gate / 16) as u16,
-                    domain,
-                    bytes: row.own_bytes().ok_or(Error::Overflow)?,
-                    alignment: row.alignment,
-                });
-            }
-            inputs.sort_unstable_by_key(|entry| entry.placement);
-            if inputs
-                .windows(2)
-                .any(|pair| pair[0].placement == pair[1].placement)
-            {
-                return Err(Error::Mismatch("arrival placement is duplicated"));
-            }
-            let mut vectors: Vec<_> = inputs.iter().map(|entry| entry.vector).collect();
-            vectors.sort_unstable();
-            if vectors.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err(Error::Mismatch("arrival vector is duplicated"));
-            }
-            if !(0..32).all(|vector| vectors.binary_search(&vector).is_ok()) {
-                return Err(Error::Mismatch(
-                    "fatal installation does not cover every architectural exception destination",
-                ));
-            }
-            let physical_entry = physical_entry
-                .filter(|root| root.semantic_entry == delivery.entry)
-                .ok_or(Error::Mismatch(
-                    "fatal arrival has no matching physical entry stack provision",
-                ))?;
-            let mut peaks = vec![0; inputs.len()];
-            let mut simultaneous = vec![Vec::new(); inputs.len()];
-            let mut root_peak = 0;
-            for first in 0..inputs.len() {
-                let mut history = vec![first];
-                histories(
-                    &inputs,
-                    &mut history,
-                    &mut peaks,
-                    &mut simultaneous,
-                    &mut root_peak,
-                )?;
-            }
-            for row in requirements {
-                let index = inputs
-                    .binary_search_by_key(&row.placement_index, |entry| entry.placement)
-                    .map_err(|_| {
-                        Error::Mismatch("arrival requirement is outside its complete roster")
-                    })?;
-                simultaneous[index].sort_unstable();
-                simultaneous[index].dedup();
-                row.arrival = Some(InstalledArrivalStackDemand {
-                    physical_entry,
-                    root_reserve_bytes: root_peak,
-                    domain_bytes: peaks[index],
-                    simultaneous_placements: std::mem::take(&mut simultaneous[index]),
-                });
-            }
-            Ok(())
-        }
-
-        fn histories(
-            entries: &[Entry],
-            history: &mut Vec<usize>,
-            peaks: &mut [u64],
-            simultaneous: &mut [Vec<usize>],
-            root_peak: &mut u64,
-        ) -> Result<(), Error> {
-            let mut active = None;
-            let mut occupancy: Vec<(Option<u16>, u64)> = vec![(None, 0)];
-            for &index in history.iter() {
-                let entry = &entries[index];
-                if let Some(domain) = entry.domain {
-                    active = Some(domain);
-                }
-                let position = occupancy
-                    .iter()
-                    .position(|(domain, _)| *domain == active)
-                    .unwrap_or_else(|| {
-                        occupancy.push((active, 0));
-                        occupancy.len() - 1
-                    });
-                let alignment = u64::from(entry.alignment);
-                if alignment == 0 || !alignment.is_power_of_two() {
-                    return Err(Error::Mismatch("arrival alignment is invalid"));
-                }
-                let bytes = occupancy[position]
-                    .1
-                    .checked_add(alignment - 1)
-                    .map(|bytes| bytes & !(alignment - 1))
-                    .and_then(|bytes| bytes.checked_add(entry.bytes))
-                    .ok_or(Error::Overflow)?;
-                occupancy[position].1 = bytes;
-            }
-            for (domain, bytes) in occupancy {
-                if domain.is_none() {
-                    *root_peak = (*root_peak).max(bytes);
-                }
-                for (index, entry) in entries.iter().enumerate() {
-                    if entry.domain == domain {
-                        peaks[index] = peaks[index].max(bytes);
-                    }
-                }
-            }
-            for (position, &left) in history.iter().enumerate() {
-                if entries[left].domain.is_none() {
-                    continue;
-                }
-                for &right in &history[position + 1..] {
-                    if entries[right].domain.is_none() {
-                        continue;
-                    }
-                    if entries[left].domain == entries[right].domain {
-                        return Err(Error::Mismatch(
-                            "simultaneous arrivals reload one dedicated stack top",
-                        ));
-                    }
-                    simultaneous[left].push(entries[right].placement);
-                    simultaneous[right].push(entries[left].placement);
-                }
-            }
-            for vector in [2, 18] {
-                if history.iter().any(|&index| entries[index].vector == vector) {
-                    continue;
-                }
-                if let Some(next) = entries.iter().position(|entry| entry.vector == vector) {
-                    history.push(next);
-                    histories(entries, history, peaks, simultaneous, root_peak)?;
-                    history.pop();
-                }
-            }
-            Ok(())
-        }
-    }
-
     mod faults {
         use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact};
         use installation_evidence::InstalledBodyFaultPremises;
@@ -1153,7 +949,7 @@ pub(crate) mod installed_stack {
         use semantic_vocabulary::MachineId;
         mod ram {
             use crate::FunctionFragmentObjectArtifactError as Error;
-            use abstract_operations::{AbstractOperation as O, AbstractOperationPlan};
+            use verified_optimization_input::publication::{EmissionProgramFacts, RamSource};
             use provider_admission::{
                 AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort,
             };
@@ -1161,8 +957,8 @@ pub(crate) mod installed_stack {
             use target_operations::{CallSiteOwner, NativeCallTarget};
 
             pub(super) fn validate(
-                source: &AbstractOperationPlan,
-                selected: &post_allocation_machine::PostAllocationMachineProgram,
+                source: &EmissionProgramFacts,
+                selected: &machine_code::call_origins::PhysicalCallOrigins,
                 cohort: &AdmittedInstalledInterruptCohort,
                 execution: &AdmittedInstalledEntryExecution,
                 machines: &[MachineId],
@@ -1210,19 +1006,20 @@ pub(crate) mod installed_stack {
                         ))?;
                     let mut calls: Vec<_> = function.calls.iter().collect();
                     calls.sort_unstable_by_key(|call| call.owner);
-                    for operation in body.operations() {
+                    for obligation in &body.ram_obligations {
                         let fail = |reason| Error::InstalledMemorySource {
                             machine: body.machine,
-                            operation: operation.psi_operation(),
+                            operation: obligation.operation,
                             reason,
                         };
-                        let owner = match operation {
-                            O::EstablishAccessReference { .. } => {
+                        let owner = match obligation.source {
+                            RamSource::PlacedBacking => {
                                 return Err(fail(
                                     "external placed backing needs its own mapped-residence proof",
                                 ));
                             }
-                            O::BoundaryCall { psi_operation, .. } => {
+                            RamSource::Boundary(operation) => {
+                                let psi_operation = &operation;
                                 if let Ok(index) = helpers.binary_search_by_key(
                                     &(body.machine, *psi_operation),
                                     |helper| (helper.machine(), helper.operation()),
@@ -1238,10 +1035,9 @@ pub(crate) mod installed_stack {
                                 }
                                 CallSiteOwner::Operation(*psi_operation)
                             }
-                            O::ExternalCompletion { psi_edge, .. } => {
-                                CallSiteOwner::ExternalCompletion(*psi_edge)
+                            RamSource::ExternalCompletion(psi_edge) => {
+                                CallSiteOwner::ExternalCompletion(psi_edge)
                             }
-                            _ => continue,
                         };
                         let first = calls.partition_point(|call| call.owner < owner);
                         let last = calls.partition_point(|call| call.owner <= owner);
@@ -1263,6 +1059,110 @@ pub(crate) mod installed_stack {
             }
         }
 
+        pub(crate) fn prepare_origins(
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
+        ) -> Result<machine_code::fault_origins::PhysicalFaultOrigins, String> {
+            use machine_code::fault_origins::*;
+            let physical = &selected.machine;
+            let correlated = correlate_native_instruction_sources(
+                selected,
+                physical.functions.iter().flat_map(|function| {
+                    function
+                        .instructions()
+                        .map(move |row| (function.machine, row.instruction))
+                }),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut machines: Vec<_> = selected
+                .functions
+                .iter()
+                .map(|function| function.machine)
+                .collect();
+            let mut physical_machines: Vec<_> = physical
+                .functions
+                .iter()
+                .map(|function| function.machine)
+                .collect();
+            machines.sort_unstable();
+            physical_machines.sort_unstable();
+            if machines != physical_machines || machines.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err("installed fault analysis changed its exact function roster".into());
+            }
+            let mut correlated = correlated.into_iter();
+            let mut functions = Vec::with_capacity(physical.functions.len());
+            for function in &physical.functions {
+                let mut instructions = Vec::new();
+                for row in function.instructions() {
+                    let (machine, instruction) = correlated
+                        .next()
+                        .ok_or("installed physical instruction has no exact selected source")?;
+                    if machine != function.machine {
+                        return Err("physical instruction changed its owning machine".into());
+                    }
+                    let memory = matches!(
+                        instruction.kind,
+                        Kind::CopyBytes
+                            | Kind::ZeroBytes
+                            | Kind::LoadEncodedScalar
+                            | Kind::StoreEncodedScalar
+                            | Kind::ScanByteSequence { .. }
+                            | Kind::CompareByteSequences
+                            | Kind::LoadPacked { .. }
+                            | Kind::StorePacked { .. }
+                            | Kind::Store { .. }
+                            | Kind::Load8Indexed
+                            | Kind::Load8 { .. }
+                            | Kind::Load16 { .. }
+                            | Kind::Load32 { .. }
+                            | Kind::Load64 { .. }
+                            | Kind::Store64 { .. }
+                            | Kind::AtomicAccess { .. }
+                            | Kind::ReturnUnit
+                            | Kind::ReturnScalar
+                            | Kind::ReturnAggregate { .. }
+                    );
+                    let privileged = match instruction.kind {
+                                Kind::PrivilegedCrash | Kind::PortWrite { .. } => true,
+                                Kind::RegisterAccess { operation } => matches!(operation,
+                                    terminal_psi::RegisterOperation::ProcessorHalt
+                                    | terminal_psi::RegisterOperation::InterruptControl(language_core::inline_assembly::AsmInterruptControlKind::Disable)
+                                    | terminal_psi::RegisterOperation::MemoryFence(_)
+                                    | terminal_psi::RegisterOperation::PortWrite),
+                                _ => false,
+                            };
+
+                    let operation = if let Some(target) = instruction.kind.call_target() {
+                        FaultOperation::Call(target)
+                    } else if memory {
+                        FaultOperation::MemoryOrStack
+                    } else if privileged {
+                        FaultOperation::Privileged
+                    } else {
+                        FaultOperation::Other
+                    };
+                    instructions.push(PhysicalInstructionFaultOrigin {
+                        instruction: row.instruction,
+                        operation,
+                        description: format!("{:?}", instruction.kind),
+                    });
+                }
+                functions.push(PhysicalFunctionFaultOrigins {
+                    machine: function.machine,
+                    instructions,
+                });
+            }
+            if correlated.next().is_some() {
+                return Err("installed physical closure omits a selected instruction".into());
+            }
+            Ok(PhysicalFaultOrigins {
+                psi: selected.psi,
+                entry: selected.entry,
+                target: physical.target,
+                physical_identity: physical.identity.bytes(),
+                functions,
+            })
+        }
+
         pub(super) fn derive(
             body: &ObjectArtifact,
         ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
@@ -1282,15 +1182,167 @@ pub(crate) mod installed_stack {
                     "installed quiet closure has an unresolved foreign or private execution dependency",
                 ));
             }
-            let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-                "installed fault analysis requires the exact retained native pipeline",
-            ))?;
-            let current = replay.0.source().source().source().source();
-            let selected = current.physical_program();
-            let physical = &current.physical_program().machine;
-            if selected.psi != body.psi()
-                || selected.entry != body.entry()
-                || physical.target != body.target()
+            let current = &body.body_readback;
+            let origins = current
+                .faults
+                .as_ref()
+                .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?;
+            if origins.psi != body.psi()
+                || origins.entry != body.entry()
+                || origins.target != body.target()
+            {
+                return Err(Error::Mismatch(
+                    "installed fault analysis changed its body or target",
+                ));
+            }
+            let mut machines: Vec<_> = origins
+                .functions
+                .iter()
+                .map(|function| function.machine)
+                .collect();
+            machines.sort_unstable();
+            if machines.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(Error::Mismatch(
+                    "installed fault analysis changed its exact function roster",
+                ));
+            }
+            ram::validate(
+                &body.emission_facts().program,
+                body.call_origins(),
+                body.installation_authority.installed_interrupts(),
+                execution,
+                &machines,
+            )?;
+            crate::observe_native_body_cpu_state(
+                body,
+                execution.entry().entry().inbound().state.preemption,
+            )?
+            .require_without_floating_state()?;
+            let mut encoded = current.encoding.rows().iter();
+            for function in &origins.functions {
+                let fragment =
+                    current
+                        .fragments
+                        .function(function.machine)
+                        .ok_or(Error::Mismatch(
+                            "installed fault analysis has no exact framed function",
+                        ))?;
+                let relative_branches = function_layout::validate_current_relative_branch_rows(
+                    &current.fragments,
+                    &current.branches,
+                    &current.physical,
+                    function.machine,
+                    fragment.instructions().filter(|row| row.branch.is_some()),
+                )
+                .map_err(|error| Error::InstalledRelativeBranches {
+                    machine: function.machine,
+                    source: error,
+                })?;
+                for instruction in &function.instructions {
+                    let machine = function.machine;
+                    let row = encoded
+                        .next()
+                        .filter(|row| row.instruction == instruction.instruction)
+                        .ok_or(Error::Mismatch(
+                            "installed encoding differs from physical instruction order",
+                        ))?;
+                    let effects = &current
+                        .encoding
+                        .encoded()
+                        .footprint(row.footprint)
+                        .ok_or(Error::Mismatch(
+                            "installed instruction lacks encoded effects",
+                        ))?
+                        .encoded;
+                    let fail = |reason: &str| Error::InstalledFaultSurface {
+                        machine,
+                        instruction: instruction.instruction,
+                        detail: format!(
+                            "{reason}; selected={}, encoded={effects:?}",
+                            instruction.description
+                        ),
+                    };
+                    if let machine_code::fault_origins::FaultOperation::Call(target) =
+                        instruction.operation
+                    {
+                        let Some(target) = target.machine() else {
+                            return Err(fail("dynamic call has no closed fault analysis"));
+                        };
+                        if machines.binary_search(&target).is_err() {
+                            return Err(fail("callee is outside the exact retained body closure"));
+                        }
+                    }
+                    match effects.trap {
+                        Trap::NeverV1 => {}
+                        Trap::MayArchitecturalFaultV1 => {
+                            use machine_code::fault_origins::FaultOperation;
+                            let memory = instruction.operation == FaultOperation::MemoryOrStack;
+                            let privileged = instruction.operation == FaultOperation::Privileged;
+                            let relative = relative_branches
+                                .binary_search(&instruction.instruction)
+                                .is_ok();
+                            if !memory
+                                && !privileged
+                                && !relative
+                                && !matches!(instruction.operation, FaultOperation::Call(_))
+                            {
+                                return Err(fail(
+                                    "architectural fault source is not discharged by checked RAM/stack or CPL0",
+                                ));
+                            }
+                        }
+                        _ => {
+                            return Err(fail(
+                                "instruction retains an architectural trap or hosted failure route",
+                            ));
+                        }
+                    }
+                }
+            }
+            if encoded.next().is_some() {
+                return Err(Error::Mismatch(
+                    "installed physical closure omits a selected instruction",
+                ));
+            }
+            Ok(Some(InstalledBodyFaultPremises {
+                physical_program_identity: origins.physical_identity,
+            }))
+        }
+
+        pub(super) fn plan(
+            frame: &physical_planning::PhysicalFrameProgram,
+            facts: &physical_planning::EmissionFacts,
+            authority: &physical_planning::installation_resources::PlannedInstallationResources,
+            cpu: &crate::NativeBodyCpuState,
+        ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
+            let execution = authority
+                .installed_entry_execution()
+                .ok_or(Error::Mismatch(
+                    "installed body stack demand has no exact execution domain",
+                ))?;
+            if execution.scope().fatal_entries().is_empty() {
+                return Ok(None);
+            }
+            if execution.scope().interrupt_delivery_assumption().is_none() {
+                return Err(Error::Mismatch(
+                    "installed fatal closure lacks its delivery condition",
+                ));
+            }
+            if frame
+                .instructions
+                .functions
+                .iter()
+                .any(|function| !function.normalized_foreign_calls.is_empty())
+            {
+                return Err(Error::Mismatch(
+                    "installed quiet closure has an unresolved foreign or private execution dependency",
+                ));
+            }
+            let selected = &frame.instructions;
+            let physical = &selected.machine;
+            if selected.psi != facts.program.psi
+                || selected.entry != facts.program.entry
+                || physical.target != authority.program().target
             {
                 return Err(Error::Mismatch(
                     "installed fault analysis changed its body or target",
@@ -1322,36 +1374,15 @@ pub(crate) mod installed_stack {
                 ));
             }
             ram::validate(
-                &current.facts().abstract_program,
-                selected,
-                body.installation_authority.installed_interrupts(),
+                &facts.program,
+                &facts.calls,
+                authority.installed_interrupts(),
                 execution,
                 &machines,
             )?;
-            crate::observe_native_body_cpu_state(
-                body,
-                execution.entry().entry().inbound().state.preemption,
-            )?
-            .require_without_floating_state()?;
+            cpu.require_without_floating_state()?;
             let mut correlated = correlated.into_iter();
-            let framed = replay.0.source().source();
             for function in &physical.functions {
-                let fragment =
-                    framed
-                        .fragments()
-                        .function(function.machine)
-                        .ok_or(Error::Mismatch(
-                            "installed fault analysis has no exact framed function",
-                        ))?;
-                let relative_branches = framed
-                    .validate_relative_branch_rows(
-                        function.machine,
-                        fragment.instructions().filter(|row| row.branch.is_some()),
-                    )
-                    .map_err(|error| Error::InstalledRelativeBranches {
-                        machine: function.machine,
-                        source: error,
-                    })?;
                 for instruction in function.instructions() {
                     let (machine, source) = correlated.next().ok_or(Error::Mismatch(
                         "installed physical instruction has no exact selected source",
@@ -1410,9 +1441,13 @@ pub(crate) mod installed_stack {
                                     | terminal_psi::RegisterOperation::PortWrite),
                                 _ => false,
                             };
-                            let relative = relative_branches
-                                .binary_search(&instruction.instruction)
-                                .is_ok();
+                            let relative = matches!(
+                                source.kind,
+                                Kind::Jump
+                                    | Kind::ConditionalBranchNonZero
+                                    | Kind::ConditionalBranchU64LessThan
+                                    | Kind::ConditionalBranchI64LessThan
+                            );
                             if !memory
                                 && !privileged
                                 && !relative
@@ -1495,8 +1530,78 @@ pub(crate) mod installed_stack {
         }
     }
 
-    pub use arrival::compose as compose_installed_arrival_demands;
+    impl From<physical_planning::installed_arrival::ArrivalCompositionError> for Error {
+        fn from(error: physical_planning::installed_arrival::ArrivalCompositionError) -> Self {
+            match error {
+                physical_planning::installed_arrival::ArrivalCompositionError::Mismatch(reason) => {
+                    Self::Mismatch(reason)
+                }
+                physical_planning::installed_arrival::ArrivalCompositionError::Overflow => {
+                    Self::Overflow
+                }
+            }
+        }
+    }
     pub use faults::correlate_native_instruction_sources;
+    pub(crate) use faults::prepare_origins as prepare_fault_origins;
+
+    pub fn plan_installed_interrupt_stack_requirement(
+        identity: function_identity::MachineFunctionIdentity,
+        frame: &physical_planning::PhysicalFrameProgram,
+        facts: &physical_planning::EmissionFacts,
+        authority: &physical_planning::installation_resources::PlannedInstallationResources,
+        bridge: &physical_planning::native_entry_bridge::NativeEntryBridgePlan,
+        cpu: &crate::NativeBodyCpuState,
+        installation_machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    ) -> Result<InstalledInterruptStackRequirement, Error> {
+        let placement_index = identity
+            .callback_thunk_placement_index()
+            .ok_or(Error::Mismatch(
+                "installed stack demand has no private placement",
+            ))?;
+        let program = &frame.instructions;
+        if function_identity::MachineFunctionIdentity::callback_thunk(program.psi, placement_index)
+            != Some(identity)
+            || facts.stack.psi != program.psi
+            || facts.stack.target != program.machine.target
+            || bridge.request().target != program.machine.target
+        {
+            return Err(Error::Mismatch(
+                "installed stack demand changed its original private body",
+            ));
+        }
+        let entry_plan = bridge.installed_interrupt().ok_or(Error::Mismatch(
+            "installed stack demand has no admitted arrival bridge",
+        ))?;
+        let body = physical_planning::stack_demand::derive_physical_stack_demand(
+            &facts.stack,
+            program.entry,
+            Vec::new(),
+        )
+        .map_err(|error| Error::PrivateFunctions(crate::ObjectError::from(error)))?;
+        let requirement = InstalledInterruptStackRequirement {
+            installation_machine,
+            arrival: None,
+            fault_exclusion: faults::plan(frame, facts, authority, cpu)?,
+            psi: program.psi,
+            target: program.machine.target,
+            operation,
+            placement_index,
+            entry: program.entry,
+            entry_plan,
+            body_bytes: body.ceiling_bytes().ok_or(Error::Mismatch(
+                "installed stack requires a finite demand without hosted foreign calls",
+            ))?,
+            bridge_bytes: bridge.frame_bytes(),
+            call_stack_bias: bridge.call_stack_bias(),
+            alignment: body
+                .stack_alignment()
+                .max(u32::from(bridge.request().internal.stack_alignment)),
+        };
+        requirement.required_bytes().ok_or(Error::Overflow)?;
+        Ok(requirement)
+    }
 
     pub fn installed_interrupt_stack_requirement(
         private: &PrivateFunctionObject,
@@ -1602,13 +1707,10 @@ pub(crate) mod installed_stack {
                 )?);
             }
             for scope in authority.installed_interrupts().scopes() {
-                let first = actual_requirements.partition_point(|row| {
-                    (row.installation_machine, row.operation) < (scope.machine(), scope.operation())
-                });
-                let last = actual_requirements.partition_point(|row| {
-                    (row.installation_machine, row.operation)
-                        <= (scope.machine(), scope.operation())
-                });
+                let first =
+                    actual_requirements.partition_point(|row| (row.installation_machine, row.operation) < (scope.machine(), scope.operation()));
+                let last =
+                    actual_requirements.partition_point(|row| (row.installation_machine, row.operation) <= (scope.machine(), scope.operation()));
                 if first == last {
                     continue;
                 }
@@ -1616,9 +1718,7 @@ pub(crate) mod installed_stack {
                     .installed_interrupts()
                     .entries()
                     .iter()
-                    .filter(|entry| {
-                        entry.machine == scope.machine() && entry.operation == scope.operation()
-                    })
+                    .filter(|entry| entry.machine == scope.machine() && entry.operation == scope.operation())
                     .collect();
                 let proposed_root = authority.installed_stack_requirements()[first]
                     .arrival
@@ -1631,7 +1731,7 @@ pub(crate) mod installed_stack {
                         "private installation cannot borrow the application's physical entry stack",
                     ));
                 }
-                compose_installed_arrival_demands(
+                physical_planning::installed_arrival::compose(
                     scope,
                     &entries,
                     &mut actual_requirements[first..last],
@@ -1711,1903 +1811,8 @@ pub(crate) mod installed_stack {
     }
 }
 
-mod normalized_foreign_calls {
-    mod descriptor_input {
-        use selected_instructions::{
-            SelectedBlock, SelectedFunction, SelectedInstructionKind as Kind,
-            SelectedNormalizedForeignCall, VirtualRegisterOrigin,
-        };
-        use semantic_vocabulary::{IntegerValue, ScalarType};
-
-        pub(super) fn validate(
-            function: &SelectedFunction,
-            block: &SelectedBlock,
-            record: &SelectedNormalizedForeignCall,
-        ) -> Option<()> {
-            let Some(guard) = record.call.descriptor_input else {
-                return Some(());
-            };
-            let operation = record.invocation_site.operation()?;
-            let count = record
-                .call
-                .scalar_arguments
-                .get(guard.count_scalar_argument)?
-                .source
-                .source_value();
-            let call_position = block.instruction_index(record.instruction)?;
-            let form = legalized_operations::TrappingForm {
-                operation: legalized_operations::TrappingOperation::Subtract,
-                carrier: legalized_operations::SaturatingCarrier::from_integer(guard.count_type)?,
-            };
-            let mut guards = block.instructions[..call_position]
-                .iter()
-                .enumerate()
-                .filter(|(_, instruction)| {
-                    instruction.kind == (Kind::TrappingInteger { form })
-                        && instruction.provenance.operations.as_slice() == [operation]
-                        && instruction.provenance.values.as_slice() == [count]
-                });
-            let (guard_position, instruction) = guards.next()?;
-            if guards.next().is_some() || !instruction.provenance.work.is_empty() {
-                return None;
-            }
-            let [bound, input, output, scratch] = instruction.operands.as_slice() else {
-                return None;
-            };
-            let input = function
-                .virtual_registers
-                .get(input.virtual_register.0 as usize)?;
-            if input.scalar_type != ScalarType::Integer(guard.count_type)
-                || !matches!(input.origin,
-                    VirtualRegisterOrigin::EntryParameter { source_value, .. }
-                    | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-                    | VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == count)
-            {
-                return None;
-            }
-            let bound_register = function
-                .virtual_registers
-                .get(bound.virtual_register.0 as usize)?;
-            let VirtualRegisterOrigin::InstructionScratch {
-                instruction: materialize,
-                operand: 0,
-            } = bound_register.origin
-            else {
-                return None;
-            };
-            let materialize_position = block.instruction_index(materialize)?;
-            let materialize = block.instructions.get(materialize_position)?;
-            if materialize_position >= guard_position
-                || materialize.kind
-                    != (Kind::MaterializeI64 {
-                        value: IntegerValue::Unsigned(u128::from(guard.max_bytes)),
-                    })
-                || materialize.provenance.operations.as_slice() != [operation]
-                || materialize.provenance.values.as_slice() != [count]
-                || !materialize.provenance.work.is_empty()
-                || materialize.operands.as_slice().first()?.virtual_register
-                    != bound.virtual_register
-                || materialize.operands.len() != 1
-                || bound_register.scalar_type != ScalarType::Integer(guard.count_type)
-            {
-                return None;
-            }
-            for (operand, expected) in [(output, 2), (scratch, 3)] {
-                if function
-                    .virtual_registers
-                    .get(operand.virtual_register.0 as usize)?
-                    .origin
-                    != (VirtualRegisterOrigin::InstructionScratch {
-                        instruction: instruction.id,
-                        operand: expected,
-                    })
-                {
-                    return None;
-                }
-            }
-            Some(())
-        }
-    }
-
-    mod floating_control {
-        use machine_code::{
-            ForeignCallFloatingControlRecord, FunctionTargetFrameLayout, PlacedFunctionFragment,
-        };
-        use selected_instructions::{
-            LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
-        };
-        use target::{Architecture, NativeTarget};
-
-        pub(super) struct FloatingControlCustody {
-            pub x86: Option<ForeignCallFloatingControlRecord>,
-            pub aarch64: Option<ForeignCallFloatingControlRecord>,
-        }
-
-        pub(super) fn derive(
-            target: NativeTarget,
-            function: &SelectedFunction,
-            block: &SelectedBlock,
-            fragment: &PlacedFunctionFragment,
-            frame: &FunctionTargetFrameLayout,
-            record: &SelectedNormalizedForeignCall,
-        ) -> Result<FloatingControlCustody, &'static str> {
-            let operation = record
-                .invocation_site
-                .operation()
-                .ok_or("floating controls have no source operation")?;
-            let slot = LocalStorageSlotId::Boundary { operation };
-            let transport =
-                selected_instructions::calls::normalized_foreign::return_transport::resolve(
-                    function, block, record,
-                )
-                .ok_or("foreign result transport has no exact control restore")?;
-            let call_position = transport.call_position;
-            let restore_position = transport
-                .restore_position
-                .ok_or("foreign control restore is absent")?;
-            let save_position =
-                selected_instructions::calls::normalized_foreign::return_transport::save_position(
-                    function,
-                    block,
-                    record,
-                    call_position,
-                )
-                .ok_or(
-                    "foreign control save envelope contains unrelated effects or invalid private transport",
-                )?;
-            let save = &block.instructions[save_position];
-            let restore = block
-                .instructions
-                .get(restore_position)
-                .ok_or("foreign control restore position is outside the block")?;
-            let mut homes = function
-                .local_storage_slots
-                .iter()
-                .filter(|home| home.id == slot);
-            let home = homes.next().ok_or("foreign control slot is absent")?;
-            let mut placements = frame
-                .local_storage_slots
-                .iter()
-                .filter(|home| home.id == slot);
-            let placement = placements
-                .next()
-                .ok_or("foreign control slot has no frame placement")?;
-            if homes.next().is_some()
-                || placements.next().is_some()
-                || home.byte_size != 8
-                || home.alignment != 8
-                || placement.size_bytes != home.byte_size
-                || placement.alignment_bytes != home.alignment
-                || placement.frame_offset_bytes < frame.outgoing_abi_area.byte_size
-                || !placement.frame_offset_bytes.is_multiple_of(8)
-                || placement
-                    .frame_offset_bytes
-                    .checked_add(8)
-                    .ok_or("foreign control frame extent overflows")?
-                    > frame.frame_size_bytes
-            {
-                return Err("foreign control slot extent or alignment does not match the frame");
-            }
-            let saved_slot_byte_offset = u32::try_from(
-                placement
-                    .frame_offset_bytes
-                    .checked_sub(frame.red_zone_resident_bytes)
-                    .ok_or("foreign control slot precedes committed frame")?,
-            )
-            .map_err(|_| "foreign control slot offset is not addressable")?;
-            let (save_offset, save_byte_count) =
-                super::fragment_instruction_span(fragment, save.id)
-                    .ok_or("foreign control or call has no emitted span")?;
-            let (restore_offset, restore_byte_count) =
-                super::fragment_instruction_span(fragment, restore.id)
-                    .ok_or("foreign control or call has no emitted span")?;
-            let (call_offset, call_byte_count) =
-                super::fragment_instruction_span(fragment, record.instruction)
-                    .ok_or("foreign control or call has no emitted span")?;
-            let transported_end = block.instructions[call_position + 1..restore_position]
-                .iter()
-                .try_fold(
-                    call_offset
-                        .checked_add(call_byte_count)
-                        .ok_or("foreign call emitted extent overflows")?,
-                    |end, copy| {
-                        let (offset, count) = super::fragment_instruction_span(fragment, copy.id)?;
-                        (offset == end).then_some(())?;
-                        offset.checked_add(count)
-                    },
-                )
-                .ok_or("foreign result transport bytes are not contiguous before restore")?;
-            if save_offset
-                .checked_add(save_byte_count)
-                .ok_or("foreign control save emitted extent overflows")?
-                > call_offset
-                || restore_offset != transported_end
-            {
-                return Err("foreign control save/call/restore emitted spans are out of order");
-            }
-            let save_offset = usize::try_from(save_offset)
-                .map_err(|_| "foreign control emitted span is not addressable")?;
-            let save_byte_count = usize::try_from(save_byte_count)
-                .map_err(|_| "foreign control emitted span is not addressable")?;
-            let restore_offset = usize::try_from(restore_offset)
-                .map_err(|_| "foreign control emitted span is not addressable")?;
-            let restore_byte_count = usize::try_from(restore_byte_count)
-                .map_err(|_| "foreign control emitted span is not addressable")?;
-            Ok(match target.architecture {
-                Architecture::X86_64 => FloatingControlCustody {
-                    x86: Some(ForeignCallFloatingControlRecord {
-                        target,
-                        saved_slot_byte_offset,
-                        save_offset,
-                        save_byte_count,
-                        restore_offset,
-                        restore_byte_count,
-                    }),
-                    aarch64: None,
-                },
-                Architecture::Aarch64 => FloatingControlCustody {
-                    x86: None,
-                    aarch64: Some(ForeignCallFloatingControlRecord {
-                        target,
-                        saved_slot_byte_offset,
-                        save_offset,
-                        save_byte_count,
-                        restore_offset,
-                        restore_byte_count,
-                    }),
-                },
-            })
-        }
-    }
-
-    use calling_conventions::ValueLocation;
-    use semantic_vocabulary::{MachineId, ScalarType};
-    use target_operations::CallSiteOwner;
-
-    use super::carriers::{ObjectArtifact, ObjectForeignCall};
-    use super::errors::ObjectError;
-
-    pub fn derive_normalized_foreign_call_custody(
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-    ) -> Result<Vec<ObjectForeignCall>, ObjectError> {
-        let section = source.source().text_section();
-        let emissions = source.source().source().source().source();
-        let selected = emissions.physical_program();
-        let layout = emissions.frame_layout();
-        let architecture = source.source().source().fragments().target.architecture;
-        let mut custody = Vec::new();
-        for function in selected.functions.iter() {
-            let fragment =
-                caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
-            if function.normalized_foreign_calls.is_empty() {
-                continue;
-            }
-            let home_offsets = durable_home_offsets(function);
-            let mut abstracted_functions = emissions
-                .facts()
-                .abstract_program
-                .functions
-                .iter()
-                .filter(|candidate| candidate.machine == function.machine);
-            let abstracted = match (abstracted_functions.next(), abstracted_functions.next()) {
-                (Some(abstracted), None) => Some(abstracted),
-                _ => None,
-            };
-            let mut frames = layout
-                .functions
-                .iter()
-                .filter(|frame| frame.machine == function.machine);
-            let frame = match (frames.next(), frames.next()) {
-                (Some(frame), None) => Some(frame),
-                _ => None,
-            };
-            for (ordinal, record) in function.normalized_foreign_calls.iter().enumerate() {
-                let owner = CallSiteOwner::from(record.invocation_site);
-                let invalid = |reason| ObjectError::InvalidForeignCallProjection {
-                    caller: function.machine,
-                    owner,
-                    reason,
-                };
-                if record.call.binding.native_target() != Some(section.target)
-                    || !record.call.binding.has_valid_entry_mechanism()
-                {
-                    return Err(invalid(
-                        "binding target or native entry mechanism does not match",
-                    ));
-                }
-                let (block, instruction) = unique_block_instruction(function, record.instruction)
-                    .ok_or_else(|| {
-                    invalid("selected call instruction is missing or repeated")
-                })?;
-                descriptor_input::validate(function, block, record).ok_or_else(|| {
-                    invalid("descriptor input guard does not match the selected call")
-                })?;
-                if !foreign_invocation_provenance_matches(
-                    &instruction.provenance,
-                    record.invocation_site,
-                ) {
-                    return Err(invalid(
-                        "selected call instruction lost its invocation provenance",
-                    ));
-                }
-                if !matches!(
-                    instruction.kind,
-                    selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
-                        boundary, ordinal: actual,
-                    } if boundary == record.call.boundary && usize::try_from(actual) == Ok(ordinal)
-                ) {
-                    return Err(invalid(
-                        "selected call boundary or roster ordinal does not match",
-                    ));
-                }
-                if record.invocation_site.operation().is_none()
-                    && selected_instructions::calls::normalized_foreign::return_transport::resolve(
-                        function, block, record,
-                    )
-                    .is_none()
-                {
-                    return Err(invalid("external completion has no exact return transport"));
-                }
-                let mut fields =
-                    section
-                        .unresolved_normalized_foreign_calls
-                        .iter()
-                        .filter(|field| {
-                            field.caller == function.machine
-                                && field.invocation_site == record.invocation_site
-                        });
-                let field = match (
-                    record.call.binding.import_locator(),
-                    fields.next(),
-                    fields.next(),
-                ) {
-                    (Some(_), Some(field), None) => {
-                        if field.instruction != record.instruction
-                            || field.boundary != record.call.boundary
-                            || usize::try_from(field.ordinal) != Ok(ordinal)
-                            || field.block != block.id
-                            || field.state != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
-                        {
-                            return Err(invalid("placed import field does not match the selected call"));
-                        }
-                        Some(field)
-                    }
-                    (None, None, None) => None,
-                    _ => {
-                        return Err(invalid(
-                            "import relocation count does not match the native binding",
-                        ));
-                    }
-                };
-                let text_offset = if let Some(field) = field {
-                    usize::try_from(field.field_section_offset)
-                        .map_err(|_| invalid("import relocation offset is not addressable"))?
-                } else {
-                    usize::try_from(
-                        fragment_instruction_span(fragment, record.instruction)
-                            .ok_or_else(|| invalid("native call has no emitted instruction span"))?
-                            .0,
-                    )
-                    .map_err(|_| invalid("native instruction offset is not addressable"))?
-                };
-                let scalar_arguments = foreign_scalar_argument_custody(
-                    function,
-                    block,
-                    fragment,
-                    record,
-                    instruction,
-                    &home_offsets,
-                    function.machine,
-                    owner,
-                    |operand, register| {
-                        operand.fixed_view
-                            == emissions
-                                .register_environment()
-                                .fixed_register_view(register)
-                    },
-                )?;
-                let scalar_result = foreign_scalar_result_custody(
-                    function,
-                    block,
-                    fragment,
-                    record,
-                    instruction,
-                    &home_offsets,
-                    function.machine,
-                    owner,
-                )?;
-                let callback_addresses = callback_address_custody(
-                    record,
-                    field.map_or(&[], |field| field.callback_materializations.as_slice()),
-                    function.machine,
-                    owner,
-                )?;
-                let Some(abstracted) = abstracted else {
-                    return Err(invalid(
-                        "caller is missing or repeated in the abstract operation roster",
-                    ));
-                };
-                let mut ordinals =
-                    abstracted
-                        .operations()
-                        .enumerate()
-                        .filter_map(|(index, operation)| match operation {
-                            abstract_operations::AbstractOperation::BoundaryCall {
-                                psi_operation,
-                                ..
-                            } if record.invocation_site
-                                == semantic_vocabulary::InvocationSite::Operation(
-                                    *psi_operation,
-                                ) =>
-                            {
-                                Some(index)
-                            }
-                            abstract_operations::AbstractOperation::ExternalCompletion {
-                                psi_edge,
-                                ..
-                            } if record.invocation_site
-                                == semantic_vocabulary::InvocationSite::ExternalCompletion(
-                                    *psi_edge,
-                                ) =>
-                            {
-                                Some(index)
-                            }
-                            _ => None,
-                        });
-                let operation_ordinal = match (ordinals.next(), ordinals.next()) {
-                    (Some(ordinal), None) => ordinal,
-                    (None, _) => {
-                        return Err(ObjectError::ForeignCallOwnerNotInProvenance {
-                            caller: function.machine,
-                            owner,
-                        });
-                    }
-                    _ => {
-                        return Err(ObjectError::DuplicateForeignCallOwner {
-                            caller: function.machine,
-                            owner,
-                        });
-                    }
-                };
-                let Some(frame) = frame else {
-                    return Err(invalid("caller frame is missing or repeated"));
-                };
-                if let target_operations::TargetBoundaryResult::Structural(home) =
-                    &record.call.result
-                {
-                    let slot = selected_instructions::LocalStorageSlotId::Structural {
-                        operation: record
-                            .invocation_site
-                            .operation()
-                            .ok_or_else(|| invalid("structural result has no source operation"))?,
-                        place: home.place(),
-                    };
-                    let mut homes = frame
-                        .local_storage_slots
-                        .iter()
-                        .filter(|home| home.id == slot);
-                    let Some(placed) = homes.next() else {
-                        return Err(invalid(
-                            "structural result storage is missing from the frame",
-                        ));
-                    };
-                    let shape = home.layout.shape();
-                    if homes.next().is_some()
-                        || placed.size_bytes != shape.byte_size
-                        || placed.alignment_bytes != shape.alignment
-                        || placed.frame_offset_bytes < frame.outgoing_abi_area.byte_size
-                        || !placed
-                            .frame_offset_bytes
-                            .is_multiple_of(u64::from(shape.alignment))
-                        || placed
-                            .frame_offset_bytes
-                            .checked_add(u64::from(shape.byte_size))
-                            .is_none_or(|end| end > frame.frame_size_bytes)
-                    {
-                        return Err(invalid(
-                            "structural result storage has the wrong frame extent or alignment",
-                        ));
-                    }
-                }
-                let committed = frame
-                    .frame_size_bytes
-                    .checked_sub(frame.red_zone_resident_bytes)
-                    .and_then(|extent| {
-                        extent.checked_add(
-                            if record.call.binding.system_call().is_none()
-                                && architecture == target::Architecture::X86_64
-                            {
-                                8
-                            } else {
-                                0
-                            },
-                        )
-                    })
-                    .ok_or(ObjectError::TextSizeOverflow)?;
-                let caller_live_bytes =
-                    u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-                let controls = if record.call.binding.requires_floating_control_preservation()
-                    && record.invocation_site.operation().is_some()
-                {
-                    Some(
-                        floating_control::derive(
-                            section.target,
-                            function,
-                            block,
-                            fragment,
-                            frame,
-                            record,
-                        )
-                        .map_err(invalid)?,
-                    )
-                } else {
-                    if !record.call.callbacks.is_empty() {
-                        return Err(invalid(
-                            "callback addresses require an operation-owned native stack call",
-                        ));
-                    }
-                    None
-                };
-                custody.push(ObjectForeignCall {
-                    machine: function.machine,
-                    owner,
-                    operation_ordinal,
-                    binding: record.call.binding.clone(),
-                    provider_execution: record.call.provider_execution.into(),
-                    caller_live_bytes,
-                    scalar_arguments,
-                    callback_addresses,
-                    scalar_result,
-                    x86_floating_control: controls.as_ref().and_then(|controls| controls.x86),
-                    aarch64_floating_control: controls
-                        .as_ref()
-                        .and_then(|controls| controls.aarch64),
-                    text_offset,
-                });
-            }
-        }
-        for (index, row) in custody.iter().enumerate() {
-            if custody[..index]
-                .iter()
-                .any(|prior| prior.machine == row.machine && prior.owner == row.owner)
-            {
-                return Err(ObjectError::DuplicateForeignCallOwner {
-                    caller: row.machine,
-                    owner: row.owner,
-                });
-            }
-        }
-        Ok(custody)
-    }
-
-    fn caller_fragment(
-        section: &machine_code::RelocationFreeTextSectionPlacement,
-        caller: MachineId,
-    ) -> Option<&machine_code::PlacedFunctionFragment> {
-        let mut functions = section
-            .functions
-            .iter()
-            .filter(|function| function.machine == caller);
-        match (functions.next(), functions.next()) {
-            (Some(function), None) => Some(function),
-            _ => None,
-        }
-    }
-
-    pub fn fragment_instruction_span(
-        fragment: &machine_code::PlacedFunctionFragment,
-        instruction: selected_instructions::SelectedInstructionId,
-    ) -> Option<(u64, u64)> {
-        fragment
-            .instruction_span(instruction)
-            .map(|span| (span.section_offset, span.byte_count))
-    }
-
-    pub fn transported_span_end(
-        fragment: &machine_code::PlacedFunctionFragment,
-        block: &selected_instructions::SelectedBlock,
-        call_position: usize,
-        normalization_position: usize,
-    ) -> Option<u64> {
-        block.instructions[call_position..normalization_position]
-            .iter()
-            .try_fold(None, |previous, step| {
-                let (start, count) = fragment_instruction_span(fragment, step.id)?;
-                if previous.is_some_and(|end| end != start) {
-                    return None;
-                }
-                Some(Some(start.checked_add(count)?))
-            })
-            .flatten()
-    }
-
-    pub fn unique_block_instruction(
-        function: &selected_instructions::SelectedFunction,
-        instruction: selected_instructions::SelectedInstructionId,
-    ) -> Option<(
-        &selected_instructions::SelectedBlock,
-        &selected_instructions::SelectedInstruction,
-    )> {
-        let mut instructions = function.blocks.iter().flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .filter(move |candidate| candidate.id == instruction)
-                .map(move |candidate| (block, candidate))
-        });
-        let (Some(pair), None) = (instructions.next(), instructions.next()) else {
-            return None;
-        };
-        Some(pair)
-    }
-
-    pub fn durable_home_offsets(
-        function: &selected_instructions::SelectedFunction,
-    ) -> Vec<(semantic_vocabulary::OperationId, u32)> {
-        let mut producers = Vec::new();
-        for contract in &function.calls {
-            if let Some(placement) = &contract.call.result_placement
-                && let target_operations::CallSiteOwner::Operation(operation) = contract.owner
-            {
-                producers.push((contract.instruction, operation, placement.shape.byte_size));
-            }
-        }
-        for record in &function.normalized_foreign_calls {
-            if let Some(home) = record.call.result.scalar_home() {
-                producers.push((
-                    record.instruction,
-                    home.defining_operation,
-                    home.shape.byte_size,
-                ));
-            }
-            for argument in &record.call.scalar_arguments {
-                if let target_operations::TargetUnitScalarArgumentSource::Home(requirement) =
-                    argument.source
-                {
-                    let Some(instruction) = producer_instruction(
-                        function,
-                        requirement.defining_operation,
-                        requirement.source_value,
-                    ) else {
-                        continue;
-                    };
-                    producers.push((
-                        instruction,
-                        requirement.defining_operation,
-                        requirement.shape.byte_size,
-                    ));
-                }
-            }
-        }
-        producers.sort_by_key(|(instruction, _, _)| instruction.0);
-        producers.dedup_by_key(|(_, operation, _)| *operation);
-        let mut cursor = 0u32;
-        let mut offsets = Vec::new();
-        for (_, operation, byte_size) in producers {
-            let Some(aligned) = cursor.checked_add(7).map(|cursor| cursor & !7) else {
-                return Vec::new();
-            };
-            cursor = aligned;
-            offsets.push((operation, cursor));
-            let Some(next) = cursor.checked_add(byte_size) else {
-                return Vec::new();
-            };
-            cursor = next;
-        }
-        offsets
-    }
-
-    pub fn producer_instruction(
-        function: &selected_instructions::SelectedFunction,
-        operation: semantic_vocabulary::OperationId,
-        source_value: semantic_vocabulary::ValueId,
-    ) -> Option<selected_instructions::SelectedInstructionId> {
-        function
-            .calls
-            .iter()
-            .filter_map(|contract| {
-                contract
-                    .owner
-                    .operation()
-                    .map(|operation| (operation, contract.instruction))
-            })
-            .chain(
-                function
-                    .normalized_foreign_calls
-                    .iter()
-                    .filter_map(|record| {
-                        record
-                            .invocation_site
-                            .operation()
-                            .map(|operation| (operation, record.instruction))
-                    }),
-            )
-            .find(|(candidate, _)| *candidate == operation)
-            .map(|(_, instruction)| instruction)
-            .or_else(|| scalar_observation_producer(function, operation, source_value))
-    }
-
-    pub(crate) fn scalar_observation_producer(
-        function: &selected_instructions::SelectedFunction,
-        operation: semantic_vocabulary::OperationId,
-        source_value: semantic_vocabulary::ValueId,
-    ) -> Option<selected_instructions::SelectedInstructionId> {
-        let mut producers = function.instructions().filter(|instruction| {
-            instruction.provenance.operations.contains(&operation)
-                && instruction.operands.iter().any(|operand| {
-                    function
-                        .virtual_registers
-                        .get(operand.virtual_register.0 as usize)
-                        .is_some_and(|register| {
-                            register.origin
-                                == selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                                    instruction: instruction.id,
-                                    source_value,
-                                }
-                        })
-                })
-        });
-        let producer = producers.next()?;
-        if producers.next().is_some() {
-            return None;
-        }
-        Some(producer.id)
-    }
-
-    fn callback_address_custody(
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        placed: &[machine_code::PlacedCallbackAddressMaterialization],
-        caller: MachineId,
-        owner: CallSiteOwner,
-    ) -> Result<Vec<machine_code::CallbackAddressMaterialization>, ObjectError> {
-        let invalid = || ObjectError::InvalidForeignCallSite {
-            caller,
-            owner,
-            offset: 0,
-        };
-        let plan = &record.call.binding.boundary_entry_plan.call;
-        if record.call.callbacks.len() != placed.len()
-            || placed.len() != plan.callback_materializations.len()
-        {
-            return Err(invalid());
-        }
-        let mut custody = Vec::with_capacity(placed.len());
-        for (callback, placed) in record.call.callbacks.iter().zip(placed.iter()) {
-            if plan
-                .callback_materializations
-                .iter()
-                .filter(|row| row.destination == callback.destination)
-                .count()
-                != 1
-            {
-                return Err(invalid());
-            }
-            let destination = match placed.destination.clone() {
-                machine_code::CallbackAddressDestination::Register(register) => {
-                    machine_code::CallbackAddressDestination::Register(register)
-                }
-                machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset }
-                }
-                machine_code::CallbackAddressDestination::RecordField {
-                    root_register,
-                    placements,
-                } => {
-                    if callback.field_placements.as_ref() != Some(&placements) {
-                        return Err(invalid());
-                    }
-                    machine_code::CallbackAddressDestination::RecordField {
-                        root_register,
-                        placements,
-                    }
-                }
-            };
-            let encoding = match placed.encoding {
-                machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
-                    relocation_function_offset,
-                    ..
-                } => machine_code::CallbackAddressEncoding::X86_64Relative32 {
-                    relocation_offset: usize::try_from(relocation_function_offset)
-                        .map_err(|_| invalid())?,
-                },
-                machine_code::PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                    page_relocation_function_offset,
-                    page_offset_relocation_function_offset,
-                    ..
-                } => machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                    page_relocation_offset: usize::try_from(page_relocation_function_offset)
-                        .map_err(|_| invalid())?,
-                    page_offset_relocation_offset: usize::try_from(
-                        page_offset_relocation_function_offset,
-                    )
-                    .map_err(|_| invalid())?,
-                },
-            };
-            custody.push(machine_code::CallbackAddressMaterialization {
-                target: callback.clone(),
-                destination,
-                code_offset: usize::try_from(placed.code_function_offset).map_err(|_| invalid())?,
-                byte_count: usize::try_from(placed.code_byte_count).map_err(|_| invalid())?,
-                encoding,
-            });
-        }
-        Ok(custody)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn foreign_scalar_argument_custody<F>(
-        function: &selected_instructions::SelectedFunction,
-        block: &selected_instructions::SelectedBlock,
-        fragment: &machine_code::PlacedFunctionFragment,
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        instruction: &selected_instructions::SelectedInstruction,
-        home_offsets: &[(semantic_vocabulary::OperationId, u32)],
-        caller: MachineId,
-        owner: CallSiteOwner,
-        fixed_view: F,
-    ) -> Result<Vec<machine_code::ForeignCallScalarArgumentRecord>, ObjectError>
-    where
-        F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
-    {
-        let invalid_argument = |reason,
-                                argument: Option<
-            &target_operations::TargetUnitScalarCallArgument,
-        >| {
-            ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner,
-                import: record
-                    .call
-                    .binding
-                    .import_locator()
-                    .map(|locator| format!("{locator:?}")),
-                parameter: argument.map(|argument| argument.parameter_index),
-                reason,
-                transport: argument.map(|argument| {
-                    scalar_argument_transport_context(function, block, fragment, record, argument)
-                }),
-            }
-        };
-        let invalid = |reason| invalid_argument(reason, None);
-        let plan = &record.call.binding.boundary_entry_plan.call;
-        let placements = record.call.binding.operand_placements();
-        let parameter_slot_materializations = plan
-            .callback_materializations
-            .iter()
-            .filter(|row| {
-                matches!(
-                    row.destination,
-                    calling_conventions::NativePlace::Parameter(_)
-                )
-            })
-            .count();
-        if placements.len()
-            != record.call.scalar_arguments.len()
-                + record.call.structural_arguments.len()
-                + parameter_slot_materializations
-        {
-            return Err(invalid(
-                "argument roster does not match evaluated operand placements",
-            ));
-        }
-        let register_positions =
-            selected_instructions::calls::constraints::foreign_argument_registers(&record.call);
-        let register_arguments = register_positions.len();
-        if instruction.operands.len()
-            != register_arguments
-                + foreign_result_operand_count(record)
-                    .ok_or_else(|| invalid("argument roster has no valid result operand count"))?
-        {
-            return Err(invalid(
-                "selected call operand count does not match argument and result roster",
-            ));
-        }
-        if let target_operations::TargetBoundaryResult::Structural(_) = record.call.result {
-            let placement = plan
-                .result
-                .as_ref()
-                .ok_or_else(|| invalid("structural result placement is missing"))?;
-            for (location, operand) in placement
-                .locations
-                .iter()
-                .zip(&instruction.operands[register_arguments..])
-            {
-                let register = location
-                    .direct_register()
-                    .ok_or_else(|| invalid("structural result location has no direct register"))?;
-                if !fixed_view(operand, register) {
-                    return Err(invalid(
-                        "structural result operand lost its fixed ABI register",
-                    ));
-                }
-            }
-        }
-        let mut scalar_arguments = Vec::new();
-        for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
-            let invalid = |reason| invalid_argument(reason, Some(argument));
-            let native_position = usize::try_from(argument.parameter_index)
-                .map_err(|_| invalid("parameter index is not addressable"))?;
-            let shape = scalar_shape(argument.source.scalar_type())
-                .ok_or_else(|| invalid("argument scalar type has no ABI shape"))?;
-            if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
-                record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
-            }) || placements.get(native_position) != Some(&argument.placement)
-                || argument.placement.shape != shape
-            {
-                return Err(invalid(
-                    "argument order, placement or scalar shape differs from evaluated plan",
-                ));
-            }
-            let register_operand = register_positions
-                .iter()
-                .position(|(position, _)| *position == native_position)
-                .unwrap_or(register_arguments);
-            let (source, span) = match argument.source {
-                source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
-                | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)
-                | target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
-                    ..
-                }
-                | target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-                    ..
-                }) => (
-                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
-                        source_value: source.source_value(),
-                        scalar_type: source.scalar_type(),
-                        instruction: record.instruction,
-                    },
-                    fragment_instruction_span(fragment, record.instruction)
-                        .ok_or_else(|| invalid("selected argument call has no emitted span"))?,
-                ),
-                target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
-                    defining_operation,
-                    source_value,
-                    scalar_type,
-                    value,
-                } => {
-                    if semantic_vocabulary::ScalarTerm::integer(scalar_type, value).is_err() {
-                        return Err(invalid(
-                            "integer immediate is outside its declared scalar type",
-                        ));
-                    }
-                    let span = scalar_immediate_span(
-                        function,
-                        block,
-                        fragment,
-                        record,
-                        instruction,
-                        argument,
-                        register_operand,
-                        &fixed_view,
-                    )
-                    .ok_or_else(|| {
-                        invalid("integer immediate lost its exact emitted argument transport")
-                    })?;
-                    (
-                        machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-                            defining_operation,
-                            source_value,
-                            scalar_type,
-                            value,
-                        },
-                        span,
-                    )
-                }
-                target_operations::TargetUnitScalarArgumentSource::Home(home) => {
-                    if home.shape != argument.placement.shape
-                        || !scalar_call_result_producer(function, &home)
-                    {
-                        return Err(invalid(
-                            "scalar home shape or exact producer does not match",
-                        ));
-                    }
-                    let byte_offset = home_offsets
-                        .iter()
-                        .find(|(operation, _)| *operation == home.defining_operation)
-                        .map(|(_, offset)| *offset)
-                        .ok_or_else(|| invalid("scalar home has no allocated durable offset"))?;
-                    let span = scalar_immediate_span(
-                        function,
-                        block,
-                        fragment,
-                        record,
-                        instruction,
-                        argument,
-                        register_operand,
-                        &fixed_view,
-                    )
-                    .ok_or_else(|| invalid("scalar home lost its exact emitted argument transport"))?;
-                    (
-                        machine_code::InternalUnitScalarArgumentSourceRecord::Home(
-                            machine_code::UnitScalarHomeRecord {
-                                defining_operation: home.defining_operation,
-                                source_value: home.source_value,
-                                scalar_type: home.scalar_type,
-                                shape: home.shape,
-                                byte_offset,
-                            },
-                        ),
-                        span,
-                    )
-                }
-            };
-            scalar_arguments.push(machine_code::ForeignCallScalarArgumentRecord {
-                parameter_index: argument.parameter_index,
-                source,
-                placement: argument.placement.clone(),
-                code_offset: usize::try_from(span.0).map_err(|_| ObjectError::TextSizeOverflow)?,
-                byte_count: usize::try_from(span.1).map_err(|_| ObjectError::TextSizeOverflow)?,
-            });
-        }
-        Ok(scalar_arguments)
-    }
-
-    fn scalar_argument_transport_context(
-        function: &selected_instructions::SelectedFunction,
-        block: &selected_instructions::SelectedBlock,
-        fragment: &machine_code::PlacedFunctionFragment,
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        argument: &target_operations::TargetUnitScalarCallArgument,
-    ) -> String {
-        use selected_instructions::{FrameStorageSlotId, SelectedInstructionKind};
-        let outgoing = block.instructions.iter().position(|instruction| {
-            matches!(
-                instruction.kind,
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Outgoing(slot), byte_offset: 0,
-                } if slot.invocation_site == record.invocation_site
-                    && slot.argument_index == argument.parameter_index
-            )
-        });
-        let anchor = outgoing
-            .or_else(|| {
-                block.instructions.iter().position(|instruction| {
-                    instruction
-                        .provenance
-                        .values
-                        .contains(&argument.source.source_value())
-                })
-            })
-            .unwrap_or(0);
-        let instructions =
-            &block.instructions[anchor..anchor.saturating_add(6).min(block.instructions.len())];
-        let mut registers = instructions
-            .iter()
-            .flat_map(|instruction| {
-                instruction
-                    .operands
-                    .iter()
-                    .map(|operand| operand.virtual_register)
-            })
-            .collect::<Vec<_>>();
-        registers.sort_by_key(|register| register.0);
-        registers.dedup();
-        format!(
-            "argument={argument:?}; slot={:?}; found_outgoing={}; steps={:?}; origins={:?}",
-            function
-                .outgoing_arguments
-                .iter()
-                .filter(|slot| slot.id.invocation_site == record.invocation_site
-                    && slot.id.argument_index == argument.parameter_index)
-                .collect::<Vec<_>>(),
-            outgoing.is_some(),
-            instructions
-                .iter()
-                .map(|instruction| (
-                    instruction.id,
-                    &instruction.kind,
-                    instruction
-                        .operands
-                        .iter()
-                        .map(|operand| (operand.virtual_register, operand.access))
-                        .collect::<Vec<_>>(),
-                    &instruction.provenance.values,
-                    foreign_invocation_provenance_matches(
-                        &instruction.provenance,
-                        record.invocation_site
-                    ),
-                    fragment_instruction_span(fragment, instruction.id),
-                ))
-                .collect::<Vec<_>>(),
-            registers
-                .iter()
-                .filter_map(|register| function
-                    .virtual_register(*register)
-                    .map(|value| (*register, value.origin)))
-                .collect::<Vec<_>>()
-        )
-    }
-
-    pub fn structural_result_capture(
-        function: &selected_instructions::SelectedFunction,
-        block: &selected_instructions::SelectedBlock,
-        fragment: &machine_code::PlacedFunctionFragment,
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        instruction: &selected_instructions::SelectedInstruction,
-    ) -> Option<()> {
-        use selected_instructions::{
-            FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionKind as Kind,
-            SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, VirtualRegisterOrigin,
-        };
-        let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result else {
-            return None;
-        };
-        let (operation, result) = home.operation_result()?;
-        let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout else {
-            return None;
-        };
-        let placement = record
-            .call
-            .binding
-            .boundary_entry_plan
-            .call
-            .result
-            .as_ref()?;
-        let contract = function.structural.as_ref()?;
-        if Some(operation) != record.invocation_site.operation()
-            || placement.shape.byte_size != shape.byte_size
-            || placement.shape.alignment != shape.alignment
-            || !contract.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            producer: operation,
-                            structural_type: result.structural_type,
-                        }
-            })
-            || !contract
-                .structural_types
-                .iter()
-                .any(|declared| declared.id == result.structural_type)
-        {
-            return None;
-        }
-        let slot = LocalStorageSlotId::Structural {
-            operation,
-            place: result.place,
-        };
-        let mut slots = function
-            .local_storage_slots
-            .iter()
-            .filter(|candidate| candidate.id == slot);
-        let storage = slots.next()?;
-        if slots.next().is_some()
-            || storage.byte_size != shape.byte_size
-            || storage.alignment != shape.alignment
-        {
-            return None;
-        }
-        let result_operands = foreign_result_operand_count(record)?;
-        let operands = instruction
-            .operands
-            .get(instruction.operands.len().checked_sub(result_operands)?..)?;
-        let transport =
-            selected_instructions::calls::normalized_foreign::return_transport::resolve(
-                function, block, record,
-            )?;
-        let call_position = transport.call_position;
-        let mut position = transport.normalization_position;
-        let address = block.instructions.get(position)?;
-        if address.kind
-            != (Kind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            })
-        {
-            return None;
-        }
-        let [pointer] = address.operands.as_slice() else {
-            return None;
-        };
-        let indirect = matches!(
-            placement.locations.as_slice(),
-            [ValueLocation::Indirect { .. }]
-        );
-        let origin = if indirect {
-            SelectedMemoryAccessOrigin::Operation(operation)
-        } else {
-            SelectedMemoryAccessOrigin::Block(block.source_block())
-        };
-        let memory_matches =
-            |selected: selected_instructions::SelectedInstructionId, offset, width, role| {
-                let mut accesses = function
-                    .memory_accesses
-                    .iter()
-                    .filter(|access| access.instruction == selected);
-                let Some(access) = accesses.next() else {
-                    return false;
-                };
-                accesses.next().is_none()
-                    && access.origin == origin
-                    && access.place == result.place
-                    && access.byte_offset == offset
-                    && access.byte_count == width
-                    && access.role == role
-            };
-        let transport_matches = |register: selected_instructions::VirtualRegisterId,
-                                 selected: selected_instructions::SelectedInstructionId,
-                                 offset| {
-            function
-                .virtual_registers
-                .get(register.0 as usize)
-                .is_some_and(|value| {
-                    value.origin
-                        == VirtualRegisterOrigin::AbiTransport {
-                            instruction: selected,
-                            place: result.place,
-                            byte_offset: offset,
-                        }
-                })
-        };
-        if !transport_matches(pointer.virtual_register, address.id, 0)
-            || !memory_matches(
-                address.id,
-                0,
-                shape.byte_size,
-                SelectedMemoryAccessRole::AddressLocal { slot },
-            )
-        {
-            return None;
-        }
-        let (call_offset, call_bytes) = fragment_instruction_span(fragment, instruction.id)?;
-        let (address_offset, address_bytes) = fragment_instruction_span(fragment, address.id)?;
-        if address_bytes == 0 || address_offset < call_offset.checked_add(call_bytes)? {
-            return None;
-        }
-        if indirect {
-            let [argument] = operands else { return None };
-            // Register homes may split the hidden pointer before its fixed argument
-            // register: each split is a `CopyI64` whose output keeps this result
-            // place's transport identity. Follow those copies back to the one
-            // `FrameAddress` that names the result slot.
-            let mut register = argument.virtual_register;
-            let mut preparation = None;
-            // Each copy reads a strictly earlier instruction, so a valid chain
-            // visits at most the instructions that precede the call.
-            for _ in 0..=call_position {
-                let VirtualRegisterOrigin::AbiTransport {
-                    instruction: prepared,
-                    place,
-                    byte_offset: 0,
-                } = function.virtual_registers.get(register.0 as usize)?.origin
-                else {
-                    return None;
-                };
-                if place != result.place {
-                    return None;
-                }
-                let candidate = block
-                    .instructions
-                    .iter()
-                    .take(call_position)
-                    .find(|candidate| candidate.id == prepared)?;
-                match (candidate.kind, candidate.operands.as_slice()) {
-                    (Kind::CopyI64, [input, output])
-                        if output.virtual_register == register
-                            && function
-                                .memory_accesses
-                                .iter()
-                                .all(|access| access.instruction != prepared) =>
-                    {
-                        register = input.virtual_register;
-                    }
-                    (_, [output]) if output.virtual_register == register => {
-                        preparation = Some(candidate);
-                        break;
-                    }
-                    _ => return None,
-                }
-            }
-            let preparation = preparation?;
-            let prepared = preparation.id;
-            let (prepared_offset, prepared_bytes) = fragment_instruction_span(fragment, prepared)?;
-            return (preparation.kind == address.kind
-                && memory_matches(
-                    prepared,
-                    0,
-                    shape.byte_size,
-                    SelectedMemoryAccessRole::AddressLocal { slot },
-                )
-                && prepared_bytes != 0
-                && prepared_offset.checked_add(prepared_bytes)? <= call_offset)
-                .then_some(());
-        }
-        let mut previous_end = address_offset.checked_add(address_bytes)?;
-        position = position.checked_add(1)?;
-        if transport.result_registers.len() != placement.locations.len() {
-            return None;
-        }
-        for (location, register) in placement.locations.iter().zip(transport.result_registers) {
-            let ValueLocation::Register {
-                value_byte_offset,
-                byte_size,
-                ..
-            } = *location
-            else {
-                return None;
-            };
-            if value_byte_offset.checked_add(byte_size)? > shape.byte_size {
-                return None;
-            }
-            let mut value = register;
-            let mut store = block.instructions.get(position)?;
-            if matches!(store.kind, Kind::Float32ToBits | Kind::Float64ToBits) {
-                let expected = match byte_size {
-                    4 => Kind::Float32ToBits,
-                    8 => Kind::Float64ToBits,
-                    _ => return None,
-                };
-                let [input, output] = store.operands.as_slice() else {
-                    return None;
-                };
-                if store.kind != expected
-                    || input.virtual_register != value
-                    || !transport_matches(output.virtual_register, store.id, value_byte_offset)
-                {
-                    return None;
-                }
-                let (offset, width) = fragment_instruction_span(fragment, store.id)?;
-                if width == 0 || offset < previous_end {
-                    return None;
-                }
-                previous_end = offset.checked_add(width)?;
-                value = output.virtual_register;
-                position = position.checked_add(1)?;
-                store = block.instructions.get(position)?;
-            }
-            let actual = match store.kind {
-                Kind::Store {
-                    byte_offset,
-                    byte_size,
-                } => (byte_offset, u32::from(byte_size)),
-                Kind::StorePacked { byte_offset, width } => {
-                    (byte_offset, u32::from(width.byte_size()))
-                }
-                _ => return None,
-            };
-            if actual != (value_byte_offset, byte_size)
-                || store.operands.first()?.virtual_register != pointer.virtual_register
-                || store.operands.get(1)?.virtual_register != value
-                || !memory_matches(
-                    store.id,
-                    value_byte_offset,
-                    byte_size,
-                    SelectedMemoryAccessRole::WritePlace,
-                )
-            {
-                return None;
-            }
-            let (offset, width) = fragment_instruction_span(fragment, store.id)?;
-            if width == 0 || offset < previous_end {
-                return None;
-            }
-            previous_end = offset.checked_add(width)?;
-            position = position.checked_add(1)?;
-        }
-        Some(())
-    }
-
-    pub fn foreign_result_operand_count(
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-    ) -> Option<usize> {
-        match (
-            &record.call.result,
-            &record.call.binding.boundary_entry_plan.call.result,
-        ) {
-            (target_operations::TargetBoundaryResult::Unit, None) => Some(0),
-            (target_operations::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
-            (target_operations::TargetBoundaryResult::Structural(_), Some(placement)) => {
-                match placement.locations.as_slice() {
-                    [
-                        ValueLocation::Indirect {
-                            pointer: calling_conventions::IndirectPointerLocation::Register(_),
-                            ..
-                        },
-                    ] => Some(1),
-                    locations
-                        if !locations.is_empty()
-                            && locations.iter().all(|location| {
-                                matches!(location, ValueLocation::Register { .. })
-                            }) =>
-                    {
-                        Some(locations.len())
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-
-    fn foreign_scalar_result_custody(
-        function: &selected_instructions::SelectedFunction,
-        block: &selected_instructions::SelectedBlock,
-        fragment: &machine_code::PlacedFunctionFragment,
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        instruction: &selected_instructions::SelectedInstruction,
-        home_offsets: &[(semantic_vocabulary::OperationId, u32)],
-        caller: MachineId,
-        owner: CallSiteOwner,
-    ) -> Result<Option<machine_code::ForeignCallScalarResultRecord>, ObjectError> {
-        let invalid = |reason| ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner,
-            import: record
-                .call
-                .binding
-                .import_locator()
-                .map(|locator| format!("{locator:?}")),
-            parameter: None,
-            reason,
-            transport: None,
-        };
-        let plan = &record.call.binding.boundary_entry_plan.call;
-        if matches!(
-            record.call.result,
-            target_operations::TargetBoundaryResult::Structural(_)
-        ) {
-            structural_result_capture(function, block, fragment, record, instruction)
-                .ok_or_else(|| invalid("structural result lost its exact storage capture"))?;
-            return Ok(None);
-        }
-        let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
-            if matches!(
-                record.call.result,
-                target_operations::TargetBoundaryResult::Unit
-            ) && plan.result.is_none()
-            {
-                return Ok(None);
-            }
-            return Err(invalid(
-                "scalar result home and placement disagree about Unit",
-            ));
-        };
-        let shape = scalar_shape(home.scalar_type)
-            .ok_or_else(|| invalid("result scalar type has no ABI shape"))?;
-        if Some(home.defining_operation) != record.invocation_site.operation()
-            || home.shape != shape
-            || placement.shape != home.shape
-            || !placement.is_complete_scalar_result()
-        {
-            return Err(invalid(
-                "scalar result owner, shape or complete placement differs from evaluated plan",
-            ));
-        }
-        let transport =
-            selected_instructions::calls::normalized_foreign::return_transport::resolve(
-                function, block, record,
-            )
-            .ok_or_else(|| invalid("scalar result has no exact selected return transport"))?;
-        let normalization = block
-            .instructions
-            .get(transport.normalization_position)
-            .ok_or_else(|| invalid("scalar result normalization instruction is missing"))?;
-        let Some(kind) = scalar_result_normalization_kind(
-            home.scalar_type,
-            matches!(
-                placement.locations.as_slice(),
-                [ValueLocation::Indirect { .. }]
-            ),
-        ) else {
-            return Err(invalid("scalar result has no supported normalization kind"));
-        };
-        let [input, output] = normalization.operands.as_slice() else {
-            return Err(invalid(
-                "scalar result normalization does not have input and output operands",
-            ));
-        };
-        let output_origin = function
-            .virtual_registers
-            .get(output.virtual_register.0 as usize)
-            .map(|register| register.origin);
-        if normalization.kind != kind
-            || transport.result_registers.as_slice() != [input.virtual_register]
-            || normalization.provenance.operations.as_slice()
-                != [record
-                    .invocation_site
-                    .operation()
-                    .ok_or_else(|| invalid("scalar result has no operation owner"))?]
-            || normalization.provenance.values.as_slice() != [home.source_value]
-            || output_origin
-                != Some(
-                    selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                        instruction: normalization.id,
-                        source_value: home.source_value,
-                    },
-                )
-        {
-            return Err(invalid(
-                "scalar result normalization lost its kind, value or source provenance",
-            ));
-        }
-        let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id)
-        else {
-            return Err(invalid("scalar result normalization has no emitted span"));
-        };
-        let transported_end = transported_span_end(
-            fragment,
-            block,
-            transport.call_position,
-            transport.normalization_position,
-        )
-        .ok_or_else(|| invalid("scalar return transport spans are not contiguous"))?;
-        if transported_end != offset {
-            return Err(invalid(
-                "scalar result normalization does not immediately follow return transport",
-            ));
-        }
-        let Some(byte_offset) = home_offsets
-            .iter()
-            .find(|(operation, _)| *operation == home.defining_operation)
-            .map(|(_, offset)| *offset)
-        else {
-            return Err(invalid("scalar result has no allocated durable offset"));
-        };
-        Ok(Some(machine_code::ForeignCallScalarResultRecord {
-            home: machine_code::UnitScalarHomeRecord {
-                defining_operation: home.defining_operation,
-                source_value: home.source_value,
-                scalar_type: home.scalar_type,
-                shape: home.shape,
-                byte_offset,
-            },
-            source: placement.clone(),
-            code_offset: usize::try_from(offset).map_err(|_| ObjectError::TextSizeOverflow)?,
-            byte_count: usize::try_from(byte_count).map_err(|_| ObjectError::TextSizeOverflow)?,
-        }))
-    }
-
-    fn scalar_result_normalization_kind(
-        scalar_type: ScalarType,
-        indirect: bool,
-    ) -> Option<selected_instructions::SelectedInstructionKind> {
-        use selected_instructions::SelectedInstructionKind as Kind;
-        use semantic_vocabulary::IntegerSign;
-        if indirect && matches!(scalar_type, ScalarType::IeeeFloat(_)) {
-            return Some(Kind::CopyI64);
-        }
-        match scalar_type {
-            ScalarType::Callable(_) => None,
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-                Some(Kind::Float32ToBits)
-            }
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-                Some(Kind::Float64ToBits)
-            }
-            ScalarType::Boolean => Some(Kind::ZeroExtendU8),
-            ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
-                (IntegerSign::Unsigned, Some(8)) => Some(Kind::ZeroExtendU8),
-                (IntegerSign::Unsigned, Some(16)) => Some(Kind::ZeroExtendU16),
-                (IntegerSign::Unsigned, Some(32)) => Some(Kind::ZeroExtendU32),
-                (IntegerSign::Unsigned, Some(64)) | (IntegerSign::Signed, Some(64)) => {
-                    Some(Kind::CopyI64)
-                }
-                (IntegerSign::Signed, Some(8)) => Some(Kind::SignExtendI8),
-                (IntegerSign::Signed, Some(16)) => Some(Kind::SignExtendI16),
-                (IntegerSign::Signed, Some(32)) => Some(Kind::SignExtendI32),
-                _ => None,
-            },
-        }
-    }
-
-    fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
-        calling_conventions::ValueShape::for_scalar(scalar_type)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn scalar_immediate_span<F>(
-        function: &selected_instructions::SelectedFunction,
-        block: &selected_instructions::SelectedBlock,
-        fragment: &machine_code::PlacedFunctionFragment,
-        record: &selected_instructions::SelectedNormalizedForeignCall,
-        instruction: &selected_instructions::SelectedInstruction,
-        argument: &target_operations::TargetUnitScalarCallArgument,
-        register_operand: usize,
-        fixed_view: &F,
-    ) -> Option<(u64, u64)>
-    where
-        F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
-    {
-        match argument.placement.locations.as_slice() {
-            [
-                ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size,
-                },
-            ] if *byte_size == argument.placement.shape.byte_size => {
-                let operand = instruction.operands.get(register_operand)?;
-                if usize::from(operand.operand) != register_operand
-                    || !fixed_view(operand, *register)
-                {
-                    return None;
-                }
-                let register_value = function
-                    .virtual_registers
-                    .get(operand.virtual_register.0 as usize)?;
-                let selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                    instruction: materialization,
-                    source_value,
-                } = register_value.origin
-                else {
-                    return None;
-                };
-                if source_value != argument.source.source_value() {
-                    return None;
-                }
-                fragment_instruction_span(fragment, materialization)
-            }
-            [
-                ValueLocation::Stack {
-                    stack_byte_offset,
-                    value_byte_offset: 0,
-                    byte_size,
-                    alignment,
-                },
-            ] if *byte_size == argument.placement.shape.byte_size => {
-                let slot = selected_instructions::OutgoingArgumentSlotId {
-                    invocation_site: record.invocation_site,
-                    argument_index: argument.parameter_index,
-                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                };
-                let mut outgoing = function
-                    .outgoing_arguments
-                    .iter()
-                    .filter(|outgoing| outgoing.id == slot);
-                let (Some(outgoing), None) = (outgoing.next(), outgoing.next()) else {
-                    return None;
-                };
-                if outgoing.abi_stack_byte_offset != *stack_byte_offset
-                    || outgoing.byte_size != (*byte_size)
-                    || outgoing.alignment != *alignment
-                {
-                    return None;
-                }
-                let source_value = argument.source.source_value();
-                let stored = u8::try_from(*byte_size).ok()?;
-                let address_index = block.instructions.iter().position(|candidate| {
-                    matches!(
-                        candidate.kind,
-                        selected_instructions::SelectedInstructionKind::FrameAddress {
-                            slot: selected_instructions::FrameStorageSlotId::Outgoing(candidate),
-                            byte_offset: 0,
-                        } if candidate == slot
-                    ) && foreign_invocation_provenance_matches(
-                        &candidate.provenance,
-                        record.invocation_site,
-                    ) && candidate.provenance.values.as_slice() == [source_value]
-                })?;
-                let address = &block.instructions[address_index];
-                let mut store_index = address_index.checked_add(1)?;
-                let next = block.instructions.get(store_index)?;
-                let rematerialized = next.operands.first().and_then(|operand| {
-                    function
-                        .virtual_register(operand.virtual_register)
-                        .filter(|value| rematerializes_argument(next, value, argument.source))
-                        .map(|value| value.id)
-                });
-                if rematerialized.is_some() {
-                    store_index = store_index.checked_add(1)?;
-                }
-                let store = block.instructions.get(store_index)?;
-                let selected_instructions::SelectedInstructionKind::Store {
-                    byte_offset: 0,
-                    byte_size: stored_bytes,
-                } = store.kind
-                else {
-                    return None;
-                };
-                if stored_bytes != stored
-                    || !foreign_invocation_provenance_matches(
-                        &store.provenance,
-                        record.invocation_site,
-                    )
-                    || store.provenance.values.as_slice() != [source_value]
-                {
-                    return None;
-                }
-                let address_operand = store.operands.first()?;
-                let address_value = function
-                    .virtual_registers
-                    .get(address_operand.virtual_register.0 as usize)?;
-                if address_value.origin
-                    != (selected_instructions::VirtualRegisterOrigin::ScalarAbiAddress {
-                        instruction: address.id,
-                        source_value,
-                    })
-                {
-                    return None;
-                }
-                if rematerialized.is_some_and(|value| {
-                    store
-                        .operands
-                        .get(1)
-                        .map(|operand| operand.virtual_register)
-                        != Some(value)
-                }) {
-                    return None;
-                }
-                let (address_offset, _) = fragment_instruction_span(fragment, address.id)?;
-                let end = transported_span_end(
-                    fragment,
-                    block,
-                    address_index,
-                    store_index.checked_add(1)?,
-                )?;
-                Some((address_offset, end.checked_sub(address_offset)?))
-            }
-            _ => None,
-        }
-    }
-
-    fn rematerializes_argument(
-        instruction: &selected_instructions::SelectedInstruction,
-        register: &selected_instructions::VirtualRegister,
-        source: target_operations::TargetUnitScalarArgumentSource,
-    ) -> bool {
-        use register_model::RegisterOperandAccess;
-        use selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
-        let target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
-            source_value,
-            value,
-            ..
-        } = source
-        else {
-            return false;
-        };
-        let [output] = instruction.operands.as_slice() else {
-            return false;
-        };
-        instruction.kind == SelectedInstructionKind::MaterializeI64 { value }
-            && output.virtual_register == register.id
-            && output.access == RegisterOperandAccess::Def
-            && output.class == register.class
-            && output.fixed_view.is_none()
-            && output.tied_to.is_none()
-            && !output.early_clobber
-            && register.entry_fixed_view.is_none()
-            && register.scalar_type == source.scalar_type()
-            && register.origin
-                == VirtualRegisterOrigin::InstructionResult {
-                    instruction: instruction.id,
-                    source_value,
-                }
-            && instruction.implicit_uses.is_empty()
-            && instruction.implicit_defs.is_empty()
-            && instruction.clobbers.is_empty()
-            && instruction.provenance.operations.is_empty()
-            && instruction.provenance.edges.is_empty()
-            && instruction.provenance.obligations.is_empty()
-            && instruction.provenance.work.is_empty()
-            && instruction.provenance.values.as_slice() == [source_value]
-    }
-
-    pub fn scalar_call_result_producer(
-        function: &selected_instructions::SelectedFunction,
-        home: &target_operations::TargetUnitScalarHomeRequirement,
-    ) -> bool {
-        let mut internal = function.calls.iter().filter(|contract| {
-            contract.owner == target_operations::CallSiteOwner::Operation(home.defining_operation)
-        });
-        let mut foreign = function
-            .normalized_foreign_calls
-            .iter()
-            .filter(|record| record.invocation_site.operation() == Some(home.defining_operation));
-        let (producer, result_home) = match (internal.next(), foreign.next()) {
-            (Some(contract), None) if internal.next().is_none() => (contract.instruction, None),
-            (None, Some(record)) if foreign.next().is_none() => {
-                (record.instruction, Some(record.call.result.scalar_home()))
-            }
-            (None, None) => {
-                let Some(producer) = scalar_observation_producer(
-                    function,
-                    home.defining_operation,
-                    home.source_value,
-                ) else {
-                    return false;
-                };
-                (producer, None)
-            }
-            _ => return false,
-        };
-        if let Some(recorded) = result_home
-            && recorded != Some(home)
-        {
-            return false;
-        }
-        let Some(producer) = function
-            .instructions()
-            .find(|instruction| instruction.id == producer)
-        else {
-            return false;
-        };
-        producer.operands.iter().any(|operand| {
-            function
-                .virtual_registers
-                .get(operand.virtual_register.0 as usize)
-                .is_some_and(|register| {
-                    register.origin
-                        == selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                            instruction: producer.id,
-                            source_value: home.source_value,
-                        }
-                })
-        })
-    }
-
-    pub(crate) fn image_foreign_calls_match_object(
-        artifact: &ObjectArtifact,
-        image_rows: &[ObjectForeignCall],
-    ) -> bool {
-        image_rows == artifact.foreign_calls()
-    }
-
-    pub fn foreign_invocation_provenance_matches(
-        provenance: &selected_instructions::SelectedInstructionProvenance,
-        site: semantic_vocabulary::InvocationSite,
-    ) -> bool {
-        match site {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
-            | semantic_vocabulary::InvocationSite::Cleanup { .. } => false,
-            semantic_vocabulary::InvocationSite::Operation(operation) => {
-                provenance.operations.last() == Some(&operation)
-                    && provenance.edges.is_empty()
-                    && provenance.work_settles_only_claimed_sites()
-            }
-            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-                provenance.edges.as_slice() == [edge]
-                    && provenance.work_settles_only_claimed_sites()
-            }
-        }
-    }
-    #[cfg(test)]
-    mod scalar_normalization_tests {
-        use super::scalar_result_normalization_kind;
-        use selected_instructions::SelectedInstructionKind as Kind;
-        use semantic_vocabulary::{
-            IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
-        };
-
-        #[test]
-        fn scalar_result_normalization_requires_a_known_supported_width() {
-            for (sign, bits, expected) in [
-                (IntegerSign::Unsigned, 8, Kind::ZeroExtendU8),
-                (IntegerSign::Unsigned, 16, Kind::ZeroExtendU16),
-                (IntegerSign::Unsigned, 32, Kind::ZeroExtendU32),
-                (IntegerSign::Unsigned, 64, Kind::CopyI64),
-                (IntegerSign::Signed, 8, Kind::SignExtendI8),
-                (IntegerSign::Signed, 16, Kind::SignExtendI16),
-                (IntegerSign::Signed, 32, Kind::SignExtendI32),
-                (IntegerSign::Signed, 64, Kind::CopyI64),
-            ] {
-                let scalar = ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
-                assert_eq!(
-                    scalar_result_normalization_kind(scalar, false),
-                    Some(expected)
-                );
-            }
-            assert_eq!(
-                scalar_result_normalization_kind(
-                    ScalarType::Integer(IntegerType::address(64).unwrap()),
-                    false
-                ),
-                Some(Kind::CopyI64)
-            );
-            for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
-                let unknown = ScalarType::Integer(IntegerType::parameterized(
-                    sign,
-                    WidthParameter {
-                        owner: MachineId::new(1).unwrap(),
-                        value: ValueId::new(1).unwrap(),
-                    },
-                ));
-                for indirect in [false, true] {
-                    assert_eq!(scalar_result_normalization_kind(unknown, indirect), None);
-                }
-            }
-        }
-    }
-}
+#[path = "foreign_call_publication.rs"]
+mod normalized_foreign_calls;
 
 pub(crate) mod replay {
     pub(crate) mod boundary {
@@ -4620,11 +2825,12 @@ pub(crate) mod replay {
 
     pub(crate) mod structural {
         pub(crate) mod condition_layout {
+            use arena::NonDenseIdentities;
             use calling_conventions::{
                 ValueShape,
                 terminal_layout::{NativeGeometry, checked_align_up_u32},
             };
-            use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
+            use semantic_vocabulary::StructuralTypeId;
             use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
 
             #[cfg(test)]
@@ -5335,12 +3541,16 @@ pub(crate) mod replay {
 }
 
 pub(crate) mod stack_demand {
-    use target::{Architecture, NativeTarget};
-    use terminal_psi::TerminalPsiIdentity;
+    pub use physical_planning::stack_demand::StackDemand;
+    use physical_planning::stack_demand::{
+        ForeignStackExtent, LocalStackExtent, PhysicalForeignStackCall, PhysicalStackCall,
+        PhysicalStackFunction, PhysicalStackProgram, StackDemandError,
+        derive_physical_stack_demand,
+    };
 
     use semantic_vocabulary::MachineId;
 
-    use crate::{ObjectArtifact, ObjectError, ObjectFunction};
+    use crate::{ObjectArtifact, ObjectError};
 
     pub fn derive_stack_demand(
         artifact: &ObjectArtifact,
@@ -5350,9 +3560,9 @@ pub(crate) mod stack_demand {
         if let Some(binding) = artifact.physical_entry_binding()
             && binding.entry() == entry
         {
-            demand.ceiling_bytes = demand
-                .ceiling_bytes
-                .checked_add(binding.stack_overhead_bytes())
+            let alignment = demand.stack_alignment();
+            demand = demand
+                .with_entry_cost(binding.stack_overhead_bytes(), alignment)
                 .ok_or(ObjectError::PhysicalEntryStackArithmeticOverflow(entry))?;
         }
         Ok(demand)
@@ -5402,304 +3612,101 @@ pub(crate) mod stack_demand {
                 active_private,
             )?;
             if let Some(bridge) = &private.entry_bridge {
-                demand.ceiling_bytes = demand
-                    .ceiling_bytes
-                    .checked_add(u64::from(bridge.frame_bytes()))
-                    .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
+                let alignment = demand.stack_alignment();
+                demand = demand
+                    .with_entry_cost(
+                        u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias()),
+                        alignment,
+                    )
                     .ok_or(ObjectError::PrivateEntryStackArithmeticOverflow(identity))?;
             }
             active_private.pop();
             private_demands.push((identity, demand));
         }
-        let functions = artifact
-            .functions
-            .iter()
-            .map(|function| (function.machine, function))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        if !functions.contains_key(&entry) {
-            return Err(ObjectError::EntryFunctionMissing(entry));
-        }
-        let stackless_nonreturning = functions
-            .values()
-            .filter(|function| function.unit_stack.is_none() && function.scalar_stack.is_none())
-            .filter(|function| {
-                let mut matching = artifact
-                    .boundary_settlements
-                    .iter()
-                    .filter(|row| row.machine == function.machine);
-                let Some(row) = matching.next() else {
-                    return false;
-                };
-                matching.next().is_none()
-                    && matches!(
-                        row.settlement.realization,
-                        target_operations::BoundaryRealization::HostedExitProcessI32(_)
-                    )
-                    && row.settlement.code_offset == 0
-                    && row.settlement.byte_count == function.byte_count
-            })
-            .map(|function| function.machine)
-            .collect::<std::collections::BTreeSet<_>>();
-        let mut active = std::collections::BTreeSet::new();
-        let mut memoized = std::collections::BTreeMap::new();
-        let mut contributing_machines = std::collections::BTreeSet::new();
-        let mut admitted_contribution_report_identities = std::collections::BTreeSet::new();
-        let mut admitted_contribution_commitments = std::collections::BTreeSet::new();
-        let mut hosted_native_bindings = std::collections::BTreeSet::new();
-        let ceiling_bytes = derive_terminal_stack_peak(
-            entry,
-            artifact,
-            &functions,
-            &mut active,
-            &mut memoized,
-            &mut contributing_machines,
-            &mut admitted_contribution_report_identities,
-            &mut admitted_contribution_commitments,
-            &mut hosted_native_bindings,
-            &stackless_nonreturning,
-            &private_demands,
-        )?;
-        Ok(StackDemand {
-            psi: artifact.psi,
-            target: artifact.target,
-            entry,
-            ceiling_bytes,
-            stack_alignment: 16,
-            contributing_machines,
-            admitted_contribution_report_identities,
-            admitted_contribution_commitments,
-            hosted_native_bindings,
-            private_demands,
-        })
+        derive_physical_stack_demand(&artifact.stack_program, entry, private_demands)
+            .map_err(ObjectError::from)
     }
 
-    fn derive_terminal_stack_peak(
-        machine: MachineId,
-        artifact: &ObjectArtifact,
-        functions: &std::collections::BTreeMap<MachineId, &ObjectFunction>,
-        active: &mut std::collections::BTreeSet<MachineId>,
-        memoized: &mut std::collections::BTreeMap<MachineId, u64>,
-        contributing_machines: &mut std::collections::BTreeSet<MachineId>,
-        admitted_contribution_report_identities: &mut std::collections::BTreeSet<
-            task_plans::AdmittedStackContributionReportId,
-        >,
-        admitted_contribution_commitments: &mut std::collections::BTreeSet<
-            task_plans::SameStackContributionCommitment,
-        >,
-        hosted_native_bindings: &mut std::collections::BTreeSet<[u8; 32]>,
-        stackless_nonreturning: &std::collections::BTreeSet<MachineId>,
-        private_demands: &[(function_identity::MachineFunctionIdentity, StackDemand)],
-    ) -> Result<u64, ObjectError> {
-        if let Some(peak) = memoized.get(&machine) {
-            contributing_machines.insert(machine);
-            return Ok(*peak);
-        }
-        if !active.insert(machine) {
-            return Err(ObjectError::TerminalStackCycle(machine));
-        }
-        contributing_machines.insert(machine);
-        let function =
-            functions
-                .get(&machine)
-                .copied()
-                .ok_or(ObjectError::UnknownInternalCallTarget {
-                    caller: machine,
-                    target: machine,
-                })?;
-        let mut peak = match (function.unit_stack, function.scalar_stack) {
-            (Some(_), Some(_)) => {
-                return Err(ObjectError::ConflictingTerminalStackEvidence(machine));
-            }
-            (Some(stack), None) => u64::from(stack.local_peak_bytes),
-            (None, Some(stack)) => u64::from(stack.local_peak_bytes),
-            (None, None) if stackless_nonreturning.contains(&machine) => 0,
-            (None, None) => return Err(ObjectError::UnaccountedTerminalStack(machine)),
-        };
-        let calls = function
-            .unit_call_stacks
-            .iter()
-            .map(|call| (call.target, call.owner, call.caller_live_bytes))
-            .chain(
+    pub(crate) fn validate_carried_stack_facts(artifact: &ObjectArtifact) -> bool {
+        let canonical = |mut program: PhysicalStackProgram| {
+            program
+                .functions
+                .sort_unstable_by_key(|function| function.machine);
+            for function in &mut program.functions {
                 function
-                    .scalar_call_stacks
-                    .iter()
-                    .map(|call| (call.target, call.owner, call.caller_live_bytes)),
-            );
-        for (target, owner, caller_live_bytes) in calls {
-            let callee_peak = derive_terminal_stack_peak(
-                target,
-                artifact,
-                functions,
-                active,
-                memoized,
-                contributing_machines,
-                admitted_contribution_report_identities,
-                admitted_contribution_commitments,
-                hosted_native_bindings,
-                stackless_nonreturning,
-                private_demands,
-            )?;
-            let composed = u64::from(caller_live_bytes)
-                .checked_add(callee_peak)
-                .ok_or(ObjectError::TerminalStackCompositionOverflow {
-                    caller: machine,
-                    owner,
-                })?;
-            peak = peak.max(composed);
-        }
-        for call in artifact
-            .foreign_calls
-            .iter()
-            .filter(|call| call.machine == machine)
-        {
-            let Some(contribution) = call.binding.same_stack_contribution() else {
-                if call.binding.hosted_import().is_some() {
-                    let receipt = call
-                        .binding
-                        .native_binding_receipt()
-                        .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
-                    hosted_native_bindings.insert(receipt);
+                    .calls
+                    .sort_unstable_by_key(|call| (call.owner, call.target, call.caller_live_bytes));
+                function.foreign_calls.sort_by_key(|call| call.owner);
+            }
+            program
+        };
+        canonical(artifact.stack_program.as_ref().clone())
+            == canonical(physical_stack_facts(artifact))
+    }
+
+    fn physical_stack_facts(artifact: &ObjectArtifact) -> PhysicalStackProgram {
+        PhysicalStackProgram {
+            psi: artifact.psi, target: artifact.target,
+            functions: artifact.functions.iter().map(|function| {
+                let local = match (function.unit_stack, function.scalar_stack) {
+                    (Some(_), Some(_)) => LocalStackExtent::Conflicting,
+                    (Some(stack), None) => LocalStackExtent::Finite(u64::from(stack.local_peak_bytes)),
+                    (None, Some(stack)) => LocalStackExtent::Finite(u64::from(stack.local_peak_bytes)),
+                    (None, None) => {
+                        let mut matching = artifact.boundary_settlements.iter().filter(|row| row.machine == function.machine);
+                        let stackless = matching.next().is_some_and(|row| matching.next().is_none()
+                            && matches!(row.settlement.realization, target_operations::BoundaryRealization::HostedExitProcessI32(_))
+                            && row.settlement.code_offset == 0 && row.settlement.byte_count == function.byte_count);
+                        if stackless { LocalStackExtent::Finite(0) } else { LocalStackExtent::Unaccounted }
+                    }
+                };
+                PhysicalStackFunction {
+                    machine: function.machine, local,
+                    calls: function.unit_call_stacks.iter().map(|call| PhysicalStackCall {
+                        target: call.target, owner: call.owner, caller_live_bytes: call.caller_live_bytes,
+                    }).chain(function.scalar_call_stacks.iter().map(|call| PhysicalStackCall {
+                        target: call.target, owner: call.owner, caller_live_bytes: call.caller_live_bytes,
+                    })).collect(),
+                    foreign_calls: artifact.foreign_calls.iter().filter(|call| call.machine == function.machine).map(|call| {
+                        let extent = if let Some(contribution) = call.binding.same_stack_contribution() {
+                            ForeignStackExtent::Admitted(contribution.clone())
+                        } else if call.binding.hosted_import().is_some() {
+                            ForeignStackExtent::Hosted { receipt: call.binding.native_binding_receipt() }
+                        } else { ForeignStackExtent::None };
+                        PhysicalForeignStackCall {
+                            owner: call.owner, caller_live_bytes: call.caller_live_bytes, extent,
+                            invoked_callbacks: call.callback_addresses.iter().filter(|callback| callback.target.registrar_invokes_callback)
+                                .map(|callback| callback.target.callback_function).collect(),
+                        }
+                    }).collect(),
                 }
-                peak = peak.max(u64::from(call.caller_live_bytes));
-                continue;
-            };
-            let callback_peak = call
-                .callback_addresses
-                .iter()
-                .filter(|callback| callback.target.registrar_invokes_callback)
-                .try_fold(0, |peak, callback| {
-                    let (_, demand) = private_demands
-                        .iter()
-                        .find(|(identity, _)| *identity == callback.target.callback_function)
-                        .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
-                    admitted_contribution_report_identities
-                        .extend(&demand.admitted_contribution_report_identities);
-                    admitted_contribution_commitments
-                        .extend(&demand.admitted_contribution_commitments);
-                    hosted_native_bindings.extend(&demand.hosted_native_bindings);
-                    Ok::<u64, ObjectError>(peak.max(demand.ceiling_bytes))
-                })?;
-            let composed = u64::from(call.caller_live_bytes)
-                .checked_add(contribution.bytes())
-                .and_then(|bytes| bytes.checked_add(callback_peak))
-                .ok_or(ObjectError::TerminalStackCompositionOverflow {
-                    caller: machine,
-                    owner: call.owner,
-                })?;
-            peak = peak.max(composed);
-            admitted_contribution_report_identities.insert(contribution.report_identity());
-            admitted_contribution_commitments.insert(contribution.commitment());
-        }
-        active.remove(&machine);
-        memoized.insert(machine, peak);
-        Ok(peak)
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StackDemand {
-        pub(crate) psi: TerminalPsiIdentity,
-        pub(crate) target: NativeTarget,
-        pub(crate) entry: MachineId,
-        pub(crate) ceiling_bytes: u64,
-        pub(crate) stack_alignment: u32,
-        pub(crate) contributing_machines: std::collections::BTreeSet<MachineId>,
-        pub(crate) admitted_contribution_report_identities:
-            std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId>,
-        pub(crate) admitted_contribution_commitments:
-            std::collections::BTreeSet<task_plans::SameStackContributionCommitment>,
-        pub(crate) hosted_native_bindings: std::collections::BTreeSet<[u8; 32]>,
-        pub(crate) private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
-    }
-
-    impl StackDemand {
-        pub const fn psi(&self) -> TerminalPsiIdentity {
-            self.psi
-        }
-
-        pub const fn target(&self) -> NativeTarget {
-            self.target
-        }
-
-        pub const fn entry(&self) -> MachineId {
-            self.entry
-        }
-
-        pub fn ceiling_bytes(&self) -> Option<u64> {
-            (!self.requires_host_stack()).then_some(self.ceiling_bytes)
-        }
-
-        /// Known checked frames and admitted finite contributions, excluding
-        /// the unbounded foreign frames of a hosted import.
-        pub const fn known_stack_bytes(&self) -> u64 {
-            self.ceiling_bytes
-        }
-
-        pub fn requires_host_stack(&self) -> bool {
-            !self.hosted_native_bindings.is_empty()
-        }
-
-        pub fn hosted_native_bindings(&self) -> &std::collections::BTreeSet<[u8; 32]> {
-            &self.hosted_native_bindings
-        }
-
-        pub const fn stack_alignment(&self) -> u32 {
-            self.stack_alignment
-        }
-
-        pub const fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
-            &self.contributing_machines
-        }
-
-        pub const fn admitted_contribution_report_identities(
-            &self,
-        ) -> &std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId> {
-            &self.admitted_contribution_report_identities
-        }
-
-        pub const fn admitted_contribution_commitments(
-            &self,
-        ) -> &std::collections::BTreeSet<task_plans::SameStackContributionCommitment> {
-            &self.admitted_contribution_commitments
+            }).collect(),
         }
     }
 
-    impl installation_evidence::StackDemandEvidence for StackDemand {
-        fn psi(&self) -> TerminalPsiIdentity {
-            self.psi
-        }
-
-        fn architecture(&self) -> Architecture {
-            self.target.architecture
-        }
-
-        fn entry(&self) -> MachineId {
-            self.entry
-        }
-
-        fn ceiling_bytes(&self) -> Option<u64> {
-            self.ceiling_bytes()
-        }
-
-        fn stack_alignment(&self) -> u32 {
-            self.stack_alignment
-        }
-
-        fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
-            &self.contributing_machines
-        }
-
-        fn admitted_stack_contribution_report_identities(&self) -> std::collections::BTreeSet<u64> {
-            self.admitted_contribution_report_identities
-                .iter()
-                .map(|identity| identity.normalized_identity())
-                .collect()
-        }
-
-        fn admitted_stack_contribution_commitments(&self) -> std::collections::BTreeSet<[u8; 32]> {
-            self.admitted_contribution_commitments
-                .iter()
-                .map(|commitment| commitment.as_bytes())
-                .collect()
+    impl From<StackDemandError> for ObjectError {
+        fn from(error: StackDemandError) -> Self {
+            match error {
+                StackDemandError::EntryFunctionMissing(machine) => {
+                    Self::EntryFunctionMissing(machine)
+                }
+                StackDemandError::UnknownInternalCallTarget { caller, target } => {
+                    Self::UnknownInternalCallTarget { caller, target }
+                }
+                StackDemandError::TerminalStackCycle(machine) => Self::TerminalStackCycle(machine),
+                StackDemandError::ConflictingTerminalStackEvidence(machine) => {
+                    Self::ConflictingTerminalStackEvidence(machine)
+                }
+                StackDemandError::UnaccountedTerminalStack(machine) => {
+                    Self::UnaccountedTerminalStack(machine)
+                }
+                StackDemandError::TerminalStackCompositionOverflow { caller, owner } => {
+                    Self::TerminalStackCompositionOverflow { caller, owner }
+                }
+                StackDemandError::InvalidPrivateFunctionIdentity => {
+                    Self::InvalidPrivateFunctionIdentity
+                }
+            }
         }
     }
 }
@@ -5707,7 +3714,7 @@ pub(crate) mod stack_demand {
 pub use carriers::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
     ObjectForeignCall, ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack,
-    ObjectSemanticSource, ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
+    ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,
@@ -5716,10 +3723,8 @@ pub(crate) use carriers::{
 pub(crate) use errors::ObjectError;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
-    derive_normalized_foreign_call_custody, durable_home_offsets,
-    foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
-    producer_instruction, scalar_call_result_producer, scalar_immediate_span,
-    structural_result_capture, transported_span_end, unique_block_instruction,
+    derive_normalized_foreign_call_custody, fragment_instruction_span, place_foreign_call,
+    resolve_instruction_sequence,
 };
 
 #[cfg(test)]

@@ -153,7 +153,23 @@ pub(crate) fn install_import_thunks(
             )));
         }
         let text_offset = image.memory.text.len();
-        image.memory.text.extend([0xff, 0x25, 0, 0, 0, 0]);
+        let body = image.encoded_import_body(symbol_handle)?;
+        use machine_code::import_code::{ImportOperand, ImportOperandKind, ImportOperandTarget};
+        if body.bytes.len() != 6
+            || body.operands
+                != [ImportOperand {
+                    offset: 2,
+                    kind: ImportOperandKind::X86Relative32,
+                    target: ImportOperandTarget::BindingSlot,
+                }]
+        {
+            return Err(Diagnostic::error(
+                "PE import body has a different encoded operand contract",
+            ));
+        }
+        let footprint = body.resources.effects.footprint().clone();
+        let bytes = body.bytes.clone();
+        image.memory.text.extend(bytes);
 
         let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
         image_symbol.section = FinalImageSection::Text;
@@ -165,7 +181,7 @@ pub(crate) fn install_import_thunks(
             section_offset: text_offset,
             byte_count: 6,
             symbol: symbol.clone(),
-            footprint: None,
+            footprint: Some(footprint),
             entry_effects: None,
         });
 
@@ -177,6 +193,7 @@ pub(crate) fn install_import_thunks(
         });
     }
 
+    image.validate_import_program()?;
     Ok(thunks)
 }
 
@@ -358,10 +375,15 @@ pub(crate) fn validate_import_thunk_footprints(
                     thunk.symbol
                 ))
             })?;
-        region.footprint = Some(StateFootprintEvidence::new(
+        let expected = StateFootprintEvidence::new(
             RegisterSet::default(),
             MachineStateSet::new([MachineState::InstructionPointer]),
-        ));
+        );
+        if region.footprint.as_ref() != Some(&expected) {
+            return Err(Diagnostic::error(
+                "PE import body effects differ from the encoded program",
+            ));
+        }
     }
     Ok(())
 }
@@ -396,6 +418,7 @@ mod tests {
             symbol_handle: symbol,
             import,
         });
+        image_fixtures::encode_imports(&mut image);
         image
     }
 
@@ -425,6 +448,42 @@ mod tests {
         assert_eq!(image.executable_regions[0].byte_count, 6);
         assert_eq!(image.executable_regions[0].symbol, "ExitProcess");
         assert!(image.executable_regions[0].footprint.is_some());
+    }
+
+    #[test]
+    fn image_writer_cannot_generate_or_substitute_an_import_body() {
+        let complete = bootstrap_import_image("ExitProcess");
+        let mut missing = complete.clone();
+        missing.import_program.imports.clear();
+        let error = install_import_thunks(&mut missing, 3).unwrap_err();
+        assert!(error.message.contains("previously encoded body"));
+        assert!(missing.memory.text.is_empty());
+
+        let mut substituted = complete.clone();
+        substituted.import_program.imports[0].identity =
+            machine_code::import_code::ImportCodeIdentity::StringBackedBootstrap {
+                library: "KERNEL32.dll".into(),
+                symbol: "GetLastError".into(),
+            };
+        assert!(
+            install_import_thunks(&mut substituted, 3)
+                .unwrap_err()
+                .message
+                .contains("previously encoded body")
+        );
+
+        let mut changed_effects = complete;
+        changed_effects.import_program.imports[0]
+            .body
+            .resources
+            .effects = calling_conventions::StateEffectsEvidence::empty();
+        let thunks = install_import_thunks(&mut changed_effects, 3).unwrap();
+        assert!(
+            validate_import_thunk_footprints(&mut changed_effects, &thunks)
+                .unwrap_err()
+                .message
+                .contains("effects differ")
+        );
     }
 
     #[test]
@@ -517,6 +576,7 @@ mod tests {
             symbol_handle: symbol,
             import: FinalImageImportPlan::Normalized((locator).into()),
         });
+        image_fixtures::encode_imports(&mut image);
         image
     }
 

@@ -1,0 +1,4742 @@
+/*
+We represent designated product-operand declarations (`declarations::product_operand`)
+and trait definitions with their conformance applications, regions, and
+refinement views (`declarations::trait_definition`) in `TypedTrees`.
+*/
+
+pub mod product_operand {
+    pub(crate) mod input_selections {
+        use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
+        use crate::source_state::expression::ExpressionHandle;
+        use crate::source_state::{
+            TypedTrees,
+            expression::StaticMachineArgument,
+            types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
+        };
+        use symbols::SymbolHandle;
+
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum ProductArgumentStep {
+            #[default]
+            Invalid,
+            Argument(u32),
+            Member,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+        pub enum ProductTypeSelectionSlot {
+            Declaration,
+            ArrayExtent,
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum ProductInputSelectionTarget {
+            #[default]
+            Invalid,
+            Argument(arena::HandleSpan<ProductArgumentStep>),
+            Type {
+                reference: TypeReferenceHandle,
+                slot: ProductTypeSelectionSlot,
+            },
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct ProductInputSelection {
+            pub occurrence: Option<AuthoredDeclarationSelectionOccurrenceId>,
+            pub argument_ordinal: u32,
+            pub target: ProductInputSelectionTarget,
+        }
+
+        impl ProductInputSelection {
+            pub fn selected_symbol(
+                &self,
+                program: &TypedTrees,
+                arguments: &[StaticMachineArgument],
+            ) -> Result<SymbolHandle, &'static str> {
+                let symbol = match &self.target {
+                    ProductInputSelectionTarget::Invalid => {
+                        return Err("static input has no retained operand target");
+                    }
+                    ProductInputSelectionTarget::Argument(path) => {
+                        if !matches!(program.product_input_argument_steps.span_or_empty(*path).first(), Some(ProductArgumentStep::Argument(index)) if *index == self.argument_ordinal)
+                        {
+                            return Err("Product input selection lost its actual argument ordinal");
+                        }
+                        let steps = program.product_input_argument_steps.span_or_empty(*path);
+                        let mut argument = arguments
+                            .get(self.argument_ordinal as usize)
+                            .ok_or("static input has a foreign original argument ordinal")?;
+                        for step in steps.iter().skip(1) {
+                            let application = argument.application.as_ref().ok_or(
+                                "Product input selection has no retained source application",
+                            )?;
+                            argument = match step {
+                                ProductArgumentStep::Invalid => {
+                                    return Err("static input has an invalid argument path step");
+                                }
+                                ProductArgumentStep::Argument(index) => {
+                                    application.arguments.get(*index as usize).ok_or(
+                                        "Product input selection has a foreign argument ordinal",
+                                    )?
+                                }
+                                ProductArgumentStep::Member => program
+                                    .expression_table
+                                    .static_member(application.member)
+                                    .ok_or(
+                                        "Product input selection has a foreign member continuation",
+                                    )?,
+                            };
+                        }
+                        argument.symbol
+                    }
+                    ProductInputSelectionTarget::Type { reference, slot } => {
+                        let actual = arguments.get(self.argument_ordinal as usize).ok_or(
+                            "Product type input selection lost its actual argument ordinal",
+                        )?;
+                        #[derive(Default)]
+                        struct Inputs {
+                            types: std::collections::HashSet<
+                                TypeReferenceHandle,
+                                symbols::BuildSymbolHasher,
+                            >,
+                            expressions: std::collections::HashSet<
+                                ExpressionHandle,
+                                symbols::BuildSymbolHasher,
+                            >,
+                        }
+                        impl Extend<SymbolHandle> for Inputs {
+                            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+                        }
+                        impl crate::source_state::references::TypedReferences for Inputs {
+                            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                                self.types.insert(reference)
+                            }
+                            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                                self.expressions.insert(expression)
+                            }
+                            fn proof_fact(
+                                &mut self,
+                                _: arena::Handle<crate::source_state::domain::ProofFact>,
+                            ) -> bool {
+                                false
+                            }
+                            fn mathematical_type(
+                                &mut self,
+                                _: crate::source_state::mathematical::MathematicalTypeHandle,
+                            ) -> bool {
+                                false
+                            }
+                        }
+                        let mut inputs = Inputs::default();
+                        crate::source_state::references::visit_static_argument(
+                            program,
+                            &mut inputs,
+                            actual,
+                        );
+                        if !inputs.types.contains(reference) {
+                            return Err(
+                                "Product type selection is not a retained input of its actual argument",
+                            );
+                        }
+                        if !program.contains_type_reference(*reference) {
+                            return Err("Product input selection has a foreign type reference");
+                        }
+                        match (
+                            slot,
+                            program.type_reference_table.type_reference(*reference),
+                        ) {
+                            (
+                                ProductTypeSelectionSlot::Declaration,
+                                TypeReferenceNode::Named { symbol, .. },
+                            ) => *symbol,
+                            (
+                                ProductTypeSelectionSlot::Declaration,
+                                TypeReferenceNode::Generic { base_symbol, .. },
+                            ) => *base_symbol,
+                            (
+                                ProductTypeSelectionSlot::ArrayExtent,
+                                TypeReferenceNode::FixedArray {
+                                    length: FixedArrayLength::ConstParameter { symbol, .. },
+                                    ..
+                                },
+                            ) => *symbol,
+                            (
+                                ProductTypeSelectionSlot::ArrayExtent,
+                                TypeReferenceNode::FixedArray {
+                                    length: FixedArrayLength::ConstCall { machine, .. },
+                                    ..
+                                },
+                            ) => *machine,
+                            _ => {
+                                return Err(
+                                    "Product input selection no longer names its retained type declaration slot",
+                                );
+                            }
+                        }
+                    }
+                };
+                if !symbol.is_valid() {
+                    return Err("Product input selection has no exact checked declaration");
+                }
+                Ok(program.symbols.authored_origin(symbol))
+            }
+        }
+    }
+    pub use input_selections::{
+        ProductArgumentStep, ProductInputSelection, ProductInputSelectionTarget,
+        ProductTypeSelectionSlot,
+    };
+
+    pub(crate) mod applications {
+        use crate::source_state::{TypedTrees, expression::StaticMachineArgument};
+        use arena::Handle;
+        use crate::declaration_selection::ProductDeclarationOperand;
+use crate::declaration_selection::ProductOperandRole;
+use crate::declaration_selection::product_operands::ProductStaticEnvironment;
+        use std::sync::Arc;
+        use symbols::SymbolHandle;
+
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum ProductApplicationDemand {
+            #[default]
+            FormationOnly,
+            Selected,
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct ProductOperandApplication {
+            pub operand: ProductDeclarationOperand,
+            pub environment: Option<Arc<ProductStaticEnvironment>>,
+            pub owner: SymbolHandle,
+            pub role: Option<ProductOperandRole>,
+            pub declaration: SymbolHandle,
+            pub declaration_parameters: arena::HandleSpan<crate::source_state::data::TypeParameter>,
+            pub declaration_lifetime_count: u32,
+            pub demand: ProductApplicationDemand,
+            pub argument: StaticMachineArgument,
+            pub input_selections: arena::HandleSpan<super::ProductInputSelection>,
+            pub scope: crate::source_state::trait_definition::RetainedTraitScope,
+            pub supplying_application:
+                crate::source_state::static_applications::StaticMachineApplicationHandle,
+            pub implementation: Option<crate::source_state::ClosedConformanceApplication>,
+        }
+
+        impl TypedTrees {
+            pub fn product_operand_application_identity(
+                &self,
+                handle: Handle<ProductOperandApplication>,
+            ) -> Result<
+                Option<String>,
+                &'static str, > {
+                if !self.product_operand_applications.is_valid(handle) {
+                    return Err("Product application has no live prepared row");
+                }
+                let application = self.product_operand_applications.get(handle);
+                let role = self.product_operand_application_role(application)?;
+                if !matches!(
+                    role,
+                    Some(
+                        ProductOperandRole::BoundarySubject
+                            | ProductOperandRole::Provider
+                            | ProductOperandRole::Requirement
+                    )
+                ) {
+                    return Err("Product application has no nominal declaration role");
+                }
+                let parameters = self
+                    .data_type_parameters
+                    .span(application.declaration_parameters)
+                    .ok_or("Product application has a stale declared formal table")?;
+                if parameters.is_empty()
+                    && application.declaration_lifetime_count == 0
+                    && role != Some(ProductOperandRole::Requirement)
+                {
+                    return Ok(None);
+                }
+                if role == Some(ProductOperandRole::Requirement) {
+                    let closed = self.product_requirement_application(handle)?;
+                    let (owner, requirement) = self
+                        .trait_machine_signature(closed.signature.symbol)
+                        .ok_or("Product requirement application lost its closed signature")?;
+                    return Ok(Some(
+                        self.trait_requirement_callable_identity_text(owner, requirement),
+                    ));
+                }
+                let identity = match role {
+                    Some(ProductOperandRole::BoundarySubject) => application
+                        .scope
+                        .scope(self)
+                        .and_then(|scope| scope.portable_application_identity(self)),
+                    // A provider is identified by its declaration and the
+                    // complete argument tuple it is applied to, phantom
+                    // arguments included (conformances.md: an application
+                    // keeps "the exact package-owned trait application,
+                    // including phantom arguments"). A closed conformance
+                    // record states the same tuple when one was formed.
+                    Some(ProductOperandRole::Provider) => match &application.implementation {
+                        Some(implementation) => self.portable_conformance_application_identity(
+                            implementation,
+                            application.supplying_application,
+                        ),
+                        None => {
+                            let supplying = application.supplying_application;
+                            if !self
+                                .expression_table
+                                .static_machine_application_is_valid(supplying)
+                            {
+                                return Err(
+                                    "Product implementation lost its supplying application",
+                                );
+                            }
+                            crate::source_state::type_identity::portable_applied_index_identity(
+                                self,
+                                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                                    &application.argument,
+                                ),
+                                self.static_machine_application(supplying).lexical_owner,
+                                &[],
+                            )
+                        }
+                    },
+                    _ => unreachable!("nominal role checked above"),
+                }
+                .ok_or("Product application has no complete portable static identity")?;
+                self.type_identity_text(identity)
+                    .map(Some)
+                    .ok_or("Product application lost its canonical identity")
+            }
+
+            pub fn product_operand_application_role(
+                &self,
+                application: &ProductOperandApplication,
+            ) -> Result<Option<ProductOperandRole>, &'static str> {
+                self.product_operand_declaration_role(application.role, application.declaration)
+            }
+
+            pub fn product_operand_declaration_role(
+                &self,
+                role: Option<ProductOperandRole>,
+                declaration: SymbolHandle,
+            ) -> Result<Option<ProductOperandRole>, &'static str> {
+                if role != Some(ProductOperandRole::RootGrantSubject) {
+                    return Ok(role);
+                }
+                if self.conformance_by_symbol(declaration).is_some() {
+                    Ok(Some(ProductOperandRole::Provider))
+                } else if self.trait_machine_signature(declaration).is_some() {
+                    Ok(Some(ProductOperandRole::Requirement))
+                } else {
+                    Err(
+                        "root grant application names neither a provider nor a boundary requirement",
+                    )
+                }
+            }
+
+            /// A native binding selects the canonical closed header only while
+            /// its original supplying arguments and declaring scope still match.
+            pub fn product_requirement_application(
+                &self,
+                handle: Handle<ProductOperandApplication>,
+            ) -> Result<crate::source_state::ClosedRequirementApplication<'_>, &'static str> {
+                if !self.product_operand_applications.is_valid(handle) {
+                    return Err("Product requirement application has no live prepared row");
+                }
+                let application = self.product_operand_applications.get(handle);
+                if self.product_operand_application_role(application)?
+                    != Some(ProductOperandRole::Requirement)
+                {
+                    return Err("Product application is not a requirement");
+                }
+                let closed = self
+                    .closed_requirement_application(application.declaration)
+                    .ok_or("Product requirement application has no canonical closed header")?;
+                if closed.template != application.argument.symbol {
+                    return Err("Product requirement application belongs to another declaration");
+                }
+                self.require_closed_requirement_call_application(
+                    application.declaration,
+                    application.supplying_application,
+                )?;
+                let scope = application
+                    .scope
+                    .scope(self)
+                    .ok_or("Product requirement application lost its declaring trait scope")?;
+                if !self
+                    .requirement_application_matches_contract_scope(application.declaration, &scope)
+                {
+                    return Err(
+                        "Product requirement application changed its declaring trait scope",
+                    );
+                }
+                Ok(closed)
+            }
+
+            pub fn prepared_product_operand(
+                &self,
+                operand: &ProductDeclarationOperand,
+                environment: Option<&ProductStaticEnvironment>,
+                owner: SymbolHandle,
+                role: ProductOperandRole,
+            ) -> Option<Handle<ProductOperandApplication>> {
+                self.product_operand_applications
+                    .iter()
+                    .find_map(|(handle, application)| {
+                        (application.operand == *operand
+                            && application.environment.as_deref() == environment
+                            && application.owner == owner
+                            && application.role == Some(role))
+                        .then_some(handle)
+                    })
+            }
+
+            pub fn retain_dependency_product_application(
+                &mut self,
+                handle: Handle<ProductOperandApplication>,
+            ) {
+                if !self
+                    .retained_product_application_handles
+                    .span_or_empty(self.roots.retained_product_applications)
+                    .iter()
+                    .any(|retained| *retained == handle)
+                {
+                    self.tables
+                        .retained_product_application_handles
+                        .append_to_span(&mut self.roots.retained_product_applications, handle);
+                }
+            }
+
+            pub fn retain_product_operand_application(
+                &mut self,
+                application: ProductOperandApplication,
+            ) -> Handle<ProductOperandApplication> {
+                if let Some(existing) = self.prepared_product_operand(
+                    &application.operand,
+                    application.environment.as_deref(),
+                    application.owner,
+                    application
+                        .role
+                        .expect("prepared Product operand has a declaration role"),
+                ) {
+                    return existing;
+                }
+                self.product_operand_applications.insert(application)
+            }
+        }
+    }
+    pub use applications::{ProductApplicationDemand, ProductOperandApplication};
+
+    pub(crate) mod occurrences {
+        use crate::source_state::{
+            TypedTrees,
+            expression::{BuildSelectionRequest, ExpressionHandle},
+            references::{StaticArgumentCall, TypedReferences},
+        };
+        use crate::declaration_selection::ProductDeclarationRequest;
+        use std::sync::Arc;
+        use symbols::SymbolHandle;
+
+        #[derive(Clone)]
+        pub struct ProductSelectionOccurrence {
+            pub machine: SymbolHandle,
+            pub state: SymbolHandle,
+            pub expression: ExpressionHandle,
+            pub request: Arc<ProductDeclarationRequest>,
+        }
+
+        pub fn collect_product_selection_occurrences(
+            program: &TypedTrees,
+        ) -> Vec<ProductSelectionOccurrence> {
+            let mut census = Census {
+                machine: SymbolHandle::invalid(),
+                state: SymbolHandle::invalid(),
+                seen: Vec::new(),
+                occurrences: Vec::new(),
+            };
+            for machine in program.machines() {
+                census.machine = machine.symbol;
+                for state in program.machine_states(machine) {
+                    census.state = state.symbol;
+                    census.seen.clear();
+                    for statement in program.statement_table.statements(state.statement_nodes) {
+                        for (_, root) in program.tables.expression_roots(statement) {
+                            crate::source_state::references::visit_expression(
+                                program,
+                                &mut census,
+                                root,
+                            );
+                        }
+                    }
+                }
+            }
+            census.occurrences
+        }
+
+        struct Census {
+            machine: SymbolHandle,
+            state: SymbolHandle,
+            seen: Vec<Vec<ExpressionHandle>>,
+            occurrences: Vec<ProductSelectionOccurrence>,
+        }
+        impl Extend<SymbolHandle> for Census {
+            fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
+        }
+        impl TypedReferences for Census {
+            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                let index = expression.arena_index() as usize;
+                if self.seen.len() <= index {
+                    self.seen.resize_with(index + 1, Vec::new);
+                }
+                if self.seen[index].contains(&expression) {
+                    return false;
+                }
+                self.seen[index].push(expression);
+                true
+            }
+            fn call_arguments(
+                &mut self,
+                program: &TypedTrees,
+                call: StaticArgumentCall<'_>,
+            ) -> bool {
+                if let StaticArgumentCall::Expression(expression, call) = call
+                    && let Some(BuildSelectionRequest::Declaration(request)) = program
+                        .expression_table
+                        .build_selection_request(call.build_selection)
+                {
+                    self.occurrences.push(ProductSelectionOccurrence {
+                        machine: self.machine,
+                        state: self.state,
+                        expression,
+                        request: Arc::clone(request),
+                    });
+                }
+                true
+            }
+        }
+    }
+    pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
+
+    pub(crate) mod static_environment {
+        use crate::source_state::{TypedTrees, expression as expr, types};
+        use arena::{Handle, HandleSpan};
+        use crate::declaration_selection::product_operands::*;
+        use source_text::SourceSpan;
+        use std::sync::Arc;
+        use symbols::SymbolHandle;
+
+        pub fn capture_static_environment(
+            program: &TypedTrees,
+            machine: SymbolHandle,
+        ) -> Result<Option<Arc<ProductStaticEnvironment>>, String> {
+            let mut specializations = program.machine_specializations.for_instance(machine);
+            let Some(specialization) = specializations.next() else {
+                return Ok(None);
+            };
+            if specializations.next().is_some() {
+                return Err("Build helper has multiple exact specialization receipts".into());
+            }
+            if !specialization.binding_application.is_valid() {
+                return Err(
+                    "Build helper specialization lost its original static binding application"
+                        .into(),
+                );
+            }
+            let binding_declaration = program
+                .specialization_binding_declaration(specialization)
+                .map_err(str::to_owned)?;
+            let application =
+                program.static_machine_application(specialization.binding_application);
+            if application.binding_declaration != binding_declaration {
+                return Err(
+                    "Build helper specialization changed its exact binding declaration".into(),
+                );
+            }
+            let owner = program
+                .symbols
+                .symbol_provenance_source_span(application.lexical_owner)
+                .ok_or("Build helper actuals lost their original lexical owner")?;
+            let mut capture = Capture {
+                program,
+                environment: ProductStaticEnvironment {
+                    template: program
+                        .symbols
+                        .symbol_provenance_source_span(specialization.template),
+                    lexical_owner: Some(owner),
+                    ..Default::default()
+                },
+                owner,
+                types: Vec::new(),
+                active_types: Vec::new(),
+                expressions: Vec::new(),
+                active_expressions: Vec::new(),
+            };
+            let template = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("Build helper lost its source binding declaration")?;
+            let operand = program
+                .specialization_source_operand(specialization)
+                .map_err(str::to_owned)?;
+            let selected = operand
+                .application
+                .as_deref()
+                .ok_or("Build helper lost its reconstructed source application")?;
+            for (formal, actual) in program
+                .machine_callable_parameters(template)
+                .iter()
+                .zip(&selected.arguments)
+            {
+                let parameter = program
+                    .symbols
+                    .symbol_provenance_source_span(formal.symbol)
+                    .ok_or("Build helper static binder lost source identity")?;
+                let argument = capture.operand(actual)?;
+                let declared_type = match formal.kind {
+                    crate::source_state::data::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                }
+                .map(|reference| capture.ty(reference))
+                .transpose()?
+                .unwrap_or_default();
+                capture
+                    .environment
+                    .bindings
+                    .insert(ProductStaticEnvironmentBinding {
+                        parameter,
+                        argument,
+                        lexical_owner: owner,
+                        declared_type,
+                    });
+            }
+            for binding in
+                program.static_machine_application_lifetimes(specialization.binding_application)
+            {
+                let ordinal = template
+                    .lifetime_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_str() == binding.parameter.as_str())
+                    .ok_or("Build helper lifetime binding has no exact template position")?;
+                let argument = capture.name(binding.argument.as_str(), SymbolHandle::invalid());
+                capture
+                    .environment
+                    .lifetimes
+                    .insert(ProductStaticEnvironmentLifetime {
+                        parameter_owner: program
+                            .symbols
+                            .symbol_provenance_source_span(binding_declaration)
+                            .ok_or("Build helper lifetime binder lost its original declaration")?,
+                        parameter_ordinal: ordinal as u32,
+                        argument,
+                        lexical_owner: owner,
+                    });
+            }
+            capture.environment.identity = program
+                .specialization_source_identity(specialization)
+                .map_err(str::to_owned)?
+                .into_bytes();
+            Ok(Some(Arc::new(capture.environment)))
+        }
+
+        pub fn capture_closed_operand(
+            program: &TypedTrees,
+            argument: &expr::StaticMachineArgument,
+            lexical_owner: SymbolHandle,
+        ) -> Result<ProductStaticOperandGraph, String> {
+            let owner = program
+                .symbols
+                .symbol_provenance_source_span(lexical_owner)
+                .ok_or("closed Product application lost its original lexical scope")?;
+            let mut capture = Capture {
+                program,
+                environment: ProductStaticEnvironment::default(),
+                owner,
+                types: Vec::new(),
+                active_types: Vec::new(),
+                expressions: Vec::new(),
+                active_expressions: Vec::new(),
+            };
+            capture.environment.graph.root = capture.operand(argument)?;
+            Ok(capture.environment.graph)
+        }
+
+        struct Capture<'a> {
+            program: &'a TypedTrees,
+            environment: ProductStaticEnvironment,
+            owner: SourceSpan,
+            types: Vec<(types::TypeReferenceHandle, Handle<ProductOperandType>)>,
+            active_types: Vec<types::TypeReferenceHandle>,
+            expressions: Vec<(expr::ExpressionHandle, Handle<ProductOperandExpression>)>,
+            active_expressions: Vec<expr::ExpressionHandle>,
+        }
+        impl Capture<'_> {
+            fn name(&mut self, text: &str, symbol: SymbolHandle) -> Handle<ProductOperandName> {
+                let program = self.program;
+                let declaration = symbol
+                    .is_valid()
+                    .then(|| program.symbols.symbol_provenance_source_span(symbol))
+                    .flatten();
+                self.environment.graph.names.insert(ProductOperandName {
+                    authored_selection: Handle::invalid(),
+                    text: text.to_owned(),
+                    source_span: declaration.unwrap_or(self.owner),
+                    declaration,
+                    builtin_type: symbol
+                        .is_valid()
+                        .then(|| program.symbols.builtin_type_atom(symbol))
+                        .flatten(),
+                    builtin_function: symbol
+                        .is_valid()
+                        .then(|| program.symbols.builtin_function_for_symbol(symbol))
+                        .flatten(),
+                })
+            }
+            fn names(
+                &mut self,
+                names: &[crate::source_state::name::Identifier],
+            ) -> HandleSpan<ProductOperandName> {
+                let values = names
+                    .iter()
+                    .map(|name| {
+                        let handle = self.name(name.as_str(), SymbolHandle::invalid());
+                        self.environment.graph.names.get(handle).clone()
+                    })
+                    .collect::<Vec<_>>();
+                self.environment.graph.names.insert_many(values)
+            }
+            fn operand(
+                &mut self,
+                argument: &expr::StaticMachineArgument,
+            ) -> Result<Handle<ProductStaticOperand>, String> {
+                let program = self.program;
+                if !argument.symbol.is_valid()
+                    && !argument.type_reference.is_valid()
+                    && argument.application.is_none()
+                    && argument.const_literal.is_none()
+                    && argument.path.len() == 1
+                    && let Some(value) =
+                        application_identity::const_value::CanonicalConstValue::from_atom(
+                            argument.path[0].as_str(),
+                        )
+                {
+                    return Ok(self
+                        .environment
+                        .graph
+                        .operands
+                        .insert(ProductStaticOperand {
+                            structural_type: self
+                                .environment
+                                .graph
+                                .types
+                                .insert(ProductOperandType::CanonicalConst(value)),
+                            ..Default::default()
+                        }));
+                }
+                let names = argument
+                    .path
+                    .iter()
+                    .enumerate()
+                    .map(|(index, name)| {
+                        let h = self.name(
+                            name.as_str(),
+                            if index + 1 == argument.path.len() {
+                                argument.symbol
+                            } else {
+                                SymbolHandle::invalid()
+                            },
+                        );
+                        self.environment.graph.names.get(h).clone()
+                    })
+                    .collect::<Vec<_>>();
+                let path = self.environment.graph.names.insert_many(names);
+                let structural_type = if argument.type_reference.is_valid() {
+                    self.ty(argument.type_reference)?
+                } else {
+                    Handle::invalid()
+                };
+                let application = if let Some(app) = &argument.application {
+                    let arguments = app
+                        .arguments
+                        .iter()
+                        .map(|argument| self.operand(argument))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let arguments = self
+                        .environment
+                        .graph
+                        .static_arguments
+                        .insert_many(arguments);
+                    let lifetimes = self.names(&app.lifetime_arguments);
+                    let member = if app.member.is_valid() {
+                        let member = program
+                            .expression_table
+                            .static_member(app.member)
+                            .ok_or("Build static actual has an invalid member continuation")?;
+                        self.operand(member)?
+                    } else {
+                        Handle::invalid()
+                    };
+                    self.environment
+                        .graph
+                        .applications
+                        .insert(ProductStaticApplication {
+                            arguments,
+                            lifetimes,
+                            member,
+                        })
+                } else {
+                    Handle::invalid()
+                };
+                let projection = argument.evidence_projection.as_ref().map(|projection| {
+                    (
+                        self.name(projection.term.as_str(), SymbolHandle::invalid()),
+                        self.name(projection.member.as_str(), SymbolHandle::invalid()),
+                    )
+                });
+                Ok(self
+                    .environment
+                    .graph
+                    .operands
+                    .insert(ProductStaticOperand {
+                        authored_selection: Handle::invalid(),
+                        path,
+                        structural_type,
+                        application,
+                        integer: argument.const_literal.clone(),
+                        projection,
+                        declaration: argument
+                            .symbol
+                            .is_valid()
+                            .then(|| {
+                                program
+                                    .symbols
+                                    .symbol_provenance_source_span(argument.symbol)
+                            })
+                            .flatten(),
+                    }))
+            }
+            fn type_arguments(
+                &mut self,
+                arguments: HandleSpan<types::TypeReferenceHandle>,
+            ) -> Result<HandleSpan<Handle<ProductOperandType>>, String> {
+                let program = self.program;
+                let values = program
+                    .type_reference_handles(arguments)
+                    .iter()
+                    .map(|reference| self.ty(*reference))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(self.environment.graph.type_arguments.insert_many(values))
+            }
+            fn ty(
+                &mut self,
+                reference: types::TypeReferenceHandle,
+            ) -> Result<Handle<ProductOperandType>, String> {
+                let program = self.program;
+                if program
+                    .type_reference_table
+                    .type_alias_applications(reference)
+                    .next()
+                    .is_some()
+                {
+                    return Err("captured Build helper static type cannot yet retain transparent alias application obligations".into());
+                }
+                if let Some((_, value)) = self.types.iter().find(|(source, _)| *source == reference)
+                {
+                    return Ok(*value);
+                }
+                if self.active_types.contains(&reference) {
+                    return Err("Build static actual type contains a cycle".into());
+                }
+                self.active_types.push(reference);
+                let value = match program.type_reference_table.type_reference(reference) {
+                    types::TypeReferenceNode::Callable { .. } => return Err(
+                        "a captured Build type needs the complete machine contract; the static operand format cannot retain it".into(),
+                    ),
+                    types::TypeReferenceNode::Unit => ProductOperandType::Unit,
+                    types::TypeReferenceNode::Named { symbol, name } => {
+                        if !symbol.is_valid()
+                            && let Some(value) =
+                                application_identity::const_value::CanonicalConstValue::from_atom(
+                                    name.as_str(),
+                                )
+                        {
+                            let value = self
+                                .environment
+                                .graph
+                                .types
+                                .insert(ProductOperandType::CanonicalConst(value));
+                            self.active_types.pop();
+                            self.types.push((reference, value));
+                            return Ok(value);
+                        }
+                        if let Some(application) = symbol
+                            .is_valid()
+                            .then(|| program.data_definition_by_symbol(*symbol))
+                            .flatten()
+                            .and_then(|definition| definition.generic_instance)
+                        {
+                            let value = self.ty(application)?;
+                            self.active_types.pop();
+                            self.types.push((reference, value));
+                            return Ok(value);
+                        }
+                        if let Some(literal) =
+                            program.static_const_literal_from_type_reference(reference)
+                        {
+                            let expression = self.environment.graph.expressions.insert(
+                                ProductOperandExpression {
+                                    source_span: self.owner,
+                                    authored_selections: HandleSpan::empty(),
+                                    kind: ProductExpressionKind::Integer(literal),
+                                },
+                            );
+                            ProductOperandType::ConstExpression(expression)
+                        } else {
+                            ProductOperandType::Named(self.name(name.as_str(), *symbol))
+                        }
+                    }
+                    types::TypeReferenceNode::Generic {
+                        base_symbol,
+                        base_name,
+                        lifetime_arguments,
+                        arguments,
+                    } => ProductOperandType::Generic {
+                        name: self.name(base_name.as_str(), *base_symbol),
+                        lifetimes: self.names(lifetime_arguments),
+                        arguments: self.type_arguments(*arguments)?,
+                    },
+                    types::TypeReferenceNode::Reference {
+                        referee,
+                        access,
+                        lifetime,
+                    } => ProductOperandType::Reference {
+                        referee: self.ty(*referee)?,
+                        access: *access,
+                        lifetime: lifetime
+                            .as_ref()
+                            .map(|name| self.name(name.as_str(), SymbolHandle::invalid())),
+                    },
+                    types::TypeReferenceNode::Slice { element_type } => {
+                        ProductOperandType::Slice(self.ty(*element_type)?)
+                    }
+                    types::TypeReferenceNode::FixedArray {
+                        element_type,
+                        length,
+                    } => ProductOperandType::Array {
+                        element: self.ty(*element_type)?,
+                        length: match length {
+                            types::FixedArrayLength::Literal(value) => {
+                                ProductArrayLength::Literal(*value)
+                            }
+                            types::FixedArrayLength::Expression(value) => {
+                                ProductArrayLength::Expression(self.ty(*value)?)
+                            }
+                            types::FixedArrayLength::ConstParameter { symbol, name } => {
+                                ProductArrayLength::Parameter(self.name(name.as_str(), *symbol))
+                            }
+                            types::FixedArrayLength::ConstCall { machine, name, .. } => {
+                                ProductArrayLength::Call(self.name(name.as_str(), *machine))
+                            }
+                        },
+                    },
+                    types::TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } => {
+                        let base = self.ty(*base_type)?;
+                        let constraints = program
+                            .type_reference_table
+                            .constraints(*constraints)
+                            .iter()
+                            .map(|constraint| self.constraint(constraint))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        ProductOperandType::Constrained {
+                            base,
+                            constraints: self
+                                .environment
+                                .graph
+                                .constraints
+                                .insert_many(constraints),
+                        }
+                    }
+                    types::TypeReferenceNode::ConstExpression(expression) => {
+                        ProductOperandType::ConstExpression(self.expression(*expression)?)
+                    }
+                };
+                let value = self.environment.graph.types.insert(value);
+                self.active_types.pop();
+                self.types.push((reference, value));
+                Ok(value)
+            }
+            fn constraint(
+                &mut self,
+                value: &types::TypeConstraintNode,
+            ) -> Result<ProductOperandConstraint, String> {
+                Ok(match value {
+                    types::TypeConstraintNode::Named(name) => ProductOperandConstraint::Named(
+                        self.name(name.as_str(), SymbolHandle::invalid()),
+                    ),
+                    types::TypeConstraintNode::ArithmeticDomain(policy) => {
+                        ProductOperandConstraint::Arithmetic(*policy)
+                    }
+
+                    types::TypeConstraintNode::Domain(domain) => {
+                        let args = domain
+                            .arguments
+                            .iter()
+                            .map(|reference| self.ty(*reference))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let arguments = self.environment.graph.type_arguments.insert_many(args);
+                        ProductOperandConstraint::Domain {
+                            name: self.name(domain.name.as_str(), domain.symbol),
+                            arguments,
+                        }
+                    }
+                })
+            }
+            fn expression_selections(
+                &mut self,
+                expression: expr::ExpressionHandle,
+            ) -> Result<HandleSpan<ProductOperandSelection>, String> {
+                let program = self.program;
+                let ledger = program.authored_declaration_selections();
+                let mut selections = Vec::new();
+                for occurrence in program
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                {
+                    let selection = ledger
+                        .get(occurrence)
+                        .ok_or("Build static actual retains an unknown authored selection")?;
+                    let rejoined = ledger
+                        .source_coordinate_occurrence(
+                            selection.source_span(),
+                            selection.exposure(),
+                            selection.kind(),
+                        )
+                        .map_err(|reason| reason.to_string())?;
+                    if rejoined != occurrence {
+                        return Err(
+                            "Build static actual changed its exact source selection association"
+                                .into(),
+                        );
+                    }
+                    selections.push(ProductOperandSelection {
+                        source_span: selection.source_span(),
+                        exposure: selection.exposure(),
+                        kind: Some(selection.kind()),
+                    });
+                }
+                Ok(self.environment.graph.selections.insert_many(selections))
+            }
+
+            fn expression(
+                &mut self,
+                expression: expr::ExpressionHandle,
+            ) -> Result<Handle<ProductOperandExpression>, String> {
+                let program = self.program;
+                if let Some((_, value)) = self
+                    .expressions
+                    .iter()
+                    .find(|(source, _)| *source == expression)
+                {
+                    return Ok(*value);
+                }
+                if self.active_expressions.contains(&expression) {
+                    return Err("Build static actual expression contains a cycle".into());
+                }
+                self.active_expressions.push(expression);
+                let kind = match program.expression_table.expression(expression) {
+                    expr::ExpressionNode::Integer(literal) => {
+                        ProductExpressionKind::Integer(literal.clone())
+                    }
+                    expr::ExpressionNode::Boolean(value) => ProductExpressionKind::Boolean(*value),
+                    expr::ExpressionNode::Float(value) => {
+                        ProductExpressionKind::Float(value.clone())
+                    }
+                    expr::ExpressionNode::String(value) => {
+                        ProductExpressionKind::Text(value.to_vec())
+                    }
+                    expr::ExpressionNode::Name(path) => {
+                        let members = program.expression_table.name_path_members(path.members);
+                        let values = members
+                            .iter()
+                            .enumerate()
+                            .map(|(index, name)| {
+                                let h = self.name(
+                                    name.as_str(),
+                                    if index + 1 == members.len() {
+                                        path.symbol
+                                    } else {
+                                        SymbolHandle::invalid()
+                                    },
+                                );
+                                self.environment.graph.names.get(h).clone()
+                            })
+                            .collect::<Vec<_>>();
+                        ProductExpressionKind::Name(
+                            self.environment.graph.names.insert_many(values),
+                        )
+                    }
+                    expr::ExpressionNode::StructLiteral(literal) => {
+                        let name = self.name(literal.type_name.as_str(), literal.type_symbol);
+                        let case = literal.case_name.as_ref().map(|name| {
+                            self.name(name.as_str(), literal.case_symbol.unwrap_or_default())
+                        });
+                        let fields = program
+                            .expression_table
+                            .struct_fields(literal.fields)
+                            .iter()
+                            .map(|field| {
+                                Ok(ProductOperandField {
+                                    name: self.name(field.name.as_str(), field.field_symbol),
+                                    value: self.expression(field.value)?,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, String>>()?;
+                        ProductExpressionKind::Record {
+                            zero_omitted_fields: literal.zero_omitted_fields,
+                            name,
+                            case,
+                            fields: self.environment.graph.fields.insert_many(fields),
+                        }
+                    }
+                    expr::ExpressionNode::ArrayLiteral(elements) => {
+                        let values = program
+                            .expression_table
+                            .expression_handles(*elements)
+                            .iter()
+                            .map(|value| self.expression(*value))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        ProductExpressionKind::Array(
+                            self.environment
+                                .graph
+                                .expression_arguments
+                                .insert_many(values),
+                        )
+                    }
+                    expr::ExpressionNode::UndeterminedNaN(format) => {
+                        ProductExpressionKind::UndeterminedNaN(*format)
+                    }
+                    expr::ExpressionNode::ZeroValue(reference) => {
+                        ProductExpressionKind::ZeroValue(self.ty(*reference)?)
+                    }
+                    expr::ExpressionNode::TypeExpression(reference) => {
+                        ProductExpressionKind::TypeExpression(self.ty(*reference)?)
+                    }
+                    expr::ExpressionNode::Unary(unary) => ProductExpressionKind::Unary {
+                        operator: match unary.operator {
+                            expr::UnaryOperator::BitwiseNot => ProductUnaryOperator::BitwiseNot,
+                            expr::UnaryOperator::LogicalNot => ProductUnaryOperator::LogicalNot,
+                        },
+                        operand: self.expression(unary.operand)?,
+                    },
+                    expr::ExpressionNode::Binary(binary) => ProductExpressionKind::Binary {
+                        left: self.expression(binary.left)?,
+                        right: self.expression(binary.right)?,
+                        operator: match binary.operator {
+                            expr::BinaryOperator::CaseMembership => {
+                                ProductBinaryOperator::CaseMembership
+                            }
+                            expr::BinaryOperator::Add => ProductBinaryOperator::Add,
+                            expr::BinaryOperator::And => ProductBinaryOperator::And,
+                            expr::BinaryOperator::BitwiseAnd => ProductBinaryOperator::BitwiseAnd,
+                            expr::BinaryOperator::BitwiseOr => ProductBinaryOperator::BitwiseOr,
+                            expr::BinaryOperator::BitwiseXor => ProductBinaryOperator::BitwiseXor,
+                            expr::BinaryOperator::Divide => ProductBinaryOperator::Divide,
+                            expr::BinaryOperator::Equal => ProductBinaryOperator::Equal,
+                            expr::BinaryOperator::Greater => ProductBinaryOperator::Greater,
+                            expr::BinaryOperator::GreaterOrEqual => {
+                                ProductBinaryOperator::GreaterOrEqual
+                            }
+                            expr::BinaryOperator::Less => ProductBinaryOperator::Less,
+                            expr::BinaryOperator::LessOrEqual => ProductBinaryOperator::LessOrEqual,
+                            expr::BinaryOperator::Modulo => ProductBinaryOperator::Modulo,
+                            expr::BinaryOperator::Multiply => ProductBinaryOperator::Multiply,
+                            expr::BinaryOperator::NotEqual => ProductBinaryOperator::NotEqual,
+                            expr::BinaryOperator::Or => ProductBinaryOperator::Or,
+                            expr::BinaryOperator::ShiftLeft => ProductBinaryOperator::ShiftLeft,
+                            expr::BinaryOperator::ShiftRight => ProductBinaryOperator::ShiftRight,
+                            expr::BinaryOperator::Subtract => ProductBinaryOperator::Subtract,
+                        },
+                    },
+                    expr::ExpressionNode::Member(member) => ProductExpressionKind::Member {
+                        receiver: self.expression(member.receiver)?,
+                        member: self.name(member.member.as_str(), member.selection.field_symbol()),
+                    },
+                    expr::ExpressionNode::Indexed(indexed) => ProductExpressionKind::Indexed {
+                        receiver: self.expression(indexed.collection)?,
+                        index: self.expression(indexed.index)?,
+                    },
+                    expr::ExpressionNode::Cast(cast) => {
+                        let arguments = program
+                            .type_reference_handles(cast.semantic_domain_arguments)
+                            .iter()
+                            .map(|reference| self.ty(*reference))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let domain_arguments =
+                            self.environment.graph.type_arguments.insert_many(arguments);
+                        let members = program
+                            .expression_table
+                            .name_path_members(cast.semantic_domain);
+                        let domain = self.names(members);
+                        ProductExpressionKind::Cast {
+                            value: self.expression(cast.value)?,
+                            target: self.ty(cast.target_type)?,
+                            policy: cast.domain,
+                            domain,
+                            domain_arguments,
+                            form: cast.form,
+                        }
+                    }
+                    expr::ExpressionNode::Call(call) => {
+                        if call.runtime_call.is_some() {
+                            return Err("a runtime callable invocation must retain its checked materialized value before Product capture".into());
+                        }
+                        if call.native_code_layout.is_some() {
+                            return Err("an executed static layout actual must retain its materialized value before Product capture".into());
+                        }
+                        let receiver = if call.receiver.is_valid() {
+                            self.expression(call.receiver)?
+                        } else {
+                            Handle::invalid()
+                        };
+                        let target = self.name(call.target.as_str(), call.target_symbol);
+                        if let Some(occurrence) = call.authored_call_selection {
+                            let selection = program
+                                .authored_declaration_selections()
+                                .get(occurrence)
+                                .ok_or("Build static call lost its authored Call occurrence")?;
+                            if selection.kind()
+                        != crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                        || !program
+                            .expression_table
+                            .authored_selection_occurrences(expression)
+                            .any(|attached| attached == occurrence)
+                    {
+                        return Err("Build static call changed its source-owned Call association".into());
+                    }
+                            self.environment.graph.names.get_mut(target).source_span =
+                                selection.source_span();
+                        }
+                        let owner = if call.requirement_application.is_valid() {
+                            self.ty(call.requirement_application)?
+                        } else {
+                            Handle::invalid()
+                        };
+                        let static_arguments = call
+                            .machine_arguments
+                            .iter()
+                            .map(|argument| self.operand(argument))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let static_arguments = self
+                            .environment
+                            .graph
+                            .static_arguments
+                            .insert_many(static_arguments);
+                        let arguments = program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|expression| self.expression(*expression))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let arguments = self
+                            .environment
+                            .graph
+                            .expression_arguments
+                            .insert_many(arguments);
+                        let evidence = self.names(&call.evidence_arguments);
+                        ProductExpressionKind::Call {
+                            receiver,
+                            target,
+                            owner,
+                            static_arguments,
+                            arguments,
+                            evidence,
+                            acknowledgement: call.operational_acknowledgement,
+                        }
+                    }
+                    _ => {
+                        return Err(
+                    "Build specialization has a non-static or unmaterialized selected value".into(),
+                );
+                    }
+                };
+                let authored_selections = self.expression_selections(expression)?;
+                let value = self
+                    .environment
+                    .graph
+                    .expressions
+                    .insert(ProductOperandExpression {
+                        source_span: program.expression_table.source_span(expression),
+                        authored_selections,
+                        kind,
+                    });
+                self.active_expressions.pop();
+                self.expressions.push((expression, value));
+                Ok(value)
+            }
+        }
+    }
+    pub use static_environment::{capture_closed_operand, capture_static_environment};
+
+    use crate::source_state::TypedTrees;
+    use crate::source_state::expression::StaticMachineArgument;
+    use crate::source_symbols::JoinedPath;
+    use symbols::SymbolHandle;
+
+    pub use crate::declaration_selection::ProductOperandRole as ProductOperandKind;
+
+    /*
+        A Build selection operand names a declaration by a bare path, such as
+        `NativeConsole`. It is never an applied type, a conformance application,
+        a value or an evidence projection. An authored type operand has no path,
+        so it never qualifies.
+
+        A type reference beside a path is not authored syntax. It is the record
+        `retain_static_argument_contexts` keeps of an implementation operand's
+        source scope. Reading that record as an authored type refused
+        `select_provider<Console, NativeConsole>` and every program that selects
+        a named provider.
+
+        The record may accompany a bare path only when it names that same
+        declaration with no arguments. Any other type reference still fails, so
+        a record that drifted from its path cannot pass as bare.
+    */
+    pub fn is_declaration_operand(typed: &TypedTrees, argument: &StaticMachineArgument) -> bool {
+        argument.application.is_none()
+            && argument.const_literal.is_none()
+            && argument.evidence_projection.is_none()
+            && !argument.path.is_empty()
+            && (!argument.type_reference.is_valid()
+                || retained_source_names_same_declaration(typed, argument))
+    }
+
+    fn retained_source_names_same_declaration(
+        typed: &TypedTrees,
+        argument: &StaticMachineArgument,
+    ) -> bool {
+        argument.symbol.is_valid()
+            && typed
+                .type_reference_table
+                .contains_type_reference(argument.type_reference)
+            && matches!(
+                typed.type_reference_table.type_reference(argument.type_reference),
+                crate::source_state::types::TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
+            )
+    }
+
+    pub fn resolve_product_operand(
+        typed: &TypedTrees,
+        argument: &StaticMachineArgument,
+        occurrence: source_text::SourceSpan,
+        kind: ProductOperandKind,
+    ) -> Option<symbols::SymbolHandle> {
+        if !is_declaration_operand(typed, argument) {
+            return None;
+        }
+        resolve_product_path(typed, &argument.path.joined_path(), occurrence, kind)
+    }
+
+    pub fn resolve_product_path(
+        typed: &TypedTrees,
+        path: &str,
+        occurrence: source_text::SourceSpan,
+        kind: ProductOperandKind,
+    ) -> Option<symbols::SymbolHandle> {
+        ProductDeclarationLookup::new(typed, &[kind]).resolve(path, occurrence, kind)
+    }
+
+    /// Prepares one immutable declaration frontier for a batch of Build operands.
+    /// Access checks still use each operand's exact source occurrence.
+    pub struct ProductDeclarationLookup<'program> {
+        program: &'program TypedTrees,
+        declarations: ProductDeclarationIndex,
+    }
+
+    impl<'program> ProductDeclarationLookup<'program> {
+        pub fn new(typed: &'program TypedTrees, roles: &[ProductOperandKind]) -> Self {
+            let program = typed.product_declarations();
+            Self {
+                program,
+                declarations: program.build_product_declaration_index(roles),
+            }
+        }
+
+        pub fn resolve(
+            &self,
+            path: &str,
+            occurrence: source_text::SourceSpan,
+            kind: ProductOperandKind,
+        ) -> Option<SymbolHandle> {
+            let program = self.program;
+            let role = product_role_position(kind)?;
+            let occurrence = program.symbols.rejoin_product_occurrence(occurrence);
+            let declaration_path = path
+                .split_once("::")
+                .and_then(|(alias, remaining)| {
+                    program
+                        .symbols
+                        .product_dependency_target(occurrence, alias)
+                        .map(|_| remaining)
+                })
+                .unwrap_or(path);
+            let index = &self.declarations;
+            let rows = &index.roles[role];
+            let first = rows.partition_point(|row| row.path.as_ref() < declaration_path);
+            let last = rows.partition_point(|row| row.path.as_ref() <= declaration_path);
+            program.symbols.find_build_subject_declaration_from_source(
+                path,
+                occurrence,
+                rows[first..last]
+                    .iter()
+                    .map(|row| (row.symbol, row.is_public)),
+                if matches!(
+                    kind,
+                    ProductOperandKind::BoundarySubject | ProductOperandKind::RootGrantSubject
+                ) {
+                    &index.token_bound_machines
+                } else {
+                    &[]
+                },
+            )
+        }
+    }
+
+    const PRODUCT_ROLES: [ProductOperandKind; 9] = [
+        ProductOperandKind::BoundarySubject,
+        ProductOperandKind::RootGrantSubject,
+        ProductOperandKind::Provider,
+        ProductOperandKind::Requirement,
+        ProductOperandKind::TestRequirement,
+        ProductOperandKind::Data,
+        ProductOperandKind::Representation,
+        ProductOperandKind::Formal,
+        ProductOperandKind::Field,
+    ];
+
+    fn product_role_position(role: ProductOperandKind) -> Option<usize> {
+        PRODUCT_ROLES
+            .iter()
+            .position(|candidate| *candidate == role)
+    }
+
+    struct ProductDeclarationName {
+        path: Box<str>,
+        symbol: SymbolHandle,
+        is_public: bool,
+    }
+
+    #[derive(Default)]
+    pub(crate) struct ProductDeclarationIndex {
+        roles: [Vec<ProductDeclarationName>; 9],
+        token_bound_machines: Vec<SymbolHandle>,
+    }
+
+    fn source_span_key(span: source_text::SourceSpan) -> (usize, usize, usize) {
+        (span.source_id.0, span.span.start, span.span.end)
+    }
+
+    impl TypedTrees {
+        fn build_product_declaration_index(
+            &self,
+            roles: &[ProductOperandKind],
+        ) -> ProductDeclarationIndex {
+            let mut index = ProductDeclarationIndex::default();
+            for (role_position, role) in PRODUCT_ROLES
+                .into_iter()
+                .enumerate()
+                .filter(|(_, role)| roles.contains(role))
+            {
+                let rows = &mut index.roles[role_position];
+                for (symbol, is_public) in product_candidates(self, role) {
+                    if !self.symbols.symbols().nodes().is_valid(symbol) {
+                        continue;
+                    }
+                    let name = self.symbols.name(symbol);
+                    let path = self.symbols.display_path(symbol, "::");
+                    rows.push(ProductDeclarationName {
+                        path: name.into(),
+                        symbol,
+                        is_public,
+                    });
+                    if path != name {
+                        rows.push(ProductDeclarationName {
+                            path: path.into(),
+                            symbol,
+                            is_public,
+                        });
+                    }
+                }
+                // Stable sorting retains the original representative of an
+                // operator family and every competing exact declaration.
+                rows.sort_by(|left, right| left.path.cmp(&right.path));
+            }
+            if roles.contains(&ProductOperandKind::BoundarySubject)
+                || roles.contains(&ProductOperandKind::RootGrantSubject)
+            {
+                index.token_bound_machines = self
+                    .machine_token_bindings()
+                    .iter()
+                    .filter(|binding| binding.is_boundary)
+                    .map(|binding| binding.symbol)
+                    .collect();
+            }
+            index
+        }
+    }
+
+    pub fn product_candidates(
+        program: &TypedTrees,
+        kind: ProductOperandKind,
+    ) -> Vec<(SymbolHandle, bool)> {
+        match kind {
+            ProductOperandKind::Formal => program
+                .traits()
+                .iter()
+                .filter(|owner| owner.is_boundary)
+                .flat_map(|owner| {
+                    program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .flat_map(move |signature| {
+                            program
+                                .state_signature_parameters(signature)
+                                .iter()
+                                .map(move |formal| (formal.symbol, owner.is_public))
+                        })
+                })
+                .collect(),
+            ProductOperandKind::Field => {
+                let mut fields = Vec::new();
+                for data in program.data_definitions() {
+                    for member in program.data_members(data) {
+                        match member {
+                            crate::source_state::data::DataMember::Field(field) => {
+                                fields.push((field.symbol, data.is_public))
+                            }
+                            crate::source_state::data::DataMember::Variant(case) => fields.extend(
+                                program
+                                    .data_payload_fields(case)
+                                    .iter()
+                                    .map(|field| (field.symbol, data.is_public)),
+                            ),
+                        }
+                    }
+                }
+                fields
+            }
+            ProductOperandKind::WireCompatibilityFact => Vec::new(),
+            ProductOperandKind::BoundarySubject => program
+                .traits()
+                .iter()
+                .filter(|definition| definition.is_boundary)
+                .map(|definition| (definition.symbol, definition.is_public))
+                .chain(
+                    program
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            machine.supply_mode
+                                == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                        })
+                        .map(|machine| (machine.symbol, machine.is_public)),
+                )
+                .chain(
+                    program
+                        .all_operators()
+                        .filter(|operator| operator.is_boundary)
+                        .map(|operator| (operator.symbol, operator.is_public)),
+                )
+                .collect::<Vec<_>>(),
+            ProductOperandKind::RootGrantSubject => program
+                .conformances()
+                .iter()
+                .map(|definition| (definition.symbol, definition.is_public))
+                .chain(
+                    program
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            matches!(
+                                machine.supply_mode,
+                                declaration_contracts::MachineSupplyMode::AdmissionClaim
+                                    | declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                            )
+                        })
+                        .map(|machine| (machine.symbol, machine.is_public)),
+                )
+                .chain(product_candidates(program, ProductOperandKind::Requirement))
+                .collect(),
+            ProductOperandKind::Provider => program
+                .data_definitions()
+                .iter()
+                .map(|definition| (definition.symbol, definition.is_public))
+                .chain(
+                    program
+                        .conformances()
+                        .iter()
+                        .map(|definition| (definition.symbol, definition.is_public)),
+                )
+                .collect(),
+            ProductOperandKind::Requirement => program
+                .traits()
+                .iter()
+                .filter(|definition| definition.is_boundary)
+                .flat_map(|definition| {
+                    program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .map(move |requirement| (requirement.symbol, definition.is_public))
+                })
+                .collect(),
+            ProductOperandKind::TestRequirement => program
+                .traits()
+                .iter()
+                .filter(|definition| !definition.is_boundary)
+                .flat_map(|definition| {
+                    program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .map(move |requirement| (requirement.symbol, definition.is_public))
+                })
+                .collect(),
+            ProductOperandKind::Data => program
+                .data_definitions()
+                .iter()
+                .map(|definition| (definition.symbol, definition.is_public))
+                .collect(),
+            ProductOperandKind::Representation => program
+                .conformances()
+                .iter()
+                .map(|definition| (definition.symbol, definition.is_public))
+                .collect(),
+        }
+    }
+
+    /// Resolve the source-owned semantic arrival signature without reading a
+    /// body or constructing display/type-identity copies. A matching spelling
+    /// outside the product's exact core vocabulary is never this declaration.
+    pub fn core_arrival_requirement<'program>(
+        program: &'program TypedTrees,
+        requirement: &str,
+    ) -> Result<
+        (
+            &'program crate::source_state::trait_definition::TraitDefinition,
+            &'program crate::source_state::signature::StateSignature,
+        ),
+        String,
+    > {
+        let (owner, method) = requirement
+            .split_once("::")
+            .ok_or_else(|| "target semantic arrival has no requirement owner".to_owned())?;
+        let mut declarations = program.traits().iter().filter(|definition| {
+            definition.name.as_str() == owner
+                && definition.is_boundary
+                && program.symbols.core_vocabulary(definition.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::ProgramStorageEntry)
+                && program
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .and_then(|span| program.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+                    })
+        });
+        let definition = declarations.next().ok_or_else(|| {
+            format!("target semantic arrival `{requirement}` has no exact core declaration")
+        })?;
+        if declarations.next().is_some() {
+            return Err(format!(
+                "target semantic arrival `{requirement}` has multiple core declaration instances"
+            ));
+        }
+        let mut signatures = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.name.as_str() == method);
+        let signature = signatures.next().ok_or_else(|| {
+            format!("target semantic arrival `{requirement}` has no exact machine declaration")
+        })?;
+        if signatures.next().is_some() {
+            return Err(format!(
+                "target semantic arrival `{requirement}` has multiple machine declarations"
+            ));
+        }
+        Ok((definition, signature))
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct ProductEntryDeclaration<'program> {
+        machine_symbol: SymbolHandle,
+        pub name: &'program str,
+        pub attached_data_symbol: SymbolHandle,
+        pub type_parameters: arena::RootRows<'program, crate::source_state::data::TypeParameter>,
+        pub entry: Option<ProductEntrySignature<'program>>,
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct ProductEntrySignature<'program> {
+        pub parameters: arena::RootRows<'program, crate::source_state::signature::StateParameter>,
+        pub return_type: crate::source_state::types::TypeReferenceHandle,
+    }
+
+    impl<'program> ProductEntryDeclaration<'program> {
+        pub fn from_declared_owner(
+            program: &'program TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<Self> {
+            let machine = program.machine(symbol)?;
+            let contracts = program.machine_contracts(machine);
+            if contracts.len() != machine.contracts.len()
+                || program.machine_states(machine).len() != machine.states.len()
+            {
+                return None;
+            }
+            let entry_contracts = program
+                .machine_states(machine)
+                .first()
+                .map_or_else(Default::default, |entry| program.state_contracts(entry));
+            if program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry_contracts.len() != entry.contracts.len())
+            {
+                return None;
+            }
+            if contracts.iter().chain(entry_contracts).any(|contract| {
+                program.proof_facts.span_or_empty(contract.facts).len() != contract.facts.len()
+            }) {
+                return None;
+            }
+            Some(Self::from_machine(program, machine))
+        }
+
+        pub const fn machine_symbol(&self) -> SymbolHandle {
+            self.machine_symbol
+        }
+
+        pub fn from_machine(
+            program: &'program TypedTrees,
+            machine: &'program crate::source_state::machine::Machine,
+        ) -> Self {
+            Self {
+                machine_symbol: machine.symbol,
+                name: machine.name.as_str(),
+                attached_data_symbol: machine.attached_data_symbol,
+                type_parameters: program.machine_type_parameters(machine),
+                entry: program
+                    .machine_states(machine)
+                    .first()
+                    .map(|entry| ProductEntrySignature {
+                        parameters: program.state_parameters(entry),
+                        return_type: entry.return_type,
+                    }),
+            }
+        }
+    }
+
+    pub fn resolve_build_request_author(
+        typed: &TypedTrees,
+        author: source_text::SourceSpan,
+    ) -> Result<SymbolHandle, String> {
+        ProductRequestAuthors::new(typed).resolve(author)
+    }
+
+    /// Retains exact authored-machine spans for one immutable source batch.
+    pub struct ProductRequestAuthors<'program> {
+        program: &'program TypedTrees,
+        authors: Vec<(source_text::SourceSpan, SymbolHandle)>,
+    }
+
+    /// Borrows the source that authored a batch while applications are formed
+    /// in the consuming program. Retained applications carry anchors instead.
+    pub struct ProductSourceLookups<'program> {
+        pub declarations: ProductDeclarationLookup<'program>,
+        pub authors: ProductRequestAuthors<'program>,
+    }
+
+    impl<'program> ProductSourceLookups<'program> {
+        pub fn new(program: &'program TypedTrees) -> Self {
+            Self {
+                declarations: ProductDeclarationLookup::new(
+                    program,
+                    &[
+                        ProductOperandKind::BoundarySubject,
+                        ProductOperandKind::RootGrantSubject,
+                        ProductOperandKind::Provider,
+                        ProductOperandKind::Requirement,
+                        ProductOperandKind::Data,
+                    ],
+                ),
+                authors: ProductRequestAuthors::new(program),
+            }
+        }
+    }
+
+    impl<'program> ProductRequestAuthors<'program> {
+        pub fn new(program: &'program TypedTrees) -> Self {
+            let mut authors = program
+                .machines()
+                .iter()
+                .filter_map(|machine| {
+                    program
+                        .symbols
+                        .symbol_source_span(machine.symbol)
+                        .map(|span| (span, machine.symbol))
+                })
+                .collect::<Vec<_>>();
+            authors.sort_by_key(|(span, _)| source_span_key(*span));
+            Self { program, authors }
+        }
+
+        pub fn resolve(&self, author: source_text::SourceSpan) -> Result<SymbolHandle, String> {
+            let author = self.program.symbols.rejoin_product_occurrence(author);
+            let key = source_span_key(author);
+            let first = self
+                .authors
+                .partition_point(|(span, _)| source_span_key(*span) < key);
+            let last = self
+                .authors
+                .partition_point(|(span, _)| source_span_key(*span) <= key);
+            match &self.authors[first..last] {
+                [(_, symbol)] => Ok(*symbol),
+                [] => Err("executed Build request has no authored selecting machine".into()),
+                _ => Err("executed Build request has ambiguous authored machine custody".into()),
+            }
+        }
+    }
+
+    pub fn native_binding_formation(
+        typed: &TypedTrees,
+        author: SymbolHandle,
+        root: Option<SymbolHandle>,
+        request: std::sync::Arc<
+            crate::declaration_selection::ProductDeclarationRequest,
+        >,
+    ) -> Result<crate::declaration_selection::NativeBindingFormation, String> {
+        use sha2::{Digest, Sha256};
+        let machine = typed
+            .machine_by_symbol(author)
+            .ok_or("native source author has no exact checked machine")?;
+        let span = typed
+            .symbols
+            .symbol_provenance_source_span(author)
+            .ok_or("native source author lost its source")?;
+        let source = typed
+            .symbols
+            .source_file(span)
+            .ok_or("native declaration has no retained source file")?;
+        let callable_identity = typed
+            .machine_callable_identity_text(machine)
+            .ok_or("native declaration has no checked callable identity")?;
+        let [operand] = request.operands.as_ref() else {
+            return Err("native formation lost its exact requirement".into());
+        };
+        let relative = source
+            .path
+            .strip_prefix(&source.package_root)
+            .map_err(|_| "native source is outside its checked package")?
+            .to_string_lossy();
+        let mut digest = Sha256::new();
+        digest.update(b"omega.native-source-occurrence.v1\0");
+        for bytes in [
+            relative.as_bytes(),
+            source.source.as_bytes(),
+            callable_identity.as_bytes(),
+            operand.path.as_bytes(),
+        ] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+        digest.update((request.source_span.span.start as u64).to_le_bytes());
+        digest.update((request.source_span.span.end as u64).to_le_bytes());
+        let root_scope = root
+            .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
+            .is_some_and(|root| typed.symbols.same_source_package(span, root));
+        Ok(
+            crate::declaration_selection::NativeBindingFormation {
+                request,
+                author: span,
+                author_package: typed.symbols.symbol_package_identity(author),
+                root_scope,
+                declaration_path: typed.symbols.display_path(author, "::"),
+                callable_identity,
+                source_occurrence_digest: digest.finalize().into(),
+                resolution_stratum: source.resolution_stratum,
+            },
+        )
+    }
+
+    impl TypedTrees {
+        pub fn same_product_operand_source(
+            &self,
+            left: &crate::declaration_selection::ProductDeclarationOperand,
+            right: &crate::declaration_selection::ProductDeclarationOperand,
+        ) -> bool {
+            if left.path != right.path
+                || self.symbols.rejoin_product_occurrence(left.source_span)
+                    != self.symbols.rejoin_product_occurrence(right.source_span)
+            {
+                return false;
+            }
+            match (&left.application, &right.application) {
+                (None, None) => true,
+                (Some(left), Some(right)) => {
+                    if std::sync::Arc::ptr_eq(left, right) {
+                        return true;
+                    }
+                    let mut left = left.as_ref().clone();
+                    let mut right = right.as_ref().clone();
+                    left.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                    right.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                    left == right
+                }
+                _ => false,
+            }
+        }
+
+        pub fn same_product_request_source(
+            &self,
+            left: &crate::declaration_selection::ProductDeclarationRequest,
+            right: &crate::declaration_selection::ProductDeclarationRequest,
+        ) -> bool {
+            left.operation == right.operation
+                && self.symbols.rejoin_product_occurrence(left.source_span)
+                    == self.symbols.rejoin_product_occurrence(right.source_span)
+                && left.operands.len() == right.operands.len()
+                && left
+                    .operands
+                    .iter()
+                    .zip(right.operands.iter())
+                    .all(|(left, right)| self.same_product_operand_source(left, right))
+        }
+    }
+    #[cfg(test)]
+    mod declaration_lookup_tests {
+        use super::*;
+
+        fn workload(count: usize) -> (TypedTrees, Vec<(String, SymbolHandle)>) {
+            let mut builder = crate::source_symbols::SymbolTableBuilder::new();
+            let root = builder.insert_root(
+                symbols::SymbolKind::Root,
+                symbols::SymbolNameRef::Static("root"),
+            );
+            let names = (0..count)
+                .map(|position| format!("Boundary{position}"))
+                .collect::<Vec<_>>();
+            let declarations = builder.insert_children(
+                root,
+                names.iter().map(|name| {
+                    (
+                        symbols::SymbolKind::Trait,
+                        symbols::SymbolNameRef::Borrowed(name),
+                    )
+                }),
+            );
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..TypedTrees::default()
+            };
+            let mut selected = Vec::new();
+            for (name, symbol) in names.into_iter().zip(declarations.handles()) {
+                program.tables.traits.append_to_span(
+                    &mut program.roots.traits,
+                    crate::source_state::trait_definition::TraitDefinition {
+                        symbol,
+                        is_boundary: true,
+                        ..Default::default()
+                    },
+                );
+                selected.push((name, symbol));
+            }
+            (program, selected)
+        }
+
+        #[test]
+        fn product_declaration_lookup_workload() {
+            for count in [8, 512] {
+                let started = std::time::Instant::now();
+                let (program, declarations) = workload(count);
+                let lookup =
+                    ProductDeclarationLookup::new(&program, &[ProductOperandKind::BoundarySubject]);
+                for position in 0..4096 {
+                    let (path, expected) = &declarations[position % count];
+                    assert_eq!(
+                        lookup.resolve(
+                            path,
+                            source_text::SourceSpan::default(),
+                            ProductOperandKind::BoundarySubject
+                        ),
+                        Some(*expected)
+                    );
+                }
+                eprintln!(
+                    "product lookups: declarations={count} requests=4096 elapsed={:?}",
+                    started.elapsed()
+                );
+            }
+        }
+
+        #[test]
+        fn product_declaration_names_follow_mutation_and_exact_rosters() {
+            let (mut program, declarations) = workload(2);
+            let occurrence = source_text::SourceSpan::default();
+            let lookup = |program: &TypedTrees, path| {
+                resolve_product_path(
+                    program,
+                    path,
+                    occurrence,
+                    ProductOperandKind::BoundarySubject,
+                )
+            };
+            assert_eq!(lookup(&program, "Boundary0"), Some(declarations[0].1));
+            let snapshot = program.clone();
+            let retained =
+                ProductDeclarationLookup::new(&snapshot, &[ProductOperandKind::BoundarySubject]);
+            program
+                .tables
+                .traits
+                .get_mut(program.roots.traits.start())
+                .is_boundary = false;
+            assert_eq!(lookup(&program, "Boundary0"), None);
+            assert_eq!(lookup(&snapshot, "Boundary0"), Some(declarations[0].1));
+            assert_eq!(
+                retained.resolve("Boundary0", occurrence, ProductOperandKind::BoundarySubject),
+                Some(declarations[0].1)
+            );
+            program
+                .tables
+                .traits
+                .get_mut(program.roots.traits.start())
+                .is_boundary = true;
+            program.symbols.rename(declarations[0].1, "Renamed");
+            assert_eq!(lookup(&program, "Boundary0"), None);
+            assert_eq!(lookup(&program, "Renamed"), Some(declarations[0].1));
+            let roots = program.roots.traits;
+            program.roots.traits = arena::HandleSpan::from_parts(roots.start(), 1);
+            assert_eq!(lookup(&program, "Boundary1"), None);
+            program.roots.traits = roots;
+            assert_eq!(lookup(&program, "Boundary1"), Some(declarations[1].1));
+            program.symbols.rename(declarations[1].1, "Renamed");
+            assert_eq!(
+                lookup(&program, "Renamed"),
+                None,
+                "competing exact declarations stay ambiguous"
+            );
+            let limits = compiler_storage::RecordLimits::default();
+            let restored: TypedTrees = compiler_storage::decode(
+                &compiler_storage::encode(&program, limits).unwrap(),
+                limits,
+            )
+            .unwrap();
+            assert_eq!(lookup(&restored, "Renamed"), None);
+            assert_eq!(
+                resolve_product_path(
+                    &restored,
+                    "Renamed",
+                    occurrence,
+                    ProductOperandKind::Provider
+                ),
+                None,
+                "the same spelling cannot supply a different role"
+            );
+        }
+
+        #[test]
+        fn product_declaration_authors_keep_exact_span_and_ambiguity() {
+            let span = source_text::SourceSpan::new(
+                source_text::SourceId(1),
+                source_text::Span::new(4, 9),
+            );
+            let mut builder = crate::source_symbols::SymbolTableBuilder::new();
+            let root = builder.insert_root(
+                symbols::SymbolKind::Root,
+                symbols::SymbolNameRef::Static("root"),
+            );
+            let declarations = builder.insert_children(
+                root,
+                ["first", "second"].map(|value| {
+                    (
+                        symbols::SymbolKind::Machine,
+                        symbols::SymbolNameRef::OwnedSource {
+                            value,
+                            source_span: span,
+                        },
+                    )
+                }),
+            );
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..TypedTrees::default()
+            };
+            program.push_machine(crate::source_state::machine::Machine {
+                symbol: declarations.start(),
+                ..Default::default()
+            });
+            assert_eq!(
+                resolve_build_request_author(&program, span),
+                Ok(declarations.start())
+            );
+            let snapshot = program.clone();
+            program.push_machine(crate::source_state::machine::Machine {
+                symbol: declarations.handle_at(1),
+                ..Default::default()
+            });
+            assert!(
+                resolve_build_request_author(&program, span)
+                    .unwrap_err()
+                    .contains("ambiguous authored machine custody")
+            );
+            assert_eq!(
+                resolve_build_request_author(&snapshot, span),
+                Ok(declarations.start())
+            );
+            program.roots.machines = arena::HandleSpan::empty();
+            assert!(
+                resolve_build_request_author(&program, span)
+                    .unwrap_err()
+                    .contains("no authored selecting machine")
+            );
+        }
+    }
+}
+
+pub mod trait_definition {
+    /// An exact source requirement binding. Nomination supplies no proof or
+    /// execution authority; the compilation must judge the realization against
+    /// the original requirement before using it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Supply {
+        pub slot: symbols::SymbolHandle,
+        pub provider: symbols::SymbolHandle,
+    }
+
+    impl Supply {
+        /// Resolve only within the actual provider's nominal conformance rows.
+        pub fn realization<'a>(
+            &self,
+            typed: &'a crate::source_state::TypedTrees,
+            requirement: symbols::SymbolHandle,
+        ) -> Result<&'a crate::source_state::machine::Machine, &'static str> {
+            const NO_UNIQUE_REALIZATION: &str =
+                "provider does not give the supplied requirement exactly one machine";
+            // A named implementation's row identifies the realization even
+            // when it selects a machine declared outside the implementation.
+            if let Some((_, row, _)) = typed
+                .named_conformance_member(self.provider, requirement)
+                .map_err(|_| NO_UNIQUE_REALIZATION)?
+            {
+                if row.requirement != requirement {
+                    return Err(NO_UNIQUE_REALIZATION);
+                }
+                return typed
+                    .machine_by_symbol(row.realization_machine)
+                    .ok_or(NO_UNIQUE_REALIZATION);
+            }
+            // Read retired data-owned sources far enough for the normal
+            // declaration check to report the attachment violation.
+            let mut realizing = typed.machines().iter().filter(|machine| {
+                crate::source_state::provider_declarations::satisfaction_provider_declaration(
+                    typed, machine,
+                ) == Some(self.provider)
+                    && typed
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .any(|clause| clause.requirement_symbol == requirement)
+            });
+            match (realizing.next(), realizing.next()) {
+                (Some(machine), None) => Ok(machine),
+                _ => Err(NO_UNIQUE_REALIZATION),
+            }
+        }
+    }
+
+    pub(crate) mod applications {
+        use super::TraitDefinition;
+        use crate::source_state::TypedTrees;
+        use crate::source_state::name::Identifier;
+        use crate::source_state::type_identity::{
+            NormalizedTypeIdentity, TypeIdentityQualification, TypeIdentityRequest,
+        };
+        use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+        use symbols::SymbolHandle;
+
+        pub(crate) mod regions {
+            use super::AppliedTraitScope;
+            use crate::source_state::TypedTrees;
+            use crate::source_state::data::TypeParameterKind;
+            use crate::source_state::name::Identifier;
+            use crate::source_state::type_identity::lifetime_parameter_identity;
+            use crate::source_state::type_identity::{
+                AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
+                applied_index_identity, applied_lifetime_identity, applied_type_identity,
+                local_trait_application_identity, portable_applied_index_identity,
+                portable_applied_lifetime_identity, portable_applied_type_identity,
+            };
+            use symbols::SymbolHandle;
+
+            #[derive(Debug, Clone, PartialEq, Eq)]
+            pub(crate) struct AppliedDeclarationRegionScope {
+                pub(crate) declaration: SymbolHandle,
+                pub(crate) lifetimes: Vec<(String, String)>,
+            }
+
+            impl AppliedDeclarationRegionScope {
+                pub(crate) fn new(
+                    declaration: SymbolHandle,
+                    parameters: &[Identifier],
+                    arguments: &[Identifier],
+                ) -> Self {
+                    Self {
+                        declaration,
+                        lifetimes: parameters
+                            .iter()
+                            .zip(arguments)
+                            .map(|(parameter, argument)| {
+                                (parameter.as_str().to_owned(), argument.as_str().to_owned())
+                            })
+                            .collect(),
+                    }
+                }
+            }
+
+            impl AppliedTraitScope<'_> {
+                pub fn under_invocation(
+                    mut self,
+                    program: &TypedTrees,
+                    declaration: SymbolHandle,
+                    argument_owner: SymbolHandle,
+                    arguments: &[(
+                        SymbolHandle,
+                        crate::source_state::types::TypeReferenceHandle,
+                    )],
+                    bindings: &[crate::source_state::static_applications::StaticMachineLifetimeBinding],
+                ) -> Option<Self> {
+                    let enclosing = program.enclosing_invocation_frames(argument_owner).ok()?;
+                    let region =
+                        invocation_region_scope(program, declaration, argument_owner, bindings)?;
+                    self.argument_owner = argument_owner;
+                    self.substitutions.splice(0..0, arguments.iter().copied());
+                    for start in &mut self.substitution_scope_starts {
+                        *start += arguments.len();
+                    }
+                    self.substitution_scope_starts.insert(0, 0);
+                    self.region_scopes.insert(0, region);
+                    for frame in enclosing {
+                        // Untyped bindings remain unresolved. They cannot close a
+                        // demanded trait operand, but unrelated traits still form.
+                        let arguments = frame
+                            .bindings
+                            .iter()
+                            .filter_map(|binding| {
+                                use crate::source_state::static_applications::StaticMachineBindingValue;
+                                let reference = match &binding.value {
+                                    StaticMachineBindingValue::Type(reference)
+                                    | StaticMachineBindingValue::Const(reference) => *reference,
+                                    StaticMachineBindingValue::Machine(argument)
+                                    | StaticMachineBindingValue::Conformance(argument) => {
+                                        argument.type_reference
+                                    }
+                                    StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                                };
+                                reference
+                                    .is_valid()
+                                    .then_some((binding.parameter, reference))
+                            })
+                            .collect::<Vec<_>>();
+                        let region = invocation_region_scope(
+                            program,
+                            frame.declaration,
+                            frame.argument_owner,
+                            &frame.lifetimes,
+                        )?;
+                        self.argument_owner = frame.argument_owner;
+                        self.substitutions.splice(0..0, arguments.iter().copied());
+                        for start in &mut self.substitution_scope_starts {
+                            *start += arguments.len();
+                        }
+                        self.substitution_scope_starts.insert(0, 0);
+                        self.region_scopes.insert(0, region);
+                    }
+                    Some(self)
+                }
+
+                /// Whether a member of this trait keeps the signature it was
+                /// declared with, so no applied signature exists for it.
+                ///
+                /// `under_invocation` puts the invoking machine's own bindings
+                /// in front. A trait member cannot name another machine's
+                /// parameters, so those frames leave its signature alone; only
+                /// the frames after them, which apply the trait, can change it.
+                pub fn keeps_declared_signatures(&self, program: &TypedTrees) -> bool {
+                    let invocation_frames = self
+                        .region_scopes
+                        .iter()
+                        .take_while(|frame| {
+                            frame.declaration.is_valid()
+                                && program.symbols.get(frame.declaration).kind
+                                    == symbols::SymbolKind::Machine
+                        })
+                        .count();
+                    self.declaration.lifetime_parameters.is_empty()
+                        && self
+                            .substitution_scope_starts
+                            .get(invocation_frames)
+                            .is_some_and(|start| *start == self.substitutions.len())
+                }
+
+                pub fn portable_application_identity(
+                    &self,
+                    program: &TypedTrees,
+                ) -> Option<NormalizedTypeIdentity> {
+                    self.with_identity_scopes(program, |scopes| {
+                        self.portable_application_identity_in_scopes(
+                            program,
+                            self.argument_owner,
+                            scopes,
+                            0,
+                        )
+                    })
+                }
+
+                fn portable_application_identity_in_scopes(
+                    &self,
+                    program: &TypedTrees,
+                    argument_owner: SymbolHandle,
+                    scopes: &[AppliedTypeIdentityScope<'_>],
+                    preceding: usize,
+                ) -> Option<NormalizedTypeIdentity> {
+                    let arguments = program
+                        .trait_type_parameters(self.declaration)
+                        .iter()
+                        .map(|parameter| {
+                            let (reference, outer) =
+                                self.parameter_application(parameter.symbol)?;
+                            let supplying = &scopes[..outer + preceding];
+                            if parameter.kind.is_const_or_value()
+                                || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                            {
+                                portable_applied_index_identity(
+                                    program,
+                                    IndexIdentityArgument::TypeReference(reference),
+                                    argument_owner,
+                                    supplying,
+                                )
+                            } else {
+                                portable_applied_type_identity(
+                                    program,
+                                    reference,
+                                    argument_owner,
+                                    supplying,
+                                )
+                            }
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let lifetimes = self
+                        .declaration
+                        .lifetime_parameters
+                        .iter()
+                        .map(|parameter| {
+                            portable_applied_lifetime_identity(
+                                program,
+                                parameter.as_str(),
+                                argument_owner,
+                                scopes,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    crate::source_state::type_identity::portable_trait_application_identity(
+                        program,
+                        self.declaration.symbol,
+                        &arguments,
+                        &lifetimes,
+                    )
+                }
+
+                pub fn portable_parameter_identity(
+                    &self,
+                    program: &TypedTrees,
+                    parameter: SymbolHandle,
+                ) -> Option<NormalizedTypeIdentity> {
+                    let (reference, outer) = self.parameter_application(parameter)?;
+                    self.with_identity_scopes(program, |scopes| {
+                        let binder = program
+                            .trait_type_parameters(self.declaration)
+                            .iter()
+                            .find(|binder| binder.symbol == parameter)?;
+                        if matches!(
+                            binder.kind,
+                            TypeParameterKind::Const { .. }
+                                | TypeParameterKind::Value { .. }
+                                | TypeParameterKind::Machine { .. }
+                        ) {
+                            portable_applied_index_identity(
+                                program,
+                                IndexIdentityArgument::TypeReference(reference),
+                                self.argument_owner,
+                                &scopes[..outer],
+                            )
+                        } else {
+                            portable_applied_type_identity(
+                                program,
+                                reference,
+                                self.argument_owner,
+                                &scopes[..outer],
+                            )
+                        }
+                    })
+                }
+
+                pub fn portable_lifetime_arguments(
+                    &self,
+                    program: &TypedTrees,
+                ) -> Option<Vec<NormalizedTypeIdentity>> {
+                    self.with_identity_scopes(program, |scopes| {
+                        self.declaration
+                            .lifetime_parameters
+                            .iter()
+                            .map(|parameter| {
+                                portable_applied_lifetime_identity(
+                                    program,
+                                    parameter.as_str(),
+                                    self.argument_owner,
+                                    scopes,
+                                )
+                            })
+                            .collect()
+                    })
+                }
+
+                pub fn parameter_application(
+                    &self,
+                    parameter: SymbolHandle,
+                ) -> Option<(crate::source_state::types::TypeReferenceHandle, usize)>
+                {
+                    let (ordinal, (_, reference)) = self
+                        .substitutions
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find(|(_, (binder, _))| *binder == parameter)?;
+                    let outer = self
+                        .substitution_scope_starts
+                        .partition_point(|start| *start <= ordinal)
+                        .checked_sub(1)?;
+                    Some((*reference, outer))
+                }
+
+                pub fn argument_identity(
+                    &self,
+                    program: &TypedTrees,
+                    parameter: SymbolHandle,
+                ) -> Option<NormalizedTypeIdentity> {
+                    let (reference, outer) = self.parameter_application(parameter)?;
+                    let binder = program
+                        .trait_type_parameters(self.declaration)
+                        .iter()
+                        .find(|binder| binder.symbol == parameter)?;
+                    self.with_identity_scopes(program, |scopes| {
+                        if binder.kind.is_const_or_value()
+                            || matches!(binder.kind, TypeParameterKind::Machine { .. })
+                        {
+                            applied_index_identity(
+                                program,
+                                IndexIdentityArgument::TypeReference(reference),
+                                self.argument_owner,
+                                &scopes[..outer],
+                            )
+                        } else {
+                            applied_type_identity(
+                                program,
+                                reference,
+                                self.argument_owner,
+                                &scopes[..outer],
+                            )
+                        }
+                    })
+                }
+
+                pub fn with_identity_scopes<Result>(
+                    &self,
+                    program: &TypedTrees,
+                    use_scopes: impl FnOnce(&[AppliedTypeIdentityScope<'_>]) -> Result,
+                ) -> Result {
+                    let arguments = self
+                        .substitution_scope_starts
+                        .iter()
+                        .enumerate()
+                        .map(|(ordinal, start)| {
+                            let end = self
+                                .substitution_scope_starts
+                                .get(ordinal + 1)
+                                .copied()
+                                .unwrap_or(self.substitutions.len());
+                            self.substitutions[*start..end]
+                                .iter()
+                                .map(|(parameter, argument)| {
+                                    let is_type = program
+                                        .data_type_parameter_by_symbol(*parameter)
+                                        .is_some_and(|binder| {
+                                            binder.kind == TypeParameterKind::Type
+                                        });
+                                    (
+                                        *parameter,
+                                        if is_type {
+                                            IndexIdentityArgument::TypeArgument(*argument)
+                                        } else {
+                                            IndexIdentityArgument::TypeReference(*argument)
+                                        },
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    let scopes = self
+                        .region_scopes
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(region, arguments)| AppliedTypeIdentityScope {
+                            declaration: region.declaration,
+                            arguments,
+                            lifetimes: &region.lifetimes,
+                        })
+                        .collect::<Vec<_>>();
+                    use_scopes(&scopes)
+                }
+
+                pub fn application_identity(
+                    &self,
+                    program: &TypedTrees,
+                ) -> Option<NormalizedTypeIdentity> {
+                    self.with_identity_scopes(program, |scopes| {
+                        let arguments = program
+                            .trait_type_parameters(self.declaration)
+                            .iter()
+                            .map(|parameter| {
+                                let Some((reference, scope)) =
+                                    self.parameter_application(parameter.symbol)
+                                else {
+                                    return program
+                                        .normalized_nominal_type_identity(parameter.symbol);
+                                };
+                                if matches!(
+                                    parameter.kind,
+                                    TypeParameterKind::Const { .. }
+                                        | TypeParameterKind::Value { .. }
+                                        | TypeParameterKind::Machine { .. }
+                                ) {
+                                    applied_index_identity(
+                                        program,
+                                        IndexIdentityArgument::TypeReference(reference),
+                                        self.argument_owner,
+                                        &scopes[..scope],
+                                    )
+                                } else {
+                                    applied_type_identity(
+                                        program,
+                                        reference,
+                                        self.argument_owner,
+                                        &scopes[..scope],
+                                    )
+                                }
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let lifetimes = self
+                            .declaration
+                            .lifetime_parameters
+                            .iter()
+                            .map(|parameter| {
+                                applied_lifetime_identity(
+                                    program,
+                                    parameter.as_str(),
+                                    self.argument_owner,
+                                    scopes,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        local_trait_application_identity(
+                            program,
+                            self.declaration.symbol,
+                            &arguments,
+                            &lifetimes,
+                        )
+                    })
+                }
+            }
+
+            fn invocation_region_scope(
+                program: &TypedTrees,
+                declaration: SymbolHandle,
+                argument_owner: SymbolHandle,
+                bindings: &[crate::source_state::static_applications::StaticMachineLifetimeBinding],
+            ) -> Option<AppliedDeclarationRegionScope> {
+                let declaration = program.lifetime_declaration_owner(declaration);
+                let mut lifetimes = Vec::with_capacity(bindings.len());
+                for binding in bindings {
+                    let parameter = lifetime_parameter_identity(
+                        program,
+                        declaration,
+                        binding.parameter.as_str(),
+                    )?;
+                    if parameter.declaration != declaration
+                        || lifetimes
+                            .iter()
+                            .any(|(previous, _)| previous == binding.parameter.as_str())
+                    {
+                        return None;
+                    }
+                    lifetime_parameter_identity(
+                        program,
+                        argument_owner,
+                        binding.argument.as_str(),
+                    )?;
+                    lifetimes.push((
+                        binding.parameter.as_str().to_owned(),
+                        binding.argument.as_str().to_owned(),
+                    ));
+                }
+                Some(AppliedDeclarationRegionScope {
+                    declaration,
+                    lifetimes,
+                })
+            }
+        }
+        use regions::AppliedDeclarationRegionScope;
+        pub(crate) mod enclosing {
+
+            use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
+            use crate::source_state::TypedTrees;
+            use crate::source_state::data::DataDefinition;
+            use crate::source_state::name::Identifier;
+            use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+
+            pub(crate) struct DataApplication<'program> {
+                pub declaration: &'program DataDefinition,
+                pub arguments: &'program [TypeReferenceHandle],
+                pub lifetimes: &'program [Identifier],
+            }
+
+            pub(crate) fn data_application(
+                program: &TypedTrees,
+                mut reference: TypeReferenceHandle,
+            ) -> Option<DataApplication<'_>> {
+                if !program.contains_type_reference(reference) {
+                    return None;
+                }
+                if let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(reference)
+                    && let Some(origin) =
+                        program.data_definition_by_symbol(*symbol)?.generic_instance
+                {
+                    if origin == reference
+                        || !program.type_reference_table.contains_type_reference(origin)
+                    {
+                        return None;
+                    }
+                    reference = origin;
+                }
+                let (declaration, arguments, lifetimes) =
+                    match program.type_reference_table.type_reference(reference) {
+                        TypeReferenceNode::Named { symbol, .. } => (
+                            program.data_definition_by_symbol(*symbol)?,
+                            &[][..],
+                            &[][..],
+                        ),
+                        TypeReferenceNode::Generic {
+                            base_symbol,
+                            arguments,
+                            lifetime_arguments,
+                            ..
+                        } => (
+                            program.data_definition_by_symbol(*base_symbol)?,
+                            program.type_reference_handles(*arguments),
+                            lifetime_arguments.as_slice(),
+                        ),
+                        _ => return None,
+                    };
+                let parameters = program.data_type_parameters(declaration);
+                if parameters.len() != arguments.len()
+                    || declaration.lifetime_parameters.len() != lifetimes.len()
+                {
+                    return None;
+                }
+                Some(DataApplication {
+                    declaration,
+                    arguments,
+                    lifetimes,
+                })
+            }
+
+            pub(crate) fn append_data_application(
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+                scope: &mut AppliedTraitScope<'_>,
+            ) -> Option<()> {
+                let DataApplication {
+                    declaration,
+                    arguments,
+                    lifetimes,
+                } = data_application(program, reference)?;
+                let parameters = program.data_type_parameters(declaration);
+                scope
+                    .substitution_scope_starts
+                    .push(scope.substitutions.len());
+                scope.substitutions.extend(
+                    parameters
+                        .iter()
+                        .zip(arguments)
+                        .map(|(parameter, argument)| (parameter.symbol, *argument)),
+                );
+                scope.region_scopes.push(AppliedDeclarationRegionScope::new(
+                    declaration.symbol,
+                    &declaration.lifetime_parameters,
+                    lifetimes,
+                ));
+                Some(())
+            }
+        }
+        pub(crate) mod evidence {
+            use super::AppliedTraitScope;
+            use crate::source_state::{TypedTrees, machine::Machine, signature::StateSignature};
+            use symbols::SymbolHandle;
+
+            #[derive(Clone)]
+            pub struct GenericBoundRequirement<'program> {
+                pub signature: &'program StateSignature,
+                pub application: AppliedTraitScope<'program>,
+            }
+
+            impl TypedTrees {
+                /// A const record retains its declared schema and original lexical binder.
+                /// Naming a requirement supplies no record-construction or refinement proof.
+                pub fn static_record_parameter_schema(
+                    &self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                ) -> Result<Option<AppliedTraitScope<'_>>, String> {
+                    if !binder.is_valid() || !self.symbols.symbols().nodes().is_valid(binder) {
+                        return Ok(None);
+                    }
+                    if self.symbols.get(binder).kind != symbols::SymbolKind::TypeParameter {
+                        return Ok(None);
+                    }
+                    if !owner.is_valid() || !self.symbols.symbols().nodes().is_valid(owner) {
+                        return Err("static record caller has no current lexical owner".into());
+                    }
+                    let declared_owner = self.symbols.get(binder).parent;
+                    if !declared_owner.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(declared_owner)
+                    {
+                        return Err("static record binder has no current declaration owner".into());
+                    }
+                    let declared = self.declaration_type_parameters(declared_owner);
+                    let mut candidates = declared
+                        .iter()
+                        .filter(|parameter| parameter.symbol == binder);
+                    let Some(parameter) = candidates.next() else {
+                        return Ok(None);
+                    };
+                    if candidates.next().is_some() {
+                        return Err("static record binder has repeated declaring rows".into());
+                    }
+                    let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                        parameter.kind
+                    else {
+                        return Ok(None);
+                    };
+                    let Some(schema) = self.static_record_schema(type_reference, declared_owner)
+                    else {
+                        return Ok(None);
+                    };
+                    let visible = self.declaration_type_parameters(owner);
+                    let mut occurrences = visible.iter().filter(|entry| entry.symbol == binder);
+                    if occurrences.next() != Some(parameter) || occurrences.next().is_some() {
+                        return Err(
+                            "static record binder is outside its exact retained telescope".into(),
+                        );
+                    }
+                    let mut lexical = owner;
+                    let mut visited = Vec::new();
+                    while lexical != declared_owner {
+                        if !lexical.is_valid()
+                            || !self.symbols.symbols().nodes().is_valid(lexical)
+                            || visited.contains(&lexical)
+                        {
+                            return Err(
+                                "static record binder has no actual lexical inheritance path"
+                                    .into(),
+                            );
+                        }
+                        visited.push(lexical);
+                        lexical = self.symbols.get(lexical).parent;
+                    }
+                    Ok(Some(schema))
+                }
+
+                pub fn static_record_bound_requirement<'program>(
+                    &'program self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                    target: SymbolHandle,
+                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+                    let Some(root) = self.static_record_parameter_schema(owner, binder)? else {
+                        return Ok(None);
+                    };
+                    if !target.is_valid() || !self.symbols.symbols().nodes().is_valid(target) {
+                        return Err("static record call lost its selected requirement".into());
+                    }
+                    let prepared = self.closed_requirement_application(target);
+                    let mut selected: Option<GenericBoundRequirement<'program>> = None;
+                    root.try_visit(self, &mut |scope: &AppliedTraitScope<'_>| -> Result<(), &'static str> {
+                        for signature in self.trait_machine_signatures(scope.declaration) {
+                            let matches = prepared.as_ref().map_or(signature.symbol == target, |closed| {
+                                closed.template == signature.symbol
+                                    && self.requirement_application_matches_scope(target, scope)
+                            });
+                            if !matches { continue; }
+                            let signature = if let Some(closed) = &prepared {
+                                closed.signature
+                            } else if let Some(applied) = self.applied_callable_signature(scope, signature.symbol) {
+                                applied
+                            } else if scope.keeps_declared_signatures(self) {
+                                signature
+                            } else {
+                                return Err("static record requirement has no prepared applied signature");
+                            };
+                            if let Some(known) = &selected {
+                                if known.signature.symbol != signature.symbol
+                                    || !known.application.same_application(self, scope) {
+                                    return Err("static record call has competing complete requirement applications");
+                                }
+                            } else {
+                                selected = Some(GenericBoundRequirement { signature, application: scope.clone() });
+                            }
+                        }
+                        Ok(())
+                    }).map_err(str::to_owned)?;
+                    selected.map(Some).ok_or_else(|| {
+                        "static record call selects a requirement outside its declared schema"
+                            .into()
+                    })
+                }
+
+                /// Authenticate copied receiver metadata before a visitor enters its source scope.
+                pub fn static_record_source_receiver(
+                    &self,
+                    application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+                ) -> Result<Option<(SymbolHandle, SymbolHandle)>, String> {
+                    if !self
+                        .expression_table
+                        .static_machine_application_is_valid(application)
+                    {
+                        return Err("static record receiver has a stale source application".into());
+                    }
+                    let source = self.static_machine_application(application);
+                    let Some(binder) = source.source_record_receiver else {
+                        return Ok(None);
+                    };
+                    if !binder.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(binder)
+                        || !source.lexical_owner.is_valid()
+                        || !self
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(source.lexical_owner)
+                    {
+                        return Err(
+                            "static record receiver lost its current binder or caller".into()
+                        );
+                    }
+                    let owner = self
+                        .machine_by_own_or_state_symbol(source.lexical_owner)
+                        .map(|machine| machine.symbol)
+                        .ok_or("static record receiver caller has no actual machine")?;
+                    let frames = self.enclosing_invocation_frames(owner)?;
+                    for frame in frames {
+                        let mut matches = frame
+                            .bindings
+                            .iter()
+                            .filter(|binding| binding.parameter == binder);
+                        let Some(binding) = matches.next() else {
+                            continue;
+                        };
+                        if matches.next().is_some() {
+                            return Err(
+                                "static record receiver has repeated retained bindings".into()
+                            );
+                        }
+                        let crate::source_state::static_applications::StaticMachineBindingValue::Const(reference) =
+                            binding.value
+                        else {
+                            return Err(
+                                "static record receiver has another retained binder kind".into()
+                            );
+                        };
+                        let declared = self
+                            .static_record_bound_requirement(
+                                frame.declaration,
+                                binder,
+                                source.registration_operation,
+                            )?
+                            .ok_or("static record receiver has no exact declared requirement")?;
+                        let root = self
+                            .static_record_parameter_schema(frame.declaration, binder)?
+                            .ok_or("static record receiver has no exact declared schema")?;
+                        if !self.type_reference_table.contains_type_reference(reference)
+                            || !self
+                                .symbols
+                                .symbols()
+                                .nodes()
+                                .is_valid(frame.argument_owner)
+                        {
+                            return Err(
+                                "static record receiver has stale actual operand custody".into()
+                            );
+                        }
+                        let operand = self.static_operand_from_type_reference(reference)?;
+                        let actual = self
+                            .conformance_by_symbol(operand.symbol)
+                            .and_then(|value| AppliedTraitScope::from_conformance(self, value))
+                            .ok_or("static record receiver has no exact supplying record schema")?;
+                        if !root.same_application(self, &actual)
+                            || !declared.application.declaration.symbol.is_valid()
+                        {
+                            return Err(
+                                "static record receiver has a different supplying schema".into()
+                            );
+                        }
+                        return Ok(Some((binder, self.symbols.get(binder).parent)));
+                    }
+                    Err("static record receiver has no exact retained supplying application".into())
+                }
+
+                pub fn evidence_requirement_declaration(
+                    &self,
+                    target: SymbolHandle,
+                ) -> Result<Option<&StateSignature>, String> {
+                    let selected = self.symbols.get(target);
+                    if selected.kind != symbols::SymbolKind::State
+                        || !selected.parent.is_valid()
+                        || self.symbols.get(selected.parent).kind
+                            != symbols::SymbolKind::ConformanceParameter
+                    {
+                        return Ok(None);
+                    }
+                    let binder = selected.parent;
+                    let owner = self.symbols.get(binder).parent;
+                    let bounds = self
+                        .declaration_conformance_bounds(owner)
+                        .ok_or("evidence child lost its declaring bound owner")?;
+                    let mut bounds = bounds.iter().filter(|bound| bound.binder == binder);
+                    let bound = bounds
+                        .next()
+                        .ok_or("evidence child lost its exact authored bound")?;
+                    if bounds.next().is_some() {
+                        return Err("evidence child has multiple authored bounds".into());
+                    }
+                    let mut requirements = Vec::new();
+                    collect_requirement_namespace(
+                        self,
+                        bound.trait_symbol,
+                        &mut Vec::new(),
+                        &mut requirements,
+                    )?;
+                    let children = self
+                        .symbols
+                        .child_handles(binder)
+                        .ok_or("evidence binder lost its requirement children")?
+                        .collect::<Vec<_>>();
+                    if children.len() != requirements.len()
+                        || children.iter().any(|child| {
+                            self.symbols.get(*child).kind != symbols::SymbolKind::State
+                        })
+                    {
+                        return Err(
+                            "evidence namespace disagrees with its declared requirements".into(),
+                        );
+                    }
+                    let ordinal = children
+                        .iter()
+                        .position(|child| *child == target)
+                        .ok_or("evidence requirement is not an exact binder child")?;
+                    Ok(Some(requirements[ordinal]))
+                }
+
+                pub fn machine_callable_parameters(
+                    &self,
+                    machine: &Machine,
+                ) -> Vec<crate::source_state::data::TypeParameter> {
+                    let mut parameters = self.machine_type_parameters(machine).to_vec();
+                    for bound in &machine.conformance_bounds {
+                        if !parameters
+                            .iter()
+                            .any(|parameter| parameter.symbol == bound.binder)
+                        {
+                            parameters.push(crate::source_state::data::TypeParameter {
+                                symbol: bound.binder,
+                                name: bound.binder_name.clone(),
+                                kind: crate::source_state::data::TypeParameterKind::Implementation,
+                                ..Default::default()
+                            });
+                        }
+                    }
+                    parameters
+                }
+
+                pub fn callable_conformance_bounds(
+                    &self,
+                    owner: SymbolHandle,
+                ) -> Option<&[crate::source_state::machine::GenericConformanceBound]>
+                {
+                    if let Some(application) = self.closed_requirement_application(owner) {
+                        return Some(&application.signature.conformance_bounds);
+                    }
+                    if let Some(machine) = self.machine_by_symbol(owner) {
+                        return Some(&machine.conformance_bounds);
+                    }
+                    if let Some((_, signature)) = self.trait_machine_signature(owner) {
+                        return Some(&signature.conformance_bounds);
+                    }
+                    self.retained_static_machine_contract(owner)
+                        .map(|contract| contract.signature().conformance_bounds.as_slice())
+                }
+
+                fn declaration_conformance_bounds(
+                    &self,
+                    owner: SymbolHandle,
+                ) -> Option<&[crate::source_state::machine::GenericConformanceBound]>
+                {
+                    self.callable_conformance_bounds(owner)
+                        .or_else(|| {
+                            self.trait_definition_by_symbol(owner)
+                                .map(|declaration| declaration.conformance_bounds.as_slice())
+                        })
+                        .or_else(|| {
+                            self.unique_data_definition_by_symbol(owner)
+                                .map(|declaration| declaration.conformance_bounds.as_slice())
+                        })
+                        .or_else(|| {
+                            self.type_aliases()
+                                .iter()
+                                .find(|declaration| declaration.symbol == owner)
+                                .map(|declaration| declaration.conformance_bounds.as_slice())
+                        })
+                }
+
+                pub fn evidence_bound_requirement<'program>(
+                    &'program self,
+                    owner: SymbolHandle,
+                    receiver: SymbolHandle,
+                    target: SymbolHandle,
+                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+                    let Some(bounds) = self.declaration_conformance_bounds(owner) else {
+                        return Ok(None);
+                    };
+                    if !receiver.is_valid()
+                        || self.symbols.get(receiver).kind
+                            != symbols::SymbolKind::ConformanceParameter
+                        || !bounds.iter().any(|bound| bound.binder == receiver)
+                    {
+                        return Ok(None);
+                    }
+                    let failure = || {
+                        format!(
+                            "declaration `{}` conformance-evidence call has no unique exact requirement",
+                            self.symbols.name(owner)
+                        )
+                    };
+                    let mut bounds = bounds.iter().filter(|bound| bound.binder == receiver);
+                    let bound = bounds.next().ok_or_else(failure)?;
+                    if bounds.next().is_some() {
+                        return Err(format!(
+                            "{}: its receiver has multiple authored bounds",
+                            failure()
+                        ));
+                    }
+                    if !target.is_valid()
+                        || self.symbols.get(target).kind != symbols::SymbolKind::State
+                    {
+                        return Err(format!(
+                            "{}: its selected target is not a requirement state",
+                            failure()
+                        ));
+                    }
+                    let prepared = self.closed_requirement_application(target);
+                    if prepared.is_none()
+                        && !self
+                            .symbols
+                            .child_handles(receiver)
+                            .is_some_and(|mut children| children.any(|child| child == target))
+                    {
+                        return Err(format!(
+                            "{}: its selected target is not owned by the receiver",
+                            failure()
+                        ));
+                    }
+                    let authored_requirement = if prepared.is_none() {
+                        Some(
+                            self.evidence_requirement_declaration(target)?
+                                .ok_or_else(failure)?
+                                .symbol,
+                        )
+                    } else {
+                        None
+                    };
+                    let carrier = self
+                        .trait_definition_by_symbol(bound.trait_symbol)
+                        .ok_or_else(failure)?;
+                    let root = crate::source_state::trait_definition::AppliedTraitScope::new(
+                        self,
+                        carrier,
+                        crate::source_state::trait_definition::TraitApplicationArguments {
+                            lexical_owner: owner,
+                            enclosing_data_applications: &[],
+                            arguments: &bound.arguments,
+                            lifetimes: &bound.lifetime_arguments,
+                        },
+                    )
+                    .ok_or_else(|| {
+                        format!(
+                            "{}: its complete trait application cannot be represented",
+                            failure()
+                        )
+                    })?;
+                    let mut selected: Option<GenericBoundRequirement<'program>> = None;
+                    let mut ambiguous = false;
+                    root.visit(self, &mut |application| {
+                        for signature in self.trait_machine_signatures(application.declaration) {
+                            let matches = if let Some(prepared) = &prepared {
+                                prepared.template == signature.symbol
+                                    && self
+                                        .requirement_application_matches_scope(target, application)
+                            } else {
+                                Some(signature.symbol) == authored_requirement
+                            };
+                            if !matches {
+                                continue;
+                            }
+                            let signature = prepared
+                                .as_ref()
+                                .map_or(signature, |prepared| prepared.signature);
+                            if let Some(known) = &selected {
+                                ambiguous |= known.signature.symbol != signature.symbol
+                                    || !known.application.same_application(self, application);
+                                continue;
+                            }
+                            selected = Some(GenericBoundRequirement {
+                                signature,
+                                application: application.clone(),
+                            });
+                        }
+                    });
+                    if ambiguous {
+                        return Err(format!(
+                            "{}: reachable declarations disagree on the requirement application",
+                            failure()
+                        ));
+                    }
+                    selected.map(Some).ok_or_else(|| {
+                        format!(
+                            "{}: its selected child has no reachable authored requirement",
+                            failure()
+                        )
+                    })
+                }
+            }
+
+            fn collect_requirement_namespace<'program>(
+                program: &'program TypedTrees,
+                trait_symbol: SymbolHandle,
+                visited: &mut Vec<SymbolHandle>,
+                output: &mut Vec<&'program StateSignature>,
+            ) -> Result<(), String> {
+                if visited.contains(&trait_symbol) {
+                    return Ok(());
+                }
+                let declaration = program
+                    .trait_definition_by_symbol(trait_symbol)
+                    .ok_or("evidence namespace lost a resolved trait declaration")?;
+                visited.push(trait_symbol);
+                output.extend(program.trait_machine_signatures(declaration));
+                for parent in declaration
+                    .refines
+                    .iter()
+                    .chain(program.trait_requirements(declaration))
+                {
+                    collect_requirement_namespace(program, parent.symbol, visited, output)?;
+                }
+                Ok(())
+            }
+        }
+        pub use evidence::GenericBoundRequirement;
+        pub(crate) mod refinement_views {
+            use super::AppliedTraitScope;
+            use crate::source_state::{
+                TypedTrees,
+                signature::StateSignature,
+                trait_definition::{TraitRefinementClause, TraitRefinementReach},
+            };
+            use symbols::SymbolHandle;
+
+            impl<'program> AppliedTraitScope<'program> {
+                fn refinement_prefixes<'scope>(
+                    &'scope self,
+                    program: &'scope TypedTrees,
+                ) -> Vec<AppliedTraitScope<'scope>> {
+                    self.region_scopes
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(position, frame)| {
+                            let declaration =
+                                program.trait_definition_by_symbol(frame.declaration)?;
+                            if declaration.refines.is_none()
+                                || declaration.refinement_clauses.is_empty()
+                            {
+                                return None;
+                            }
+                            let mut prefix: AppliedTraitScope<'scope> = self.clone();
+                            prefix.declaration = declaration;
+                            let end = self
+                                .substitution_scope_starts
+                                .get(position + 1)
+                                .copied()
+                                .unwrap_or(self.substitutions.len());
+                            prefix.substitutions.truncate(end);
+                            prefix.substitution_scope_starts.truncate(position + 1);
+                            prefix.region_scopes.truncate(position + 1);
+                            Some(prefix)
+                        })
+                        .collect()
+                }
+
+                pub(crate) fn callable_contract_key(
+                    &self,
+                    program: &TypedTrees,
+                ) -> Option<(
+                    SymbolHandle,
+                    crate::source_state::type_identity::NormalizedTypeIdentity,
+                )> {
+                    let prefixes = self.refinement_prefixes(program);
+                    let owner = prefixes
+                        .first()
+                        .map_or(self.declaration.symbol, |scope| scope.declaration.symbol);
+                    let identities = prefixes
+                        .iter()
+                        .map(|scope| scope.application_identity(program))
+                        .collect::<Option<Vec<_>>>()?;
+                    crate::source_state::type_identity::local_trait_contract_identity(
+                        program,
+                        self.application_identity(program)?,
+                        &identities,
+                    )
+                    .map(|identity| (owner, identity))
+                }
+
+                pub(crate) fn callable_refinement_clauses(
+                    &self,
+                    program: &TypedTrees,
+                    requirement: &str,
+                ) -> Vec<(TraitRefinementClause, super::TraitApplicationEnvironment)>
+                {
+                    self.refinement_prefixes(program)
+                        .into_iter()
+                        .flat_map(|prefix| {
+                            let environment = prefix.environment();
+                            prefix
+                                .declaration
+                                .refinement_clauses
+                                .iter()
+                                .filter(|clause| {
+                                    clause
+                                        .requirement
+                                        .as_ref()
+                                        .is_none_or(|name| name.as_str() == requirement)
+                                })
+                                .cloned()
+                                .map(|clause| (clause, environment.clone()))
+                                .collect::<Vec<_>>()
+                        })
+                        .collect()
+                }
+            }
+
+            impl TypedTrees {
+                pub(crate) fn apply_callable_refinements(
+                    &mut self,
+                    signature: &mut StateSignature,
+                    clauses: &[(TraitRefinementClause, super::TraitApplicationEnvironment)],
+                ) -> Result<(), &'static str> {
+                    for (clause, environment) in clauses {
+                        if !clause.signature.contracts.is_empty() {
+                            self.apply_refinement_postconditions(
+                                signature,
+                                &clause.signature,
+                                environment,
+                            )?;
+                        }
+                        if !clause.signature.suspends_keyword_source_spans.is_empty() {
+                            signature.suspends &= clause.signature.suspends;
+                            signature
+                                .suspends_keyword_source_spans
+                                .extend_from_slice(&clause.signature.suspends_keyword_source_spans);
+                        }
+                        if !clause.signature.blocks_keyword_source_spans.is_empty() {
+                            signature.blocks &= clause.signature.blocks;
+                            signature
+                                .blocks_keyword_source_spans
+                                .extend_from_slice(&clause.signature.blocks_keyword_source_spans);
+                        }
+                        if let declaration_contracts::TerminationGuarantee::Terminates { premises } =
+                            &clause.signature.termination_guarantee
+                            && (premises.is_empty()
+                                || matches!(
+                                    signature.termination_guarantee,
+                                    declaration_contracts::TerminationGuarantee::NoGuarantee
+                                ))
+                        {
+                            signature.termination_guarantee =
+                                clause.signature.termination_guarantee.clone();
+                        }
+                        let row = match &clause.service_reach {
+                            TraitRefinementReach::Inherited => continue,
+                            TraitRefinementReach::Concrete(row) => *row,
+                            TraitRefinementReach::IndependentBounded(rows) => rows
+                                .iter()
+                                .find(|row| row.requirement == signature.name)
+                                .ok_or(
+                                    "refinement callable view lost its independent requirement row",
+                                )?
+                                .row,
+                        };
+                        if row == declaration_contracts::ServiceReachRowId::NULL {
+                            return Err("refinement callable view lost its authored reach row");
+                        }
+                        if signature.service_reach_is_installation_bound {
+                            signature.service_reach_row = row;
+                        } else {
+                            let current = signature.service_reach_row;
+                            let abstract_row = self.service_reach_rows.is_abstract(current)
+                                || self.service_reach_rows.is_abstract(row);
+                            let services = self
+                                .service_reach_rows
+                                .services(current)
+                                .iter()
+                                .filter(|service| {
+                                    self.service_reach_rows.services(row).contains(service)
+                                })
+                                .copied()
+                                .collect();
+                            let ceiling = self.service_reach_rows.intern(services);
+                            signature.service_reach_row = if abstract_row {
+                                self.service_reach_rows.intern_abstract(ceiling)
+                            } else {
+                                ceiling
+                            };
+                        }
+                        signature.service_reach_is_installation_bound = false;
+                    }
+                    Ok(())
+                }
+            }
+        }
+        pub(crate) mod retention {
+            use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
+            use crate::source_state::CallableSubstitution;
+            use crate::source_state::TypedTrees;
+            use crate::source_state::name::Identifier;
+            use crate::source_state::static_applications::StaticMachineLifetimeBinding;
+            use crate::source_state::type_identity;
+            use crate::source_state::types::TypeReferenceHandle;
+            use arena::HandleSpan;
+            use symbols::SymbolHandle;
+
+            #[derive(Debug, Clone, PartialEq, Eq)]
+            pub struct TraitApplicationEnvironment {
+                declaration: SymbolHandle,
+                argument_owner: SymbolHandle,
+                substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+                scope_starts: Vec<usize>,
+                region_scopes: Vec<AppliedDeclarationRegionScope>,
+            }
+
+            #[derive(
+                Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record,
+            )]
+            pub struct RetainedTraitScope {
+                declaration: SymbolHandle,
+                argument_owner: SymbolHandle,
+                frames: HandleSpan<RetainedTraitApplicationFrame>,
+            }
+
+            #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+            pub(crate) struct RetainedTraitApplicationFrame {
+                declaration: SymbolHandle,
+                arguments: HandleSpan<CallableSubstitution>,
+                lifetimes: HandleSpan<StaticMachineLifetimeBinding>,
+            }
+
+            impl AppliedTraitScope<'_> {
+                pub fn environment(&self) -> TraitApplicationEnvironment {
+                    TraitApplicationEnvironment {
+                        declaration: self.declaration.symbol,
+                        argument_owner: self.argument_owner,
+                        substitutions: self.substitutions.clone(),
+                        scope_starts: self.substitution_scope_starts.clone(),
+                        region_scopes: self.region_scopes.clone(),
+                    }
+                }
+            }
+
+            impl TraitApplicationEnvironment {
+                pub(crate) fn lifetime_identity(
+                    &self,
+                    program: &TypedTrees,
+                    reference: TypeReferenceHandle,
+                    preceding_frames: usize,
+                    name: &str,
+                    lexical_owner: SymbolHandle,
+                ) -> Option<(type_identity::LifetimeParameterIdentity, bool)> {
+                    let scope = self.scope(program)?;
+                    scope.with_identity_scopes(program, |frames| {
+            let mut visible = frames.get(..preceding_frames)?;
+            let recorded_owner = program
+                .type_reference_table
+                .operand_lifetime_owner(reference);
+            let retained_owner = if recorded_owner.is_valid() {
+                recorded_owner
+            } else {
+                lexical_owner
+            };
+            let owner = if retained_owner.is_valid() {
+                let region_owner =
+                    type_identity::lifetime_parameter_identity(program, retained_owner, name)?
+                        .declaration;
+                let frame = visible.iter().rposition(|frame| {
+                    program.lifetime_declaration_owner(frame.declaration)
+                        == program.lifetime_declaration_owner(region_owner)
+                });
+                if let Some(ordinal) = frame {
+                    visible = &visible[..=ordinal];
+                    return type_identity::applied_lifetime_parameter_identity_with_supplier(
+                        program,
+                        retained_owner,
+                        self.argument_owner,
+                        name,
+                        visible,
+                    );
+                } else {
+                    visible = &[];
+                    retained_owner
+                }
+            } else {
+                self.argument_owner
+            };
+            type_identity::applied_lifetime_parameter_identity_with_supplier(
+                program,
+                owner,
+                self.argument_owner,
+                name,
+                visible,
+            )
+                    })
+                }
+
+                pub(crate) fn resolved_lifetime_identity(
+                    &self,
+                    program: &TypedTrees,
+                    region: type_identity::LifetimeParameterIdentity,
+                    preceding_frames: usize,
+                ) -> Option<(type_identity::LifetimeParameterIdentity, bool)> {
+                    let scope = self.scope(program)?;
+                    scope.with_identity_scopes(program, |frames| {
+                        type_identity::apply_resolved_lifetime_parameter_identity(
+                            program,
+                            region,
+                            self.argument_owner,
+                            frames.get(..preceding_frames)?,
+                        )
+                    })
+                }
+
+                pub(crate) fn frame_count(&self) -> usize {
+                    self.scope_starts.len()
+                }
+
+                pub(crate) fn argument_owner(&self) -> SymbolHandle {
+                    self.argument_owner
+                }
+
+                pub fn scope<'program>(
+                    &self,
+                    program: &'program TypedTrees,
+                ) -> Option<AppliedTraitScope<'program>> {
+                    Some(AppliedTraitScope {
+                        declaration: program.trait_definition_by_symbol(self.declaration)?,
+                        argument_owner: self.argument_owner,
+                        substitutions: self.substitutions.clone(),
+                        substitution_scope_starts: self.scope_starts.clone(),
+                        region_scopes: self.region_scopes.clone(),
+                    })
+                }
+
+                pub fn retain(
+                    &self,
+                    program: &mut TypedTrees,
+                ) -> Result<RetainedTraitScope, &'static str> {
+                    if self.scope_starts.len() != self.region_scopes.len() {
+                        return Err("trait application lost its simultaneous region frames");
+                    }
+                    let mut frames = Vec::with_capacity(self.scope_starts.len());
+                    for (ordinal, region) in self.region_scopes.iter().enumerate() {
+                        let start = self.scope_starts[ordinal];
+                        let end = self
+                            .scope_starts
+                            .get(ordinal + 1)
+                            .copied()
+                            .unwrap_or(self.substitutions.len());
+                        let arguments = self
+                            .substitutions
+                            .get(start..end)
+                            .ok_or("trait application has an invalid substitution frame")?;
+                        let arguments =
+                            program
+                                .callable_substitutions
+                                .insert_many(arguments.iter().map(|(parameter, actual)| {
+                                    CallableSubstitution {
+                                        parameter: *parameter,
+                                        actual: *actual,
+                                    }
+                                }));
+                        let lifetimes = program.callable_lifetime_substitutions.insert_many(
+                            region.lifetimes.iter().map(|(parameter, actual)| {
+                                StaticMachineLifetimeBinding {
+                                    parameter: Identifier::generated(parameter),
+                                    argument: Identifier::generated(actual),
+                                }
+                            }),
+                        );
+                        frames.push(RetainedTraitApplicationFrame {
+                            declaration: region.declaration,
+                            arguments,
+                            lifetimes,
+                        });
+                    }
+                    Ok(RetainedTraitScope {
+                        declaration: self.declaration,
+                        argument_owner: self.argument_owner,
+                        frames: program.trait_application_frames.insert_many(frames),
+                    })
+                }
+            }
+
+            impl RetainedTraitScope {
+                pub fn supplying_owner(self) -> SymbolHandle {
+                    self.argument_owner
+                }
+
+                pub(crate) fn visit_references(
+                    self,
+                    program: &TypedTrees,
+                    retained: &mut impl crate::source_state::references::TypedReferences,
+                ) {
+                    retained.formation_owner(self.argument_owner);
+                    for frame in program.trait_application_frames.span_or_empty(self.frames) {
+                        retained.declaration_description_dependency(frame.declaration);
+                        for binding in program
+                            .callable_substitutions
+                            .span_or_empty(frame.arguments)
+                        {
+                            // A retained application can be visited from the
+                            // required trait rather than either binder's author.
+                            retained.enter_lexical_scope(frame.declaration);
+                            retained.declaration_description_dependency(binding.parameter);
+                            retained.leave_lexical_scope();
+
+                            // Copies retain an operand's original source scope.
+                            // The application supplier owns only operands without
+                            // a more specific retained author; target parentage
+                            // cannot supply missing lexical authority.
+                            let owner = program
+                                .type_reference_table
+                                .operand_lifetime_owner(binding.actual);
+                            let owner = if owner.is_valid() {
+                                owner
+                            } else {
+                                self.argument_owner
+                            };
+                            retained.enter_lexical_scope(owner);
+                            crate::source_state::references::visit_type_reference(
+                                program,
+                                retained,
+                                binding.actual,
+                            );
+                            retained.leave_lexical_scope();
+                        }
+                    }
+                }
+
+                pub fn scope<'program>(
+                    self,
+                    program: &'program TypedTrees,
+                ) -> Option<AppliedTraitScope<'program>> {
+                    let mut substitutions = Vec::new();
+                    let mut scope_starts = Vec::new();
+                    let mut region_scopes = Vec::new();
+                    for frame in program.trait_application_frames.span_or_empty(self.frames) {
+                        scope_starts.push(substitutions.len());
+                        substitutions.extend(
+                            program
+                                .callable_substitutions
+                                .span_or_empty(frame.arguments)
+                                .iter()
+                                .map(|binding| (binding.parameter, binding.actual)),
+                        );
+                        region_scopes.push(AppliedDeclarationRegionScope {
+                            declaration: frame.declaration,
+                            lifetimes: program
+                                .callable_lifetime_substitutions
+                                .span_or_empty(frame.lifetimes)
+                                .iter()
+                                .map(|binding| {
+                                    (
+                                        binding.parameter.as_str().to_owned(),
+                                        binding.argument.as_str().to_owned(),
+                                    )
+                                })
+                                .collect(),
+                        });
+                    }
+                    Some(AppliedTraitScope {
+                        declaration: program.trait_definition_by_symbol(self.declaration)?,
+                        argument_owner: self.argument_owner,
+                        substitutions,
+                        substitution_scope_starts: scope_starts,
+                        region_scopes,
+                    })
+                }
+            }
+
+            #[cfg(test)]
+            mod retained_reference_tests {
+                use super::*;
+                use crate::source_state::references::TypedReferences;
+                use crate::source_symbols::SymbolTableBuilder;
+                use symbols::{SymbolKind, SymbolNameRef};
+
+                struct ScopedReferences {
+                    owner: SymbolHandle,
+                    outer: Vec<SymbolHandle>,
+                    descriptions: Vec<(SymbolHandle, SymbolHandle)>,
+                    names: Vec<(SymbolHandle, SymbolHandle)>,
+                }
+                impl Extend<SymbolHandle> for ScopedReferences {
+                    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                        self.names
+                            .extend(symbols.into_iter().map(|symbol| (self.owner, symbol)));
+                    }
+                }
+                impl TypedReferences for ScopedReferences {
+                    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+                        self.outer.push(self.owner);
+                        self.owner = owner;
+                    }
+                    fn leave_lexical_scope(&mut self) {
+                        self.owner = self.outer.pop().expect("paired retained scopes");
+                    }
+                    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+                        self.descriptions.push((self.owner, symbol));
+                    }
+                }
+
+                #[test]
+                fn retained_trait_bindings_keep_formal_and_actual_authors() {
+                    let mut symbols = SymbolTableBuilder::default();
+                    let observed =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Required"));
+                    let formal_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Generic"));
+                    let nested_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Nested"));
+                    let supplier =
+                        symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Supplier"));
+                    let retained_supplier = symbols.insert_root(
+                        SymbolKind::Machine,
+                        SymbolNameRef::Static("OriginalSupplier"),
+                    );
+                    let formal = symbols
+                        .insert_children(
+                            formal_owner,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Policy"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_formal = symbols
+                        .insert_children(
+                            nested_owner,
+                            [(SymbolKind::TypeParameter, SymbolNameRef::Static("Element"))],
+                        )
+                        .handle_at(0);
+                    let actual = symbols
+                        .insert_children(
+                            supplier,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Selected"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_actual = symbols
+                        .insert_children(
+                            retained_supplier,
+                            [(
+                                SymbolKind::TypeParameter,
+                                SymbolNameRef::Static("OriginalElement"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let mut program = TypedTrees {
+                        symbols: symbols.finish(),
+                        ..Default::default()
+                    };
+                    let actual_type = program.type_reference_table.insert(
+                        crate::source_state::types::TypeReferenceNode::Named {
+                            symbol: actual,
+                            name: Identifier::generated("Selected"),
+                        },
+                    );
+                    let nested_type = program.type_reference_table.insert(
+                        crate::source_state::types::TypeReferenceNode::Named {
+                            symbol: nested_actual,
+                            name: Identifier::generated("OriginalElement"),
+                        },
+                    );
+                    program
+                        .type_reference_table
+                        .retain_operand_lifetime_owner(nested_type, retained_supplier)
+                        .unwrap();
+                    let scope = TraitApplicationEnvironment {
+                        declaration: observed,
+                        argument_owner: supplier,
+                        substitutions: vec![(formal, actual_type), (nested_formal, nested_type)],
+                        scope_starts: vec![0, 1],
+                        region_scopes: vec![
+                            AppliedDeclarationRegionScope {
+                                declaration: formal_owner,
+                                lifetimes: Vec::new(),
+                            },
+                            AppliedDeclarationRegionScope {
+                                declaration: nested_owner,
+                                lifetimes: Vec::new(),
+                            },
+                        ],
+                    }
+                    .retain(&mut program)
+                    .unwrap();
+                    let mut references = ScopedReferences {
+                        owner: observed,
+                        outer: Vec::new(),
+                        descriptions: Vec::new(),
+                        names: Vec::new(),
+                    };
+                    scope.visit_references(&program, &mut references);
+                    assert!(references.descriptions.contains(&(observed, supplier)));
+                    assert!(references.descriptions.contains(&(observed, formal_owner)));
+                    assert!(references.descriptions.contains(&(observed, nested_owner)));
+                    assert!(references.descriptions.contains(&(formal_owner, formal)));
+                    assert!(
+                        references
+                            .descriptions
+                            .contains(&(nested_owner, nested_formal))
+                    );
+                    assert!(!references.descriptions.contains(&(observed, formal)));
+                    assert!(references.names.contains(&(supplier, actual)));
+                    assert!(
+                        references
+                            .names
+                            .contains(&(retained_supplier, nested_actual))
+                    );
+                    assert!(!references.names.contains(&(supplier, nested_actual)));
+                    assert_eq!(references.owner, observed);
+                    assert!(references.outer.is_empty());
+                }
+            }
+        }
+
+        pub(crate) use retention::RetainedTraitApplicationFrame;
+        pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
+
+        impl TypedTrees {
+            pub fn lexical_conformance_scope(
+                &self,
+                caller: SymbolHandle,
+            ) -> Option<(&super::Conformance, AppliedTraitScope<'_>)> {
+                let authored = self.lifetime_declaration_owner(caller);
+                let selecting =
+                    self.conformance_by_symbol(self.declaration_scope_parent(caller))?;
+                if !selecting
+                    .rows
+                    .iter()
+                    .any(|row| row.source.owns_realization() && row.realization_machine == authored)
+                {
+                    return None;
+                }
+                let scope = if let Some(capture) =
+                    self.implementation_capture(caller, authored, selecting.symbol)
+                {
+                    capture.conformance_application.trait_scope.scope(self)?
+                } else {
+                    self.machine_instantiation_path(caller, authored)?;
+                    if caller != authored
+                        && (!self.conformance_type_parameters(selecting).is_empty()
+                            || !selecting.lifetime_parameters.is_empty())
+                    {
+                        return None;
+                    }
+                    AppliedTraitScope::from_conformance(self, selecting)?
+                };
+                Some((selecting, scope))
+            }
+
+            pub fn machine_conformance_requirement_scope(
+                &self,
+                machine: SymbolHandle,
+                declaring_trait: SymbolHandle,
+                requirement: SymbolHandle,
+            ) -> Result<Option<AppliedTraitScope<'_>>, &'static str> {
+                let Some((implementation, scope)) = self.lexical_conformance_scope(machine) else {
+                    return Ok(None);
+                };
+                let authored = self.lifetime_declaration_owner(machine);
+                let mut rows = implementation.rows.iter().filter(|row| {
+                    row.source.owns_realization()
+                        && row.realization_machine == authored
+                        && row.declaring_trait == declaring_trait
+                        && row.requirement == requirement
+                });
+                let Some(row) = rows.next() else {
+                    return Ok(None);
+                };
+                if rows.next().is_some() {
+                    return Err("inline member repeats an exact requirement row");
+                }
+                let entry = self
+                    .machine_by_symbol(authored)
+                    .and_then(|machine| self.machine_states(machine).first())
+                    .ok_or("inline requirement member lost its authored entry")?;
+                if row.realization_state != entry.symbol {
+                    return Err("inline requirement row does not name its member entry");
+                }
+                scope
+                    .declaring_scope(self, declaring_trait)
+                    .map(Some)
+                    .ok_or("inline requirement row lost its exact declaring application")
+            }
+
+            pub fn applied_trait_roots(&self) -> Vec<AppliedTraitScope<'_>> {
+                let occurrences =
+                    crate::source_state::references::collect_program_application_occurrences(self);
+                self.machines()
+            .iter()
+            .flat_map(|machine| {
+                self.machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(move |edge| {
+                        AppliedTraitScope::from_machine_conformance(self, machine, edge)
+                    })
+            })
+            .chain(
+                self.conformances()
+                    .iter()
+                    .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
+            )
+            .chain(self.machines().iter().map(|machine| (machine.symbol, &machine.conformance_bounds))
+                .chain(self.traits().iter().map(|declaration| (declaration.symbol, &declaration.conformance_bounds)))
+                .flat_map(|(owner, bounds)| {
+                    bounds.iter().filter_map(move |bound| {
+                        AppliedTraitScope::new(
+                            self,
+                            self.trait_definition_by_symbol(bound.trait_symbol)?,
+                            TraitApplicationArguments {
+                                lexical_owner: owner,
+                                enclosing_data_applications: &[],
+                                arguments: &bound.arguments,
+                                lifetimes: &bound.lifetime_arguments,
+                            },
+                        )
+                    })
+                }))
+            .chain(
+                self.traits()
+                    .iter()
+                    .filter(|declaration| self.trait_type_parameters(declaration).is_empty())
+                    .map(AppliedTraitScope::abstract_scope),
+            )
+            .chain(
+                self.closed_conformance_application_sites_from_occurrences(
+                    &occurrences.conformance_applications,
+                )
+                .into_iter()
+                .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
+            )
+            .chain(
+                self.live_product_operand_applications().into_iter().filter_map(|handle| {
+                    let application = self.product_operand_applications.get(handle);
+                    matches!(self.product_operand_application_role(application), Ok(Some(crate::declaration_selection::ProductOperandRole::BoundarySubject | crate::declaration_selection::ProductOperandRole::Requirement)))
+                        .then(|| application.scope.scope(self)).flatten()
+                }),
+            )
+            .chain(
+                occurrences
+                    .requirement_applications
+                    .into_iter()
+                    .filter_map(|occurrence| {
+                        self.applied_requirement_scope(
+                            occurrence.lexical_owner,
+                            occurrence.reference,
+                        )
+                    }),
+            )
+            .collect()
+            }
+
+            pub fn applied_requirement_scope(
+                &self,
+                lexical_owner: SymbolHandle,
+                application: TypeReferenceHandle,
+            ) -> Option<AppliedTraitScope<'_>> {
+                if let TypeReferenceNode::Named { symbol, .. } =
+                    self.type_reference_table.type_reference(application)
+                {
+                    let selected = self.conformance_by_symbol(*symbol)?;
+                    // A missing generic tuple cannot become a zero-argument
+                    // selection. Only a genuinely closed declaration has this view.
+                    if !selected.type_parameters.is_empty()
+                        || !selected.lifetime_parameters.is_empty()
+                    {
+                        return None;
+                    }
+                    return AppliedTraitScope::from_conformance(self, selected);
+                }
+                let TypeReferenceNode::Generic {
+                    base_symbol,
+                    lifetime_arguments,
+                    arguments,
+                    ..
+                } = self.type_reference_table.type_reference(application)
+                else {
+                    return None;
+                };
+                // A named map's application binds its own telescope first;
+                // its trait arguments can then refer to those exact binders.
+                if let Some(conformance) = self.conformance_by_symbol(*base_symbol) {
+                    return AppliedTraitScope::from_conformance_application(
+                        self,
+                        conformance,
+                        TraitApplicationArguments {
+                            lexical_owner,
+                            enclosing_data_applications: &[],
+                            arguments: self.type_reference_table.type_reference_handles(*arguments),
+                            lifetimes: lifetime_arguments,
+                        },
+                    );
+                }
+                AppliedTraitScope::new(
+                    self,
+                    self.trait_definition_by_symbol(*base_symbol)?,
+                    TraitApplicationArguments {
+                        lexical_owner,
+                        enclosing_data_applications: &[],
+                        arguments: self.type_reference_table.type_reference_handles(*arguments),
+                        lifetimes: lifetime_arguments,
+                    },
+                )
+            }
+        }
+
+        #[derive(Clone, Copy)]
+        pub struct TraitApplicationArguments<'arguments> {
+            pub lexical_owner: SymbolHandle,
+            pub enclosing_data_applications: &'arguments [TypeReferenceHandle],
+            pub arguments: &'arguments [TypeReferenceHandle],
+            pub lifetimes: &'arguments [Identifier],
+        }
+
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        pub struct AppliedTypeReference<'scope> {
+            pub reference: TypeReferenceHandle,
+            substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+            scope_starts: &'scope [usize],
+        }
+
+        impl<'scope> AppliedTypeReference<'scope> {
+            pub fn parameter_argument(
+                self,
+                program: &TypedTrees,
+                parameter: SymbolHandle,
+            ) -> Option<Self> {
+                let (ordinal, (_, reference)) = self
+                    .substitutions
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, (binder, _))| *binder == parameter)?;
+                let visible_scopes = self
+                    .scope_starts
+                    .partition_point(|start| *start <= ordinal)
+                    .checked_sub(1)?;
+                let visible = self.scope_starts.get(visible_scopes).copied()?;
+                Some(project_type_reference(
+                    program,
+                    *reference,
+                    &self.substitutions[..visible],
+                    &self.scope_starts[..visible_scopes],
+                ))
+            }
+
+            pub fn child(self, program: &TypedTrees, reference: TypeReferenceHandle) -> Self {
+                project_type_reference(program, reference, self.substitutions, self.scope_starts)
+            }
+
+            pub fn type_identity(self, program: &TypedTrees) -> NormalizedTypeIdentity {
+                program.scoped_type_identity(
+                    TypeIdentityRequest {
+                        substitutions: self.substitutions,
+                        ..TypeIdentityRequest::ordinary(self.reference)
+                    },
+                    self.scope_starts,
+                )
+            }
+
+            pub fn multiplicity(self, program: &TypedTrees) -> declaration_contracts::Multiplicity {
+                if !self.reference.is_valid() {
+                    return declaration_contracts::Multiplicity::Affine;
+                }
+                match program.type_reference_table.type_reference(self.reference) {
+                    TypeReferenceNode::Constrained { base_type, .. } => {
+                        self.child(program, *base_type).multiplicity(program)
+                    }
+                    TypeReferenceNode::FixedArray { element_type, .. } => {
+                        self.child(program, *element_type).multiplicity(program)
+                    }
+                    _ => program.type_multiplicity(self.reference),
+                }
+            }
+        }
+
+        fn project_type_reference<'scope>(
+            program: &TypedTrees,
+            mut reference: TypeReferenceHandle,
+            substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+            scope_starts: &'scope [usize],
+        ) -> AppliedTypeReference<'scope> {
+            let mut visible = substitutions.len();
+            let mut visible_scopes = scope_starts.len();
+            if reference.is_valid() {
+                while let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(reference)
+                {
+                    let Some((ordinal, (_, replacement))) = substitutions[..visible]
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find(|(_, (parameter, _))| parameter == symbol)
+                    else {
+                        break;
+                    };
+                    visible_scopes = scope_starts
+                        .partition_point(|start| *start <= ordinal)
+                        .saturating_sub(1);
+                    visible = scope_starts.get(visible_scopes).copied().unwrap_or(0);
+                    reference = *replacement;
+                }
+            }
+            AppliedTypeReference {
+                reference,
+                substitutions: &substitutions[..visible],
+                scope_starts: &scope_starts[..visible_scopes],
+            }
+        }
+
+        #[derive(Clone)]
+        pub struct AppliedTraitScope<'program> {
+            pub declaration: &'program TraitDefinition,
+            pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+            pub substitution_scope_starts: Vec<usize>,
+            pub argument_owner: SymbolHandle,
+            region_scopes: Vec<AppliedDeclarationRegionScope>,
+        }
+
+        impl<'program> AppliedTraitScope<'program> {
+            pub fn from_type_reference(
+                program: &'program TypedTrees,
+                reference: TypeReferenceHandle,
+                lexical_owner: SymbolHandle,
+            ) -> Option<Self> {
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Reference { referee, .. } => {
+                        Self::from_type_reference(program, *referee, lexical_owner)
+                    }
+                    TypeReferenceNode::Constrained { base_type, .. } => {
+                        Self::from_type_reference(program, *base_type, lexical_owner)
+                    }
+                    TypeReferenceNode::Named { symbol, .. } => Some(Self::abstract_scope(
+                        program.trait_definition_by_symbol(*symbol)?,
+                    )),
+                    TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        lifetime_arguments,
+                        ..
+                    } => Self::new(
+                        program,
+                        program.trait_definition_by_symbol(*base_symbol)?,
+                        TraitApplicationArguments {
+                            lexical_owner,
+                            enclosing_data_applications: &[],
+                            arguments: program.type_reference_handles(*arguments),
+                            lifetimes: lifetime_arguments,
+                        },
+                    ),
+                    _ => None,
+                }
+            }
+
+            pub fn from_conformance_application(
+                program: &'program TypedTrees,
+                conformance: &super::Conformance,
+                application: TraitApplicationArguments<'_>,
+            ) -> Option<Self> {
+                let parameters = program.conformance_type_parameters(conformance);
+                if parameters.len() != application.arguments.len()
+                    || conformance.lifetime_parameters.len() != application.lifetimes.len()
+                {
+                    return None;
+                }
+                let mut scope = Self::from_conformance(program, conformance)?;
+                for start in &mut scope.substitution_scope_starts {
+                    *start += parameters.len();
+                }
+                scope.substitution_scope_starts.insert(0, 0);
+                scope.substitutions.splice(
+                    0..0,
+                    parameters
+                        .iter()
+                        .zip(application.arguments)
+                        .map(|(parameter, actual)| (parameter.symbol, *actual)),
+                );
+                scope.region_scopes.insert(
+                    0,
+                    AppliedDeclarationRegionScope::new(
+                        conformance.symbol,
+                        &conformance.lifetime_parameters,
+                        application.lifetimes,
+                    ),
+                );
+                scope.argument_owner = application.lexical_owner;
+                Some(scope)
+            }
+
+            pub fn from_conformance(
+                program: &'program TypedTrees,
+                conformance: &super::Conformance,
+            ) -> Option<Self> {
+                let declaration = program.trait_definition_by_symbol(conformance.trait_symbol)?;
+                let lifetimes = conformance
+                    .trait_lifetime_arguments
+                    .iter()
+                    .map(|ordinal| {
+                        conformance
+                            .lifetime_parameters
+                            .get(usize::try_from(*ordinal).ok()?)
+                            .cloned()
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Self::new(
+                    program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: conformance.symbol,
+                        enclosing_data_applications: &[],
+                        arguments: program.type_reference_handles(conformance.arguments),
+                        lifetimes: &lifetimes,
+                    },
+                )
+            }
+
+            pub fn from_machine_conformance(
+                program: &'program TypedTrees,
+                machine: &crate::source_state::machine::Machine,
+                conformance: &crate::source_state::machine::TraitConformance,
+            ) -> Option<Self> {
+                let declaration = program.trait_definition_by_symbol(conformance.symbol)?;
+                let owner = program.lifetime_declaration_owner(machine.symbol);
+                let original = program.machine_by_symbol(owner)?;
+                let lifetimes = conformance
+                    .trait_lifetime_arguments
+                    .iter()
+                    .map(|ordinal| {
+                        original
+                            .lifetime_parameters
+                            .get(usize::try_from(*ordinal).ok()?)
+                            .cloned()
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Self::new(
+                    program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: owner,
+                        enclosing_data_applications: &[],
+                        arguments: program.type_reference_handles(conformance.arguments),
+                        lifetimes: &lifetimes,
+                    },
+                )
+            }
+
+            pub fn new(
+                program: &TypedTrees,
+                declaration: &'program TraitDefinition,
+                application: TraitApplicationArguments<'_>,
+            ) -> Option<Self> {
+                let parameters = program.trait_type_parameters(declaration);
+                if parameters.len() != application.arguments.len()
+                    || declaration.lifetime_parameters.len() != application.lifetimes.len()
+                {
+                    return None;
+                }
+                let mut scope = Self {
+                    declaration,
+                    substitutions: Vec::new(),
+                    substitution_scope_starts: Vec::new(),
+                    argument_owner: application.lexical_owner,
+                    region_scopes: Vec::new(),
+                };
+                for reference in application.enclosing_data_applications {
+                    enclosing::append_data_application(program, *reference, &mut scope)?;
+                }
+                scope
+                    .substitution_scope_starts
+                    .push(scope.substitutions.len());
+                scope.substitutions.extend(
+                    parameters
+                        .iter()
+                        .zip(application.arguments)
+                        .map(|(parameter, argument)| (parameter.symbol, *argument)),
+                );
+                scope.region_scopes.push(AppliedDeclarationRegionScope::new(
+                    declaration.symbol,
+                    &declaration.lifetime_parameters,
+                    application.lifetimes,
+                ));
+                Some(scope)
+            }
+
+            pub fn abstract_scope(declaration: &'program TraitDefinition) -> Self {
+                Self {
+                    declaration,
+                    substitutions: Vec::new(),
+                    substitution_scope_starts: vec![0],
+                    argument_owner: declaration.symbol,
+                    region_scopes: vec![AppliedDeclarationRegionScope::new(
+                        declaration.symbol,
+                        &declaration.lifetime_parameters,
+                        &[],
+                    )],
+                }
+            }
+
+            pub fn type_identity(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> NormalizedTypeIdentity {
+                program.scoped_type_identity(
+                    TypeIdentityRequest {
+                        substitutions: &self.substitutions,
+                        ..TypeIdentityRequest::ordinary(reference)
+                    },
+                    &self.substitution_scope_starts,
+                )
+            }
+
+            pub fn package_qualified_type_identity(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> NormalizedTypeIdentity {
+                program.scoped_type_identity(
+                    TypeIdentityRequest {
+                        substitutions: &self.substitutions,
+                        ..TypeIdentityRequest::package_qualified(reference)
+                    },
+                    &self.substitution_scope_starts,
+                )
+            }
+
+            pub fn argument_reference(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> TypeReferenceHandle {
+                self.type_reference(program, reference).reference
+            }
+
+            pub fn type_reference(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> AppliedTypeReference<'_> {
+                project_type_reference(
+                    program,
+                    reference,
+                    &self.substitutions,
+                    &self.substitution_scope_starts,
+                )
+            }
+
+            pub(crate) fn supplied_type_reference(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+                preceding_frames: usize,
+            ) -> Option<AppliedTypeReference<'_>> {
+                let starts = self.substitution_scope_starts.get(..preceding_frames)?;
+                let end = self
+                    .substitution_scope_starts
+                    .get(preceding_frames)
+                    .copied()
+                    .unwrap_or(self.substitutions.len());
+                Some(project_type_reference(
+                    program,
+                    reference,
+                    self.substitutions.get(..end)?,
+                    starts,
+                ))
+            }
+
+            pub fn parameter_argument(
+                &self,
+                program: &TypedTrees,
+                parameter: SymbolHandle,
+            ) -> TypeReferenceHandle {
+                let Some((ordinal, (_, reference))) = self
+                    .substitutions
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, (binder, _))| *binder == parameter)
+                else {
+                    return TypeReferenceHandle::invalid();
+                };
+                let visible = self
+                    .substitution_scope_starts
+                    .iter()
+                    .rev()
+                    .find(|start| **start <= ordinal)
+                    .copied()
+                    .unwrap_or(0);
+                project_type_reference(
+                    program,
+                    *reference,
+                    &self.substitutions[..visible],
+                    &self.substitution_scope_starts[..self
+                        .substitution_scope_starts
+                        .partition_point(|start| *start < visible)],
+                )
+                .reference
+            }
+
+            pub fn same_application(&self, program: &TypedTrees, other: &Self) -> bool {
+                self.declaration.symbol == other.declaration.symbol
+                    && self
+                        .application_identity(program)
+                        .zip(other.application_identity(program))
+                        .is_some_and(|(left, right)| left == right)
+            }
+
+            /// Nominate the closed operation record supplied to this exact
+            /// implementation binder. The retained substitution fixes source
+            /// identity; this proves no refinement, law, or body property.
+            pub fn named_implementation_argument(
+                &self,
+                program: &'program TypedTrees,
+                parameter: SymbolHandle,
+            ) -> Result<&'program super::Conformance, &'static str> {
+                let declared = program
+                    .trait_type_parameters(self.declaration)
+                    .iter()
+                    .find(|declared| declared.symbol == parameter)
+                    .ok_or("implementation binder is not declared by this trait scope")?;
+                if declared.kind != crate::source_state::data::TypeParameterKind::Implementation {
+                    return Err("trait argument is not an implementation binder");
+                }
+                let mut bounds = self
+                    .declaration
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == parameter);
+                let (Some(bound), None) = (bounds.next(), bounds.next()) else {
+                    return Err("implementation binder has no unique exact bound");
+                };
+                if !bound.arguments.is_empty() || !bound.lifetime_arguments.is_empty() {
+                    return Err("applied implementation bound needs closed source preparation");
+                }
+                let argument = self.parameter_argument(program, parameter);
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(argument)
+                {
+                    return Err("implementation argument is not closed in its source scope");
+                }
+                let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(argument)
+                else {
+                    return Err("applied implementation argument needs closed source preparation");
+                };
+                let selected = program
+                    .conformance_by_symbol(*symbol)
+                    .ok_or("implementation argument does not name an exact operation record")?;
+                if selected.trait_symbol != bound.trait_symbol {
+                    return Err("implementation argument supplies another nominal trait");
+                }
+                if !selected.arguments.is_empty()
+                    || !selected.trait_lifetime_arguments.is_empty()
+                    || !selected.lifetime_parameters.is_empty()
+                    || !program.conformance_type_parameters(selected).is_empty()
+                {
+                    return Err("generic implementation argument needs closed source preparation");
+                }
+                Ok(selected)
+            }
+
+            pub fn parameter_identity(
+                &self,
+                program: &TypedTrees,
+                parameter: SymbolHandle,
+                qualification: TypeIdentityQualification,
+            ) -> NormalizedTypeIdentity {
+                let Some((request, scopes)) =
+                    self.parameter_identity_request(parameter, qualification)
+                else {
+                    return program
+                        .normalized_nominal_type_identity(parameter)
+                        .unwrap_or_default();
+                };
+                program.scoped_type_identity(request, scopes)
+            }
+
+            fn parameter_identity_request(
+                &self,
+                parameter: SymbolHandle,
+                qualification: TypeIdentityQualification,
+            ) -> Option<(TypeIdentityRequest<'_>, &[usize])> {
+                let (ordinal, (_, reference)) = self
+                    .substitutions
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, (binder, _))| *binder == parameter)?;
+                let outer = self
+                    .substitution_scope_starts
+                    .iter()
+                    .rev()
+                    .find(|start| **start <= ordinal)
+                    .copied()
+                    .unwrap_or(0);
+                Some((
+                    TypeIdentityRequest {
+                        substitutions: &self.substitutions[..outer],
+                        qualification,
+                        ..TypeIdentityRequest::ordinary(*reference)
+                    },
+                    &self.substitution_scope_starts[..self
+                        .substitution_scope_starts
+                        .partition_point(|start| *start < outer)],
+                ))
+            }
+
+            pub fn declaring_scope(
+                &self,
+                program: &'program TypedTrees,
+                declaration: SymbolHandle,
+            ) -> Option<Self> {
+                let mut selected: Option<Self> = None;
+                let mut ambiguous = false;
+                self.visit(program, &mut |scope| {
+                    if scope.declaration.symbol != declaration {
+                        return;
+                    }
+                    if let Some(known) = &selected {
+                        ambiguous |= !known.same_application(program, scope);
+                    } else {
+                        selected = Some(scope.clone());
+                    }
+                });
+                if ambiguous { None } else { selected }
+            }
+
+            pub fn bound_scope(
+                &self,
+                program: &'program TypedTrees,
+                binder: SymbolHandle,
+            ) -> Option<Self> {
+                let mut bounds = self
+                    .declaration
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == binder);
+                let bound = bounds.next()?;
+                if bounds.next().is_some() {
+                    return None;
+                }
+                let nested = Self::new(
+                    program,
+                    program.trait_definition_by_symbol(bound.trait_symbol)?,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &bound.arguments,
+                        lifetimes: &bound.lifetime_arguments,
+                    },
+                )?;
+                Some(nested.preceded_by(self))
+            }
+
+            fn preceded_by(mut self, outer: &Self) -> Self {
+                let mut substitutions = outer.substitutions.clone();
+                self.substitution_scope_starts = outer.substitution_scope_starts.clone();
+                self.substitution_scope_starts.push(substitutions.len());
+                substitutions.append(&mut self.substitutions);
+                self.substitutions = substitutions;
+                let mut regions = outer.region_scopes.clone();
+                regions.append(&mut self.region_scopes);
+                self.region_scopes = regions;
+                self.argument_owner = outer.argument_owner;
+                self
+            }
+
+            /// A retained service needs every declared parent application.
+            /// Return missing declarations or incomplete argument frames to
+            /// that producer instead of silently publishing a smaller graph.
+            pub fn parent_scopes(
+                &self,
+                program: &'program TypedTrees,
+            ) -> Result<Vec<Self>, &'static str> {
+                let parents = program.trait_requirements(self.declaration);
+                if parents.len() != self.declaration.requires.len() {
+                    return Err("applied trait lost its complete parent declaration span");
+                }
+                parents
+                    .iter()
+                    .chain(self.declaration.refines.iter())
+                    .map(|parent| self.parent_scope(program, parent))
+                    .collect()
+            }
+
+            fn parent_scope(
+                &self,
+                program: &'program TypedTrees,
+                parent: &super::TraitRequirement,
+            ) -> Result<Self, &'static str> {
+                let declaration = program
+                    .trait_definition_by_symbol(parent.symbol)
+                    .ok_or("applied trait parent has no exact declaration")?;
+                let scope = Self::new(
+                    program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: program.type_reference_handles(parent.arguments),
+                        lifetimes: &parent.lifetime_arguments,
+                    },
+                )
+                .ok_or("applied trait parent has no complete type and lifetime application")?;
+                Ok(scope.preceded_by(self))
+            }
+
+            /// Visit the complete applied inheritance graph or report its
+            /// missing relationship. Parent formation has one owner.
+            pub fn try_visit(
+                &self,
+                program: &'program TypedTrees,
+                visit: &mut impl FnMut(&Self) -> Result<(), &'static str>,
+            ) -> Result<(), &'static str> {
+                fn walk<'p>(
+                    scope: &AppliedTraitScope<'p>,
+                    program: &'p TypedTrees,
+                    active: &mut Vec<SymbolHandle>,
+                    visit: &mut impl FnMut(&AppliedTraitScope<'p>) -> Result<(), &'static str>,
+                ) -> Result<(), &'static str> {
+                    if active.contains(&scope.declaration.symbol) {
+                        return Err("applied trait traversal has an inherited declaration cycle");
+                    }
+                    active.push(scope.declaration.symbol);
+                    visit(scope)?;
+                    for parent in scope.parent_scopes(program)? {
+                        walk(&parent, program, active, visit)?;
+                    }
+                    active.pop();
+                    Ok(())
+                }
+                walk(self, program, &mut Vec::new(), visit)
+            }
+
+            pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {
+                self.visit_inherited(program, &mut Vec::new(), visit, &mut |_| {});
+            }
+
+            pub fn visit_parents_first(
+                &self,
+                program: &'program TypedTrees,
+                visit: &mut impl FnMut(&Self),
+            ) {
+                self.visit_inherited(program, &mut Vec::new(), &mut |_| {}, visit);
+            }
+
+            fn visit_inherited(
+                &self,
+                program: &'program TypedTrees,
+                active: &mut Vec<SymbolHandle>,
+                visit: &mut impl FnMut(&Self),
+                after: &mut impl FnMut(&Self),
+            ) {
+                if active.contains(&self.declaration.symbol) {
+                    return;
+                }
+                active.push(self.declaration.symbol);
+                visit(self);
+                for parent in program
+                    .trait_requirements(self.declaration)
+                    .iter()
+                    .chain(self.declaration.refines.iter())
+                {
+                    let Ok(scope) = self.parent_scope(program, parent) else {
+                        continue;
+                    };
+                    scope.visit_inherited(program, active, visit, after);
+                }
+                after(self);
+                active.pop();
+            }
+        }
+    }
+
+    pub(crate) use applications::RetainedTraitApplicationFrame;
+    pub use applications::{
+        AppliedTraitScope, AppliedTypeReference, GenericBoundRequirement, RetainedTraitScope,
+        TraitApplicationArguments, TraitApplicationEnvironment,
+    };
+
+    use crate::source_state::name::Identifier;
+    use crate::source_state::signature::StateSignature;
+    use arena::HandleSpan;
+    use symbols::SymbolHandle;
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TraitDefinition {
+        pub symbol: SymbolHandle,
+        pub is_boundary: bool,
+        pub is_public: bool,
+        pub name: Identifier,
+        pub lifetime_parameters: Vec<Identifier>,
+        pub type_parameters: HandleSpan<crate::source_state::data::TypeParameter>,
+        pub conformance_bounds: Vec<crate::source_state::machine::GenericConformanceBound>,
+        pub requires: HandleSpan<TraitRequirement>,
+        pub machines: HandleSpan<StateSignature>,
+        pub refines: Option<TraitRequirement>,
+        pub refinement_clauses: Vec<TraitRefinementClause>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TraitRefinementClause {
+        pub requirement: Option<Identifier>,
+        pub signature: StateSignature,
+        pub service_reaches: Vec<Identifier>,
+        pub service_reach: TraitRefinementReach,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum TraitRefinementReach {
+        #[default]
+        Inherited,
+        Concrete(declaration_contracts::ServiceReachRowId),
+        IndependentBounded(Vec<ClauseAbstractReachRow>),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ClauseAbstractReachRow {
+        pub requirement: Identifier,
+        pub row: declaration_contracts::ServiceReachRowId,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct Conformance {
+        pub symbol: SymbolHandle,
+        pub is_public: bool,
+        pub lifetime_parameters: Vec<Identifier>,
+        pub type_parameters: HandleSpan<crate::source_state::data::TypeParameter>,
+        pub trait_name: Identifier,
+        pub trait_symbol: SymbolHandle,
+        pub trait_lifetime_arguments: Vec<u32>,
+        pub arguments: HandleSpan<crate::source_state::types::TypeReferenceHandle>,
+        pub alias: Option<Identifier>,
+        pub rows: Vec<ConformanceRow>,
+        pub value_identity: ImplementationValueIdentity,
+    }
+
+    /*
+        What distinguishes the value a named implementation constructs
+        (conformances.md, "Resulting-value identity"): the schema application
+        and the selected operations, never the constructor's name or a binder
+        the schema application does not use. The default keeps the declaration
+        as its own representative with every binder relevant, which is the
+        answer for an implementation that owns a member: an inline or default
+        body is a new machine over the whole telescope.
+    */
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ImplementationValueIdentity {
+        /* The first declaration constructing this same value; invalid means this one. */
+        pub representative: SymbolHandle,
+        /* One flag per binder: set when the schema application does not mention it. */
+        pub unused_lifetimes: Vec<bool>,
+        pub unused_parameters: Vec<bool>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ConformanceRow {
+        pub declaring_trait: SymbolHandle,
+        pub declaring_trait_name: Identifier,
+        pub requirement: SymbolHandle,
+        pub requirement_name: Identifier,
+        pub realization_machine: SymbolHandle,
+        pub realization_state: SymbolHandle,
+        pub realization_name: Identifier,
+        pub source: ConformanceRowSource,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum ConformanceRowSource {
+        Inline,
+        Reference,
+        TraitDefault,
+        Synthesized,
+    }
+
+    impl ConformanceRowSource {
+        pub fn owns_realization(self) -> bool {
+            matches!(self, Self::Inline | Self::TraitDefault | Self::Synthesized)
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TraitRequirement {
+        pub symbol: SymbolHandle,
+        pub name: Identifier,
+        pub lifetime_arguments: Vec<Identifier>,
+        pub arguments: HandleSpan<crate::source_state::types::TypeReferenceHandle>,
+        pub source_span: source_text::SourceSpan,
+    }
+}

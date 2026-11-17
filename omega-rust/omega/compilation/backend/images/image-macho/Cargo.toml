@@ -9,12 +9,17 @@ name = "image_macho"
 path = "src/lib.rs"
 
 [dependencies]
+machine-code = { path = "../../../representations/machine-code" }
+wire = { path = "../../../../../psi/foundation/wire" }
 arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
 calling-conventions = { path = "../../calling-conventions" }
-object-file = { path = "../../object-file" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+object-file = { path = "../../../pipeline/05_object-construction" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 target = { path = "../../target" }
 isa-x86_64 = { path = "../../isa/isa-x86_64" }
 sha2 = "0.10"
+
+[dev-dependencies]
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }

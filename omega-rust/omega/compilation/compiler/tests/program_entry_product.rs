@@ -60,8 +60,9 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
                         .program_entry_contracts
                         .is_empty()
                 );
-                let refusal = compiler::prepare_program_entry(&checked)
-                    .expect_err("execution still needs an actual checked entry");
+                let refusal =
+                    compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                        .expect_err("execution still needs an actual checked entry");
                 assert_eq!(refusal.len(), 1);
                 assert_eq!(
                     refusal[0].message,
@@ -85,27 +86,26 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
 #[test]
 fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
     let source_text = "trait A {}\ntrait B {}\nGood satisfies A {}\nWrong satisfies B {}\ntrait Holder<Policy satisfies A> {}\ntrait OtherHolder<Policy satisfies B> {}\nboundary trait Chosen: Holder<Good> {}\nboundary trait Other: OtherHolder<Wrong> {}\n";
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let source_id = sources
         .add_checked_instance(
             "source/main.omg".into(),
             source_text,
             "source".into(),
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Product,
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(source_text)
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let declaration = |name: &str| {
         typed
             .traits()
@@ -114,10 +114,10 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
             .unwrap()
     };
     let scope = |name: &str| {
-        typed_trees::trait_definition::AppliedTraitScope::new(
+        source_compiler::source_state::trait_definition::AppliedTraitScope::new(
             &typed,
             declaration(name),
-            typed_trees::trait_definition::TraitApplicationArguments {
+            source_compiler::source_state::trait_definition::TraitApplicationArguments {
                 lexical_owner: declaration(name).symbol,
                 enclosing_data_applications: &[],
                 arguments: &[],
@@ -231,7 +231,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             assert!(!evidence.seals.is_empty());
             assert_eq!(evidence.module, program.artifact().manifest().semantic());
 
-            let (signature, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let (signature, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             let receipt = application.receipt.unwrap().expect("actual entry receipt");
             assert_eq!(
                 receipt.source_signature_identity(),
@@ -297,10 +299,12 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .inventory()
                 .services_for(accepted.source().as_ref())
                 .expect("the accepted source's retained Product service catalog");
-            let schema = package_compilation::selected_program_entry_boundary(
+            let schema = source_compiler::entry_contracts::selected_program_entry_boundary(
                 catalog,
-                signature.target_slot(),
-                None,
+                &package_compilation::source_imports::source_target(
+                    signature.target_slot().owner,
+                    None,
+                ),
             )
             .expect("the selected target's authenticated source schema");
             assert!(
@@ -351,7 +355,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             .map(|(expected_owner, expected_source)| {
                 let path = repository.join(expected_source);
                 let mut rows = catalog.abi_signatures().iter().filter(|row| {
-                    row.projections_in_context(typed, source::DependencyScope::Product)
+                    row.projections_in_context(typed, declaration_contracts::source_identity::DependencyScope::Product)
                         .any(|projection| {
                             typed
                                 .trait_machine_signature(projection.source)

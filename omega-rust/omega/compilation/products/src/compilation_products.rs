@@ -26,7 +26,7 @@ use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, DynamicElfPublicationReceipt,
     ExecutablePublicationReceipt, NativeArtifactIdentity, NativePackagePublicationReceipt,
 };
-use optimization_core::OptimizationRollbackSettlement;
+use optimization_requests::OptimizationRollbackSettlement;
 use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
@@ -36,7 +36,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 /// Native completion adds application roots and demanded values to this owner.
 /// It is never encoded in saved native inputs.
 pub struct ProductScalarCompletion {
-    pub completed: build_time_evaluation::ScalarApplicationCompletion,
+    pub completed: source_compiler::evaluation::ScalarApplicationCompletion,
     pub proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
 }
 
@@ -186,7 +186,7 @@ impl CompileProduct {
 
 #[derive(Debug)]
 pub struct CompileReport {
-    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     product: CompileProduct,
     build_outputs: Option<crate::RetainedBuildOutputs>,
     build_observation: Option<package_compilation::BuildObservationIdentity>,
@@ -238,7 +238,7 @@ impl CompileReport {
 
     pub(crate) fn with_source_completion_accounting(
         mut self,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         self.source_completion_accounting = accounting;
         self
@@ -246,7 +246,7 @@ impl CompileReport {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 

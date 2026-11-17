@@ -10,7 +10,7 @@
 // to bind AArch64 targets alongside x86 targets without conflict.
 
 use super::optimization;
-use build_time_evaluation::BuildTimeValue;
+use source_compiler::evaluation::BuildTimeValue;
 use optimization_core::OptimizationSelections;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
@@ -137,7 +137,7 @@ pub(crate) fn extract_build_settings(
 ) -> Result<
     (
         EvaluatedBuildSettings,
-        optimization_core::OptimizationReportRequest,
+        optimization_requests::OptimizationReportRequest,
     ),
     String,
 > {

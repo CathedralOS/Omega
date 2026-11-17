@@ -20,9 +20,8 @@ pub use evaluated_bindings::{
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
     EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
 };
-pub use language_semantics::service_surface::identities::{
-    ProviderIdentityId, ProviderIdentityTable,
-};
+pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
+pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 pub use service_schemas::{BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise};
 pub use service_schemas::{
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
@@ -479,7 +478,7 @@ impl ProviderPlan {
                 binding_identity
             ));
         }
-        let mut hash = semantic_vocabulary::Fnv1a::new();
+        let mut hash = wire::fnv1a::Fnv1a::new();
         hash.bytes(rendered.as_bytes());
         hash.bytes(self.schema_identity_digest().as_bytes());
         hash.finish()
@@ -714,7 +713,7 @@ impl ProviderPlan {
                         claim.parameter_index
                     ));
                 }
-                if claim.effective_carry != language_semantics::CarryPolicy::STRICT {
+                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
                     errors.push(format!(
                         "{} entry claim for parameter {} and domain `{}` is not born-strict",
                         context(),
@@ -784,7 +783,7 @@ impl ProviderPlan {
                         context()
                     ));
                 }
-                if claim.effective_carry != language_semantics::CarryPolicy::STRICT {
+                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
                     errors.push(format!(
                         "{} result claim for domain `{}` is not born-strict",
                         context(),
@@ -871,7 +870,7 @@ impl ProviderPlan {
                     self.name, row.method
                 ));
             }
-            if language_semantics::type_identity::normalize_requirement_lifetime_partition(
+            if application_identity::type_identity::normalize_requirement_lifetime_partition(
                 &row.requirement_lifetime_partition,
             ) != row.requirement_lifetime_partition
             {

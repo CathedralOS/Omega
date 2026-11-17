@@ -5,23 +5,13 @@
 // source admission as retained provider selections.
 
 use super::PackageBuildHandoff;
-use build_time_evaluation::native_bindings::CapturedNativeDeclaration;
-use effects::provider_plan::EvaluatedNativeBinding;
-use language_semantics::declaration_selection::CapturedNativeIntent;
-pub use language_semantics::declaration_selection::NativeBindingProducer;
+use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
+use source_compiler::declaration_selection::CapturedNativeIntent;
+pub use declaration_contracts::selection::NativeBindingProducer;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeBindingProduction {
-    pub producer: NativeBindingProducer,
-    pub evaluated: EvaluatedNativeBinding,
-}
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageNativeBindingOrigin {
-    pub primary: NativeBindingProduction,
-    pub equivalents: Vec<NativeBindingProduction>,
-}
+pub use effects::semantic_bindings::{NativeBindingProduction, PackageNativeBindingOrigin};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct NativeBuildOutputs {
@@ -45,7 +35,7 @@ impl NativeBuildOutputs {
                 || declaration.requirement_identity.is_empty()
                 || declaration.requirement.kind() != symbols::SymbolKind::State
                 || declaration.requirement.source().dependency_scope
-                    != source::DependencyScope::Product
+                    != declaration_contracts::source_identity::DependencyScope::Product
                 || declaration
                     .dependency_alias
                     .as_ref()

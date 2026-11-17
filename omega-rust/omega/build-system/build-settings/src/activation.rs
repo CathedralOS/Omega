@@ -49,10 +49,13 @@ pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
-use language_semantics::declaration_selection::{
-    ExecutedBuildSelection, ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection,
-    ExecutedRootBinding, NativeBindingFormation, ProductDeclarationRequest,
-};
+use source_compiler::declaration_selection::ExecutedBuildSelection;
+use source_compiler::declaration_selection::ExecutedEnumExclusion;
+use source_compiler::declaration_selection::ExecutedNativeBinding;
+use source_compiler::declaration_selection::ExecutedProductSelection;
+use source_compiler::declaration_selection::ExecutedRootBinding;
+use source_compiler::declaration_selection::NativeBindingFormation;
+use source_compiler::declaration_selection::ProductDeclarationRequest;
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
@@ -67,10 +70,10 @@ use terminal_work::WorkMeter;
 use crate::host::bindings::TerminalBuildBindingHost;
 use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
-pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
-    evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdentity {
+    evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-        storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+        storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
     }
 }
 
@@ -81,7 +84,7 @@ pub struct ReturnedBuild {
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
-    pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
+    pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
     pub(crate) native_formations: Vec<NativeBindingFormation>,
@@ -299,7 +302,7 @@ impl TerminalBuildHost {
             .ok_or("Build filesystem calls lost their artifact custody")?;
         let mut provider_slots = Vec::new();
         for call in binding_calls.iter() {
-            if let language_semantics::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
+            if let source_compiler::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
                 provider_slots.extend_from_slice(&request.requirement.boundaries);
             }
         }
@@ -409,7 +412,7 @@ pub(crate) struct CarriedStage {
     build: carried_build::CarriedBuild,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: build_time_evaluation::SourceCompletionAccounting,
+    helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     request_host: crate::host::requests::CarriedRequests,
     binding_host: crate::host::bindings::CarriedBindings,
     pub(crate) filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
@@ -428,7 +431,7 @@ pub struct TerminalBuildActivation {
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: build_time_evaluation::SourceCompletionAccounting,
+    helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
 }
 
 pub struct TerminalBuildStep<'step> {
@@ -442,7 +445,7 @@ pub struct TerminalBuildStep<'step> {
 impl TerminalBuildActivation {
     pub fn helper_evaluation_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         &self.helper_accounting
     }
 

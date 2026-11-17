@@ -49,7 +49,7 @@ pub mod structural_path_encoding;
 pub mod terminal_module;
 pub mod types_and_values;
 
-pub use language_semantics::const_value::FiniteScalarValue;
+pub use application_identity::const_value::FiniteScalarValue;
 
 pub use artifacts::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,
@@ -66,15 +66,16 @@ pub use language_core::inline_assembly::{
     AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
     AsmTargetApplicability as RegisterTargetApplicability,
 };
-pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
-pub(crate) use optimization::digest_encoder;
+pub use declaration_contracts::byte_predicates::ByteSequencePredicate;
+pub use declaration_contracts::byte_predicates::ByteSequencePredicateSet;
+pub(crate) use ::wire::digest_encoder;
 
 pub mod prepared_roots {
 
     use crate::{CheckedMachineDeclaration, TerminalIdentityTable, TerminalModule};
     use arena::Arena;
     use semantic_vocabulary::MachineId;
-    use source::SourceSpan;
+    use source_text::SourceSpan;
     use std::sync::Arc;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,7 +482,7 @@ pub mod calling_policies {
         pub carrier: StructuralTypeId,
         pub opaque_storage_identity: TerminalIdentityIndex,
         pub carrier_storage_identity: TerminalIdentityIndex,
-        pub application: language_semantics::opaque_representations::SelectedOpaqueApplication,
+        pub application: application_identity::opaque_representations::SelectedOpaqueApplication,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -539,7 +540,7 @@ pub mod native_layouts {
 
     use crate::{TargetLayoutInput, TerminalIdentityIndex};
     use arena::{Arena, HandleSpan};
-    use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
+    use application_identity::callback_declarations::PrivateCallbackSlotSelection;
     use layout_plans::NativeLayoutPlanReport;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 

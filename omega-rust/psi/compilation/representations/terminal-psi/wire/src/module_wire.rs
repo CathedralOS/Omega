@@ -658,9 +658,11 @@ pub(crate) mod carry_and_suspension_wire {
         Access, Argument, Digest, Field, Flag, Id, Ids, List, Scalar, U32, wire_enum, wire_record,
     };
     use arena::{Handle, HandleSpan};
-    use language_semantics::{
-        CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension,
-    };
+    use declaration_contracts::CarryAddress;
+use declaration_contracts::CarryCpu;
+use declaration_contracts::CarryHostThread;
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::CarrySuspension;
     use terminal_psi::{
         TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
         TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
@@ -1064,7 +1066,7 @@ pub(crate) mod carry_and_suspension_wire {
         use super::{CallTarget, Field, decode_suspension_call_plan, encode_suspension_call_plan};
         use crate::codec_error::CodecError;
         use crate::sections::semantic_module::wire::{Reader, Writer};
-        use language_semantics::CarryPolicy;
+        use declaration_contracts::CarryPolicy;
         use semantic_vocabulary::{
             MachineId, ObligationId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
             SuspensionCrossingId, ValueId,
@@ -1633,10 +1635,10 @@ pub(crate) mod opaque_representation_wire {
         Bytes, Field, Id, Index, Text, U16, U64, wire_enum, wire_record,
     };
     use super::{CodecError, Reader, Writer};
-    use language_semantics::opaque_representations::{
-        OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
-        OpaqueRepresentationLifecycleDisposition, SelectedOpaqueApplication,
-    };
+    use application_identity::opaque_representations::OpaqueRepresentationApplicationOrigin;
+use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
+use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
+use application_identity::opaque_representations::SelectedOpaqueApplication;
     use terminal_psi::TerminalOpaqueRepresentation;
 
     wire_record! {
@@ -1677,9 +1679,8 @@ pub(crate) mod quotient_wire {
     use super::super::CodecError;
     use super::super::wire::{Writer, decode_canonical};
     use super::super::wire_fields::{Field, Id, Index, List, Text, U32, wire_enum, wire_record};
-    use language_semantics::quotient_correspondence::{
-        QuotientPositionalRelation, QuotientRelationIdentity,
-    };
+    use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
+use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
     use terminal_psi::terminal_module::quotients::{
         TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
         TerminalQuotientOperation, TerminalQuotientRepresentation,
@@ -2044,14 +2045,17 @@ pub(crate) mod access_lifecycle_wire {
 pub(crate) mod access_view_plan_wire {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
-    use access_plans::{
-        AccessExposure, AccessPermissions, AtomicPermissions, BoundaryReach,
-        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, PlacementSnapshot,
-        ValidatedPlacement,
-    };
-    use layout_plans::{
-        IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-    };
+    use access_vocabulary::AccessExposure;
+use access_vocabulary::AccessPermissions;
+use access_vocabulary::AtomicPermissions;
+use access_vocabulary::BoundaryReach;
+use access_vocabulary::BoundaryServiceReachId;
+use access_vocabulary::ExternalRead;
+use access_vocabulary::FieldAccess;
+use access_vocabulary::ObservationModel;
+use access_admission::PlacementSnapshot;
+use access_admission::ValidatedPlacement;
+    use layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
     use terminal_psi::{
         TerminalAccessFieldPlan, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
         TerminalIdentityIndex,
@@ -2600,7 +2604,8 @@ pub(crate) mod closed_conformance_wire {
     }
 }
 pub(crate) mod declaration_wire {
-    use access_plans::{AccessPermissions, AtomicPermissions as DomainAtomicPermissions};
+    use access_vocabulary::AccessPermissions;
+use access_vocabulary::AtomicPermissions as DomainAtomicPermissions;
 
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -2644,17 +2649,17 @@ pub(crate) mod declaration_wire {
 
     type Policy = terminal_psi::StructuralDomainAccessPlan;
     type Region = (
-        language_semantics::reflection::SchemaNodeHandle,
+        schema_reflection::SchemaNodeHandle,
         Option<Vec<terminal_psi::StructuralPathSegment>>,
     );
     type Caller = (
-        language_semantics::reflection::CallableDescription,
+        schema_reflection::CallableDescription,
         StructuralEstablishmentRoute,
     );
     type Observation = Option<(
-        access_plans::ObservationModel,
-        access_plans::AccessPermissions,
-        access_plans::AccessExposure,
+        access_vocabulary::ObservationModel,
+        access_vocabulary::AccessPermissions,
+        access_vocabulary::AccessExposure,
     )>;
 
     wire_record! {
@@ -2677,7 +2682,7 @@ pub(crate) mod declaration_wire {
         }
         fn read(reader: &mut Reader<'_>) -> Result<Region, CodecError> {
             Ok((
-                language_semantics::reflection::SchemaNodeHandle::from_index(reader.u32()?),
+                schema_reflection::SchemaNodeHandle::from_index(reader.u32()?),
                 <Optional<super::super::wire_fields::Path> as Field<_>>::read(reader)?,
             ))
         }
@@ -2706,14 +2711,14 @@ pub(crate) mod declaration_wire {
             writer.boolean(value.is_some());
             if let Some((model, permissions, exposure)) = value {
                 writer.u8(match model {
-                    access_plans::ObservationModel::Stable => 0,
-                    access_plans::ObservationModel::External => 1,
-                    access_plans::ObservationModel::Atomic => 2,
+                    access_vocabulary::ObservationModel::Stable => 0,
+                    access_vocabulary::ObservationModel::External => 1,
+                    access_vocabulary::ObservationModel::Atomic => 2,
                 });
                 Permissions::write(writer, permissions)?;
                 writer.u8(match exposure {
-                    access_plans::AccessExposure::Exported => 0,
-                    access_plans::AccessExposure::BindingPrivate => 1,
+                    access_vocabulary::AccessExposure::Exported => 0,
+                    access_vocabulary::AccessExposure::BindingPrivate => 1,
                 });
             }
             Ok(())
@@ -2723,15 +2728,15 @@ pub(crate) mod declaration_wire {
                 return Ok(None);
             }
             let model = match reader.u8()? {
-                0 => access_plans::ObservationModel::Stable,
-                1 => access_plans::ObservationModel::External,
-                2 => access_plans::ObservationModel::Atomic,
+                0 => access_vocabulary::ObservationModel::Stable,
+                1 => access_vocabulary::ObservationModel::External,
+                2 => access_vocabulary::ObservationModel::Atomic,
                 tag => return Err(CodecError::InvalidTag("domain observation", tag)),
             };
             let permissions = Permissions::read(reader)?;
             let exposure = match reader.u8()? {
-                0 => access_plans::AccessExposure::Exported,
-                1 => access_plans::AccessExposure::BindingPrivate,
+                0 => access_vocabulary::AccessExposure::Exported,
+                1 => access_vocabulary::AccessExposure::BindingPrivate,
                 tag => return Err(CodecError::InvalidTag("domain observation exposure", tag)),
             };
             Ok(Some((model, permissions, exposure)))
@@ -2766,7 +2771,7 @@ pub(crate) mod declaration_wire {
         fn read(reader: &mut Reader<'_>) -> Result<Policy, CodecError> {
             let image = <super::super::wire_fields::Bytes as Field<_>>::read(reader)?;
             let schema =
-                language_semantics::reflection::SemanticSchemaGraph::from_runtime_image(&image)
+                schema_reflection::SemanticSchemaGraph::from_runtime_image(&image)
                     .map_err(CodecError::AccessPlan)?;
             let issuance = <Optional<List<DomainCaller>> as Field<_>>::read(reader)?;
             let mut rules = || {
@@ -2786,16 +2791,16 @@ pub(crate) mod declaration_wire {
                 ))
             })?;
             let services = super::super::wire::decode_counted(reader, |reader| {
-                access_plans::BoundaryServiceReachId::from_normalized_identity(reader.u64()?)
+                access_vocabulary::BoundaryServiceReachId::from_normalized_identity(reader.u64()?)
                     .map_err(|error| CodecError::AccessPlan(error.to_string()))
             })?;
-            Ok(access_plans::AccessPlan {
+            Ok(access_admission::AccessPlan {
                 schema,
                 issuance,
                 readers,
                 writers,
                 observations,
-                reach: access_plans::BoundaryReach::from_services(services),
+                reach: access_vocabulary::BoundaryReach::from_services(services),
             })
         }
     }
@@ -2857,7 +2862,7 @@ pub(crate) mod dynamic_dispatch_wire {
         Access, CallResult, Flag, I128, Id, Ids, Index, List, Multiplicity, OptionalId, Path,
         Scalar, U32, wire_enum, wire_record,
     };
-    use language_semantics::const_value::FiniteScalarValue;
+    use application_identity::const_value::FiniteScalarValue;
     use terminal_psi::{
         TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
         TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
@@ -3482,11 +3487,8 @@ pub(crate) mod native_layout_wire {
         CodecError,
         wire::{Reader, Writer, decode_bytes},
     };
-    use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
-    use layout_plans::{
-        IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-        NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport,
-    };
+    use application_identity::callback_declarations::PrivateCallbackSlotSelection;
+    use layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport};
     use terminal_psi::{NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization};
     type NativeReport = NativeLayoutPlanReport<PrivateCallbackSlotSelection>;
     type PrivateDemand = PrivateCallbackLayoutDemandReport<PrivateCallbackSlotSelection>;
@@ -4424,7 +4426,7 @@ pub(crate) mod scalar_condition_wire {
     use super::super::CodecError;
     use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::super::wire::{Reader, Writer};
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use numerics::integer_bounds::IntegerBoundStep;
     use terminal_psi::{
         ScalarConditionSubject, ScalarConditions, ScalarRangeCondition, ScalarRangeObservation,
@@ -4987,7 +4989,7 @@ pub(crate) mod scalar_predicate_wire {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use numerics::bignum::BigInt;
+        use bignum::BigInt;
         use semantic_vocabulary::{ScalarApplicationId, ScalarConditionRole};
         use terminal_psi::{ScalarConditionSubject, ScalarRangeObservation};
 

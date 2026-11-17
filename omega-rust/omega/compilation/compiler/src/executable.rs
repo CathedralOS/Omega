@@ -2,15 +2,14 @@
 //! The entry receipt, arrival plans and permission rows all describe that same
 //! artifact; application completion owns native compilation and publication.
 
-use crate::terminal::ProducedTerminalProduct;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use products::CheckedCompilation;
+use products::PublishedCompilation;
 use std::sync::Arc;
 
 pub(super) fn prepare(
-    checked: &CheckedCompilation,
-    produced: ProducedTerminalProduct,
+    checked: &PublishedCompilation,
+    proposal: Option<backend_plan::TerminalTargetProviderProposal>,
     selections: &OptimizationSelections,
     request: Option<&products::NativeProductRequest>,
 ) -> Result<
@@ -22,7 +21,7 @@ pub(super) fn prepare(
     Vec<Diagnostic>,
 > {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let program = &produced.program;
+    let program = checked.program();
     let artifact = program.artifact();
     let module = artifact.semantic_module();
     let execution = checked.execution();
@@ -31,11 +30,8 @@ pub(super) fn prepare(
         .target_profile()
         .unwrap_or_else(target::TargetProfile::host);
     let declarations = realization.provider_declarations();
-    let mut entry = checked.program_entry_with_calling_plans(
-        program,
-        declarations,
-        build_settings::CALLING_POLICY_EVALUATOR,
-    )?;
+    let mut entry =
+        crate::terminal::program_entry_with_calling_plans(checked, program, declarations)?;
     entry.bind_physical_adapter(module, declarations)?;
     let calls = checked_provider_calls(module, declarations)?;
     let root = module
@@ -70,16 +66,22 @@ pub(super) fn prepare(
             "executable callback and interrupt entries need their canonical composition roots before application preparation".into(),
         ));
     }
-    let custody = source_compiler::TerminalApplicationCustody::prepare(
+    let custody = terminal_installation::application::TerminalApplicationCustody::prepare(
         entry.nominal_root(),
         Some(entry.source_signature().identity().bytes()),
-        Some(source_compiler::TerminalCompositionRoots {
-            callbacks: None,
-            physical_adapter: entry.physical_adapter(),
-        }),
+        Some(
+            terminal_installation::application::TerminalCompositionRoots {
+                callbacks: None,
+                physical_adapter: entry.physical_adapter(),
+            },
+        ),
     );
-    let application =
-        program.attach_application(&custody, &mut source_compiler::UnmeasuredProduction)?;
+    let application = custody.attach(
+        artifact.view().into(),
+        Ok(artifact),
+        program.machine_provenance(),
+        &mut terminal_installation::application::UnmeasuredEntryReceipt,
+    )?;
     let receipt = application
         .receipt?
         .ok_or_else(|| refuse("executable application has no checked entry receipt".into()))?;
@@ -98,7 +100,7 @@ pub(super) fn prepare(
     }
     roots.sort_unstable();
     roots.dedup();
-    let mut provider_proposal = produced.proposal.ok_or_else(|| {
+    let mut provider_proposal = proposal.ok_or_else(|| {
         refuse("executable application requires an explicit deployment target".into())
     })?;
     provider_proposal.application_roots = Some(roots);
@@ -152,7 +154,7 @@ pub(super) fn prepare(
         application: checked.native_application_metadata(),
         optimizations: selections.project_post_terminal(),
         external_bindings: realization.external_bindings(),
-        behavior_exclusions: &checked.build().config.behavior_exclusions,
+        behavior_exclusions: checked.behavior_exclusions(),
         package_terminal_authority_permissions: realization
             .terminal_authority_permissions()
             .to_vec(),
@@ -160,10 +162,7 @@ pub(super) fn prepare(
             .terminal_authority_permission_identities()
             .clone(),
         x86_scalar_fma_provider: checked
-            .build()
-            .config
-            .settings
-            .x86_deployment_claim
+            .x86_deployment_claim()
             .admit_for(Some(profile))
             .map_err(refuse)?,
     };

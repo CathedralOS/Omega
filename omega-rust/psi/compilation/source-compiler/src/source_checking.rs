@@ -3,16 +3,15 @@
 //! Frozen typed source is an input to structural lowering, never an acceptance
 //! certificate. Only the lowered-form checker can publish an executable product.
 
+use crate::declaration_selection::ExecutedProductSelection;
+use crate::declaration_selection::ProductDeclarationRequest;
+use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{
-    ExecutedProductSelection, ProductDeclarationRequest,
-};
 use std::sync::Arc;
-use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
-        program: &mut typed_trees::TypedTrees,
+        program: &mut crate::source_state::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let mut entries = Vec::new();
         for declaration in program.const_declarations() {
@@ -41,14 +40,13 @@ mod constant_entries {
 }
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
-    pub invocation_sources: Option<Arc<dyn build_time_evaluation::InvocationSourceConsent>>,
+    pub invocation_sources: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
-    pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
-    pub layout_selection_authority:
-        Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
+    pub layout_scopes: &'request [crate::evaluation::FixedLayoutTargetScope],
+    pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
     pub asm_authority: Option<language_core::inline_assembly::AsmAuthorityAdmission>,
-    pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
+    pub wire_demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
     pub declarations: Option<
         &'request dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
     >,
@@ -67,10 +65,10 @@ impl ProductRepresentationInput<'_> {
     /// executed a representation selection, or an earlier admission retained
     /// one. A Build activation that made other requests asks for none.
     fn requested(&self) -> bool {
-        build_time_evaluation::build_requests_any(
+        crate::evaluation::build_requests_any(
             self.declared,
             self.executed,
-            &[language_semantics::declaration_selection::BuildOperation::RepresentationSelection],
+            &[crate::declaration_selection::BuildOperation::RepresentationSelection],
         ) || !self.retained.is_empty()
     }
 
@@ -93,18 +91,24 @@ impl ProductRepresentationInput<'_> {
 /// Accepts the pre-Psi04 typed frontier. Preparing an already specialized
 /// frontier again is not part of this boundary.
 pub struct SourcePreparationRequest<'request> {
-    pub program: typed_trees::TypedTrees,
+    pub program: crate::source_state::TypedTrees,
     pub admission: SourceAdmission<'request>,
     /// The exact entries, subjects, bindings and supplies later judged.
     pub compilation: crate::TerminalSourceCompilation<'request>,
-    pub accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub accounting: crate::evaluation::SourceCompletionAccounting,
 }
 
 pub struct FrozenSource {
-    pub program: Arc<typed_trees::FrozenTypedTrees>,
-    pub accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub program: Arc<crate::source_state::FrozenTypedTrees>,
+    pub accounting: crate::evaluation::SourceCompletionAccounting,
     /// Actual demand before named uses became literals. This is result
     /// correspondence data, not declaration-selection or execution authority.
+    pub constants: Vec<crate::ConstantRead>,
+}
+
+pub struct JudgedSource {
+    pub accepted: crate::AcceptedTerminalSource,
+    pub accounting: crate::evaluation::SourceCompletionAccounting,
     pub constants: Vec<crate::ConstantRead>,
 }
 
@@ -113,11 +117,36 @@ pub struct FrozenSource {
 #[derive(Debug)]
 pub struct SourcePreparationFailure {
     pub diagnostics: Vec<Diagnostic>,
-    pub accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub accounting: crate::evaluation::SourceCompletionAccounting,
 }
 
 impl SourcePreparationRequest<'_> {
-    pub fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
+    /// Complete preparation and let the lowered-form checker judge this exact
+    /// request. Build execution receives the accepted program and actual costs.
+    pub fn judge(
+        self,
+        publication: terminal_codec::TerminalPublication,
+    ) -> Result<JudgedSource, SourcePreparationFailure> {
+        let compilation = self.compilation;
+        let FrozenSource {
+            program,
+            accounting,
+            constants,
+        } = self.prepare()?;
+        match crate::AcceptedTerminalSource::judge(program, compilation, publication) {
+            Ok(accepted) => Ok(JudgedSource {
+                accepted,
+                accounting,
+                constants,
+            }),
+            Err(diagnostics) => Err(SourcePreparationFailure {
+                diagnostics,
+                accounting,
+            }),
+        }
+    }
+
+    pub(crate) fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
             // Opaque property receipts came from the deleted checker. Supplying one
@@ -129,7 +158,7 @@ impl SourcePreparationRequest<'_> {
             }
             self.admission.representations.require_none_requested()?;
             let mut program = self.program;
-            build_time_evaluation::evaluate_fixed_layout_applications(
+            crate::evaluation::evaluate_fixed_layout_applications(
                 &mut program,
                 self.admission.layout_scopes,
                 self.admission.layout_selection_authority.clone(),
@@ -140,7 +169,7 @@ impl SourcePreparationRequest<'_> {
             // `domain D access Policy;` leaves who may issue `as +D` to the
             // policy's plan. Each demanded domain's plan runs once here, so
             // Psi 05 reads its issuers from the checked result.
-            build_time_evaluation::evaluate_domain_access_plans(
+            crate::evaluation::evaluate_domain_access_plans(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),
@@ -150,7 +179,7 @@ impl SourcePreparationRequest<'_> {
             // `Buffer<capacity()>`: a const argument written as a call gets
             // its value first, because a constant below may be computed
             // through a type that is applied at one.
-            build_time_evaluation::evaluate_const_arguments(
+            crate::evaluation::evaluate_const_arguments(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),
@@ -158,29 +187,27 @@ impl SourcePreparationRequest<'_> {
                 &mut accounting,
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
-            let constants =
-                build_time_evaluation::evaluate_constant_initializers_with_source_consent(
-                    &mut program,
-                    self.compilation,
-                    self.admission.layout_scopes,
-                    self.admission.layout_selection_authority,
-                    self.admission.invocation_sources,
-                    &mut accounting,
-                )?;
-            build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
+            let constants = crate::evaluation::evaluate_constant_initializers_with_source_consent(
+                &mut program,
+                self.compilation,
+                self.admission.layout_scopes,
+                self.admission.layout_selection_authority,
+                self.admission.invocation_sources,
+                &mut accounting,
+            )?;
+            crate::evaluation::validate_constant_evaluations(&program, &accounting).map_err(
                 |reason| {
                     vec![Diagnostic::error(format!(
                         "constant materialization receipt join: {reason}"
                     ))]
                 },
             )?;
-            let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+            let mut preparation = crate::preparation::PreparationRequest::settled()
                 .with_wire_compatibility_demands(self.admission.wire_demands);
             if let Some(authority) = self.admission.asm_authority {
                 preparation = preparation.with_asm_authority(authority);
             }
-            let (program, _) =
-                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+            let (program, _) = crate::preparation::prepare_typed_trees(program, &preparation)?;
             let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
             let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();
             declarations.sort_unstable_by_key(|declaration| key(declaration.symbol));
@@ -197,7 +224,7 @@ impl SourcePreparationRequest<'_> {
                     let declaration = declarations[index];
                     Ok(crate::ConstantRead {
                         name: program.symbols.name(symbol).to_owned(),
-                        declaration: symbols::RetainedDeclaration::capture(
+                        declaration: crate::source_symbols::retain_declaration(
                             &program.symbols,
                             symbol,
                         )
@@ -229,7 +256,7 @@ mod tests {
     #[test]
     fn preparation_returns_source_without_a_checked_product() {
         let prepared = SourcePreparationRequest {
-            program: typed_trees::TypedTrees::default(),
+            program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
                 calling: None,
@@ -237,7 +264,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -253,7 +280,7 @@ mod tests {
     fn an_old_external_root_request_is_not_silently_discarded() {
         let roots = [symbols::SymbolHandle::invalid()];
         let result = SourcePreparationRequest {
-            program: typed_trees::TypedTrees::default(),
+            program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
                 calling: None,
@@ -261,7 +288,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -285,10 +312,10 @@ mod tests {
     #[test]
     fn unserved_representation_inputs_are_never_silently_discarded() {
         use super::ProductRepresentationInput;
-        use language_semantics::declaration_selection::{
-            BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
-        };
-        use typed_trees::opaque_representations::{
+        use crate::declaration_selection::BuildOperation;
+        use crate::declaration_selection::ExecutedProductSelection;
+        use crate::declaration_selection::ProductDeclarationRequest;
+        use crate::source_state::opaque_representations::{
             OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
             OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection,
         };
@@ -296,7 +323,7 @@ mod tests {
         // These records deliberately carry no accepted semantic evidence. Their
         // presence alone must refuse before preparation can erase their request.
         let request = std::sync::Arc::new(ProductDeclarationRequest {
-            source_span: source::SourceSpan::default(),
+            source_span: source_text::SourceSpan::default(),
             operation: BuildOperation::RepresentationSelection,
             operands: Box::new([]),
         });
@@ -312,12 +339,12 @@ mod tests {
             symbols::SymbolHandle::invalid(),
             symbols::SymbolHandle::invalid(),
             Default::default(),
-            typed_trees::typed_trees::ClosedConformanceApplication::default(),
+            crate::source_state::ClosedConformanceApplication::default(),
             OpaqueRepresentationLifecycleDisposition::Inert,
             OpaqueRepresentationCopyDisposition::PlacementOnly,
             OpaqueRepresentationApplicationOrigin::NamedConformance,
             symbols::SymbolHandle::invalid(),
-            source::SourceSpan::default(),
+            source_text::SourceSpan::default(),
         )];
         for (dimension, representations) in [
             (
@@ -343,7 +370,7 @@ mod tests {
             ),
         ] {
             let result = SourcePreparationRequest {
-                program: typed_trees::TypedTrees::default(),
+                program: crate::source_state::TypedTrees::default(),
                 accounting: Default::default(),
                 compilation: crate::TerminalSourceCompilation {
                     calling: None,
@@ -351,7 +378,7 @@ mod tests {
                     declaration_metadata: &[],
                     entries: &[],
                     subjects: &[],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &[],
                     bindings: &[],
                     supplies: &[],
@@ -378,12 +405,12 @@ mod tests {
     #[test]
     fn a_build_that_selects_no_representation_owes_no_representation_admission() {
         use super::ProductRepresentationInput;
-        use language_semantics::declaration_selection::{
-            BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
-        };
+        use crate::declaration_selection::BuildOperation;
+        use crate::declaration_selection::ExecutedProductSelection;
+        use crate::declaration_selection::ProductDeclarationRequest;
 
         let request = std::sync::Arc::new(ProductDeclarationRequest {
-            source_span: source::SourceSpan::default(),
+            source_span: source_text::SourceSpan::default(),
             operation: BuildOperation::ServiceAudit,
             operands: Box::new([]),
         });
@@ -396,7 +423,7 @@ mod tests {
             composition: None,
         }];
         SourcePreparationRequest {
-            program: typed_trees::TypedTrees::default(),
+            program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
                 calling: None,
@@ -404,7 +431,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

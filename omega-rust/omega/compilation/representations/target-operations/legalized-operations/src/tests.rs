@@ -77,7 +77,7 @@ pub(super) fn structural_argument_mut(
 
 pub(super) fn id<T>(raw: u64) -> T
 where
-    T: semantic_vocabulary::PsiSemanticId,
+    T: arena::NumericId,
 {
     T::new(raw).expect("nonzero test identity")
 }

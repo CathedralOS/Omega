@@ -20,7 +20,7 @@ pub struct DirectBoundaryLeaf {
 /// locator have been validated against the receiving Terminal module.
 #[derive(Debug, Clone)]
 pub struct NativeRequirementTrust {
-    grant: language_semantics::declaration_selection::AuthoredRootGrant,
+    grant: declaration_contracts::selection::AuthoredRootGrant,
     commitment: String,
     contract: [u8; 32],
     plan: effects::provider_plan::ProviderPlanDigest,
@@ -30,7 +30,7 @@ pub struct NativeRequirementTrust {
 impl NativeRequirementTrust {
     pub fn matches_grant(
         &self,
-        grant: &language_semantics::declaration_selection::AuthoredRootGrant,
+        grant: &declaration_contracts::selection::AuthoredRootGrant,
     ) -> bool {
         self.grant == *grant
     }
@@ -178,13 +178,13 @@ impl DirectBoundaryLeaf {
 
     pub fn prepare_native_trust(
         &self,
-        grant: &language_semantics::declaration_selection::AuthoredRootGrant,
+        grant: &declaration_contracts::selection::AuthoredRootGrant,
         target: Option<&str>,
         module: &terminal_psi::TerminalModule,
         evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<NativeRequirementTrust, String> {
-        use language_semantics::declaration_selection::RootGrantSubject;
+        use declaration_contracts::selection::RootGrantSubject;
         let RootGrantSubject::BoundaryRequirement {
             declaration,
             callable,
@@ -551,7 +551,7 @@ impl DirectBoundaryLeaf {
 #[cfg(test)]
 mod native_trust_tests {
     use super::{DirectBoundaryExecution, DirectBoundaryLeaf};
-    use language_semantics::declaration_selection::{AuthoredRootGrant, RootGrantSubject};
+    use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
 
     #[test]
     fn native_grant_preparation_requires_the_exact_subject_target_and_owner() {

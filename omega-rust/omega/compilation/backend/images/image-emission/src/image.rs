@@ -159,6 +159,7 @@ pub(crate) mod dynamic_elf {
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
         let mut image = image::build_final_image(FinalImageInput {
             target: artifact.target(),
+            import_program: &artifact.imports,
             object: prepared.object,
             relocations: prepared.relocations,
             text_bytes: prepared.text_bytes,
@@ -237,6 +238,7 @@ pub(crate) mod dynamic_elf {
         let output = validated_output(artifact, &prepared, admitted)?;
         let mut replayed_image = image::build_final_image(FinalImageInput {
             target: artifact.target(),
+            import_program: &artifact.imports,
             object: prepared.object,
             relocations: prepared.relocations,
             text_bytes: prepared.text_bytes,
@@ -313,7 +315,7 @@ pub(crate) mod entry_effects {
                 })?;
             region.entry_effects = Some(private.entry_effects.clone());
             if let Some(bridge) = &private.entry_bridge {
-                region.footprint = Some(bridge.generated().effects.footprint().clone());
+                region.footprint = Some(bridge.adapter_effects().footprint().clone());
             }
         }
         if let Some(shim) = shim
@@ -403,25 +405,9 @@ pub(crate) mod entry_effects {
                     .final_text_bytes
                     .get(region.section_offset..end)
                     .ok_or_else(|| Diagnostic::error("final entry state byte span is stale"))?;
-                let call = Some(
-                    u32::try_from(bridge.call_field_offset())
-                        .map_err(|_| Diagnostic::error("final entry body call exceeds u32"))?,
-                );
-                let replay = match artifact.target().architecture {
-                    target::Architecture::X86_64 => {
-                        isa_x86_64::decode_x86_64_generated_entry(bytes, call)
-                    }
-                    target::Architecture::Aarch64 => {
-                        isa_aarch64::decode_aarch64_generated_entry(bytes, call)
-                    }
-                }
-                .map_err(Diagnostic::error)?;
-                if replay != *bridge.generated()
-                    || region.footprint.as_ref() != Some(replay.effects.footprint())
-                {
-                    return Err(Diagnostic::error(
-                        "final entry instructions or effects differ from target replay",
-                    ));
+                bridge.validate_published_code(bytes).map_err(|reason| Diagnostic::error(reason.to_string()))?;
+                if region.footprint.as_ref() != Some(bridge.adapter_effects().footprint()) {
+                    return Err(Diagnostic::error("final entry effects differ from its physical plan"));
                 }
             }
         }
@@ -451,20 +437,9 @@ pub(crate) mod entry_effects {
                 .final_text_bytes
                 .get(offset..end)
                 .ok_or_else(|| Diagnostic::error("physical state span is stale"))?;
-            let call = expected.instructions.iter().find_map(|row| {
-                if let calling_conventions::GeneratedEntryControl::Call { field_byte_offset } =
-                    row.control
-                {
-                    Some(field_byte_offset)
-                } else {
-                    None
-                }
-            });
-            let replay = isa_x86_64::decode_x86_64_generated_entry(bytes, call)
-                .map_err(Diagnostic::error)?;
-            if replay != *expected
-                || region.entry_effects.as_ref() != Some(effects)
-                || region.footprint.as_ref() != Some(replay.effects.footprint())
+            expected.validate_published_code(bytes)?;
+            if region.entry_effects.as_ref() != Some(effects)
+                || region.footprint.as_ref() != Some(expected.effects.footprint())
             {
                 return Err(Diagnostic::error(
                     "physical entry instruction/state evidence fails exact target replay",
@@ -1836,6 +1811,7 @@ pub(crate) mod image_output {
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
         let mut image = image::build_final_image(FinalImageInput {
             target: artifact.target,
+            import_program: &artifact.imports,
             object: prepared.object,
             relocations: prepared.relocations,
             text_bytes: prepared.text_bytes,
@@ -1868,6 +1844,7 @@ pub(crate) mod image_output {
             )?;
         output.compiler_text_validation = Some(text_validation);
         Ok(ExecutableImage {
+            companions: crate::companion_images::emit(artifact),
             psi: artifact.psi,
             target: artifact.target,
             subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff)
@@ -1896,7 +1873,8 @@ pub(crate) mod image_output {
         output: &EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
-        if artifact.psi() != image.psi()
+        if image.companions != crate::companion_images::emit(artifact)
+            || artifact.psi() != image.psi()
             || artifact.target() != image.target()
             || artifact.functions() != image.functions()
             || artifact.private_functions() != image.private_functions()
@@ -1917,6 +1895,7 @@ pub(crate) mod image_output {
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
         let mut replayed_final_image = image::build_final_image(FinalImageInput {
             target: artifact.target(),
+            import_program: &artifact.imports,
             object: prepared.object,
             relocations: prepared.relocations,
             text_bytes: prepared.text_bytes,
@@ -1971,6 +1950,7 @@ pub(crate) mod image_output {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ExecutableImage {
+        companions: Vec<crate::NativeCompanionImage>,
         psi: TerminalPsiIdentity,
         target: NativeTarget,
         subsystem: Option<u16>,
@@ -1985,6 +1965,8 @@ pub(crate) mod image_output {
     }
 
     impl ExecutableImage {
+        pub fn companion_images(&self) -> &[crate::NativeCompanionImage] { &self.companions }
+
         pub const fn psi(&self) -> TerminalPsiIdentity {
             self.psi
         }

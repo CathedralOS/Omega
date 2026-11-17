@@ -37,7 +37,7 @@ emission:
   post-handoff writer code generation.
 */
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 mod floating_control;
 mod frame_protocol;
 mod generated_entry;
@@ -125,6 +125,7 @@ pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
 };
 pub use frame_protocol::{
+    Aarch64FrameProtocolPlan, plan_aapcs64_frame_protocol, encode_planned_aapcs64_frame_protocol,
     Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe, encode_aapcs64_frame_protocol,
     encode_aarch64_aligned_frame_address, encode_aarch64_frame_address,
     encode_aarch64_frame_memory, encode_aarch64_integer_constant, encode_aarch64_pointer_memory,
@@ -243,5 +244,3 @@ pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_re
 
 pub use register_model::{AARCH64_ACCESSOR_READ, AARCH64_ACCESSOR_WRITE};
 pub use register_model::{AARCH64_SYSTEM_REGISTER_READ, AARCH64_SYSTEM_REGISTER_WRITE};
-
-pub use selected_form_encoding::callback_group_bytes as encode_private_callback_materialization;

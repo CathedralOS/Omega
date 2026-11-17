@@ -1,0 +1,240 @@
+//! Product operand preparation: a Build names Product declarations as the
+//! operands of its requests, and each is prepared here before its admission
+//! reads it.
+//!
+//! An operand that is a plain declaration path needs no preparation of its
+//! own: it has no application to form, and a requirement is the one visible
+//! declaration its path selects. A slot or a provider applied to static
+//! arguments, `Reading<Tag>`, has its application formed among the
+//! program's declarations ([`applications`]). An applied requirement uses
+//! the same canonical argument binding and closed-header instantiation as
+//! an ordinary source call; its selected declaration survives package capture.
+
+use arena::Handle;
+use diagnostics::Diagnostic;
+use crate::declaration_selection::product_operands::ProductStaticEnvironment;
+use crate::declaration_selection::ProductDeclarationOperand;
+use crate::declaration_selection::ProductOperandRole;
+use symbols::SymbolHandle;
+use crate::source_state::TypedTrees;
+use crate::source_state::product_operand::{ProductApplicationDemand, ProductOperandApplication};
+
+mod applications;
+
+const INCOMPLETE_REQUIREMENT: &str = "Product requirement has no complete prepared application";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreparedProductRequirement {
+    pub application: Option<Handle<ProductOperandApplication>>,
+    pub requirement: SymbolHandle,
+    pub closed_requirement: Option<SymbolHandle>,
+    pub trait_scope: Option<crate::source_state::trait_definition::RetainedTraitScope>,
+}
+
+/// Forms the application a provider choice's operand describes. `Ok(None)`:
+/// the operand applies nothing, or it is the request as authored inside a
+/// generic helper, read before any call of the helper gave its parameters
+/// values (`ProductApplicationDemand::FormationOnly`, no environment).
+pub fn prepare_product_operand_application(
+    program: &mut TypedTrees,
+    source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
+    operand: &ProductDeclarationOperand,
+    role: ProductOperandRole,
+    author: SymbolHandle,
+    static_environment: Option<&ProductStaticEnvironment>,
+    demand: ProductApplicationDemand,
+) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
+    match applications::form(
+        program,
+        applications::OperandSource::Authored(source),
+        operand,
+        role,
+        author,
+        static_environment,
+        demand,
+    ) {
+        Err(applications::Stop::Open) if demand == ProductApplicationDemand::FormationOnly => {
+            Ok(None)
+        }
+        formed => served(operand, formed),
+    }
+}
+
+/// Forms, among this program's declarations, the application a package
+/// handed to its consumers with a provider choice. `declaration` is the slot
+/// or provider its anchor found again here; the operand's names are anchored
+/// at this program's sources.
+pub fn prepare_retained_product_application(
+    program: &mut TypedTrees,
+    operand: &ProductDeclarationOperand,
+    role: ProductOperandRole,
+    declaration: SymbolHandle,
+) -> Result<Handle<ProductOperandApplication>, Vec<Diagnostic>> {
+    let formed = applications::form(
+        program,
+        applications::OperandSource::Retained(declaration),
+        operand,
+        role,
+        declaration,
+        None,
+        ProductApplicationDemand::Selected,
+    );
+    served(operand, formed)?.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "a retained provider choice lost its closed application",
+        )]
+    })
+}
+
+fn served(
+    operand: &ProductDeclarationOperand,
+    formed: Result<Option<Handle<ProductOperandApplication>>, applications::Stop>,
+) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
+    let message = match formed {
+        Ok(application) => return Ok(application),
+        Err(applications::Stop::Open) => format!(
+            "no product route yet: provider choice `{}` applied to static arguments: a helper parameter the selection gives no value",
+            operand.path
+        ),
+        Err(applications::Stop::Unserved(what)) => format!(
+            "no product route yet: provider choice `{}` applied to static arguments: {what}",
+            operand.path
+        ),
+        Err(applications::Stop::Rejected(message)) => message,
+    };
+    Err(vec![
+        Diagnostic::error(message).with_source_span(operand.source_span),
+    ])
+}
+
+pub fn prepare_product_requirement_operand(
+    program: &mut TypedTrees,
+    source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
+    operand: &ProductDeclarationOperand,
+    author: SymbolHandle,
+    static_environment: Option<&ProductStaticEnvironment>,
+) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
+    if operand.application.is_some() {
+        let handle = prepare_product_operand_application(
+            program,
+            source,
+            operand,
+            ProductOperandRole::Requirement,
+            author,
+            static_environment,
+            ProductApplicationDemand::Selected,
+        )?
+        .ok_or_else(|| product_error(operand))?;
+        let application = program.product_operand_applications.get(handle);
+        let closed = program
+            .product_requirement_application(handle)
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(operand.source_span)]
+            })?;
+        return Ok(PreparedProductRequirement {
+            application: Some(handle),
+            requirement: closed.template,
+            closed_requirement: Some(application.declaration),
+            trait_scope: Some(application.scope),
+        });
+    }
+    source
+        .declarations
+        .resolve(
+            &operand.path,
+            operand.source_span,
+            ProductOperandRole::Requirement,
+        )
+        .map(|requirement| PreparedProductRequirement {
+            application: None,
+            requirement,
+            closed_requirement: None,
+            trait_scope: None,
+        })
+        .ok_or_else(|| {
+            vec![
+                Diagnostic::error(format!(
+                    "Product requirement `{}` does not name one visible declaration",
+                    operand.path
+                ))
+                .with_source_span(operand.source_span),
+            ]
+        })
+}
+
+fn product_error(operand: &ProductDeclarationOperand) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(INCOMPLETE_REQUIREMENT).with_source_span(operand.source_span)]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A damaged application must be refused in both entrances, rather than
+    /// becoming an empty tuple that could name a different declaration.
+    #[test]
+    fn a_malformed_applied_product_operand_is_refused_and_never_becomes_an_empty_result() {
+        let mut program = TypedTrees::default();
+        let source_program = program.clone();
+        let source = crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
+        let operand = ProductDeclarationOperand {
+            application: Some(Default::default()),
+            ..Default::default()
+        };
+        assert!(
+            prepare_product_operand_application(
+                &mut program,
+                &source,
+                &operand,
+                ProductOperandRole::Provider,
+                SymbolHandle::invalid(),
+                None,
+                ProductApplicationDemand::FormationOnly,
+            )
+            .is_err()
+        );
+        assert!(
+            prepare_product_requirement_operand(
+                &mut program,
+                &source,
+                &operand,
+                SymbolHandle::invalid(),
+                None
+            )
+            .is_err()
+        );
+    }
+
+    /// A plain declaration path has no application to prepare. As a
+    /// requirement it must still select a declaration: in a program that
+    /// declares none it is refused, not passed on unresolved.
+    #[test]
+    fn a_plain_operand_has_no_application_and_a_requirement_must_resolve() {
+        let mut program = TypedTrees::default();
+        let source_program = program.clone();
+        let source = crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
+        let operand = ProductDeclarationOperand::default();
+        assert_eq!(
+            prepare_product_operand_application(
+                &mut program,
+                &source,
+                &operand,
+                ProductOperandRole::Provider,
+                SymbolHandle::invalid(),
+                None,
+                ProductApplicationDemand::FormationOnly,
+            ),
+            Ok(None)
+        );
+        assert!(
+            prepare_product_requirement_operand(
+                &mut program,
+                &source,
+                &operand,
+                SymbolHandle::invalid(),
+                None
+            )
+            .is_err()
+        );
+    }
+}

@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use numerics::bignum::BigInt;
+use bignum::BigInt;
 use semantic_vocabulary::{
     ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerType, IntegerValue,
     Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -41,7 +41,7 @@ mod addition {
     use std::cmp::Ordering;
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{
         IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
         ScalarType,
@@ -1266,7 +1266,7 @@ mod addition {
 mod binary_numerals {
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 
     use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
@@ -10655,7 +10655,7 @@ mod forbidden_roots {
 mod integer_operations {
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{IntegerType, IntegerValue};
 
     use super::{

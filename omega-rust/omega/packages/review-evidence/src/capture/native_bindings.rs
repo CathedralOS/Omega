@@ -13,7 +13,7 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use effects::provider_plan::{EvaluatedNativeBinding, ServiceSchema};
-use provider_planning::target_supply::NormalizedNativeSupply;
+use native_program_planning::target_supply::NormalizedNativeSupply;
 use semantic_vocabulary::{ForeignLocatorCandidate, PackageKeyIdentity};
 use target::TargetProfile;
 
@@ -111,6 +111,7 @@ impl PackageReviewInput<'_> {
             let application = selection
                 .application
                 .map(|handle| {
+                    let handle = source_compiler::evaluation::provider_declarations::source_application(handle);
                     let closed = source
                         .product_requirement_application(handle)
                         .map_err(unavailable)?;
@@ -164,8 +165,8 @@ impl PackageReviewInput<'_> {
                     "the native binding's exact original schema method",
                 ));
             }
-            let binding = provider_planning::native_bindings::normalize_native_binding(
-                supply,
+            let binding = native_program_planning::native_bindings::normalize_native_binding(
+                &supply.materialization(),
                 &canonical,
                 &mut identities,
             )
@@ -256,11 +257,11 @@ impl PackageReviewInput<'_> {
         let program = publication
             .published()
             .ok_or_else(|| unavailable("the checked program for native calling policy"))?;
-        let program = provider_planning::calling_policy_plans::CallingProgram {
+        let program = native_program_planning::calling_policy_plans::CallingProgram {
             artifact: std::sync::Arc::clone(program.artifact()),
-            evaluator: build_settings::CALLING_POLICY_EVALUATOR,
+
         };
-        let applications = provider_planning::calling_policy_plans::native_calling_applications(
+        let applications = native_program_planning::calling_policy_plans::native_calling_applications(
             target,
             &program,
             &normalized,

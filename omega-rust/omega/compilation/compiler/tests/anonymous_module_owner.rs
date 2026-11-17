@@ -35,7 +35,7 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
         .program()
         .symbols
         .source_files()
-        .filter(|file| file.origin == source::SourceOrigin::User)
+        .filter(|file| file.origin == source_admission::SourceOrigin::User)
         .map(|file| {
             file.package_identity
                 .expect("default root must carry its final owner")
@@ -474,7 +474,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
                     failure.into_diagnostics()
                 )
             });
-            let (_, application) = compiler::prepare_program_entry(&checked)
+            let (_, application) = compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
                 .expect("Build selected an exact Linux ProgramEntry for the matching owner");
             application.receipt.unwrap().unwrap();
         }

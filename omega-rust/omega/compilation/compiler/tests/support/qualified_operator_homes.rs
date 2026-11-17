@@ -56,7 +56,7 @@ impl Drop for Project {
 fn terminal_product(
     main: &Path,
 ) -> Result<
-    terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+    native_program_planning::RetainedTerminalArtifact,
     Vec<diagnostics::Diagnostic>,
 > {
     // The public application owner settles the authored graph, admits its real

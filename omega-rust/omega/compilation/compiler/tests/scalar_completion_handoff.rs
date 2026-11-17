@@ -15,7 +15,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         retain_native_inputs: false, retain_native_stage_inputs: false,
         installation_assumptions: Vec::new(), image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
@@ -61,7 +61,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
             .is_some(),
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
-    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let mut changed = build_settings::scalar_completion::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),

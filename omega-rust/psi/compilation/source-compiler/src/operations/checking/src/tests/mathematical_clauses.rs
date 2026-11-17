@@ -1,0 +1,472 @@
+// Contract clauses that compare mathematical integers.
+//
+//     machine packed(rest: u32, count: u32) -> u32
+//         requires embed(rest) + embed(count) * 10 <= 99
+//     { rest }
+//
+// `embed` takes a runtime integer into the unbounded integers
+// (`wiki/spec/proofs/contracts.md`, "Mathematical values and
+// quantification"), so the sum and the product cannot overflow and the clause
+// owes nothing before it is stated. A caller owes it over its own actuals:
+// each embedded formal becomes the actual embedded, in the actual's carrier.
+//
+// What the prover can do with the stated goal is narrower than what a clause
+// can say. The kernel evaluates it when every actual is a constant. One
+// operation over values of one carrier is bounded from their intervals, the
+// rule an exact operation's representability goal already uses. A deeper
+// term over values that are not constants has no bound rule. An equality of
+// identical open terms is reflexive, including when checked exact result
+// equations expose those terms through value-equality transport.
+
+use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
+use terminal_psi::ProofRule;
+
+use super::*;
+
+/// Formal or value `position` of a `u32` machine, embedded.
+fn embedded(position: u64) -> IntegerMathTerm {
+    IntegerMathTerm::MathValue {
+        source_type: integer_type(IntegerSign::Unsigned),
+        value: id(position),
+    }
+}
+
+fn integer(value: u128) -> IntegerMathTerm {
+    IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, value).unwrap())
+}
+
+fn sum(left: IntegerMathTerm, right: IntegerMathTerm) -> IntegerMathTerm {
+    IntegerMathTerm::Add(Box::new(left), Box::new(right))
+}
+
+fn within(term: IntegerMathTerm, limit: u128) -> Proposition {
+    Proposition::IntegerMathLessOrEqual(term, integer(limit))
+}
+
+/// `embed(rest) + embed(count) * 10 <= 99` over formals 1 and 2.
+fn packed_clause() -> Proposition {
+    within(
+        sum(
+            embedded(1),
+            IntegerMathTerm::Multiply(Box::new(embedded(2)), Box::new(integer(10))),
+        ),
+        99,
+    )
+}
+
+/// Machine 1 calls machine 2 with `rest` and `count`; machine 2 requires
+/// `clause` of its two formals.
+fn calling(
+    requires: Vec<Proposition>,
+    clause: Proposition,
+    rest: Expression,
+    count: Expression,
+) -> Vec<Machine> {
+    let both = || vec![u32_type(), u32_type()];
+    let callee = Machine {
+        requires: vec![clause],
+        ..machine(both(), vec![returns(slot(0, u32_type()))])
+    };
+    let caller = Machine {
+        requires,
+        ..machine(both(), vec![returns(call(2, vec![rest, count]))])
+    };
+    vec![caller, callee]
+}
+
+fn formals() -> (Expression, Expression) {
+    (slot(0, u32_type()), slot(1, u32_type()))
+}
+
+/// The one call requirement of machine 1.
+fn requirement_of(machines: Vec<Machine>) -> (crate::lowering::Elaboration, Discharge) {
+    let (elaboration, result) = run(machines);
+    assert_eq!(verdicts(&elaboration, &result, 1, requirement).len(), 1);
+    (elaboration, result)
+}
+
+fn cause_of(verdict: &Checked<Discharged>) -> UnprovedCause {
+    match verdict
+        .as_ref()
+        .expect_err("the requirement must be refused")
+        .reason
+    {
+        RefusalReason::Unproved(cause) => cause,
+        reason => panic!("an unproved requirement, found {reason:?}"),
+    }
+}
+
+#[test]
+fn a_mathematical_requirement_over_constants_is_evaluated() {
+    // Shows: `packed(9, 9)` owes `embed(a) + embed(b) * 10 <= 99` over the two
+    // constants' values. Each is fixed to 9 by its result equation, so the
+    // kernel evaluates 9 + 9 * 10 = 99 and accepts. The goal still names the
+    // caller's values embedded in their carrier, never a carrier sum.
+    let (elaboration, result) = requirement_of(calling(
+        Vec::new(),
+        packed_clause(),
+        unsigned(9),
+        unsigned(9),
+    ));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    let evidence = certificate(verdict);
+    let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(rest, tens), limit) =
+        &evidence.goal
+    else {
+        panic!("a mathematical order: {:?}", evidence.goal);
+    };
+    assert!(matches!(rest.as_ref(), IntegerMathTerm::MathValue { .. }));
+    assert!(matches!(tens.as_ref(), IntegerMathTerm::Multiply(..)));
+    assert_eq!(limit, &integer(99));
+    assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+}
+
+#[test]
+fn a_mathematical_requirement_broken_by_a_constant_is_rejected() {
+    // Shows: `packed(9, 10)` is 9 + 10 * 10 = 109. The goal is closed once
+    // the constants are read, the kernel evaluates it as false, and the
+    // failure is the program's: `NoDerivation`, which rejects, and names the
+    // call's requirement.
+    let machines = || calling(Vec::new(), packed_clause(), unsigned(9), unsigned(10));
+    let (elaboration, result) = requirement_of(machines());
+    let verdict = verdicts(&elaboration, &result, 1, requirement)[0].1;
+    assert_eq!(cause_of(verdict), UnprovedCause::NoDerivation);
+    let unproved = rejected(machines());
+    assert_eq!(unproved.len(), 1);
+    assert!(requirement(&unproved[0].kind));
+    assert_eq!(unproved[0].cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn a_mathematical_sum_of_two_values_is_bounded_from_their_ranges() {
+    // Shows: `requires embed(a) + embed(b) <= 300` at a call whose actuals
+    // are the caller's formals, known only by `a <= 100` and `b <= 200`. One
+    // operation over two values of one carrier is the shape the interval rule
+    // serves, so 100 + 200 <= 300 is proved and the kernel re-decides it.
+    // With `b <= 201` the sum may be 301 and the call is rejected.
+    let clause = || within(sum(embedded(1), embedded(2)), 300);
+    let (rest, count) = formals();
+    let (elaboration, result) = requirement_of(calling(
+        vec![at_most(1, 100), at_most(2, 200)],
+        clause(),
+        rest,
+        count,
+    ));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (rest, count) = formals();
+    let (elaboration, result) = requirement_of(calling(
+        vec![at_most(1, 100), at_most(2, 201)],
+        clause(),
+        rest,
+        count,
+    ));
+    let verdict = verdicts(&elaboration, &result, 1, requirement)[0].1;
+    assert_eq!(cause_of(verdict), UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn a_caller_that_requires_the_same_clause_passes_it_on() {
+    // Shows: an entry `requires` that compares mathematical integers is a
+    // hypothesis of the body like any other. A machine that requires the
+    // clause of its own formals and forwards them owes exactly what it
+    // assumed.
+    let (rest, count) = formals();
+    let (elaboration, result) =
+        requirement_of(calling(vec![packed_clause()], packed_clause(), rest, count));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    let evidence = certificate(verdict);
+    assert_eq!(evidence.goal, packed_clause());
+    assert_eq!(evidence.assumptions.len(), 1);
+    assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+}
+
+#[test]
+fn a_deeper_term_over_open_values_has_no_rule_and_is_not_a_rejection() {
+    // Shows the limit: with `a <= 9` and `b <= 9` the clause holds (at most
+    // 99), but bounding a sum whose operand is a product is more than one
+    // operation, and the prover has no rule for it. The route does not
+    // accept, and does not call the program wrong either:
+    // `NoRuleForGoalForm`, published `Incomplete`.
+    let machines = || {
+        let (rest, count) = formals();
+        calling(
+            vec![at_most(1, 9), at_most(2, 9)],
+            packed_clause(),
+            rest,
+            count,
+        )
+    };
+    let (elaboration, result) = requirement_of(machines());
+    let verdict = verdicts(&elaboration, &result, 1, requirement)[0].1;
+    assert_eq!(cause_of(verdict), UnprovedCause::NoRuleForGoalForm);
+    match judge(lower(machines())).unwrap() {
+        RouteVerdict::Incomplete(unproved) => {
+            assert_eq!(unproved.len(), 1);
+            assert!(requirement(&unproved[0].kind));
+        }
+        verdict => panic!("neither accepted nor rejected: {verdict:?}"),
+    }
+}
+
+#[test]
+fn a_mathematical_guarantee_is_proved_at_the_return_and_known_after_a_call() {
+    // Shows: `ensures embed(result) + 1 <= 11` on `{ x }` under `requires
+    // x <= 10`. At the return the embedded `result` is the returned value
+    // embedded, and x + 1 <= 11 follows from x <= 10. A caller that promises
+    // the same of its own result gets it from the call: the callee's clause
+    // over the call's result is what it owes. Without `x <= 10` the callee's
+    // guarantee is unproved.
+    let promise = || within(sum(embedded(2), integer(1)), 11);
+    let callee = |requires| Machine {
+        requires,
+        ensures: vec![promise()],
+        ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+    };
+    let caller = Machine {
+        requires: vec![at_most(1, 10)],
+        ensures: vec![promise()],
+        ..machine(
+            vec![u32_type()],
+            vec![returns(call(2, vec![slot(0, u32_type())]))],
+        )
+    };
+    let (elaboration, result) = run(vec![caller, callee(vec![at_most(1, 10)])]);
+    for machine in [1, 2] {
+        let proved = verdicts(&elaboration, &result, machine, guarantee);
+        assert_eq!(proved.len(), 1);
+        let evidence = certificate(proved[0].1);
+        // The callee returns its formal, value 1, where `result` stood.
+        if machine == 2 {
+            assert_eq!(evidence.goal, within(sum(embedded(1), integer(1)), 11));
+        }
+        assert_kernel_accepted(&elaboration, machine, proved[0].0, evidence);
+    }
+    let (elaboration, result) = run(vec![callee(Vec::new())]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}
+
+#[test]
+fn a_mathematical_update_guarantee_supplies_the_callers_scalar_bound() {
+    // The caller uses the helper's public +1 promise to bound its result.
+    // The helper must still prove that promise from its own unchanged body;
+    // a promise of at most 30 is false when the allowed input is 30.
+    let machines = |limit| {
+        let mut endpoints = [embedded(2), sum(embedded(1), integer(1))];
+        endpoints.sort();
+        let [left, right] = endpoints;
+        let callee = Machine {
+            requires: vec![at_most(1, 30)],
+            ensures: vec![Proposition::IntegerMathEqual(left, right)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(strict(
+                    Strict::Add,
+                    slot(0, u32_type()),
+                    unsigned(1),
+                ))],
+            )
+        };
+        let caller = Machine {
+            requires: vec![at_most(1, 30)],
+            ensures: vec![at_most(2, limit)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(call(2, vec![slot(0, u32_type())]))],
+            )
+        };
+        vec![caller, callee]
+    };
+    let (elaboration, result) = run(machines(31));
+    for machine in [1, 2] {
+        let proved = verdicts(&elaboration, &result, machine, guarantee);
+        assert_eq!(proved.len(), 1);
+        let evidence = certificate(proved[0].1);
+        assert_kernel_accepted(&elaboration, machine, proved[0].0, evidence);
+        if machine == 1 {
+            let tables = elaboration.tables.machines.get(id(machine)).unwrap();
+            assert!(evidence.assumptions.iter().any(|row| {
+                let row = tables.knowledge.get(*row).unwrap();
+                matches!(row.justification, Justification::CalleeGuarantee { .. })
+                    && matches!(
+                        tables.propositions.get(row.proposition),
+                        Some(Proposition::IntegerMathEqual(..))
+                    )
+            }));
+        }
+    }
+    let (elaboration, result) = run(machines(30));
+    let caller = verdicts(&elaboration, &result, 1, guarantee);
+    assert_eq!(caller.len(), 1);
+    assert_eq!(cause_of(caller[0].1), UnprovedCause::NoDerivation);
+    let helper = verdicts(&elaboration, &result, 2, guarantee);
+    assert_kernel_accepted(&elaboration, 2, helper[0].0, certificate(helper[0].1));
+}
+
+#[test]
+fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
+    // Shows which mathematical goals a failure counts against the program
+    // for. A comparison of two closed terms, whatever its relation, is
+    // evaluated. An order of one operation over values of one carrier
+    // against a literal is bounded. A deeper term, operands of two carriers,
+    // and an equality or strict order over values are not.
+    let closed = sum(integer(9), integer(90));
+    assert!(crate::checking::has_rules_for(&within(closed.clone(), 99)));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
+        closed.clone(),
+        integer(99)
+    )));
+    let open = sum(embedded(1), embedded(2));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
+        open.clone(),
+        open
+    )));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
+        closed,
+        integer(100)
+    )));
+    assert!(crate::checking::has_rules_for(&within(
+        sum(embedded(1), embedded(2)),
+        300
+    )));
+    assert!(crate::checking::has_rules_for(&within(
+        sum(embedded(1), integer(1)),
+        11
+    )));
+    assert!(!crate::checking::has_rules_for(&packed_clause()));
+    let narrow = IntegerMathTerm::MathValue {
+        source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        value: id(2),
+    };
+    assert!(!crate::checking::has_rules_for(&within(
+        sum(embedded(1), narrow),
+        300
+    )));
+    assert!(!crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
+        embedded(1),
+        integer(7)
+    )));
+    assert!(!crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
+        embedded(1),
+        integer(7)
+    )));
+    // Shared open terms cancel in the kernel, so both a true comparison and
+    // a false one have a rule. Distinct unknown subjects above still do not.
+    let first = sum(embedded(1), integer(1));
+    let second = sum(embedded(1), integer(2));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
+        first.clone(),
+        second.clone()
+    )));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
+        second.clone(),
+        first.clone()
+    )));
+    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
+        first, second
+    )));
+}
+
+#[test]
+fn exact_result_equations_prove_open_mathematical_equalities_by_reflexivity() {
+    let mathematical = |operation: Strict| match operation {
+        Strict::Add => sum(embedded(1), embedded(2)),
+        Strict::Subtract => IntegerMathTerm::Subtract(Box::new(embedded(1)), Box::new(embedded(2))),
+        Strict::Multiply => IntegerMathTerm::Multiply(Box::new(embedded(1)), Box::new(embedded(2))),
+        _ => unreachable!(),
+    };
+    for operation in [Strict::Add, Strict::Subtract, Strict::Multiply] {
+        let counter = |right| Machine {
+            requires: vec![
+                at_most(1, 10),
+                at_most(2, 10),
+                Proposition::LessOrEqual(formal(2, u32_type()), formal(1, u32_type())),
+            ],
+            ensures: vec![Proposition::IntegerMathEqual(embedded(3), right)],
+            ..machine(
+                vec![u32_type(), u32_type()],
+                vec![
+                    Statement::Bind {
+                        slot: 0,
+                        value: strict(operation, slot(0, u32_type()), slot(1, u32_type())),
+                    },
+                    returns(slot(0, u32_type())),
+                ],
+            )
+        };
+        let (elaboration, result) = run(vec![counter(mathematical(operation))]);
+        let guarantees = verdicts(&elaboration, &result, 1, guarantee);
+        let [(obligation, verdict)] = guarantees[..] else {
+            panic!("one actual return guarantee: {guarantees:?}");
+        };
+        let evidence = certificate(verdict);
+        assert!(matches!(
+            evidence.certificate.proof.rule,
+            ProofRule::ValueEqualityTransport { .. }
+        ));
+        assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+
+        // A different expression cannot be made reflexive by citing the same
+        // operation's equation, even though its operands are the same inputs.
+        let (elaboration, result) = run(vec![counter(sum(embedded(1), integer(99)))]);
+        assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+    }
+}
+
+#[test]
+fn a_callees_scalar_equality_preserves_the_enclosing_mathematical_input_relation() {
+    let callee = || Machine {
+        ensures: vec![Proposition::Equal(
+            formal(1, u32_type()),
+            formal(2, u32_type()),
+        )],
+        ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+    };
+    let caller = |right| Machine {
+        requires: vec![at_most(1, 10), at_most(2, 10)],
+        ensures: vec![Proposition::IntegerMathEqual(embedded(3), right)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: strict(Strict::Add, slot(0, u32_type()), slot(1, u32_type())),
+                },
+                returns(call(2, vec![slot(0, u32_type())])),
+            ],
+        )
+    };
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), embedded(2))), callee()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![caller(sum(embedded(1), integer(99))), callee()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}
+
+#[test]
+fn mathematical_order_guarantees_preserve_bounds_across_exact_sign_conversion() {
+    const SOURCE: &str = r#"
+public machine narrow_exact(value: i64) -> u64
+requires value >= 0i64
+ensures embed(result) <= embed(value) && embed(value) <= embed(result)
+{ value as u64 }
+
+machine encode_ticks(seconds: i64) -> u64
+requires seconds > -11644473600i64 && seconds <= 1833029933770i64
+{
+    let shifted: i64 = seconds + 11644473600i64;
+    narrow_exact(shifted) * 10000000u64
+}
+machine build_entry() { let t: u64 = encode_ticks(0i64); }
+"#;
+    let verdict = super::build_purpose::judge_build(SOURCE).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let overflow = SOURCE.replace("1833029933770i64", "1833029933771i64");
+    let verdict = super::build_purpose::judge_build(&overflow).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
+        "{verdict:?}"
+    );
+}

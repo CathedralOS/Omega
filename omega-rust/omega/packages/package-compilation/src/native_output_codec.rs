@@ -5,11 +5,12 @@
 
 use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
-use build_time_evaluation::native_bindings::CapturedNativeDeclaration;
+use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use language_semantics::declaration_selection::{
-    CapturedNativeIntent, NativeBindingProducer, NativeBindingSource, ProductTarget,
-};
+use source_compiler::declaration_selection::CapturedNativeIntent;
+use declaration_contracts::selection::NativeBindingProducer;
+use source_compiler::declaration_selection::NativeBindingSource;
+use declaration_contracts::selection::ProductTarget;
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
 use std::sync::Arc;
 
@@ -38,9 +39,9 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
         string(output, &declaration.source.requirement_path);
         output.extend_from_slice(&declaration.source.source_occurrence_digest);
         output.push(match declaration.source.resolution_stratum {
-            source::SourceResolutionStratum::Base => 0,
-            source::SourceResolutionStratum::CurrentActivationExtension => 1,
-            source::SourceResolutionStratum::DependencyActivationExtension => 2,
+            source_admission::SourceResolutionStratum::Base => 0,
+            source_admission::SourceResolutionStratum::CurrentActivationExtension => 1,
+            source_admission::SourceResolutionStratum::DependencyActivationExtension => 2,
         });
         string(output, &declaration.requirement_identity);
         match &declaration.dependency_alias {
@@ -186,9 +187,9 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
         let requirement_path = read_string(&mut cursor)?;
         let source_occurrence_digest = cursor.bytes(32)?.try_into().ok()?;
         let resolution_stratum = match cursor.u8()? {
-            0 => source::SourceResolutionStratum::Base,
-            1 => source::SourceResolutionStratum::CurrentActivationExtension,
-            2 => source::SourceResolutionStratum::DependencyActivationExtension,
+            0 => source_admission::SourceResolutionStratum::Base,
+            1 => source_admission::SourceResolutionStratum::CurrentActivationExtension,
+            2 => source_admission::SourceResolutionStratum::DependencyActivationExtension,
             _ => return None,
         };
         let requirement_identity = read_string(&mut cursor)?;

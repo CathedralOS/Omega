@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 #[derive(Default)]
 pub struct CompilationSession {
-    preparation: products::SourcePreparation,
+    preparation: source_compiler::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
     component_products: Vec<Arc<products::IndependentComponentProduct>>,
@@ -168,7 +168,7 @@ impl CompilationSession {
     /// is `None` and the source declares one) is bound to the request
     /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
     /// nothing else a Build decides is present. Judge the result with
-    /// `terminal_psi_to_terminal_psi::judge_compilation`. This is the route's probe
+    /// `source_compiler::checking::judge_compilation`. This is the route's probe
     /// (`checking::unbuilt_source`), not a way to compile: it yields no
     /// product.
     pub fn typed_frontier_without_build(

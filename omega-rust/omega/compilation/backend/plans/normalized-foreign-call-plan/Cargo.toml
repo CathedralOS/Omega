@@ -20,13 +20,13 @@ test-support = [
 ]
 
 [dependencies]
-layout-plans = { path = "../../../../../psi/foundation/layout-plans", optional = true }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout", optional = true }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 target = { path = "../../target" }
 calling-conventions = { path = "../../calling-conventions", optional = true }
-function-identity = { path = "../../../../foundation/function-identity", optional = true }
+function-identity = { path = "../../../representations/function-identity", optional = true }
 native-vocabulary = { path = "../../../representations/native-vocabulary", optional = true }
 task-plans = { path = "../../runtime/task-plans", optional = true }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary", optional = true }

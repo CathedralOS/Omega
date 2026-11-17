@@ -14421,7 +14421,7 @@ pub(crate) mod materialization {
             EncodedFormMismatch,
         }
 
-        optimization_core::invalid_error_display!(
+        wire::invalid_error_display!(
             X86_64MovR32Imm32I64MaterializationError,
             "x86-64 MOV-r32-imm32 i64 materialization"
         );
@@ -14438,7 +14438,7 @@ pub(crate) mod materialization {
             EncodedFormMismatch,
         }
 
-        optimization_core::invalid_error_display!(
+        wire::invalid_error_display!(
             X86_64MovR64Imm32SignExtendedI64MaterializationError,
             "x86-64 MOV-r64-imm32 sign-extended i64 materialization"
         );
@@ -18224,7 +18224,7 @@ mod scalar_call {
         FixupMismatch,
     }
 
-    optimization_core::invalid_error_display!(
+    wire::invalid_error_display!(
         X86_64ScalarCallTemplateError,
         "x86-64 scalar-call template"
     );
@@ -23889,7 +23889,7 @@ pub enum X86_64SelectedFormEncodingError {
     BranchDisplacementOutsideI8,
 }
 
-optimization_core::invalid_error_display!(
+wire::invalid_error_display!(
     X86_64SelectedFormEncodingError,
     "x86-64 selected-form encoding"
 );

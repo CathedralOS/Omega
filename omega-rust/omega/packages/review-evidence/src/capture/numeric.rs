@@ -15,7 +15,7 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, TargetMachineCallable};
 use target::TargetProfile;
-use typed_trees::declarations::intrinsic_requirements::{
+use source_compiler::source_state::declarations::intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind,
 };
 
@@ -116,9 +116,9 @@ pub(super) fn project(
             Ok::<_, Vec<Diagnostic>>(boundaries)
         })
         .transpose()?;
-    let schemas = provider_planning::compiler_primitive_schemas(module)
+    let schemas = native_program_planning::compiler_primitive_schemas(module)
         .map_err(|reason| unavailable(&reason))?;
-    let mut leaves = provider_planning::direct_compiler_primitive_leaves(
+    let mut leaves = native_program_planning::direct_compiler_primitive_leaves(
         module,
         &schemas,
         target.target_name(),

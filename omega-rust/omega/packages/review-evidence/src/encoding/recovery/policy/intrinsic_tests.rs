@@ -79,8 +79,9 @@ fn intrinsic_payloads_round_trip_without_changing_existing_bytes() {
 
 #[test]
 fn existing_intrinsic_variants_still_round_trip() {
-    use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-    use provider_planning::{
+    use numerics::{arithmetic::ArithmeticDomain};
+    use numeric_literals::FloatFormat;
+    use native_program_planning::{
         CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
         CompilerPrimitiveIntegerComparisonOperation,
     };
@@ -134,7 +135,7 @@ fn existing_intrinsic_variants_still_round_trip() {
 #[test]
 fn integer_width_intrinsic_evidence_round_trips_and_refuses_malformed_metadata() {
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
-    use provider_planning::{
+    use native_program_planning::{
         CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
     };
     for width in [1, 13, 64, 257, u64::MAX] {

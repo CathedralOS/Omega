@@ -11,7 +11,7 @@ pub(crate) mod wire {
 
     use super::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
     use semantic_vocabulary::InvocationSite;
-    use semantic_vocabulary::PsiSemanticId;
+    use arena::NumericId;
 
     pub(crate) fn encode_invocation_site(writer: &mut Writer, site: InvocationSite) {
         let (tag, identity, action_ordinal) = match site {
@@ -132,7 +132,7 @@ pub(crate) mod wire {
             self.bytes(&value.to_le_bytes());
         }
 
-        pub(crate) fn id(&mut self, id: impl PsiSemanticId) {
+        pub(crate) fn id(&mut self, id: impl NumericId) {
             self.bytes(&id.get().to_le_bytes());
         }
 
@@ -166,7 +166,7 @@ pub(crate) mod wire {
             Ok(())
         }
 
-        pub(crate) fn ids<I: PsiSemanticId>(
+        pub(crate) fn ids<I: NumericId>(
             &mut self,
             label: &'static str,
             values: &[I],
@@ -274,7 +274,7 @@ pub(crate) mod wire {
             Ok(values)
         }
 
-        pub(crate) fn id<T: PsiSemanticId>(
+        pub(crate) fn id<T: NumericId>(
             &mut self,
             label: &'static str,
         ) -> Result<T, CodecError> {
@@ -283,7 +283,7 @@ pub(crate) mod wire {
         }
     }
 
-    pub(crate) fn encode_optional_id<I: PsiSemanticId>(writer: &mut Writer, id: Option<I>) {
+    pub(crate) fn encode_optional_id<I: NumericId>(writer: &mut Writer, id: Option<I>) {
         match id {
             None => writer.u8(0),
             Some(id) => {
@@ -321,7 +321,7 @@ pub(crate) mod wire {
         Ok(values)
     }
 
-    pub(crate) fn decode_ids<I: PsiSemanticId>(
+    pub(crate) fn decode_ids<I: NumericId>(
         reader: &mut Reader<'_>,
         label: &'static str,
     ) -> Result<Vec<I>, CodecError> {
@@ -348,7 +348,7 @@ pub(crate) mod wire {
         Ok(reader.take(len)?.to_vec())
     }
 
-    pub(crate) fn decode_optional_id<I: PsiSemanticId>(
+    pub(crate) fn decode_optional_id<I: NumericId>(
         reader: &mut Reader<'_>,
         label: &'static str,
     ) -> Result<Option<I>, CodecError> {
@@ -390,10 +390,8 @@ use super::wire::{
     Reader, Writer, bounded_count, decode_bytes, decode_counted, decode_ids, decode_optional_id,
     encode_optional_id,
 };
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation,
-    IeeeFloatValue, IntegerValue, ProofTerm, PsiSemanticId, ScalarTerm, StructuralFieldId,
-};
+use semantic_vocabulary::{CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue, ProofTerm, ScalarTerm, StructuralFieldId};
+use arena::{NumericId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequencePredicate, ClaimTransfer, CompletionReceipt, ElementViewRegion,
@@ -436,7 +434,7 @@ fn label<T>() -> &'static str {
 }
 
 pub(crate) struct Id;
-impl<T: PsiSemanticId> Field<T> for Id {
+impl<T: NumericId> Field<T> for Id {
     fn write(writer: &mut Writer, value: &T) -> Result<(), CodecError> {
         writer.id(*value);
         Ok(())
@@ -447,7 +445,7 @@ impl<T: PsiSemanticId> Field<T> for Id {
 }
 
 pub(crate) struct OptionalId;
-impl<T: PsiSemanticId> Field<Option<T>> for OptionalId {
+impl<T: NumericId> Field<Option<T>> for OptionalId {
     fn write(writer: &mut Writer, value: &Option<T>) -> Result<(), CodecError> {
         encode_optional_id(writer, *value);
         Ok(())
@@ -458,7 +456,7 @@ impl<T: PsiSemanticId> Field<Option<T>> for OptionalId {
 }
 
 pub(crate) struct Ids;
-impl<T: PsiSemanticId> Field<Vec<T>> for Ids {
+impl<T: NumericId> Field<Vec<T>> for Ids {
     fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {
         writer.ids("operation identities", value)
     }

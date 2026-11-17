@@ -56,7 +56,7 @@ pub mod boundary_application_settlement {
         .map_err(|message| vec![Diagnostic::error(message)])?;
         let provenance = provenance
             .iter()
-            .map(|row| provider_selection::CompilerIntrinsicPlanProvenance {
+            .map(|row| provider_correspondence::CompilerIntrinsicPlanProvenance {
                 plan: row.plan,
                 semantic_schema: row.semantic_schema,
                 row_executions: row.row_executions,
@@ -136,7 +136,7 @@ pub mod boundary_application_settlement {
             provider_demands,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let provider_realizations = provider_selection::select_boundary_applications(
+        let provider_realizations = provider_correspondence::select_boundary_applications(
             &provenance,
             selected,
             module,
@@ -304,10 +304,10 @@ pub mod comparison_settlement {
                                 provider_plan_commitment,
                                 comparison: *comparison,
                                 format: match format {
-                                    numerics::literals::FloatFormat::F32 => {
+                                    numeric_literals::FloatFormat::F32 => {
                                         IeeeFloatFormat::Binary32
                                     }
-                                    numerics::literals::FloatFormat::F64 => {
+                                    numeric_literals::FloatFormat::F64 => {
                                         IeeeFloatFormat::Binary64
                                     }
                                 },

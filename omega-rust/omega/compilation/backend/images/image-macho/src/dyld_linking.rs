@@ -210,6 +210,7 @@ pub(crate) mod imports {
         }
 
         let dylibs = plan_dylibs(&prepared)?;
+        image.validate_import_program()?;
         let mut thunks = Vec::with_capacity(prepared.len());
         for prepared_import in prepared {
             let symbol_handle = prepared_import.symbol_handle;
@@ -227,7 +228,37 @@ pub(crate) mod imports {
             }
             let data_offset = image.memory.data.len();
             let thunk_size = isa.import_thunk_size();
-            image.memory.text.extend([0u8].repeat(thunk_size));
+            let body = image.encoded_import_body(symbol_handle)?;
+            use machine_code::import_code::{
+                ImportOperand, ImportOperandKind as Kind, ImportOperandTarget as Target,
+            };
+            let expected = match isa {
+                MachoIsa::X86_64 => vec![ImportOperand {
+                    offset: 2,
+                    kind: Kind::X86Relative32,
+                    target: Target::BindingSlot,
+                }],
+                MachoIsa::Aarch64 => vec![
+                    ImportOperand {
+                        offset: 0,
+                        kind: Kind::Aarch64Page21,
+                        target: Target::BindingSlot,
+                    },
+                    ImportOperand {
+                        offset: 4,
+                        kind: Kind::Aarch64PageOffset12 { scale: 3 },
+                        target: Target::BindingSlot,
+                    },
+                ],
+            };
+            if body.bytes.len() != thunk_size || body.operands != expected {
+                return Err(Diagnostic::error(
+                    "Mach-O import body has a different encoded operand contract",
+                ));
+            }
+            let footprint = body.resources.effects.footprint().clone();
+            let bytes = body.bytes.clone();
+            image.memory.text.extend(bytes);
             image.memory.data.extend([0u8; 8]);
 
             let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
@@ -240,7 +271,7 @@ pub(crate) mod imports {
                 section_offset: text_offset,
                 byte_count: thunk_size,
                 symbol: symbol.clone(),
-                footprint: None,
+                footprint: Some(footprint),
                 entry_effects: None,
             });
             image.data_regions.push(FinalDataRegion {
@@ -292,7 +323,6 @@ pub(crate) mod imports {
                         16,
                         16,
                     )?;
-                    write_u32_at(&mut image.memory.text, thunk.text_offset + 8, 0xd61f_0200)?;
                 }
                 MachoIsa::X86_64 => {
                     let displacement = i64::try_from(pointer_address)
@@ -321,7 +351,11 @@ pub(crate) mod imports {
                             thunk.symbol
                         )));
                     };
-                    slot[..2].copy_from_slice(&[0xff, 0x25]);
+                    if slot[..2] != [0xff, 0x25] || slot[2..] != [0; 4] {
+                        return Err(Diagnostic::error(
+                            "Mach-O import displacement is not an encoded zero placeholder",
+                        ));
+                    }
                     crate::codec_bytes::patch_encoded(slot, 2, displacement.to_le_bytes());
                 }
             }
@@ -379,7 +413,12 @@ pub(crate) mod imports {
                 .ok_or_else(|| {
                     thunk_diagnostic(&thunk.symbol, "is missing its executable-region record")
                 })?;
-            region.footprint = Some(isa.thunk_footprint());
+            if region.footprint.as_ref() != Some(&isa.thunk_footprint()) {
+                return Err(thunk_diagnostic(
+                    &thunk.symbol,
+                    "effects differ from the encoded program",
+                ));
+            }
         }
         Ok(())
     }
@@ -436,7 +475,13 @@ pub(crate) mod imports {
         let immediate = (page_delta as u32) & 0x1f_ffff;
         let immediate_low = immediate & 0b11;
         let immediate_high = (immediate >> 2) & 0x7ffff;
-        let instruction = 0x9000_0000 | (immediate_low << 29) | (immediate_high << 5) | 16;
+        let instruction = read_instruction(text, offset)?;
+        if instruction != 0x9000_0010 {
+            return Err(Diagnostic::error(
+                "Mach-O import ADRP is not an encoded zero placeholder",
+            ));
+        }
+        let instruction = instruction | (immediate_low << 29) | (immediate_high << 5);
         write_u32_at(text, offset, instruction)
     }
 
@@ -460,11 +505,20 @@ pub(crate) mod imports {
                 "Mach-O AArch64 import thunk pointer page offset is too large",
             ));
         }
-        let instruction = 0xf940_0000
-            | (scaled_offset << 10)
-            | (u32::from(base_register) << 5)
-            | u32::from(register);
+        let instruction = read_instruction(text, offset)?;
+        if instruction != 0xf940_0000 | (u32::from(base_register) << 5) | u32::from(register) {
+            return Err(Diagnostic::error(
+                "Mach-O import LDR is not an encoded zero placeholder",
+            ));
+        }
+        let instruction = instruction | (scaled_offset << 10);
         write_u32_at(text, offset, instruction)
+    }
+
+    fn read_instruction(text: &[u8], offset: usize) -> Result<u32, Diagnostic> {
+        text.get(offset..offset + 4)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .ok_or_else(|| Diagnostic::error("Mach-O import operand is out of bounds"))
     }
 
     fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagnostic> {
@@ -631,6 +685,7 @@ pub(crate) mod imports {
                     library: "/usr/lib/libSystem.B.dylib".into(),
                 },
             });
+            image_fixtures::encode_imports(image);
             image
                 .relocation_table
                 .relocations
@@ -680,12 +735,28 @@ pub(crate) mod imports {
                 .0;
             image.symbol_table.imports.get_mut(import_handle).import =
                 FinalImageImportPlan::Normalized((locator).into());
+            image_fixtures::encode_imports(&mut image);
             image
         }
 
         fn patch_test_thunks(image: &mut FinalImage, thunks: &[super::MachoImportThunk]) {
             patch_import_thunks(image, &TEST_LAYOUT, thunks, MachoIsa::Aarch64)
                 .expect("test Mach-O thunk should patch");
+        }
+
+        #[test]
+        fn image_writer_requires_the_closed_import_program() {
+            let mut image = image_with_referenced_import();
+            image.import_program.imports.clear();
+            let error = install_import_thunks(&mut image, MachoIsa::Aarch64).unwrap_err();
+            assert!(error.message.contains("closed encoded program"));
+            assert!(image.memory.text.is_empty());
+
+            let mut image = image_with_referenced_import();
+            image.import_program.imports[0].body.operands[0].offset = 4;
+            let error = install_import_thunks(&mut image, MachoIsa::Aarch64).unwrap_err();
+            assert!(error.message.contains("operand contract"));
+            assert!(image.memory.text.is_empty());
         }
 
         #[test]
@@ -838,6 +909,7 @@ pub(crate) mod imports {
                 symbol_handle: second_symbol,
                 import: FinalImageImportPlan::Normalized((second_locator).into()),
             });
+            image_fixtures::encode_imports(&mut image);
             image
                 .relocation_table
                 .relocations
@@ -924,6 +996,7 @@ pub(crate) mod imports {
                 symbol_handle: second_symbol,
                 import: FinalImageImportPlan::Normalized(locator),
             });
+            image_fixtures::encode_imports(&mut image);
             let before = image.clone();
 
             let diagnostic = install_import_thunks(&mut image, MachoIsa::Aarch64)
@@ -955,6 +1028,7 @@ pub(crate) mod imports {
                     symbol_handle: symbol,
                     import: FinalImageImportPlan::Normalized((locator).into()),
                 });
+                image_fixtures::encode_imports(&mut image);
                 image
                     .relocation_table
                     .relocations

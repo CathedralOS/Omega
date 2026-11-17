@@ -362,7 +362,7 @@ pub(crate) mod conformances {
         identities: &TerminalIdentityTable,
         application: &ClosedConformanceApplication,
     ) -> u64 {
-        let mut hash = semantic_vocabulary::Fnv1a::new();
+        let mut hash = wire::fnv1a::Fnv1a::new();
         hash.bytes(&closed_conformance_application_bytes(
             identities,
             application,
@@ -570,11 +570,11 @@ pub(crate) mod conformances {
         ) -> Vec<crate::TerminalIdentityIndex> {
             vec![
                 identities.intern(
-                    &language_semantics::const_value::FiniteScalarValue::Integer(16)
+                    &application_identity::const_value::FiniteScalarValue::Integer(16)
                         .canonical_identity(),
                 ),
                 identities.intern(
-                    &language_semantics::const_value::FiniteScalarValue::Integer(4)
+                    &application_identity::const_value::FiniteScalarValue::Integer(4)
                         .canonical_identity(),
                 ),
             ]
@@ -806,7 +806,7 @@ pub(crate) mod declarations {
     pub struct BoundaryMachineDeclaration {
         pub id: BoundaryMachineId,
         pub declaration: Option<CheckedBoundaryCallable>,
-        pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+        pub numeric_intrinsic: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
         pub role: BoundaryDeclarationRole,
         pub kind: semantic_vocabulary::BoundaryRequirementKind,
         pub completion: semantic_vocabulary::BoundaryCompletion,
@@ -944,7 +944,7 @@ pub(crate) mod declarations {
             if application.capture.is_some()
                 || application.template != application.template_entry
                 || abi.requirement_identity != text(application.template_callable)?
-                || !language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                || !application_identity::type_identity::closed_requirement_matches_calling_abi(
                     text(self.source.semantic_declaration)?,
                     text(application.template_semantic_declaration)?,
                     text(application.template.identity())?,
@@ -979,7 +979,7 @@ pub(crate) mod declarations {
                 .method_arguments
                 .iter()
                 .map(|argument| {
-                    use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                    use application_identity::conformance_identity::MachineOperandSelectionIdentity;
                     match argument {
                         crate::ClosedReachArgument::Type(index) => Ok(
                             MachineOperandSelectionIdentity::Type(text(*index)?.to_owned()),
@@ -994,7 +994,7 @@ pub(crate) mod declarations {
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(
-                language_semantics::conformance_identity::requirement_application_commitment(
+                application_identity::conformance_identity::requirement_application_commitment(
                     text(application.template_callable)?,
                     &arguments,
                 )? == application.commitment,
@@ -1360,7 +1360,7 @@ pub(crate) mod external_providers {
         CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityIndex,
         TerminalIdentityTable,
     };
-    use language_semantics::ExternalBindingIdentity;
+    use declaration_contracts::ExternalBindingIdentity;
     use semantic_vocabulary::PackageKeyIdentity;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1382,7 +1382,7 @@ pub(crate) mod external_providers {
         pub requirement: NominalDeclarationIdentity,
         pub requirement_identity: TerminalIdentityIndex,
         pub requirement_package: Option<PackageKeyIdentity>,
-        pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+        pub numeric_intrinsic: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
         pub sealed_intrinsic: Option<crate::TerminalSealedNativeIntrinsic>,
         pub requirement_schema: Option<ExternalRequirementSchema>,
         pub target: Option<String>,
@@ -1583,7 +1583,7 @@ pub(crate) mod numeric_intrinsics {
         boundary: &crate::BoundaryMachineDeclaration,
         structural_types: &[crate::StructuralTypeDeclaration],
     ) -> Result<(), &'static str> {
-        use language_semantics::numeric_intrinsics::NumericResult;
+        use declaration_contracts::numeric_intrinsics::NumericResult;
         let Some(meaning) = boundary.numeric_intrinsic else {
             return Ok(());
         };
@@ -1649,7 +1649,7 @@ pub(crate) mod dynamic_dispatch {
         pub slot: u32,
         pub declaring_trait_identity: TerminalIdentityIndex,
         pub requirement_identity: TerminalIdentityIndex,
-        pub family_tuple: Vec<language_semantics::const_value::FiniteScalarValue>,
+        pub family_tuple: Vec<application_identity::const_value::FiniteScalarValue>,
         pub scalar_parameters: Vec<ScalarType>,
         pub structural_parameters: Vec<TerminalDynamicStructuralFormal>,
         pub entry_claim_paths: Vec<TerminalDynamicClaimPath>,
@@ -1931,7 +1931,7 @@ pub(crate) mod reach_applications {
             argument: String,
         },
         Const {
-            argument: language_semantics::const_value::CanonicalConstValue,
+            argument: application_identity::const_value::CanonicalConstValue,
         },
         Proposition {
             argument: String,

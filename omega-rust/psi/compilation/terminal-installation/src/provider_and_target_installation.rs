@@ -1081,10 +1081,14 @@ pub(crate) mod component_memberships {
         }
 
         fn policy_module(carrier: u64, pad: bool, with_cases: bool) -> TerminalModule {
-            use language_semantics::reflection::{
-                CaseDescription, DeclarationDescription, FieldDescription, SchemaNode,
-                SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
-            };
+            use schema_reflection::CaseDescription;
+use schema_reflection::DeclarationDescription;
+use schema_reflection::FieldDescription;
+use schema_reflection::SchemaNode;
+use schema_reflection::SchemaNodeHandle;
+use schema_reflection::SchemaQueryAuthority;
+use schema_reflection::SchemaShape;
+use schema_reflection::SemanticSchemaGraph;
             use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
             use terminal_psi::{
                 BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
@@ -1216,9 +1220,9 @@ pub(crate) mod component_memberships {
         // admitted policy; a matching name cannot supply missing source data.
         #[test]
         fn component_policies_keep_their_actual_source_roots_and_case_fields() {
-            use language_semantics::reflection::{
-                SchemaNode, SchemaNodeHandle, SemanticSchemaGraph,
-            };
+            use schema_reflection::SchemaNode;
+use schema_reflection::SchemaNodeHandle;
+use schema_reflection::SemanticSchemaGraph;
             for with_cases in [false, true] {
                 let source = policy_module(1, false, with_cases);
                 let target = policy_module(9, true, with_cases);

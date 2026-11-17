@@ -36,7 +36,8 @@ fn i16_u16_float_integer_conversions_publish_all_result_policies() {
 fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{BoundaryRequirementKind, Proposition, ScalarQualificationSetId};
             let main = repository().join(format!("tests/fixtures/run/float/{fixture}/main.omg"));
@@ -67,7 +68,7 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
                         };
                         assert_eq!(result.qualifications == ScalarQualificationSetId::ZERO, domain == ArithmeticDomain::Exact);
                         assert_eq!(boundary.scalar_requires.len(), if domain == ArithmeticDomain::Exact {3} else {0});
-                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(module, boundary).unwrap();
+                        provider_admission::provider_admission::numeric_boundary_execution(module, boundary).unwrap();
                     }
                 }
             }
@@ -134,7 +135,8 @@ fn unqualified_float_integer_conversions_keep_the_normal_input_contract() {
 fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
             use semantic_vocabulary::{CrashCause, Proposition};
             let main =
@@ -243,7 +245,8 @@ fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
 }
 
 fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
-    use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
     use terminal_psi::NominalDeclarationIdentity;
     let original = NumericIntrinsic::Conversion {
@@ -347,7 +350,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
             let module = publication.artifact.semantic_module();
             let mut conversions = 0;
             for boundary in &module.boundary_machines {
-                let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::Conversion {
+                let Some(declaration_contracts::numeric_intrinsics::NumericIntrinsic::Conversion {
                     source,
                     ..
                 }) = boundary.numeric_intrinsic
@@ -362,7 +365,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
                 else {
                     panic!("conversion keeps its complete result equation");
                 };
-                if let language_semantics::numeric_intrinsics::NumericType::Integer(_) = source {
+                if let declaration_contracts::numeric_intrinsics::NumericType::Integer(_) = source {
                     assert!(
                         clause
                             .sources()
@@ -382,8 +385,8 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
             }
             assert_eq!(conversions, 6);
             refuse_undeclared_conversion(module);
-            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(
+            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = native_program_planning::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "windows_x86_64",
@@ -470,14 +473,14 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                     assert!(error.contains("MalformedStructuralFoundation"), "{error}");
                 }
             }
-            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
+            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
             assert_eq!(leaves.len(), 12);
-            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
+            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
             let first = module.boundary_machines[0].id;
-            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
-            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
-            let unsupported = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
+            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
+            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
+            let unsupported = native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
             assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
             let selection = effects::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
@@ -489,15 +492,15 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             let demands = module.boundary_machines.iter().map(|boundary|
                 module.identities.text(boundary.identity).unwrap().to_owned()).collect();
             let settle = |direct: &[backend_plan::DirectBoundaryLeaf]| {
-                terminal_psi_to_abstract_operations::provider_admission::derive_selected_intrinsic_settlement_proposals(
+                provider_admission::provider_admission::derive_selected_intrinsic_settlement_proposals(
                     &selection, selection.plans().iter().zip(&executions).map(|(plan, row_executions)|
-                        provider_selection::CompilerIntrinsicPlanProvenance { plan, semantic_schema: &plan.schema, row_executions }),
+                        provider_correspondence::CompilerIntrinsicPlanProvenance { plan, semantic_schema: &plan.schema, row_executions }),
                     &demands, module, direct)
             };
             let proposals = settle(&leaves).unwrap();
             assert_eq!(proposals.len(), 12);
             assert!(proposals.iter().all(|proposal| matches!(proposal.settlement(),
-                terminal_psi_to_abstract_operations::provider_admission::TerminalCompilerBuiltinSettlement::Execution { .. })));
+                provider_admission::provider_admission::TerminalCompilerBuiltinSettlement::Execution { .. })));
             assert!(settle(&[]).is_err(), "a numeric meaning alone supplies no execution custody");
             let mut missing_target = leaves.clone();
             missing_target[0].target_realization = None;
@@ -534,9 +537,8 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
 fn canonical_float_arithmetic_keeps_meaning_contracts_and_actual_source_classes() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{
-                NumericIntrinsic, PrimitiveFloatBinaryOperation as Operation,
-            };
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation as Operation;
             use semantic_vocabulary::{
                 FloatMeaningClauseOperand, FloatMeaningClauseValue, ScalarTerm, ScalarType,
             };
@@ -879,7 +881,8 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
 fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_operand() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use semantic_vocabulary::{
                 FloatMeaningClauseValue, IeeeFloatFormat, ScalarType, ValueId,
             };
@@ -953,8 +956,8 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 2,
                 "destination format and one source meaning"
             );
-            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(
+            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = native_program_planning::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "macos_arm64",
@@ -1127,7 +1130,8 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
 fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
@@ -1262,7 +1266,8 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
 fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             let main =
                 repository().join("tests/fixtures/run/float/exact_integer_to_float/main.omg");
@@ -1336,7 +1341,8 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
 fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{
                 BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
@@ -1361,8 +1367,8 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
             )
             .unwrap();
             let module = reopened.module();
-            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(
+            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = native_program_planning::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "macos_arm64",
@@ -1400,7 +1406,7 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                         module, meaning, result
                     ));
                     let execution =
-                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                        provider_admission::provider_admission::numeric_boundary_execution(
                             module, boundary,
                         )
                         .unwrap();
@@ -1421,7 +1427,7 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                     let mut missing_meaning = boundary.clone();
                     missing_meaning.numeric_intrinsic = None;
                     assert!(
-                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                        provider_admission::provider_admission::numeric_boundary_execution(
                             module,
                             &missing_meaning
                         )
@@ -1521,7 +1527,7 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                 .retained_target_operations().unwrap();
             let optimized = target.optimized();
             let verify = |plan, abstracted, unit| {
-                native_preparation::verify_target_operation_plan_with_closed_module(
+                native_program_planning::replay::verify_target_operation_plan_with_closed_module(
                     plan, abstracted, unit, target.boundary_origins(),
                     target.lowering_facts().installed_interrupts(),
                     target.lowering_facts().closed_module(),
@@ -1578,7 +1584,7 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
 
 #[test]
 fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "trapping_integer_conversion",
@@ -1617,7 +1623,7 @@ fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn wide_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "wide_integer_conversion",
@@ -1656,7 +1662,7 @@ fn wide_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "byte_integer_conversion",
@@ -1695,7 +1701,7 @@ fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn i16_u16_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "i16_u16_conversion",
@@ -1738,7 +1744,7 @@ fn assert_bad_integer_conversion_inputs(
         &str,
         &str,
         &str,
-        language_semantics::numeric_intrinsics::NumericType,
+        declaration_contracts::numeric_intrinsics::NumericType,
         numerics::integer_carrier::FixedInteger,
     )],
 ) {
@@ -1747,7 +1753,8 @@ fn assert_bad_integer_conversion_inputs(
     };
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
             let fixture = repository().join("tests/fixtures/run/float").join(fixture_name);
             let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();

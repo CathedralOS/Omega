@@ -76,7 +76,7 @@ fn compile<R>(
 
 fn emission(
     object: &image_emission::ObjectArtifact,
-) -> &machine_emission::StagedOptimizedFunctionFragmentEmissionSource {
+) -> &function_layout::StagedOptimizedFunctionFragmentEmissionSource {
     object
         .retained_fragment_source()
         .expect("the object keeps its fragment producer")
@@ -87,7 +87,7 @@ fn emission(
 }
 
 fn manifest(object: &image_emission::ObjectArtifact) -> PostAllocationOptimizationManifest {
-    emission(object).post_allocation_manifest().record().clone()
+    object.allocation_manifest().clone()
 }
 
 fn is_runtime_recovery(transformation: &PostAllocationSelectedTransformation) -> bool {
@@ -228,6 +228,14 @@ fn a_default_compile_keeps_no_omega_04_run() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[PRE_ALLOCATION], false, |object| {
         let object = object.unwrap_or_else(|error| panic!("{error}"));
+        assert!(
+            object.retained_fragment_source().is_none(),
+            "ordinary images cannot retain compiler producers"
+        );
+        assert!(
+            object.native_instruction_source_rows().is_none(),
+            "ordinary images cannot recover a selected instruction graph"
+        );
         assert!(manifest(object).pre_allocation_completion.is_some());
         let error = image_emission::verify_retained_selected_optimization(object)
             .expect_err("a default compile retains nothing to replay");
@@ -253,7 +261,7 @@ fn a_retained_run_refuses_another_programs_record() {
             let error = low_run
                 .validate(high_record)
                 .expect_err("a run cannot vouch for another program");
-            assert!(error.contains("OtherProgram"), "{error}");
+            assert!(error.to_string().contains("OtherProgram"), "{error}");
         });
     });
 }
@@ -308,4 +316,66 @@ fn unsupported_compositions_still_refuse() {
             );
         });
     }
+}
+
+/// A non-returning machine call lives in a terminator, but still consumes the
+/// caller's frame and contributes the callee's peak. Exercise the published
+/// artifact's independent readback, which caught an omitted terminator edge.
+#[test]
+fn physical_stack_accounts_for_nonreturning_call_terminators() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let root = repo_root().join("samples/cli/arithmetic/factorial_loop/main.omg");
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "nonreturning-stack",
+        false,
+    )
+    .unwrap();
+    let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        root_path: root,
+        build_directory: Some(temporary.path().to_path_buf()),
+        targets: orchestration::BuildTargets::Single(TargetProfile::LinuxX64),
+        product: orchestration::ProjectProduct::Native {
+            destination: orchestration::NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+            installation_assumptions: Vec::new(),
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+        stage_validators: Default::default(),
+    })
+    .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(outcomes.len(), 1);
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .and_then(orchestration::BuildOutcome::into_report)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .report;
+    let artifact = report.retained_native_artifact().expect("native program");
+    assert!(
+        artifact.object().functions().iter().any(|function| {
+            function.unit_call_stacks.iter().any(|call| {
+                matches!(
+                    call.owner,
+                    target_operations::CallSiteOwner::InvokeNoNormal(_)
+                )
+            }) || function.scalar_call_stacks.iter().any(|call| {
+                matches!(
+                    call.owner,
+                    target_operations::CallSiteOwner::InvokeNoNormal(_)
+                )
+            })
+        }),
+        "the example must exercise a non-returning physical call"
+    );
+    artifact
+        .validate()
+        .expect("planned stack facts agree with independently reconstructed calls");
 }

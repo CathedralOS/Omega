@@ -7,10 +7,16 @@ version.workspace = true
 
 
 [dependencies]
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-capture = { path = "../../../host-support/source-capture" }
+source-admission = { path = "../../../psi/compilation/representations/source-admission" }
+source-text = { path = "../../../psi/foundation/source-text" }
+wire = { path = "../../../psi/foundation/wire" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
-evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
-artifacts = { path = "../../foundation/artifacts" }
+artifacts = { path = "../../compilation/products/measurements" }
 build-declarations = { path = "../build-declarations" }
 build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../build-output" }
@@ -22,17 +28,15 @@ native-artifact = { path = "../../compilation/backend/artifacts/native-artifact"
 review-evidence = { path = "../review-evidence" }
 source-acquisition = { path = "../source-acquisition" }
 package-compilation = { path = "../package-compilation" }
-optimization-core = { path = "../../foundation/optimization-core" }
-platform-custody = { path = "../../foundation/platform-custody" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }
+platform-custody = { path = "../../host-support/platform-custody" }
 target = { path = "../../compilation/backend/target" }
-provider-admission = { path = "../../compilation/realization/provider-admission" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
 arena = { path = "../../../psi/foundation/arena" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
-filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof-admission" }
-source = { path = "../../../psi/foundation/source" }
 source-compiler = { path = "../../../psi/compilation/source-compiler" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

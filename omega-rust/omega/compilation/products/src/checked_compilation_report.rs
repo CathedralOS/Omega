@@ -14,16 +14,16 @@ use crate::{
 };
 use artifacts::compile_timings::PhaseTiming;
 use diagnostics::Diagnostic;
-use optimization_core::{
+use optimization_core::OptimizationSelections;
+use optimization_requests::{
     OptimizationRollback, OptimizationRollbackReceipt, OptimizationRollbackSettlement,
-    OptimizationSelections,
 };
 use package_compilation::BuildObservationIdentity;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 
 pub enum CheckedProductReport {
-    Complete(CompileReport),
+    Complete(Box<CompileReport>),
     Terminal {
         settlement: CompileReportSettlement,
         rollback: OptimizationRollbackSettlement,
@@ -91,7 +91,7 @@ impl ProductReportPlan {
 }
 
 pub struct CompileReportSettlement {
-    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     expected_kind: CompileOutputKind,
     root_path: PathBuf,
     source_file_count: usize,
@@ -123,13 +123,13 @@ impl ProductReportPlan {
                 .admit_build_requirements(checked.build_admission().artifact_only(), &rollback)?;
             return CompileReport::check_only(root_path, source_file_count)
                 .map(|report| {
-                    CheckedProductReport::Complete(
+                    CheckedProductReport::Complete(Box::new(
                         report
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
                             .with_timings(timings),
-                    )
+                    ))
                 })
                 .map_err(diagnostics);
         }
@@ -141,13 +141,13 @@ impl ProductReportPlan {
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
             return CompileReport::from_build_outputs(root_path, source_file_count, outputs)
                 .map(|report| {
-                    CheckedProductReport::Complete(
+                    CheckedProductReport::Complete(Box::new(
                         report
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
                             .with_timings(timings),
-                    )
+                    ))
                 })
                 .map_err(diagnostics);
         }
@@ -193,7 +193,7 @@ impl CompileReportSettlement {
 
     pub fn source_completion_accounting_mut(
         &mut self,
-    ) -> &mut build_time_evaluation::SourceCompletionAccounting {
+    ) -> &mut source_compiler::evaluation::SourceCompletionAccounting {
         &mut self.source_completion_accounting
     }
 

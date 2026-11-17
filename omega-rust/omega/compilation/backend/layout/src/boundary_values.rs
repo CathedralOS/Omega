@@ -12,7 +12,8 @@ use calling_conventions::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape, ValueClass,
     ValueShape,
 };
-use language_semantics::boundary_values::{
+mod recipes;
+use recipes::{
     BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryValueRecipe, BoundaryValueRecipes,
 };
 use semantic_vocabulary::{
@@ -36,7 +37,6 @@ pub struct BoundaryOpaqueOccurrence {
 
 pub struct BoundaryValueLayout {
     target: NativeTarget,
-    layout_profile: Option<target::TargetProfile>,
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     opaque_occurrences: Vec<BoundaryOpaqueOccurrence>,
@@ -44,10 +44,9 @@ pub struct BoundaryValueLayout {
 
 impl BoundaryValueLayout {
     pub fn new(target: impl Into<crate::LayoutTarget>) -> Self {
-        let (target, layout_profile) = target.into().into_parts();
+        let (target, _) = target.into().into_parts();
         Self {
             target,
-            layout_profile,
             shapes: Vec::new(),
             fields: Vec::new(),
             opaque_occurrences: Vec::new(),
@@ -135,7 +134,6 @@ impl BoundaryValueLayout {
         let recipe = recipes.values.get(recipe);
         match recipe {
             BoundaryValueRecipe::Absent => Err("boundary value recipe is absent".into()),
-            BoundaryValueRecipe::Rejected(reason) => Err(reason.clone()),
             BoundaryValueRecipe::Integer { byte_size } => {
                 let shape = ValueShape::integer(u32::from(*byte_size), (*byte_size).clamp(1, 8));
                 self.append_abi(BoundaryValueClass::Integer, shape)
@@ -189,18 +187,6 @@ impl BoundaryValueLayout {
             } => {
                 let fields = recipes.fields.span_or_empty(*fields);
                 self.record(recipes, name, fields, storage.as_ref())
-            }
-            BoundaryValueRecipe::TargetLayouts { name, alternatives } => {
-                let target = self.layout_profile.map(target::TargetProfile::target_name);
-                let selected = target.and_then(|target| {
-                    recipes
-                        .targets
-                        .span_or_empty(*alternatives)
-                        .iter()
-                        .find(|row| row.target == target)
-                });
-                let selected = selected.ok_or_else(|| format!("fixed representation data `{name}` has no admitted layout for boundary target `{}`", target.unwrap_or("<unselected>")))?;
-                self.value_type(recipes, selected.value)
             }
             BoundaryValueRecipe::Opaque {
                 name,
@@ -629,8 +615,8 @@ impl<'module> TerminalBoundaryRecipes<'module> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryValueLayout, TerminalBoundaryRecipes,
-        append_boundary_value_shape,
+        BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryValueLayout, BoundaryValueRecipe,
+        TerminalBoundaryRecipes, append_boundary_value_shape,
     };
     use calling_conventions::{
         BoundaryValueClass, BoundaryValueGraph, BoundaryValueShape, ValueShape,
@@ -671,7 +657,7 @@ mod tests {
         let recipe = recipes.scalar(scalar).unwrap();
         assert!(matches!(
             recipes.recipes().values.get(recipe),
-            language_semantics::boundary_values::BoundaryValueRecipe::Integer { byte_size: 3 }
+            BoundaryValueRecipe::Integer { byte_size: 3 }
         ));
         let other = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         assert!(recipes.scalar(other).unwrap_err().contains("not retained"));
@@ -1114,9 +1100,7 @@ mod tests {
 
     #[test]
     fn opaque_recipes_keep_exact_roster_coordinates_through_nested_occurrences() {
-        use language_semantics::boundary_values::{
-            BoundaryFieldRecipe, BoundaryValueRecipe, BoundaryValueRecipes,
-        };
+        use super::recipes::{BoundaryFieldRecipe, BoundaryValueRecipe, BoundaryValueRecipes};
         let mut recipes = BoundaryValueRecipes::default();
         let word = recipes
             .values

@@ -1,5 +1,5 @@
 /*
-We bind neutral source acquisition (`source::CapturedSourceTree`) and physical package roots to `Build`'s canonical input metadata (`CanonicalFilesystemMetadataIndex`, `CapturedBuildSourceInput`).
+We bind neutral source acquisition (`source_capture::CapturedSourceTree`) and physical package roots to `Build`'s canonical input metadata (`CanonicalFilesystemMetadataIndex`, `CapturedBuildSourceInput`).
 
 We provide three capture and projection routes:
 1. `retained_source_input` and `retained_scoped_source_input` derive `CapturedBuildSourceInput` directly from an already-captured in-memory `CapturedSourceTree` or `CapturedBuildSourceInput` without touching the host filesystem, sharing `Arc<[u8]>` file buffers while computing `Build`'s canonical metadata commitment under `OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1`.
@@ -22,30 +22,36 @@ mod file_read;
 
 pub(crate) fn captured_source_view(
     input: &build_output::CapturedBuildSourceInput,
-) -> source::SourceSnapshot {
-    source::SourceSnapshot::new(BuildSourceSnapshotStorage(input.clone()))
+) -> source_capture::SourceSnapshot {
+    source_capture::SourceSnapshot::new(BuildSourceSnapshotStorage(input.clone()))
 }
 
 struct BuildSourceSnapshotStorage(build_output::CapturedBuildSourceInput);
 
-fn snapshot_entry(entry: &build_output::CapturedSourceEntry) -> source::SourceSnapshotEntry<'_> {
+fn snapshot_entry(
+    entry: &build_output::CapturedSourceEntry,
+) -> source_capture::SourceSnapshotEntry<'_> {
     match entry {
-        build_output::CapturedSourceEntry::Directory => source::SourceSnapshotEntry::Directory,
+        build_output::CapturedSourceEntry::Directory => {
+            source_capture::SourceSnapshotEntry::Directory
+        }
         build_output::CapturedSourceEntry::File { bytes, .. } => {
-            source::SourceSnapshotEntry::File(bytes)
+            source_capture::SourceSnapshotEntry::File(bytes)
         }
         build_output::CapturedSourceEntry::Symlink { target, .. } => {
-            source::SourceSnapshotEntry::Symlink(target)
+            source_capture::SourceSnapshotEntry::Symlink(target)
         }
     }
 }
 
-impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
-    fn entry(&self, path: &[u8]) -> Option<source::SourceSnapshotEntry<'_>> {
+impl source_capture::SourceSnapshotStorage for BuildSourceSnapshotStorage {
+    fn entry(&self, path: &[u8]) -> Option<source_capture::SourceSnapshotEntry<'_>> {
         self.0.retained_entry(path).map(snapshot_entry)
     }
 
-    fn entries(&self) -> Box<dyn Iterator<Item = (&[u8], source::SourceSnapshotEntry<'_>)> + '_> {
+    fn entries(
+        &self,
+    ) -> Box<dyn Iterator<Item = (&[u8], source_capture::SourceSnapshotEntry<'_>)> + '_> {
         Box::new(
             self.0
                 .retained_entries()
@@ -83,16 +89,16 @@ struct CapturedSourceMetadataRow {
 }
 
 pub(crate) fn retained_source_input(
-    tree: &source::CapturedSourceTree,
+    tree: &source_capture::CapturedSourceTree,
 ) -> Result<CapturedBuildSourceInput, String> {
     let entries = tree.entries().map(|(path, node)| {
         let relative_path = capture_relative_path_bytes(path)?;
         let entry = match node {
-            source::CapturedSourceNode::Directory => CapturedSourceEntry::Directory,
-            source::CapturedSourceNode::File { bytes, executable } => {
+            source_capture::CapturedSourceNode::Directory => CapturedSourceEntry::Directory,
+            source_capture::CapturedSourceNode::File { bytes, executable } => {
                 CapturedSourceEntry::file(Arc::clone(bytes), *executable)
             }
-            source::CapturedSourceNode::Symlink { target } => {
+            source_capture::CapturedSourceNode::Symlink { target } => {
                 CapturedSourceEntry::symlink(os_str_bytes(target.as_os_str())?)
             }
         };

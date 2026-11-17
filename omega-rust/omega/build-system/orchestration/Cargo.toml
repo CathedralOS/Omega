@@ -14,11 +14,11 @@ products = { path = "../../compilation/products" }
 package-compilation = { path = "../../packages/package-compilation" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-settings = { path = "../build-settings" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 package-manager = { path = "../../packages/package-manager" }
-artifacts = { path = "../../foundation/artifacts" }
-platform-custody = { path = "../../foundation/platform-custody" }
-bounded-process = { path = "../../foundation/bounded-process" }
+artifacts = { path = "../../compilation/products/measurements" }
+platform-custody = { path = "../../host-support/platform-custody" }
+bounded-process = { path = "../../host-support/bounded-process" }
 target = { path = "../../compilation/backend/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
@@ -28,4 +28,4 @@ terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 sha2 = "0.10.9"
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_terminal-psi-to-abstract-operations" }
+native-program-planning = { path = "../../compilation/pipeline/00_native-program-planning" }

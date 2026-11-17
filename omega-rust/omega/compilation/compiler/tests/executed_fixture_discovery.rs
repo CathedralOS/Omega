@@ -165,7 +165,7 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+            provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -285,7 +285,7 @@ fn target_audit_rejoins_compiled_foreign_operands() {
 fn target_audit_checks_the_retained_indirect_result_register() {
     use calling_conventions::MachineRegister::{Aarch64X, X86Rcx, X86Rdi, X86Rdx};
     use calling_conventions::{IndirectPointerLocation, ValueLocation, ValueShape};
-    use native_preparation::{
+    use native_program_planning::replay::{
         TargetOperationAuditError, verify_target_operation_plan_with_closed_module,
     };
     use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};

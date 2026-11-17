@@ -45,12 +45,23 @@ diagnostics::failed_display!(
 
 impl std::error::Error for Aarch64FrameProtocolError {}
 
-pub fn encode_aapcs64_frame_protocol(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Aarch64FrameProtocolPlan {
+    model: register_model::PhysicalRegisterModelIdentity,
+    frame_size_bytes: u64,
+    probe: Aarch64StackProbe,
+    slots: Vec<Aarch64FrameSlot>,
+    scratch: Option<u8>,
+}
+
+impl Aarch64FrameProtocolPlan { pub fn address_scratch(&self) -> Option<u8> { self.scratch } }
+
+pub fn plan_aapcs64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     frame_size_bytes: u64,
     probe: Aarch64StackProbe,
     slots: &[Aarch64FrameSlot],
-) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
+) -> Result<Aarch64FrameProtocolPlan, Aarch64FrameProtocolError> {
     require_canonical_model(model)?;
     if !frame_size_bytes.is_multiple_of(16) || frame_size_bytes > u64::from(u32::MAX) {
         return Err(Aarch64FrameProtocolError::InvalidFrameSize);
@@ -58,6 +69,15 @@ pub fn encode_aapcs64_frame_protocol(
     validate_probe(frame_size_bytes, probe)?;
     validate_slots(frame_size_bytes, slots)?;
     let scratch = frame_scratch(model, slots)?;
+    Ok(Aarch64FrameProtocolPlan { model: model.identity(), frame_size_bytes, probe, slots: slots.to_vec(), scratch })
+}
+
+pub fn encode_planned_aapcs64_frame_protocol(model: &ValidatedPhysicalRegisterModel, plan: &Aarch64FrameProtocolPlan) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
+    if model.identity() != plan.model { return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch); }
+    let frame_size_bytes = plan.frame_size_bytes;
+    let probe = plan.probe;
+    let slots = &plan.slots;
+    let scratch = plan.scratch;
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
     if probe.touches == 0 {
@@ -94,6 +114,15 @@ pub fn encode_aapcs64_frame_protocol(
     }
     append_stack_adjust(&mut epilogue, frame_size_bytes, false);
     Ok((prologue, epilogue))
+}
+
+pub fn encode_aapcs64_frame_protocol(
+    model: &ValidatedPhysicalRegisterModel,
+    frame_size_bytes: u64,
+    probe: Aarch64StackProbe,
+    slots: &[Aarch64FrameSlot],
+) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
+    encode_planned_aapcs64_frame_protocol(model, &plan_aapcs64_frame_protocol(model, frame_size_bytes, probe, slots)?)
 }
 
 fn validate_probe(
@@ -411,7 +440,7 @@ fn append_word(bytes: &mut Vec<u8>, word: u32) {
 #[cfg(test)]
 mod tests {
     use super::{
-        Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe,
+        plan_aapcs64_frame_protocol, encode_planned_aapcs64_frame_protocol,        Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe,
         MAX_STACK_PROBE_INTERVAL_BYTES, encode_aapcs64_frame_protocol,
     };
     use register_model::validate_physical_register_model;
@@ -724,8 +753,9 @@ mod tests {
             ..DARWIN_PROBE
         };
         let slots = [frame_slot(x16, 0, 8), frame_slot(x19, 65_536, 8)];
-        let (prologue, epilogue) =
-            encode_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
+        let plan = plan_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
+        assert_eq!(plan.address_scratch(), Some(17), "physical planning reserves the free scratch before encoding");
+        let (prologue, epilogue) = encode_planned_aapcs64_frame_protocol(&model, &plan).unwrap();
         let save = [0x9140_43f1_u32.to_le_bytes(), 0xf900_0233_u32.to_le_bytes()].concat();
         assert!(prologue.ends_with(&save));
         assert_eq!(
@@ -733,6 +763,10 @@ mod tests {
             &[0x9140_43f1_u32.to_le_bytes(), 0xf940_0233_u32.to_le_bytes()].concat()
         );
         let occupied = [slots[0], frame_slot(x17, 8, 8), slots[1]];
+        assert_eq!(
+            plan_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
+            Err(Aarch64FrameProtocolError::NonCanonicalSlots),
+        );
         assert_eq!(
             encode_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
             Err(Aarch64FrameProtocolError::NonCanonicalSlots),

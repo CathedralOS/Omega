@@ -30,7 +30,7 @@ identity and admission profile constraints, and produces an inert
 use crate::component_description::{check_publication_bounds, describe_decoded_component_facts};
 use terminal_psi::TerminalPsiIdentity;
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 
 pub mod component_description;
 pub(crate) mod component_verification;

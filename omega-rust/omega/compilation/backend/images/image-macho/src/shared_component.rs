@@ -7,7 +7,7 @@ symbol resolves to its exact relocated `.text` offset.
 
 use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSymbolHandle};
-use optimization_core::digest_encoder::DomainDigestEncoder;
+use ::wire::digest_encoder::DomainDigestEncoder;
 
 use crate::dyld_linking::load_commands::MachoDylib;
 use crate::emit_macho_container_contents;

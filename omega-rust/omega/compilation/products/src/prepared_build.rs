@@ -28,7 +28,7 @@ pub struct SettledPackageBuild {
     pub root: std::path::PathBuf,
     pub target: target::TargetProfile,
     pub inputs: package_compilation::PackageCompilationInputs,
-    pub rollback: optimization_core::OptimizationRollback,
+    pub rollback: optimization_requests::OptimizationRollback,
     pub source: SettledBuildSource,
 }
 
@@ -58,11 +58,11 @@ impl SettledPackageBuild {
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
     /// Historical Build costs stay separate from Product value evidence.
-    pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub build_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
-    pub preparation: crate::SourcePreparation,
+    pub preparation: source_compiler::SourcePreparation,
     pub source: source_compiler::SourceContinuation,
-    pub base_sources: Arc<source::SourceMap>,
+    pub base_sources: Arc<source_compiler::source_inputs::SourceMap>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
 }
@@ -76,9 +76,9 @@ pub struct PreparedBuild {
 
 #[derive(Clone)]
 pub struct PreparedProductSource {
-    pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub typed: typed_trees::TypedTrees,
+    pub build_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    pub typed: source_compiler::source_state::TypedTrees,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
@@ -87,10 +87,11 @@ pub struct PreparedProductSource {
 
 #[derive(Clone)]
 pub struct CheckedProductSource {
-    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub program: Arc<typed_trees::FrozenTypedTrees>,
-    pub provider_inventory: Arc<typed_trees::provider_declarations::PreparedProviderInventory>,
-    pub terminal_publication: Arc<crate::ProductTerminalPublication>,
+    pub optimizations: optimization_core::OptimizationSelections,
+    pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    pub program: Arc<source_compiler::source_state::FrozenTypedTrees>,
+    pub provider_inventory: Arc<source_compiler::source_state::provider_declarations::PreparedProviderInventory>,
+    pub terminal_publication: Arc<source_compiler::SourcePublication>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,

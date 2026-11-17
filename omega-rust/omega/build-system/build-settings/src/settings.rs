@@ -17,8 +17,8 @@ canonical structural catalog. Erased fields, references, host facets, and
 product selections are never copied as plain settings.
 */
 
-use build_time_evaluation::BuildTimeValue;
-use optimization_core::OptimizationReportRequest;
+use source_compiler::evaluation::BuildTimeValue;
+use optimization_requests::OptimizationReportRequest;
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };

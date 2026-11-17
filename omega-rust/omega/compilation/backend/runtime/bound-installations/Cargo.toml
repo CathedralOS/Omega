@@ -10,9 +10,9 @@ path = "src/lib.rs"
 
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
-function-identity = { path = "../../../../foundation/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../installation-evidence" }
-language-core = { path = "../../../../../psi/foundation/language-core" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 target = { path = "../../target" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

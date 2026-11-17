@@ -9,7 +9,7 @@ use crate::observations::{NativePipelineObservation, NativePipelineStage, Native
 use crate::preparation::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
-use terminal_psi_to_abstract_operations::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use native_program_planning::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 
 pub fn compile(
     retained: &RetainedTerminalArtifact,
@@ -64,7 +64,7 @@ fn produce(
         let scalar_input =
             || {
                 scalars.map(|completed| {
-                    terminal_psi_to_abstract_operations::NativeScalarApplications { completed }
+                    native_program_planning::NativeScalarApplications { completed }
                 })
             };
         let artifact = retained.shared_artifact();
@@ -94,7 +94,7 @@ fn produce(
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
-            terminal_psi_to_abstract_operations::lower_native_execution(
+            native_program_planning::lower_native_execution(
                 proposal,
                 execution,
                 &private_entry_ram,
@@ -102,7 +102,7 @@ fn produce(
             )
         }?;
         let prepared = {
-            terminal_psi_to_abstract_operations::prepare_native_providers(
+            native_program_planning::prepare_native_providers(
                 proposal,
                 artifact,
                 RetainedNativeProviderInputs {

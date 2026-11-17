@@ -17,10 +17,8 @@ active compiler worker run inline without spawning additional threads.
 */
 
 pub(crate) mod build_continuation;
-mod entry_shapes;
 mod product_queries;
 mod product_selections;
-mod provider_choices;
 pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
@@ -32,9 +30,6 @@ pub use products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild,
-};
-pub use provider_choices::{
-    PreparedProviderChoices, prepare_with_source_defaults as prepare_provider_choices,
 };
 pub(crate) use source_checking::check_product_source;
 
@@ -126,7 +121,7 @@ pub(crate) fn prepare_checked_source(
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     source_capture: Option<&package_compilation::CapturedLocalSource>,
     collect_timings: bool,
-    preparation: products::SourcePreparation,
+    preparation: source_compiler::SourcePreparation,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -199,7 +194,7 @@ pub(super) struct PreparedPackageInvocation {
     root: std::path::PathBuf,
     target: target::TargetProfile,
     inputs: Option<PackageCompilationInputs>,
-    rollback: optimization_core::OptimizationRollback,
+    rollback: optimization_requests::OptimizationRollback,
     source: source_build::SourceBuild,
 }
 
@@ -308,7 +303,7 @@ impl PreparedPackageInvocation {
 
     pub(super) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -404,7 +399,7 @@ pub struct SourceCompilation {
 impl SourceCompilation {
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -588,7 +583,7 @@ pub(super) fn select_completed_build(
 
 fn attribute_failure(
     failure: CompileFailure,
-    sources: &source::SourceMap,
+    sources: &source_compiler::source_inputs::SourceMap,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> CompileFailure {
     match failure {
@@ -612,7 +607,7 @@ fn attribute_failure(
 
 pub(crate) fn attribute_diagnostics(
     diagnostics: &mut [Diagnostic],
-    sources: &source::SourceMap,
+    sources: &source_compiler::source_inputs::SourceMap,
     package_inputs: Option<&PackageCompilationInputs>,
 ) {
     for diagnostic in diagnostics {
@@ -622,13 +617,13 @@ pub(crate) fn attribute_diagnostics(
         let Some(source_span) = diagnostic.source_span else {
             continue;
         };
-        if source_span == source::SourceSpan::default() {
+        if source_span == source_text::SourceSpan::default() {
             continue;
         }
         let Some(file) = sources.file_at(source_span) else {
             continue;
         };
-        let position = source::SourcePosition::of(&file.source, source_span.span.start);
+        let position = source_text::SourcePosition::of(&file.source, source_span.span.start);
         let package = file
             .package_identity
             .and_then(|identity| package_inputs.and_then(|inputs| inputs.package_name(identity)))

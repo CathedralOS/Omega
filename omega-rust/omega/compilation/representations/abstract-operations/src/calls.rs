@@ -37,7 +37,7 @@ impl AbstractBoundaryResult {
         }
     }
 
-    optimization_core::structural_variant_accessor!(StructuralOperationResult; Self::Unit | Self::Scalar(_));
+    compiler_storage::enum_variant_accessor!(structural, Structural; StructuralOperationResult; Self::Unit | Self::Scalar(_));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

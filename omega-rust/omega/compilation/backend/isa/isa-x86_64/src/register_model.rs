@@ -1358,7 +1358,7 @@ mod constraint_catalog {
         TargetSemanticMismatch(RegisterConstraintKey),
     }
 
-    optimization_core::invalid_error_display!(
+    wire::invalid_error_display!(
         X86_64RegisterConstraintCatalogValidationError,
         "x86-64 register constraint catalog"
     );

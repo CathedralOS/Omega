@@ -18,7 +18,7 @@ pub fn execute_joined_product(
         retain_native_stage_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

@@ -83,6 +83,7 @@ impl DynamicElfNativeArtifact {
             &parts.native_bindings,
             &parts.native_calling,
             parts.boundary_application_coverage.as_ref(),
+            &parts.physical_originals,
         )
     }
 

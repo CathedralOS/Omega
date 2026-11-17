@@ -1,0 +1,3130 @@
+/*
+The reader: one machine's frozen typed trees resolved into the closed body. This is where identity is fixed (`check_on_lowered_form.md`, "Identity
+is fixed before elaboration"):
+
+- A type is scalar only through `SymbolTable::builtin_type_atom` on its
+  resolved symbol, through the shared scalar classification in `symbols`,
+  never the spelling. A `Named` type whose symbol is invalid is refused as a spelling.
+- A type is a record only through its `SymbolKind::Data` symbol and that
+  symbol's declaration; a field is its declaration position, found from the
+  field symbol on the literal or member (`places`).
+- A name is a slot only when its path has one member and a valid symbol equal
+  to a formal's or local's symbol. A name with no symbol is refused.
+- The reserved `result` of a contract keeps invalid symbols, but its name
+  path carries `reserved_result_of`, the contract owner stage 02 recorded
+  when it decided the name is the reserved result. A term is the result
+  pseudo-value only through that identity; a name spelled `result` without
+  it is refused as a spelling like any other unresolved name.
+- A callee is a `MachineId` reached from its symbol.
+
+Every match over a typed-tree node kind lists every kind; a kind outside the
+subset is refused with `Unsupported` and its name. A field the subset does not
+serve is refused when it is set, never ignored.
+*/
+
+mod arrays;
+mod atomics;
+mod authority;
+mod boundaries;
+pub(crate) use authority::has_predicates;
+mod byte_observations;
+mod bytes;
+mod callables;
+pub(crate) mod calling;
+mod calling_abis;
+mod calls;
+#[cfg(test)]
+mod calls_visibility_tests;
+mod carriers;
+mod casts;
+mod clause_calls;
+mod constant_values;
+mod contracts;
+mod expressions;
+mod fixed_bytes;
+pub(crate) mod logical;
+mod machine;
+mod mathematics;
+mod numeric_contracts;
+mod places;
+mod predicates;
+mod provider_selections;
+mod providers;
+mod rankings;
+mod record_parameters;
+mod references;
+mod reflection;
+mod regions;
+mod rejections;
+pub(crate) mod services;
+mod source_operators;
+mod source_records;
+mod statements;
+pub(crate) mod storage_metadata;
+mod storage_path;
+mod subjects;
+mod traits;
+mod transitions;
+mod type_parameters;
+mod types;
+
+use semantic_vocabulary::{CrashCause, MachineId, PackageKeyIdentity, StructuralTypeId};
+use arena::{IdTable};
+use symbols::{SymbolHandle, SymbolKind};
+use terminal_check_tables::{Checked, Construct};
+use crate::source_state::TypedTrees;
+
+use crate::lowering::body::{RecordType, Signature, ValueType};
+use crate::lowering::{Unserved, refuse};
+
+/// One member of a complete static type partition. An opaque remainder
+/// excludes exactly the closed types checked by the other members, so an
+/// open classifier's fallback is checked without inventing runtime RTTI.
+#[derive(Clone)]
+pub(crate) struct TypeAlternative {
+    pub arguments: Vec<Option<crate::source_state::types::TypeReferenceHandle>>,
+    pub remainder: Option<(usize, Vec<crate::source_state::types::TypeReferenceHandle>)>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ConstBinding {
+    symbol: SymbolHandle,
+    owner: semantic_vocabulary::MachineId,
+    value: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
+}
+
+/// Source-unit permissions for local inference. Outcome inference changes
+/// executable continuations; result inference currently extends a callable's
+/// contract, so only private bodies may receive those additional clauses.
+pub(crate) struct LocalSummaryBodies {
+    pub outcomes: Vec<MachineId>,
+    pub result_contracts: Vec<MachineId>,
+}
+
+pub(crate) struct DeclaredDomain {
+    pub instance: crate::lowering::body::DomainInstance,
+    pub carrier: ValueType,
+    pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub complete_predicate_theory: bool,
+}
+
+pub(crate) struct PredicateDefinition {
+    pub symbol: SymbolHandle,
+    pub diagnostic: MachineId,
+    pub parameters: Vec<terminal_psi::ValueDeclaration>,
+    pub body: semantic_vocabulary::Proposition,
+}
+
+pub(crate) struct Program<'t> {
+    type_purpose: storage_metadata::TypePurpose,
+    /// Sorted exact record IDs whose complete nested source type was read for a value use.
+    value_records: Vec<StructuralTypeId>,
+    pub publication: terminal_codec::TerminalPublication,
+    pub(super) typed: &'t TypedTrees,
+    /// Exact declarations admitted by this reader form, before source questions are captured.
+    pub(crate) admitted_declarations: crate::source_state::references::DeclarationSelection,
+    /// Source implementations actually read by this form. Synthetic witness
+    /// bodies and signature-only requirements do not admit private source code.
+    pub(crate) admitted_bodies: crate::source_state::references::DeclarationSelection,
+    /// Applied signatures can share a declaration symbol while owning
+    /// different source expressions. Capture the views this reader formed.
+    pub(crate) admitted_signature_views: Vec<crate::source_state::signature::StateSignature>,
+    /// The declaration each view above was read for, by position. A
+    /// requirement applied by an implementation names that implementation's
+    /// binders, so its references belong to the implementing machine.
+    pub(crate) admitted_signature_view_owners: Vec<SymbolHandle>,
+    /// While set, retained views are read for this implementing machine.
+    pub(crate) signature_view_owner: Option<SymbolHandle>,
+    /// Boundary applications whose ordinary parents need contract-owner admission.
+    /// They are not service parents and grant no service reach.
+    pub(crate) boundary_parent_contracts:
+        Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
+    /// Choices made by this reader, prepared once before source admission.
+    pub(crate) completed_operators: crate::lowering::selection_questions::CompletedOperators,
+    pub purpose: declaration_contracts::source_identity::DependencyScope,
+    /// One output slot per source mathematical declaration, not per call.
+    /// Publication assigns portable identities to the prepared definitions.
+    pub predicate_definitions: Vec<Option<PredicateDefinition>>,
+    shared: crate::lowering::SharedReading,
+    calling_policy_boundaries: Vec<SymbolHandle>,
+    /// The typed-tree machine of each discovered `MachineId`.
+    pub symbols: IdTable<MachineId, SymbolHandle>,
+    pub signatures: IdTable<MachineId, Signature>,
+    /// Requirement headers keep their exact source parameter origins until
+    /// the call closure completes their omitted bounds.
+    declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
+    /// Contracts and exact code selections named by the read program. A
+    /// selection retains code without adding an invocation to its call graph.
+    pub callables: crate::lowering::callables::CallableNamespace,
+    pub boundaries: crate::lowering::boundaries::BoundaryNamespace,
+    pub external_providers: crate::lowering::external_providers::ExternalProviderNamespace,
+    pub static_contracts: crate::lowering::static_contracts::StaticContracts,
+    pub declaration_metadata: Vec<SymbolHandle>,
+    pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_envelopes:
+        IdTable<semantic_vocabulary::ContractId, crate::lowering::reach::SourceEnvelope>,
+    pub declaration_sources:
+        IdTable<semantic_vocabulary::ContractId, &'t crate::source_state::signature::StateSignature>,
+    /// Selected headers keep their supplying call and complete application.
+    /// This is construction input for the existing public contract table,
+    /// not permission to invoke its implementation.
+    pub declaration_selections: IdTable<
+        semantic_vocabulary::ContractId,
+        Option<(
+            MachineId,
+            MachineId,
+            crate::source_state::StaticRequirementDispatch,
+            crate::source_state::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
+    >,
+    /// Construction coordinates are coalesced once after reading. Calls keep
+    /// their construction coordinate until lowering translates it; the emitted
+    /// module contains one header for each complete selected application.
+    pub declaration_aliases:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
+    pub declaration_representatives:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
+    /// Only this root of a refinement witness exposes the member's own
+    /// body contract. Every named call, including recursion, uses its route.
+    implementation_body: Option<MachineId>,
+    services: IdTable<
+        semantic_vocabulary::ServiceId,
+        (
+            crate::source_state::trait_definition::AppliedTraitScope<'t>,
+            Vec<semantic_vocabulary::ServiceId>,
+        ),
+    >,
+    resolving_services: Vec<SymbolHandle>,
+    /// The machines whose bodies a contract clause is unfolding, innermost
+    /// last (`clause_calls`): a recursive predicate is refused.
+    unfolding_calls: Vec<SymbolHandle>,
+    /// The services a Build selection awaits a provider for, in first-read
+    /// order (`designate`, `publish_readiness`).
+    readiness: Vec<semantic_vocabulary::ServiceId>,
+    /// What diagnostics call each machine's constructs, pushed with its
+    /// signature and completed as its body is read.
+    pub names: IdTable<MachineId, crate::lowering::MachineNames>,
+    /// Whether this is a generic check form: the entry's implementation
+    /// parameters stay rigid, and a call through one names the requirement.
+    rigid: bool,
+    /// The machines that are a requirement's contract with no body.
+    pub requirements: Vec<MachineId>,
+    /// Entries and selected providers keep their declared input contract.
+    pub fixed_inputs: Vec<MachineId>,
+    /// Every declaration in these machines' verification subject is rooted;
+    /// reaching one dependency helper alone does not close its possible uses.
+    pub subject_machines: Vec<MachineId>,
+    /// The original request's fixed membership for outcome inference inside
+    /// independent witnesses. It neither roots declarations nor supplies the
+    /// complete caller roster needed by private input/result inference.
+    pub outcome_subjects: Option<Vec<Option<PackageKeyIdentity>>>,
+    /// Every call through an implementation parameter read so far.
+    pub selections: Vec<crate::lowering::Selected>,
+    /// What each type parameter in scope stands for while one machine's
+    /// signature or body is read: a type parameter of a generic check
+    /// form's entry is rigid, and a type parameter of a generic machine the
+    /// entry calls is the type the call applies it at. A type that names
+    /// such a parameter by its symbol is that type (`value_type`). Empty
+    /// while a closed machine is read.
+    scope: Vec<(SymbolHandle, ValueType)>,
+    source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+    source_scopes: IdTable<MachineId, std::sync::Arc<crate::source_state::SourceTypeScope>>,
+    /// A generic declaration checks its contract without claiming executable
+    /// storage for a compound symbolic type. These types belong only to that
+    /// schema form; demanded applications use ordinary formals and loans.
+    reading_schema: bool,
+    /// Runtime carriers keep their original binder even in applied callees.
+    rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
+    /// `scope` of each machine, pushed with its signature and restored
+    /// when its body is read.
+    scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
+    /// Static width binders retain the actual machine-local input identity.
+    /// Sorted by source symbol within this declaration's selected telescope.
+    const_scope: Vec<ConstBinding>,
+    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
+    /// The generic machines a generic check form's entry calls at its own
+    /// type parameters, each read once per tuple with its actual body. These
+    /// applications also retain their independent template checks.
+    pub applications: Vec<MachineId>,
+    /// Exact type instances, ordered by machine ID, and the first caller that
+    /// introduced each. Root forms have no caller. This bounds recursive
+    /// expansion while allowing the same tuple to reuse its existing body.
+    applied: Vec<(MachineId, Vec<ValueType>, Option<MachineId>)>,
+    /// The source types a static alternative fixes the entry's parameters to.
+    /// Materialize them under this reader's numbering before checking its body;
+    /// record IDs from the reader that discovered the family cannot cross here.
+    pub alternative: Option<TypeAlternative>,
+    /// The locals of the body being read whose value is decided statically
+    /// by closed type equations (`static_truth`), by the local's symbol.
+    static_truths: Vec<(SymbolHandle, bool)>,
+    /// What the premises of the generic check form being read say about
+    /// each rigid type parameter's integer carrier family
+    /// (`carriers::assume_premises`). Empty for every other reading.
+    rigid_carriers: Vec<(
+        terminal_check_tables::values::RigidType,
+        carriers::CarrierFacts,
+    )>,
+    /// Whether the signature being read is a generic check form's entry,
+    /// whose requirements are premises rather than obligations.
+    premise_reading: bool,
+    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
+    /// pushed with each machine's signature.
+    pub value_parameters: IdTable<MachineId, usize>,
+    pub generic_binders: Vec<SymbolHandle>,
+    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
+    /// Every record type a formal, local, result, field or literal named, in
+    /// discovery order; a nested record is discovered before its owner.
+    pub records: IdTable<StructuralTypeId, RecordType>,
+    pub byte_domains: Vec<crate::lowering::body::SourceByteDomain>,
+    /// Resolve selected consumers after the current signature is registered;
+    /// a record used by its own cleanup must not allocate that machine twice.
+    pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
+    pub(crate) scalar_applications: constant_values::ScalarApplications,
+    /// Resolved domain declarations actually used by this verification unit.
+    /// Lowering publishes these meanings, not just the carrier of their values.
+    pub declared_domains: Vec<DeclaredDomain>,
+    /// Only completed source contracts enter this stage-local query cache.
+    /// It contains no value facts and is never published as evidence.
+    inhabitation: terminal_semantics::inhabitation::Inhabitation,
+    /// The symbols each record type was resolved from, by the same identity.
+    record_sources: IdTable<StructuralTypeId, places::RecordSource>,
+    /// The data declarations being resolved, outermost first: a declaration
+    /// reached again while on this stack contains itself.
+    resolving: Vec<(SymbolHandle, Option<crate::source_state::SourceTypeApplication>)>,
+    /// The declaration being read, which is the lexical owner of the
+    /// lifetimes its types name when the typed trees retained none for an
+    /// occurrence: the data declaration whose members are read, or the
+    /// machine whose signature or body is (`types`, `value_type`).
+    lifetime_owner: SymbolHandle,
+    /// The region tuples `body::Regions` names, by position; the first is
+    /// the empty tuple (`regions`).
+    region_tuples: Vec<Vec<regions::Region>>,
+    /// The text identities of `regions::Region::Fixed`, by position.
+    fixed_regions: Vec<String>,
+    /// Each region variable: what it was decided as, if it was, and the
+    /// region a loan it stands for is within (`regions::RegionVariable`).
+    region_variables: Vec<regions::RegionVariable>,
+    /// What an elided lifetime stands for where a type is being read.
+    elision: regions::Elision,
+    /// How many fresh lifetime parameters each machine's signature was
+    /// given for its elided applications.
+    elided_lifetimes: Vec<(SymbolHandle, usize)>,
+    /// The type the expression being read is expected to have, handed from
+    /// `expression` to the call or literal it dispatches to, which takes it
+    /// before reading anything nested (`regions`: a call instantiates its
+    /// callee's lifetimes from it first).
+    expected: Option<ValueType>,
+    /// How many `StructuralFieldId`s the records above hold.
+    fields_minted: u64,
+    /// How many `StructuralCaseId`s the sums above hold.
+    cases_minted: u64,
+    /// The subject of each value-position `match` whose arms are being
+    /// read, outermost first, by the capture identity stage 03 gave the
+    /// match and every `SavedSubject` node of its arms.
+    captures: Vec<(
+        arena::Handle<crate::source_state::expression::CompletedValueCapture>,
+        crate::lowering::body::Expression,
+    )>,
+    /// The subject's generic machines, set aside by `subject_declarations`.
+    pub generic_templates: Vec<SymbolHandle>,
+    /// The operations the subject's implementations select, set aside by
+    /// `subject_declarations`.
+    pub conformance_witnesses: Vec<crate::lowering::ConformanceWitness>,
+    /// The machine each chosen provider gives each requirement it supplies,
+    /// recorded by `supplied_slots`.
+    pub supplied: Vec<crate::lowering::SuppliedRequirement>,
+    /// `Some` while a compilation reports every refusal it meets
+    /// (`elaborate_source_for`): a declaration or body that is refused is
+    /// recorded here and reading goes on with the next one, so one run names
+    /// every machine the checker cannot read yet. `None`, as for a direct
+    /// reading, refuses at the first.
+    pub collected: Option<Vec<terminal_check_tables::Refusal>>,
+    /// Machines whose signature was refused while `collected` is `Some`. A
+    /// later call of one is refused at once as depending on it, instead of
+    /// reading and refusing the same signature again for every caller.
+    refused_signatures: Vec<SymbolHandle>,
+}
+
+/// One slot of a body: formals first, then locals in binding order.
+#[derive(Clone)]
+struct Slot {
+    symbol: SymbolHandle,
+    value_type: ValueType,
+    assignable: bool,
+    /// A scalar local declared without an initializer: it is a storage home
+    /// written by a store, not an SSA value rebound by assignment.
+    homed: bool,
+    /// An `[erased]` formal or local. A contract clause and an erased
+    /// position may name it; a runtime expression may not.
+    erased: bool,
+    /// A reference formal or its captured binding, and its access. Its
+    /// `value_type` is the referent's: the slot names the caller's storage, read and (for
+    /// `&mut`) written in place, never an SSA value or a root of its own.
+    borrowed: Option<language_core::ReferenceAccess>,
+    borrowed_regions: crate::lowering::body::Regions,
+}
+/// The closed crash cause of a `crashes` clause or `crash` statement.
+fn crash_cause(cause: crate::source_state::signature::CrashCause) -> CrashCause {
+    match cause {
+        crate::source_state::signature::CrashCause::Trap => CrashCause::Trap,
+        crate::source_state::signature::CrashCause::Abort => CrashCause::Abort,
+    }
+}
+
+/// Reads a span of a typed-tree arena, refusing an invalid span instead of
+/// reading it as empty.
+fn span<T, Rows>(
+    read: impl FnOnce(arena::HandleSpan<T>) -> Option<Rows>,
+    span: arena::HandleSpan<T>,
+    machine: MachineId,
+    what: &'static str,
+) -> Checked<Rows> {
+    read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
+}
+impl<'t> Program<'t> {
+    pub(crate) fn begin_declaration_storage(
+        &mut self,
+        entry: MachineId,
+        bodies: usize,
+    ) -> Checked<()> {
+        if self.type_purpose == storage_metadata::TypePurpose::StorageDescription
+            || bodies != self.symbols.len()
+        {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration("storage metadata before the complete body closure"),
+            ));
+        }
+        self.type_purpose = storage_metadata::TypePurpose::StorageDescription;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
+        Self::with_captures(
+            typed,
+            rigid,
+            declaration_contracts::source_identity::DependencyScope::Product,
+            crate::lowering::shared_reading(typed),
+        )
+    }
+
+    /// Provider rows and other readings of this program use the same exact
+    /// source identities; publication must not hash the source files per row.
+    pub(crate) fn exact_toolchain_sources(&self) -> Result<&[(source_text::SourceId, [u8; 32])], &str> {
+        self.shared.exact_toolchain_sources(self.typed)
+    }
+
+    pub fn with_captures(
+        typed: &'t TypedTrees,
+        rigid: bool,
+        purpose: declaration_contracts::source_identity::DependencyScope,
+        shared: crate::lowering::SharedReading,
+    ) -> Self {
+        Self {
+            publication: terminal_codec::TerminalPublication::Portable,
+            purpose,
+            declaration_metadata: Vec::new(),
+            calling_policy_boundaries: Vec::new(),
+            predicate_definitions: std::iter::repeat_with(|| None)
+                .take(typed.mathematical_definitions().len())
+                .collect(),
+            typed,
+            type_purpose: storage_metadata::TypePurpose::Value,
+            value_records: Vec::new(),
+            admitted_declarations: crate::source_state::references::DeclarationSelection::from_symbols([]),
+            admitted_bodies: crate::source_state::references::DeclarationSelection::from_symbols([]),
+            admitted_signature_views: Vec::new(),
+            admitted_signature_view_owners: Vec::new(),
+            signature_view_owner: None,
+            boundary_parent_contracts: Vec::new(),
+            completed_operators: crate::lowering::selection_questions::CompletedOperators::default(),
+            shared,
+            symbols: IdTable::default(),
+            signatures: IdTable::default(),
+            declared_envelope_policies: IdTable::default(),
+            callables: crate::lowering::callables::CallableNamespace::default(),
+            boundaries: crate::lowering::boundaries::BoundaryNamespace::default(),
+            external_providers: crate::lowering::external_providers::ExternalProviderNamespace::default(),
+            static_contracts: crate::lowering::static_contracts::StaticContracts::default(),
+            declaration_signatures: IdTable::default(),
+            declaration_envelopes: IdTable::default(),
+            declaration_sources: IdTable::default(),
+            declaration_selections: IdTable::default(),
+            declaration_aliases: IdTable::default(),
+            declaration_representatives: IdTable::default(),
+            implementation_body: None,
+            services: IdTable::default(),
+            resolving_services: Vec::new(),
+            unfolding_calls: Vec::new(),
+            readiness: Vec::new(),
+            names: IdTable::default(),
+            rigid,
+            requirements: Vec::new(),
+            fixed_inputs: Vec::new(),
+            subject_machines: Vec::new(),
+            outcome_subjects: None,
+            selections: Vec::new(),
+            scope: Vec::new(),
+            source_scope: Default::default(),
+            source_scopes: IdTable::default(),
+            reading_schema: false,
+            rigid_storage: Vec::new(),
+            scopes: IdTable::default(),
+            const_scope: Vec::new(),
+            const_scopes: IdTable::default(),
+            applications: Vec::new(),
+            applied: Vec::new(),
+            alternative: None,
+            static_truths: Vec::new(),
+            rigid_carriers: Vec::new(),
+            premise_reading: false,
+            value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
+            value_arguments: IdTable::default(),
+            records: IdTable::default(),
+            byte_domains: Vec::new(),
+            pending_cleanup: Vec::new(),
+            scalar_applications: Default::default(),
+            declared_domains: Vec::new(),
+            inhabitation: Default::default(),
+            record_sources: IdTable::default(),
+            resolving: Vec::new(),
+            lifetime_owner: SymbolHandle::invalid(),
+            region_tuples: vec![Vec::new()],
+            fixed_regions: Vec::new(),
+            region_variables: Vec::new(),
+            elision: regions::Elision::Declaration,
+            elided_lifetimes: Vec::new(),
+            expected: None,
+            fields_minted: 0,
+            cases_minted: 0,
+            captures: Vec::new(),
+            generic_templates: Vec::new(),
+            conformance_witnesses: Vec::new(),
+            supplied: Vec::new(),
+            collected: None,
+            refused_signatures: Vec::new(),
+        }
+    }
+
+    /// Read calls independently, then group their headers once. Sorting the
+    /// complete selected identities avoids rescanning prior headers for every
+    /// call, and keeps different applications of one requirement separate.
+    pub fn finish_declarations(&mut self, diagnostic: MachineId) -> Checked<()> {
+        let unavailable = |reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        };
+        let mut ordered = Vec::with_capacity(self.declaration_signatures.len());
+        for (coordinate, _) in self.declaration_signatures.iter() {
+            let source = self
+                .declaration_sources
+                .get(coordinate)
+                .copied()
+                .ok_or_else(|| unavailable("public contract lost its exact source signature"))?;
+            let selected = self
+                .declaration_selections
+                .get(coordinate)
+                .ok_or_else(|| unavailable("public contract lost its selection coordinate"))?;
+            let key = if let Some((caller, body, dispatch, operand, owner)) = selected {
+                if !self.typed.symbols.symbols().nodes().is_valid(*owner) {
+                    return Err(unavailable(
+                        "selected contract lost its actual operand owner",
+                    ));
+                }
+                let application_identity = self
+                    .typed
+                    .declared_static_operand_identity(
+                        crate::source_state::type_identity::DeclaredStaticOperandIdentityRequest {
+                            operand:
+                                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                                    operand,
+                                ),
+                            lexical_owner: *owner,
+                            binders: &[],
+                            lifetime_binders: &[],
+                            exact_toolchain_sources: self
+                                .shared
+                                .exact_toolchain_sources(self.typed)
+                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
+                        },
+                    )
+                    .ok_or_else(|| {
+                        unavailable("selected contract has unresolved static argument identity")
+                    })?;
+                let (declaring, _) = self
+                    .typed
+                    .trait_machine_signature(source.symbol)
+                    .ok_or_else(|| unavailable("selected contract lost its declaring trait"))?;
+                let requirement_identity = self
+                    .typed
+                    .trait_requirement_callable_identity(declaring, source);
+                if !requirement_identity.is_valid() {
+                    return Err(unavailable(
+                        "selected contract has no complete public signature identity",
+                    ));
+                }
+                Some((
+                    *caller,
+                    application_identity,
+                    requirement_identity,
+                    *body,
+                    (
+                        dispatch.evidence_parameter.arena_index(),
+                        dispatch.evidence_parameter.generation(),
+                    ),
+                ))
+            } else {
+                None
+            };
+            ordered.push((key, coordinate));
+        }
+        ordered.sort_unstable();
+        let mut aliases = vec![None; self.declaration_signatures.len()];
+        let mut representatives = IdTable::default();
+        let mut previous = None;
+        let mut representative = None;
+        for (key, source) in ordered {
+            let same = key.is_some() && previous.as_ref() == key.as_ref();
+            let canonical = if same {
+                let (canonical, original) = representative
+                    .ok_or_else(|| unavailable("selected contract lost its representative"))?;
+                if self.declaration_signatures.get(original)
+                    != self.declaration_signatures.get(source)
+                    || self.declaration_envelopes.get(original)
+                        != self.declaration_envelopes.get(source)
+                {
+                    return Err(unavailable(
+                        "one selected application produced different public signatures or envelopes",
+                    ));
+                }
+                canonical
+            } else {
+                let canonical = representatives.push(source);
+                representative = Some((canonical, source));
+                canonical
+            };
+            let slot = usize::try_from(source.get() - 1)
+                .ok()
+                .and_then(|position| aliases.get_mut(position))
+                .ok_or_else(|| {
+                    unavailable("public contract construction coordinate is unavailable")
+                })?;
+            *slot = Some(canonical);
+            previous = key;
+        }
+        let mut declared_aliases = IdTable::default();
+        for alias in aliases {
+            declared_aliases.push(
+                alias.ok_or_else(|| unavailable("public contract lost its emitted coordinate"))?,
+            );
+        }
+        self.declaration_aliases = declared_aliases;
+        self.declaration_representatives = representatives;
+        Ok(())
+    }
+}
+
+/// The refusal label for a name or callee that is not a slot or machine.
+fn symbol_kind(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Unknown => "unknown symbol",
+        SymbolKind::Root => "root",
+        SymbolKind::Module => "module",
+        SymbolKind::BuiltinType => "builtin type",
+        SymbolKind::BuiltinFunction => "builtin function",
+        SymbolKind::Data => "data",
+        SymbolKind::Domain => "domain",
+        SymbolKind::Field => "field",
+        SymbolKind::Variant => "variant",
+        SymbolKind::Machine => "machine",
+        SymbolKind::CallableContract => "callable contract",
+        SymbolKind::Operator => "operator",
+        SymbolKind::Measure => "measure",
+        SymbolKind::Proposition => "proposition",
+        SymbolKind::MathematicalDefinition => "mathematical definition",
+        SymbolKind::State => "state",
+        SymbolKind::Trait => "trait",
+        SymbolKind::Conformance => "conformance",
+        SymbolKind::Const => "const",
+        SymbolKind::ConformanceParameter => "conformance parameter",
+        SymbolKind::WireSchema => "wire schema",
+        SymbolKind::Parameter => "parameter of another machine",
+        SymbolKind::TypeParameter => "type parameter",
+        SymbolKind::MachineParameter => "machine parameter",
+        SymbolKind::PropositionParameter => "proposition parameter",
+        SymbolKind::PropositionMachineParameter => "proposition machine parameter",
+        SymbolKind::Local => "local of another scope",
+        SymbolKind::HostCapability => "host capability",
+        SymbolKind::Object => "object",
+        SymbolKind::Function => "function",
+        SymbolKind::Section => "section",
+        SymbolKind::Import => "import",
+        SymbolKind::TypeAlias => "type alias",
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::contracts::{ClauseScope, ResultTerm};
+    use super::*;
+    use crate::lowering::body::ExpressionKind;
+    use language_core::ReferenceAccess;
+    use numeric_literals::{FloatFormat, IntegerLiteral};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
+    };
+    use symbols::{SymbolNameRef};
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use crate::source_state::expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
+    };
+    use crate::source_state::expression::{
+        TableBinaryExpression, TableBorrowExpression, TableRangeExpression,
+    };
+    use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    fn machine() -> MachineId {
+        MachineId::new(1).unwrap()
+    }
+
+    fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {
+        let mut typed = typed.clone();
+        let handle = typed.expression_table.insert(node);
+        let mut program = Program::new(&typed, false);
+        let refusal = program
+            .expression(machine(), &[], handle, None)
+            .unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        refusal.detail
+    }
+
+    #[test]
+    fn each_expression_kind_outside_the_subset_is_refused_by_name() {
+        let typed = TypedTrees::default();
+        let invalid = ExpressionHandle::invalid();
+        let cases = [
+            (
+                ExpressionNode::Borrow(TableBorrowExpression {
+                    target: invalid,
+                    access: ReferenceAccess::Shared,
+                }),
+                "expression reference formation without its retained contextual type",
+            ),
+            (
+                ExpressionNode::Range(TableRangeExpression {
+                    start: invalid,
+                    end: invalid,
+                    end_inclusive: false,
+                }),
+                "expression range",
+            ),
+            (
+                ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()),
+                "expression zero value",
+            ),
+            (
+                ExpressionNode::TypeExpression(TypeReferenceHandle::invalid()),
+                "expression type expression",
+            ),
+            (
+                ExpressionNode::UndeterminedNaN(FloatFormat::F32),
+                "expression undetermined NaN",
+            ),
+            (
+                ExpressionNode::Integer(IntegerLiteral::from_value(3)),
+                "expression anonymous integer literal without an expected type",
+            ),
+            (
+                ExpressionNode::Name(TableNamePath::default()),
+                "spelling name without a symbol",
+            ),
+        ];
+        let wrong: Vec<_> = cases
+            .into_iter()
+            .map(|(node, expected)| (refused(&typed, node), expected))
+            .filter(|(found, expected)| found != expected)
+            .collect();
+        assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// The record type the hand-built slots below name as type 1. A slot's
+    /// type is looked up before a place is read (a reference is written
+    /// through, not replaced), so the type must be a row of the program.
+    fn plain_record() -> RecordType {
+        RecordType {
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            cleanup: None,
+            identity: String::from("point"),
+            shape: crate::lowering::StorageShape::Record(Vec::new()),
+            requires: Vec::new(),
+            authored_layout: false,
+        }
+    }
+
+    #[test]
+    fn zero_values_require_complete_types_and_cannot_invent_reference_backing() {
+        use terminal_psi::StructuralAccess;
+        let typed = TypedTrees::default();
+        let mut program = Program::new(&typed, false);
+        let source = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let empty = program.records.push(plain_record());
+        program.record_sources.push(places::RecordSource {
+            declaration: SymbolHandle::invalid(),
+            cleanup: None,
+            application: None,
+            region_owner: SymbolHandle::invalid(),
+            fields: Vec::new(),
+            cases: Vec::new(),
+        });
+        assert!(matches!(
+            program
+                .zero_value(machine(), ValueType::record(empty), source)
+                .unwrap()
+                .kind,
+            ExpressionKind::Record { fields } if fields.is_empty()
+        ));
+        for (shape, expected) in [
+            (
+                crate::lowering::StorageShape::Reference {
+                    referent: empty,
+                    access: StructuralAccess::SharedBorrow,
+                },
+                "zero-established reference without backing",
+            ),
+            (
+                crate::lowering::StorageShape::ElementView {
+                    element: empty,
+                    qualification: crate::lowering::body::Qualification::NONE,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                "zero-established mutable sequence",
+            ),
+            (
+                crate::lowering::StorageShape::Opaque,
+                "opaque initialization requires boundary-supplied contents",
+            ),
+        ] {
+            let record = program.records.push(RecordType {
+                shape,
+                ..plain_record()
+            });
+            let refusal = program
+                .zero_value(machine(), ValueType::record(record), source)
+                .unwrap_err();
+            assert!(refusal.detail.contains(expected), "{}", refusal.detail);
+        }
+        let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
+        assert!(
+            program
+                .zero_value(machine(), ValueType::record(missing), source)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence() {
+        use declaration_contracts::DomainPredicatePresence;
+        use semantic_vocabulary::Proposition;
+        use crate::source_inputs::{SourceMap};
+        use declaration_contracts::source_identity::DependencyScope;
+use source_admission::SourceOrigin;
+use source_admission::SourceResolutionStratum;
+        use source_text::{SourceSpan};
+        use crate::source_state::domain::{DomainDefinition, ProofFact};
+
+        // Each domain's subject is the record `Point`: lowering refuses a
+        // record domain whose subject type has no exact identity.
+        let text = "Never Always Bare Point";
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_checked_instance(
+                "domains.omg".into(),
+                text,
+                "domains".into(),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Domain, (0, 5)),
+                (SymbolKind::Domain, (6, 12)),
+                (SymbolKind::Domain, (13, 17)),
+                (SymbolKind::Data, (18, 23)),
+            ]
+            .map(|(kind, (start, end))| {
+                (
+                    kind,
+                    SymbolNameRef::Source(SourceSpan::new(source, source_text::Span::new(start, end))),
+                )
+            }),
+        );
+        let domains = declarations.handles().take(3).collect::<Vec<_>>();
+        let point = declarations.handle_at(3);
+        let subjects = domains
+            .iter()
+            .map(|domain| {
+                builder
+                    .insert_children(
+                        *domain,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+                    )
+                    .handle_at(0)
+            })
+            .collect::<Vec<_>>();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let target_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: point,
+            name: "Point".into(),
+        });
+        for (((&symbol, name), predicate), subject_symbol) in domains
+            .iter()
+            .zip(["Never", "Always", "Bare"])
+            .zip([Some(false), Some(true), None])
+            .zip(subjects)
+        {
+            let (predicate_presence, facts) = if let Some(value) = predicate {
+                let expression = typed
+                    .expression_table
+                    .insert(ExpressionNode::Boolean(value));
+                (
+                    DomainPredicatePresence::Present,
+                    typed
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(expression)]),
+                )
+            } else {
+                (DomainPredicatePresence::Absent, arena::HandleSpan::empty())
+            };
+            let semantic_id = typed.semantic_domains.intern(name);
+            typed.push_domain_definition(DomainDefinition {
+                symbol,
+                name: name.into(),
+                semantic_id,
+                subject_symbol,
+                target_type,
+                predicate_presence,
+                facts,
+                ..Default::default()
+            });
+        }
+        let unprepared_instance = crate::lowering::body::DomainInstance {
+            declaration: domains[0],
+            identity: typed.semantic_domains.intern("unprepared instance"),
+        };
+        let mut program = Program::new(&typed, false);
+        let carrier = program.records.push(plain_record());
+        program
+            .declared_domains
+            .extend(domains.iter().map(|&symbol| DeclaredDomain {
+                instance: crate::lowering::body::DomainInstance {
+                    declaration: symbol,
+                    identity: typed.domain_definition(symbol).unwrap().semantic_id,
+                },
+                carrier: ValueType::record(carrier),
+                predicate: None,
+                complete_predicate_theory: false,
+            }));
+        let bodies = arena::IdTable::default();
+        let components = crate::lowering::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        program.prepare_domain_predicates(machine()).unwrap();
+        let elaboration = crate::lowering::lower_program(
+            None,
+            &bodies,
+            &components,
+            crate::lowering::body::Signatures {
+                machines: &program.signatures,
+                declarations: &program.declaration_signatures,
+                declaration_aliases: None,
+                boundaries: &program.boundaries,
+            },
+            &program.records,
+            &[],
+            &program.callables,
+            &program.boundaries,
+            &crate::lowering::reach::ServiceMap::default(),
+            &program.external_providers,
+            &program.static_contracts,
+            terminal_codec::TerminalPublication::Invocation,
+            Some(program.typed),
+            Some(&program),
+        )
+        .unwrap();
+        let domains = &elaboration.program.module.structural_domains;
+        let predicates = domains
+            .iter()
+            .map(|domain| {
+                domain
+                    .predicate
+                    .as_ref()
+                    .map(|predicate| &predicate.proposition)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            predicates,
+            [
+                Some(&Proposition::Falsehood),
+                Some(&Proposition::Truth),
+                Some(&Proposition::Truth)
+            ]
+        );
+        assert_eq!(
+            domains
+                .iter()
+                .map(|domain| domain.complete_predicate_theory)
+                .collect::<Vec<_>>(),
+            [true, true, true],
+            "translated clauses and an authored empty declaration have complete theories"
+        );
+        // A complete theory grants no establishment route or membership.
+        assert!(domains.iter().all(|domain| {
+            domain
+                .required_memberships
+                .as_ref()
+                .is_some_and(Vec::is_empty)
+                && domain.establishment_routes.is_none()
+        }));
+
+        // The same declaration cannot lend its predicate to another instance
+        // whose applied theory was never prepared.
+        let mut unprepared = Program::new(&typed, false);
+        let carrier = unprepared.records.push(plain_record());
+        unprepared.declared_domains.push(DeclaredDomain {
+            instance: unprepared_instance,
+            carrier: ValueType::record(carrier),
+            predicate: None,
+            complete_predicate_theory: false,
+        });
+        assert_eq!(
+            unprepared
+                .prepare_domain_predicates(machine())
+                .unwrap_err()
+                .detail,
+            "type domain application without its prepared theory"
+        );
+    }
+
+    fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
+        use crate::source_state::machine::{Machine, MachineBodyStatus};
+        use crate::source_state::state::State;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let machines = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("served")),
+                (SymbolKind::Machine, SymbolNameRef::Static("holder")),
+            ],
+        );
+        let symbols = [machines.handle_at(0), machines.handle_at(1)];
+        let states = symbols.map(|machine| {
+            builder
+                .insert_children(machine, [(SymbolKind::State, SymbolNameRef::Static("run"))])
+                .handle_at(0)
+        });
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        for (symbol, state) in symbols.into_iter().zip(states) {
+            let states = typed.machine_states.insert_many([State {
+                symbol: state,
+                ..Default::default()
+            }]);
+            typed.push_machine(Machine {
+                symbol,
+                states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+        }
+        (typed, symbols)
+    }
+
+    #[test]
+    fn a_demanded_machine_holding_an_unserved_request_is_refused_by_name() {
+        use crate::source_state::deferred_refusals::DeferredRequest;
+        let (mut typed, [served, holder]) = unit_machines();
+        let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
+        let authored = source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
+        for source_span in [None, Some(authored)] {
+            typed.record_deferred_refusal(
+                state,
+                DeferredRequest::ReceiverCallSelection,
+                source_span.unwrap_or_default(),
+            );
+            let mut program = Program::new(&typed, false);
+            // The twin without a row is read; nothing demanded the holder yet.
+            program.machine(served).expect("a machine with no row");
+            let refusal = program.machine(holder).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.source_span, source_span);
+            assert_eq!(
+                refusal.detail,
+                "declaration holding a call selected by its receiver's type, which no pass serves yet \
+                 while reading the signature of `holder`"
+            );
+            typed.deferred_refusals.clear();
+        }
+        // The same declaration without the row is read like its twin.
+        Program::new(&typed, false)
+            .machine(holder)
+            .expect("the holder once its request is served");
+    }
+
+    #[test]
+    fn a_call_bound_to_no_declaration_is_refused_before_its_target_is_read() {
+        use crate::source_state::expression::TableCallExpression;
+        use crate::source_state::name::Identifier;
+        let (typed, [served, _]) = unit_machines();
+        let call = |target_symbol| {
+            ExpressionNode::Call(TableCallExpression {
+                operational_acknowledgement: Default::default(),
+                runtime_call: None,
+                authored_call_selection: None,
+                authored_call_binding: None,
+                build_selection: arena::Handle::invalid(),
+                authored_machine_application: arena::Handle::invalid(),
+                exact_coercion_target: TypeReferenceHandle::invalid(),
+                requirement_application: TypeReferenceHandle::invalid(),
+                receiver: ExpressionHandle::invalid(),
+                target_symbol,
+                static_machine_parameter: SymbolHandle::invalid(),
+                target: Identifier::generated("method"),
+                static_requirement_dispatch: None,
+                machine_arguments: Box::new([]),
+                quotient_operation: None,
+                private_layout_operation: None,
+                installed_interrupt_operation: None,
+                layout_query: None,
+                native_code_layout: None,
+                arguments: Default::default(),
+                evidence_arguments: Box::new([]),
+            })
+        };
+        assert_eq!(
+            refused(&typed, call(SymbolHandle::invalid())),
+            "call without a bound target"
+        );
+        // A handle of no symbol in this table is as unbound as an absent one.
+        assert_eq!(
+            refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
+            "call without a bound target"
+        );
+        // The twin passes target validation and reaches authored-source
+        // validation. This low-level reader has not admitted a caller.
+        assert_eq!(
+            refused(&typed, call(served)),
+            "declaration authored occurrence without its source machine"
+        );
+        for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
+            let mut statements = typed.clone();
+            let handle =
+                statements
+                    .statement_table
+                    .insert(crate::source_state::statement::StatementNode::Call(
+                        crate::source_state::statement::TableCall {
+                            target_symbol,
+                            ..Default::default()
+                        },
+                    ));
+            let refusal = Program::new(&statements, false)
+                .call_statement_at(machine(), &[], handle)
+                .unwrap_err();
+            assert_eq!(refusal.detail, "call without a bound target");
+        }
+        // Runtime calls intentionally have no declaration target. They still
+        // require their actual authored owner, rather than acquiring one here.
+        let runtime_call = Some(crate::source_state::callable_values::RuntimeCallBinding::default());
+        assert_eq!(
+            refused(
+                &typed,
+                ExpressionNode::Call(TableCallExpression {
+                    runtime_call,
+                    ..Default::default()
+                }),
+            ),
+            "declaration authored occurrence without its source machine"
+        );
+        let mut statements = typed.clone();
+        let handle =
+            statements
+                .statement_table
+                .insert(crate::source_state::statement::StatementNode::Call(
+                    crate::source_state::statement::TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    },
+                ));
+        let refusal = Program::new(&statements, false)
+            .call_statement_at(machine(), &[], handle)
+            .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "declaration authored occurrence without its source machine"
+        );
+    }
+
+    #[test]
+    fn targetless_runtime_calls_keep_their_actual_authored_caller() {
+        use crate::source_state::callable_values::{RuntimeCallBinding, RuntimeCallableContract};
+        use crate::source_state::expression::{
+            Expression as TypedExpression, NamePath, TableCallExpression,
+        };
+        use crate::source_state::name::Identifier;
+        use crate::source_state::signature::{StateParameter, StateSignature};
+        use crate::source_state::statement::{StatementNode, TableCall};
+
+        for statement in [false, true] {
+            let (mut typed, [caller, _]) = unit_machines();
+            let state = typed.machine_by_symbol(caller).unwrap().states.start();
+            let state_symbol = typed.machine_states.get(state).symbol;
+            let children = typed.symbols.insert_generated_children(
+                state_symbol,
+                [
+                    (SymbolKind::Parameter, "callback"),
+                    (SymbolKind::CallableContract, "contract"),
+                ],
+            );
+            let (parameter, signature) = (children.handle_at(0), children.handle_at(1));
+            let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+            let no_services = typed.service_reach_rows.intern(Vec::new());
+            let contract = typed
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: signature,
+                        service_reach_row: no_services,
+                        return_type: unit,
+                        declares_no_crash_route: true,
+                        ..Default::default()
+                    },
+                    lexical_owner: caller,
+                    resolved_source: None,
+                });
+            typed.authored_service_reach_rows.push(
+                crate::source_state::signature::AuthoredServiceReachRow {
+                    owner: signature,
+                    keyword_source_spans: Vec::new(),
+                    targets: Vec::new(),
+                    installation_bound: false,
+                },
+            );
+            let carrier = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = typed.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                type_reference: carrier,
+                ..Default::default()
+            }]);
+            let callee =
+                typed
+                    .expression_table
+                    .insert_tree(&TypedExpression::Name(NamePath::resolved(
+                        vec![Identifier::generated("callback")],
+                        parameter,
+                        parameter,
+                    )));
+            let runtime_call = Some(RuntimeCallBinding { callee, contract });
+            let (body, node) = if statement {
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Call(TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    })]);
+                (body, crate::source_state::SourceNode::Statement(body.start()))
+            } else {
+                let handle =
+                    typed
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
+                            ..Default::default()
+                        }));
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(handle)]);
+                (body, crate::source_state::SourceNode::Expression(handle))
+            };
+            let state = typed.machine_states.get_mut(state);
+            state.parameters = parameters;
+            state.statement_nodes = body;
+            let mut program = Program::new(&typed, false);
+            let id = program.machine(caller).expect("admit the actual caller");
+            let scalar_type = program.callable_type(id, contract).unwrap();
+            let slots = [Slot {
+                symbol: parameter,
+                value_type: ValueType::plain(scalar_type),
+                assignable: false,
+                homed: false,
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::lowering::body::Regions::NONE,
+            }];
+            let read = match node {
+                crate::source_state::SourceNode::Expression(handle) => {
+                    program.expression(id, &slots, handle, None)
+                }
+                crate::source_state::SourceNode::Statement(handle) => {
+                    program.call_statement_at(id, &slots, handle)
+                }
+            }
+            .expect("a runtime call intentionally has no declaration target");
+            assert!(matches!(
+                read.kind,
+                ExpressionKind::Call {
+                    callee: crate::lowering::body::CallTarget::Selected { .. },
+                    ..
+                }
+            ));
+            assert!(matches!(read.source, crate::lowering::SourceOrigin::AuthoredNode {
+                source_member, owner, node: source_node, ..
+            } if source_member == id && owner == caller && source_node == node));
+        }
+    }
+
+    #[test]
+    fn case_membership_is_refused_after_its_operands_read() {
+        let mut typed = TypedTrees::default();
+        let left = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let right = typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let node = ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            left,
+            operator: BinaryOperator::CaseMembership,
+            right,
+        });
+        assert_eq!(refused(&typed, node), "expression case membership");
+    }
+
+    /// Wholly anonymous arithmetic is exact (numeric_values.md: anonymous
+    /// integer-literal division "is rational division, not truncation"). An
+    /// `i32` context gets `(2147483647 + 1) - 1` as the literal 2147483647,
+    /// where `i32` operations would overflow. `7 / 2` is `7/2`, which no
+    /// `i32` holds, so it is refused rather than truncated to 3; `(10 / 4) *
+    /// 2` is 5 but lands only through an `as`; and a value outside the
+    /// context's type and a remainder, which has no anonymous meaning, are
+    /// refused too.
+    #[test]
+    fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
+        let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let mut typed = TypedTrees::default();
+        let literal = |typed: &mut TypedTrees, value| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+        };
+        let binary = |typed: &mut TypedTrees, left, operator, right| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+        };
+        let (maximum, one) = (
+            literal(&mut typed, i64::from(i32::MAX)),
+            literal(&mut typed, 1),
+        );
+        let past = binary(&mut typed, maximum, BinaryOperator::Add, one);
+        let exact = binary(&mut typed, past, BinaryOperator::Subtract, one);
+        let (ten, four, two, seven) = (
+            literal(&mut typed, 10),
+            literal(&mut typed, 4),
+            literal(&mut typed, 2),
+            literal(&mut typed, 7),
+        );
+        let quarter = binary(&mut typed, ten, BinaryOperator::Divide, four);
+        let cancelled = binary(&mut typed, quarter, BinaryOperator::Multiply, two);
+        let half = binary(&mut typed, seven, BinaryOperator::Divide, two);
+        let outside = binary(&mut typed, maximum, BinaryOperator::Add, seven);
+        let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
+        let mut program = Program::new(&typed, false);
+        let read = |program: &mut Program<'_>, handle| {
+            program.expression(
+                machine(),
+                &[],
+                handle,
+                Some(ValueType::Scalar(
+                    i32_type,
+                    crate::lowering::body::Qualification::NONE,
+                )),
+            )
+        };
+        let landed = read(&mut program, exact).unwrap();
+        assert!(matches!(
+            landed.kind,
+            ExpressionKind::Integer(IntegerValue::Signed(value)) if value == i128::from(i32::MAX)
+        ));
+        assert_eq!(
+            landed.result,
+            Some(ValueType::Scalar(
+                i32_type,
+                crate::lowering::body::Qualification::NONE
+            ))
+        );
+        for (handle, expected) in [
+            (half, "expression fractional anonymous value"),
+            (
+                cancelled,
+                "expression anonymous value with a fractional intermediate",
+            ),
+            (outside, "expression anonymous value outside its type"),
+            (
+                remainder,
+                "expression anonymous operation without an exact meaning",
+            ),
+        ] {
+            let refusal = read(&mut program, handle).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.detail, expected);
+        }
+    }
+
+    /// `result` in a contract is taken by the owner identity stage 02
+    /// recorded, never by its spelling: a name spelled `result` with no
+    /// identity is refused as a spelling, the result of another callable and
+    /// a result in an entry clause are refused, and a body cannot name it.
+    #[test]
+    fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use symbols::{SymbolKind, SymbolNameRef};
+        use crate::source_symbols::{SymbolTableBuilder};
+        use crate::source_state::name::Identifier;
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("result"));
+        let mut name = |reserved_result_of| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    reserved_result_of,
+                    ..TableNamePath::default()
+                }))
+        };
+        let spelled = name(SymbolHandle::invalid());
+        let mine = name(owner);
+        let theirs = name(other);
+        let mut program = Program::new(&typed, false);
+        let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let result = ValueId::new(2).unwrap();
+        let exit = ClauseScope {
+            logical: None,
+            subject: None,
+            formal_fields: false,
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner,
+            result: ResultTerm::Named(result, u32_type, crate::lowering::body::Qualification::NONE),
+        };
+        let entry = ClauseScope {
+            result: ResultTerm::Absent("result in an entry clause"),
+            ..exit
+        };
+        assert_eq!(
+            program.term(machine(), &exit, mine, None),
+            Ok((
+                ScalarTerm::Value {
+                    id: result,
+                    scalar_type: u32_type
+                },
+                ValueType::plain(u32_type)
+            ))
+        );
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
+            program
+                .term(machine(), scope, handle, None)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(detail(&exit, theirs), "contract result of another callable");
+        assert_eq!(detail(&entry, mine), "contract result in an entry clause");
+        assert_eq!(detail(&exit, spelled), "spelling name without a symbol");
+        assert_eq!(
+            program
+                .expression(machine(), &[], mine, None)
+                .unwrap_err()
+                .detail,
+            "expression reserved result outside a contract term"
+        );
+    }
+
+    /// A case is named by the declaration its path ends at. `Packet::Alpha`
+    /// in value position, as a data `requires` writes `self in
+    /// Packet::Alpha`, carries the sum as its head and the case as its
+    /// symbol: it names the case. A path that ends at the sum itself, or at
+    /// a field, names none.
+    #[test]
+    fn a_case_is_named_by_the_last_segment_of_its_path() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let packet = builder
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Packet"))])
+            .handle_at(0);
+        let members = builder.insert_children(
+            packet,
+            [
+                (SymbolKind::Variant, SymbolNameRef::Static("Alpha")),
+                (SymbolKind::Field, SymbolNameRef::Static("tag")),
+            ],
+        );
+        let (alpha, tag) = (members.handle_at(0), members.handle_at(1));
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut path = |head_symbol, symbol| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    head_symbol,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let qualified = path(packet, alpha);
+        let by_head = path(alpha, SymbolHandle::invalid());
+        let the_sum = path(packet, packet);
+        let a_field = path(packet, tag);
+        let program = Program::new(&typed, false);
+        assert_eq!(program.named_case(qualified), Some(alpha));
+        assert_eq!(program.named_case(by_head), Some(alpha));
+        assert_eq!(program.named_case(the_sum), None);
+        assert_eq!(program.named_case(a_field), None);
+    }
+
+    /// Every clause names the scalar input's immutable identity. The body's
+    /// mutable working binding does not change the meaning of a guarantee
+    /// or crash guard. Borrowed observations still need their own storage
+    /// correspondence, and missing input metadata supplies no identity.
+    #[test]
+    fn a_mutable_scalar_formal_keeps_its_input_identity_in_every_clause() {
+        use crate::source_state::name::Identifier;
+        let mut typed = TypedTrees::default();
+        let formal = SymbolHandle::from_arena_index(3);
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("x"));
+        let named = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: formal,
+                ..TableNamePath::default()
+            }));
+        let mut program = Program::new(&typed, false);
+        let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = ValueId::new(1).unwrap();
+        let slot = |assignable| Slot {
+            symbol: formal,
+            value_type: ValueType::Scalar(u32_type, crate::lowering::body::Qualification::NONE),
+            assignable,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        };
+        let (mutable, immutable) = ([slot(true)], [slot(false)]);
+        let values = [Some(value)];
+        let scope = |slots, formal_fields| ClauseScope {
+            logical: None,
+            subject: None,
+            formal_fields,
+
+            slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let term = Ok((
+            ScalarTerm::Value {
+                id: value,
+                scalar_type: u32_type,
+            },
+            ValueType::plain(u32_type),
+        ));
+        let mut read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&mutable, false)), term);
+        assert_eq!(read(&scope(&immutable, false)), term);
+        let missing = ClauseScope {
+            values: &[],
+            ..scope(&mutable, false)
+        };
+        assert_eq!(
+            read(&missing).unwrap_err().detail,
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(language_core::ReferenceAccess::Mutable),
+            ..slot(true)
+        }];
+        assert_eq!(
+            read(&scope(&borrowed, false)).unwrap_err().detail,
+            "contract borrowed formal outside an admitted storage clause"
+        );
+    }
+
+    #[test]
+    fn old_retains_the_existing_scalar_or_storage_input_and_its_policy() {
+        use crate::lowering::body::{DomainSet, Policy, Qualification};
+        use semantic_vocabulary::PlaceId;
+        use symbols::{BuiltinFunction};
+        use crate::source_symbols::{builtin_function_symbols};
+        use crate::source_state::expression::TableCallExpression;
+        use crate::source_state::name::Identifier;
+        let mut builder = SymbolTableBuilder::new();
+        let owner = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            owner,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("x")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("foreign")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("old")),
+                ]),
+        );
+        let declared = symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT;
+        let formal = children.handles().nth(declared).unwrap();
+        let foreign = children.handles().nth(declared + 1).unwrap();
+        let impostor = children.handles().nth(declared + 2).unwrap();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let builtin = typed
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::ContentOld)
+            .unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled, reserved_result_of| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    reserved_result_of,
+                    ..Default::default()
+                }))
+        };
+        let named = name(&mut typed, formal, "x", SymbolHandle::invalid());
+        let foreign_name = name(&mut typed, foreign, "foreign", SymbolHandle::invalid());
+        let result = name(&mut typed, SymbolHandle::invalid(), "result", owner);
+        let foreign_result = name(&mut typed, SymbolHandle::invalid(), "result", impostor);
+        let call = |typed: &mut TypedTrees, target_symbol, arguments: &[ExpressionHandle]| {
+            let arguments = typed
+                .expression_table
+                .insert_expression_handles(arguments.iter().copied());
+            typed
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    operational_acknowledgement: Default::default(),
+                    runtime_call: None,
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: arena::Handle::invalid(),
+                    authored_machine_application: arena::Handle::invalid(),
+                    exact_coercion_target: TypeReferenceHandle::invalid(),
+                    requirement_application: TypeReferenceHandle::invalid(),
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol,
+                    static_machine_parameter: SymbolHandle::invalid(),
+                    target: Identifier::generated("old"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                }))
+        };
+        let old = call(&mut typed, builtin, &[named]);
+        let literal = typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let old_literal = call(&mut typed, builtin, &[literal]);
+        let old_result = call(&mut typed, builtin, &[result]);
+        let old_foreign_result = call(&mut typed, builtin, &[foreign_result]);
+        let old_foreign = call(&mut typed, builtin, &[foreign_name]);
+        let lookalike = call(&mut typed, impostor, &[named]);
+        let missing_argument = call(&mut typed, builtin, &[]);
+        let extra_argument = call(&mut typed, builtin, &[named, named]);
+        let wrapped_sum = |typed: &mut TypedTrees, left| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Add,
+                    right: literal,
+                    policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                }))
+        };
+        let computed = wrapped_sum(&mut typed, named);
+        let old_computed = call(&mut typed, builtin, &[computed]);
+        let using_old = wrapped_sum(&mut typed, old);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let value = ValueId::new(1).unwrap();
+        let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            name: Identifier::generated("u32"),
+            symbol: children.handle_at(7),
+        });
+        let parameter_type =
+            typed
+                .mathematical_types
+                .insert(crate::source_state::mathematical::MathematicalType::Ordinary(
+                    reference,
+                ));
+        let logical_inputs = logical::MathematicalInputs::new(
+            &typed,
+            machine(),
+            arena::RootRows::from_slice(&[crate::source_state::mathematical::MathematicalParameter {
+                symbol: formal,
+                name: Identifier::generated("x"),
+                relevance: language_core::BindingRelevance::Relevant,
+                ty: parameter_type,
+            }]),
+            logical::MathematicalAddressContext::Binding(None),
+        )
+        .unwrap();
+        let same_input =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: old,
+                    operator: BinaryOperator::Equal,
+                    right: named,
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                }));
+        let completion = crate::source_state::signature::SignatureContract {
+            kind: crate::source_state::signature::SignatureContractKind::Ensures,
+            facts: typed
+                .proof_facts
+                .insert_many([crate::source_state::domain::ProofFact::Expression(same_input)]),
+            ..Default::default()
+        };
+        let slot = || Slot {
+            symbol: formal,
+            value_type: ValueType::plain(scalar_type),
+            assignable: true,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        };
+        let slots = [slot()];
+        let values = [Some(value)];
+        let scope = ClauseScope {
+            logical: None,
+            slots: &slots,
+            values: &values,
+            bound: &[],
+            owner,
+            result: ResultTerm::Named(ValueId::new(2).unwrap(), scalar_type, Qualification::NONE),
+            subject: None,
+            formal_fields: false,
+        };
+        let mut program = Program::new(&typed, false);
+        let input = (
+            ScalarTerm::value(value, scalar_type),
+            ValueType::plain(scalar_type),
+        );
+        assert_eq!(
+            program.term(machine(), &scope, old, None),
+            Ok(input.clone())
+        );
+        for entry_fields in [false, true] {
+            let before_result = ClauseScope {
+                formal_fields: entry_fields,
+                result: ResultTerm::Absent("result outside an ensures clause"),
+                ..scope
+            };
+            assert_eq!(
+                program.term(machine(), &before_result, old, None),
+                Ok(input.clone())
+            );
+        }
+        let immutable = [Slot {
+            assignable: false,
+            ..slot()
+        }];
+        assert_eq!(
+            program.term(
+                machine(),
+                &ClauseScope {
+                    slots: &immutable,
+                    ..scope
+                },
+                old,
+                None
+            ),
+            Ok(input)
+        );
+        let booleans = [Slot {
+            value_type: ValueType::plain(ScalarType::Boolean),
+            ..slot()
+        }];
+        assert_eq!(
+            program.term(
+                machine(),
+                &ClauseScope {
+                    slots: &booleans,
+                    ..scope
+                },
+                old,
+                None
+            ),
+            Ok((
+                ScalarTerm::value(value, ScalarType::Boolean),
+                ValueType::plain(ScalarType::Boolean)
+            ))
+        );
+        assert_eq!(
+            program
+                .clause_text(&slots, old)
+                .render(&|_| "given".to_owned()),
+            "old(given)"
+        );
+        let detail = |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
+            program
+                .term(machine(), scope, expression, None)
+                .unwrap_err()
+                .detail
+        };
+        let invalid_policy_operand =
+            |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
+                let refusal = program
+                    .term(machine(), scope, expression, None)
+                    .unwrap_err();
+                assert!(matches!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Violation
+                ));
+                assert_eq!(refusal.detail, crate::lowering::policy::QUALIFIED_OPERAND);
+            };
+        let no_input = "contract old of a subject without an admitted invocation input";
+        assert_eq!(
+            program
+                .term(machine(), &scope, old_literal, Some(scalar_type))
+                .unwrap_err()
+                .detail,
+            no_input
+        );
+        assert_eq!(detail(&mut program, &scope, old_computed), no_input);
+        assert_eq!(
+            detail(&mut program, &scope, old_result),
+            "contract result has no callable-entry value"
+        );
+        assert_eq!(
+            detail(&mut program, &scope, old_foreign_result),
+            "contract result of another callable"
+        );
+        assert_eq!(
+            detail(&mut program, &scope, lookalike),
+            "call target is not a machine declaration"
+        );
+        for expression in [missing_argument, extra_argument] {
+            assert_eq!(
+                detail(&mut program, &scope, expression),
+                "contract old of other than one subject"
+            );
+        }
+        let no_foreign = detail(&mut program, &scope, old_foreign);
+        let forged = [(
+            foreign,
+            ScalarTerm::value(ValueId::new(999).unwrap(), scalar_type),
+        )];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &forged,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign
+        );
+        let copied_input = [(foreign, ScalarTerm::value(value, scalar_type))];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign,
+            "a matching value ID does not turn a static name into a runtime input"
+        );
+        let wrong_carrier = [(foreign, ScalarTerm::value(value, ScalarType::Boolean))];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &wrong_carrier,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign
+        );
+        let bound_constant = [(
+            foreign,
+            ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(1),
+            },
+        )];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &bound_constant,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_foreign
+        );
+        let erased = [Slot {
+            erased: true,
+            ..slot()
+        }];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    slots: &erased,
+                    ..scope
+                },
+                old
+            ),
+            no_input
+        );
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    values: &[],
+                    ..scope
+                },
+                old
+            ),
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(ReferenceAccess::Mutable),
+            ..slot()
+        }];
+        assert_eq!(
+            program.term(
+                machine(),
+                &ClauseScope {
+                    slots: &borrowed,
+                    ..scope
+                },
+                old,
+                None
+            ),
+            Ok((
+                ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Entry,
+                    root: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    scalar_type: integer,
+                },
+                borrowed[0].value_type
+            ))
+        );
+        let forged_field = [(
+            foreign,
+            ScalarTerm::IntegerField {
+                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                root: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                scalar_type: integer,
+            },
+        )];
+        assert!(
+            program
+                .term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &borrowed,
+                        bound: &forged_field,
+                        ..scope
+                    },
+                    old_foreign,
+                    None
+                )
+                .is_err(),
+            "a bound constant cannot impersonate the runtime input's field"
+        );
+        let domain = [Slot {
+            value_type: ValueType::Scalar(
+                scalar_type,
+                Qualification {
+                    policy: None,
+                    domains: DomainSet::EMPTY
+                        .with(crate::lowering::body::DomainInstance {
+                            declaration: foreign,
+                            identity: declaration_contracts::SemanticDomainId::NULL,
+                        })
+                        .unwrap(),
+                },
+            ),
+            ..slot()
+        }];
+        let domain_scope = ClauseScope {
+            slots: &domain,
+            ..scope
+        };
+        assert_eq!(
+            program.term(machine(), &domain_scope, old, None),
+            Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
+        );
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&mut program, &domain_scope, expression);
+        }
+        let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &erased_qualification,
+                    ..domain_scope
+                },
+                old_foreign
+            ),
+            no_foreign
+        );
+        let qualified = [Slot {
+            value_type: ValueType::Scalar(scalar_type, Qualification::of_policy(Policy::Wrapping)),
+            ..slot()
+        }];
+        let qualified_scope = ClauseScope {
+            slots: &qualified,
+            ..scope
+        };
+        assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&mut program, &qualified_scope, expression);
+        }
+        // A projected invocation keeps the same source input at normal
+        // completion. Its guarantee is still an obligation of the ordinary
+        // call/return body, rather than an entry premise or executable snapshot.
+        let logical = logical_inputs.scope(
+            machine(),
+            logical::MathematicalAddressContext::Binding(None),
+            &[],
+        );
+        let completion_scope = ClauseScope {
+            logical: Some(logical.normal_return()),
+            slots: &[],
+            values: &[],
+            result: ResultTerm::Absent("result of a Unit logical callable"),
+            ..scope
+        };
+        for expression in [named, old] {
+            assert_eq!(
+                program.term(machine(), &completion_scope, expression, None),
+                Ok((
+                    ScalarTerm::value(value, scalar_type),
+                    ValueType::plain(scalar_type)
+                ))
+            );
+        }
+        let no_logical_foreign = detail(&mut program, &completion_scope, old_foreign);
+        assert_eq!(
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..completion_scope
+                },
+                old_foreign,
+            ),
+            no_logical_foreign,
+            "a static substitution does not become a projected invocation input"
+        );
+        let (signature, names) = logical
+            .signature(&mut program, owner, &[&completion])
+            .unwrap();
+        assert!(
+            signature.requires.is_empty(),
+            "the guarantee is not an entry fact"
+        );
+        assert_eq!(
+            signature.ensures,
+            [semantic_vocabulary::Proposition::Equal(
+                ScalarTerm::value(value, scalar_type),
+                ScalarTerm::value(value, scalar_type),
+            )]
+        );
+        assert_eq!(names.ensures.len(), 1);
+        let callee = MachineId::new(2).unwrap();
+        let source = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::ConformanceWitness);
+        let call = crate::lowering::body::Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: callee.into(),
+                arguments: vec![crate::lowering::body::Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Slot(0),
+                    result: Some(ValueType::plain(scalar_type)),
+                    source,
+                }],
+                designated: None,
+                required_contract: None,
+                static_reach_binding: None,
+            },
+            result: None,
+            source,
+        };
+        let mut signatures = IdTable::default();
+        signatures.push(signature.clone());
+        signatures.push(crate::lowering::body::Signature {
+            ensures: Vec::new(),
+            ..signature.clone()
+        });
+        let mut bodies = IdTable::default();
+        bodies.push(crate::lowering::callable_refinement_body(&signature, call));
+        bodies.push(crate::lowering::body::Body {
+            slots: signature.parameters.clone(),
+            statements: Vec::new(),
+        });
+        let lowered = crate::lowering::lower_generic(
+            machine(),
+            &bodies,
+            &signatures,
+            &IdTable::default(),
+            &[callee],
+        )
+        .unwrap();
+        let table = lowered.tables.machines.get(machine()).unwrap();
+        assert_eq!(table.invocations.len(), 1);
+        assert_eq!(
+            table
+                .obligations
+                .iter()
+                .filter(|(_, row)| matches!(
+                    row.kind,
+                    terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+                ))
+                .count(),
+            1,
+            "the required guarantee is owed after the abstract call returns"
+        );
+        assert_eq!(lowered.requirements, [callee]);
+        assert!(
+            program.expression(machine(), &slots, old, None).is_err(),
+            "old has no executable implementation"
+        );
+    }
+
+    /// Record constructs this slice does not serve are each refused under
+    /// their own name, and a member or literal the typed trees hold only as a
+    /// spelling is refused as a spelling, before anything is read from it.
+    #[test]
+    fn each_place_expression_outside_the_slice_is_refused_by_name() {
+        use crate::source_state::expression::{
+            TableMatchExpression, TableMemberExpression, TableStructLiteral,
+        };
+        let typed = TypedTrees::default();
+        let member = |case_variant| {
+            ExpressionNode::Member(TableMemberExpression {
+                receiver: ExpressionHandle::invalid(),
+                selection: crate::source_state::expression::MemberSelection::Unresolved,
+                member: Default::default(),
+                case_variant,
+            })
+        };
+        let cases = [
+            // A payload member is the payload field its symbol names; the
+            // case it spells is never read, so one with no symbol is a
+            // spelling like any other member.
+            (
+                member(Some(Default::default())),
+                "spelling member without a field symbol",
+            ),
+            (member(None), "spelling member without a field symbol"),
+            (
+                ExpressionNode::StructLiteral(TableStructLiteral {
+                    case_name: Some(Default::default()),
+                    ..Default::default()
+                }),
+                "spelling case literal without a case symbol",
+            ),
+            (
+                ExpressionNode::StructLiteral(TableStructLiteral::default()),
+                "spelling record literal without a type symbol",
+            ),
+            (
+                ExpressionNode::Match(TableMatchExpression::default()),
+                "expression missing expression",
+            ),
+            (
+                ExpressionNode::SavedSubject(Default::default()),
+                "expression saved subject",
+            ),
+        ];
+        let wrong: Vec<_> = cases
+            .into_iter()
+            .map(|(node, expected)| (refused(&typed, node), expected))
+            .filter(|(found, expected)| found != expected)
+            .collect();
+        assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// Dispatch forms outside the slice are refused by name before anything
+    /// is read from them: a case arm with a guard of its own and a pattern
+    /// whose head names no case. A `match` on a scalar that covers nothing
+    /// is rejected.
+    #[test]
+    fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
+        use semantic_vocabulary::StructuralTypeId;
+        use crate::source_state::expression::{TableDestructurePattern, TableMatchExpression};
+        let mut typed = TypedTrees::default();
+        let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let scalar_match =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Match(TableMatchExpression {
+                    subject: truth,
+                    ..Default::default()
+                }));
+        let mut program = Program::new(&typed, false);
+        // A scalar match is read; one whose arms do not cover its subject
+        // is the program's error, not a form the reader cannot judge.
+        let uncovered = program
+            .expression(machine(), &[], scalar_match, None)
+            .unwrap_err();
+        assert!(matches!(
+            uncovered.reason,
+            terminal_check_tables::RefusalReason::Violation
+        ));
+        assert!(uncovered.detail.contains("does not cover every value"));
+        let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
+        let pattern = |guard, head| TableDestructurePattern {
+            guard,
+            head,
+            ..Default::default()
+        };
+        let detail = |pattern: TableDestructurePattern| {
+            let refusal = program
+                .case_pattern(
+                    machine(),
+                    record,
+                    &pattern,
+                    crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                )
+                .unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            refusal.detail
+        };
+        assert_eq!(
+            detail(pattern(truth, ExpressionHandle::invalid())),
+            "transition case arm with a guard"
+        );
+        assert_eq!(
+            detail(pattern(ExpressionHandle::invalid(), truth)),
+            "transition pattern head that is not a case"
+        );
+    }
+
+    /// A store names a field by its symbol and a declaration without an
+    /// initializer names its type; what the typed trees hold only as a
+    /// spelling, a value of another type, and a destructuring binding are
+    /// each refused by name, as is a named constant.
+    #[test]
+    fn each_place_statement_outside_the_slice_is_refused_by_name() {
+        use semantic_vocabulary::StructuralTypeId;
+        use crate::source_state::expression::TableMemberExpression;
+        use crate::source_state::name::Identifier;
+        use crate::source_state::statement::{TableAssignment, TableLocalData};
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Local, SymbolNameRef::Static("p")),
+                (SymbolKind::Const, SymbolNameRef::Static("LIMIT")),
+            ],
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let local = children.handles().next().unwrap();
+        let constant = children.handles().nth(1).unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let whole = name(&mut typed, local, "p");
+        let whole_span = source_text::SourceSpan::new(source_text::SourceId(0), source_text::Span::new(14, 15));
+        typed.expression_table.set_source_span(whole, whole_span);
+        let named_constant = name(&mut typed, constant, "LIMIT");
+        let projected =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: whole,
+                    selection: crate::source_state::expression::MemberSelection::Unresolved,
+                    member: Default::default(),
+                    case_variant: None,
+                }));
+        let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let slots = [Slot {
+            symbol: local,
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            assignable: true,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        }];
+        let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
+        let mut assigned = |target| {
+            program
+                .assignment(machine(), &slots, &TableAssignment { target, value })
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            assigned(projected),
+            "spelling member without a field symbol"
+        );
+        assert_eq!(assigned(whole), "typing assigned value type");
+        assert_eq!(assigned(value), "statement assignment to a projected place");
+        // A binding that is not `mut` is neither replaced nor stored into.
+        let frozen = [Slot {
+            symbol: local,
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            assignable: false,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        }];
+        let refused = program
+            .assignment(
+                machine(),
+                &frozen,
+                &TableAssignment {
+                    target: whole,
+                    value,
+                },
+            )
+            .unwrap_err();
+        assert_eq!(
+            refused.reason,
+            terminal_check_tables::RefusalReason::Violation
+        );
+        assert_eq!(refused.source_span, Some(whole_span));
+        assert_eq!(
+            refused.detail,
+            "writing to an immutable owned binding requires `mut`"
+        );
+        let mut declared = |role, initial_value| {
+            program
+                .local(
+                    machine(),
+                    &slots,
+                    &TableLocalData {
+                        role,
+                        symbol: constant,
+                        name: Identifier::generated("q"),
+                        type_reference: TypeReferenceHandle::invalid(),
+                        initial_value,
+                        is_mutable: false,
+                        type_is_inferred: false,
+                        is_operand_capture: false,
+                        relevance: language_core::BindingRelevance::Relevant,
+                        reflected_query_origin: None,
+                        ..Default::default()
+                    },
+                )
+                .map(drop)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            declared(
+                language_core::LocalBindingRole::Value,
+                ExpressionHandle::invalid()
+            ),
+            "statement uninitialized local without a declared type"
+        );
+        assert_eq!(
+            declared(language_core::LocalBindingRole::RecordPattern, whole),
+            "statement record pattern binding"
+        );
+        assert_eq!(
+            declared(language_core::LocalBindingRole::ArmPattern, whole),
+            "statement arm pattern binding"
+        );
+        assert_eq!(
+            program
+                .expression(machine(), &slots, named_constant, None)
+                .unwrap_err()
+                .detail,
+            "expression const"
+        );
+        // A contract clause can neither name a record formal whole nor
+        // project it: clauses over places belong to a later slice.
+        let values = crate::lowering::body::formal_values(
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
+            None,
+        );
+        let scope = ClauseScope {
+            logical: None,
+            subject: None,
+            formal_fields: false,
+            slots: &slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let mut term = |handle| {
+            program
+                .term(machine(), &scope, handle, None)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            term(projected),
+            "contract clause that projects a formal or result"
+        );
+        assert_eq!(
+            term(whole),
+            "contract record formal named whole in a clause"
+        );
+    }
+
+    /// `let { a, b as _ } = p;`: the marker is served when its roster names
+    /// every field of the subject's record by symbol, bound or waived alike.
+    /// A roster that omits a field, a row without a field symbol, and a roster
+    /// resolved against no record or another one are each refused, whatever
+    /// the rows are spelled.
+    #[test]
+    fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
+        use semantic_vocabulary::StructuralTypeId;
+        use crate::source_state::expression::{MatchFieldAction, TableMatchField};
+        use crate::source_state::name::Identifier;
+        use crate::source_state::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Local, SymbolNameRef::Static("p")),
+                (SymbolKind::Data, SymbolNameRef::Static("Point")),
+                (SymbolKind::Data, SymbolNameRef::Static("Other")),
+            ],
+        );
+        let local = children.handles().next().unwrap();
+        let point = children.handles().nth(1).unwrap();
+        let other = children.handles().nth(2).unwrap();
+        let fields = builder.insert_children(
+            point,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("a")),
+                (SymbolKind::Field, SymbolNameRef::Static("b")),
+            ],
+        );
+        let (a, b) = (fields.handle_at(0), fields.handle_at(1));
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("p"));
+        let subject = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: local,
+                ..TableNamePath::default()
+            }));
+        let literal = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let row = |field_symbol, member: &str, bound: bool| TableMatchField {
+            component: language_core::PatternComponent::Fields,
+            member: Identifier::generated(member),
+            field_symbol,
+            action: if bound {
+                MatchFieldAction::Bind(Identifier::generated(member))
+            } else {
+                MatchFieldAction::Waive
+            },
+        };
+        let mut roster =
+            |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
+        let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
+        let partial = roster(vec![row(a, "a", true)]);
+        let duplicate = roster(vec![
+            row(a, "a", true),
+            row(a, "a", false),
+            row(b, "b", false),
+        ]);
+        let spelled = roster(vec![
+            row(a, "a", true),
+            row(SymbolHandle::invalid(), "b", true),
+        ]);
+        let foreign = roster(vec![
+            row(a, "a", true),
+            row(b, "b", true),
+            row(other, "c", false),
+        ]);
+        let slots = [Slot {
+            symbol: local,
+            value_type: ValueType::record(StructuralTypeId::new(1).unwrap()),
+            assignable: false,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        }];
+        let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
+        program.record_sources.push(places::RecordSource {
+            declaration: point,
+            cleanup: None,
+            application: None,
+            region_owner: SymbolHandle::invalid(),
+            fields: vec![a, b],
+            cases: Vec::new(),
+        });
+        let mut read = |pattern_subject, pattern_fields, initial_value| {
+            program.record_pattern(
+                machine(),
+                &slots,
+                &TableLocalData {
+                    role: language_core::LocalBindingRole::RecordPattern,
+                    initial_value,
+                    pattern_fields,
+                    pattern_subject,
+                    ..Default::default()
+                },
+            )
+        };
+        let crate::lowering::body::Statement::Decompose {
+            subject: decomposed,
+        } = read(point, full, subject)
+            .unwrap()
+            .expect("the owned affine record must be decomposed")
+        else {
+            panic!("a complete record pattern decomposes its actual subject");
+        };
+        assert!(matches!(
+            decomposed.kind,
+            crate::lowering::body::ExpressionKind::Slot(0)
+        ));
+        assert_eq!(decomposed.result, Some(slots[0].value_type));
+        let mut detail = |pattern_subject, pattern_fields, initial_value| {
+            read(pattern_subject, pattern_fields, initial_value)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            detail(point, partial, subject),
+            "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, duplicate, subject),
+            "typing record pattern repeats a field"
+        );
+        assert_eq!(
+            detail(point, spelled, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(point, foreign, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(SymbolHandle::invalid(), full, subject),
+            "spelling record pattern without a resolved subject"
+        );
+        assert_eq!(
+            detail(other, full, subject),
+            "typing record pattern resolved against another record"
+        );
+        assert_eq!(
+            detail(point, full, literal),
+            "statement record pattern over a value that is not a place"
+        );
+    }
+
+    // A captured scalar remains a value; a captured reference keeps the
+    // original storage and access instead of snapshotting the referent.
+    #[test]
+    fn operand_captures_keep_their_complete_binding_type() {
+        use crate::source_state::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Local, SymbolNameRef::Static("capture")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("input")),
+            ]),
+        );
+        let u32_symbol = children.handle_at(7);
+        let local_symbol = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let input_symbol = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: u32_symbol,
+            name: Default::default(),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let exclusive = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Mutable,
+                lifetime: None,
+            });
+        let initial = typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let mut members = arena::HandleSpan::empty();
+        typed.expression_table.push_name_path_member(
+            &mut members,
+            crate::source_state::name::Identifier::generated("input"),
+        );
+        let borrowed_name = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: input_symbol,
+                ..Default::default()
+            }));
+        let inferred = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let computed = typed.expression_table.insert(ExpressionNode::Binary(
+            crate::source_state::expression::TableBinaryExpression {
+                left: borrowed_name,
+                operator: crate::source_state::expression::BinaryOperator::Subtract,
+                right: initial,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ));
+        let borrowed = [Slot {
+            symbol: input_symbol,
+            value_type: ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            )),
+            assignable: false,
+            homed: true,
+            erased: false,
+            borrowed: Some(ReferenceAccess::Shared),
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        }];
+        let local = TableLocalData {
+            symbol: local_symbol,
+            type_reference: carrier,
+            initial_value: initial,
+            is_operand_capture: true,
+            relevance: language_core::BindingRelevance::Relevant,
+            ..Default::default()
+        };
+        let mut program = Program::new(&typed, false);
+        let (slot, statement) = program.local(machine(), &[], &local).unwrap();
+        assert_eq!(
+            slot.value_type,
+            ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            ))
+        );
+        assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
+        assert!(matches!(statement, crate::lowering::Statement::Bind { slot: 0, .. }));
+        let (computed_slot, statement) = program
+            .local(
+                machine(),
+                &[Slot {
+                    borrowed: None,
+                    ..borrowed[0]
+                }],
+                &TableLocalData {
+                    type_reference: inferred,
+                    type_is_inferred: true,
+                    initial_value: computed,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(computed_slot.value_type, slot.value_type);
+        assert!(matches!(
+            statement,
+            crate::lowering::Statement::Bind {
+                slot: 1,
+                value: crate::lowering::Expression {
+                    kind: crate::lowering::ExpressionKind::Strict { .. },
+                    ..
+                }
+            }
+        ));
+        let (captured, statement) = program
+            .local(
+                machine(),
+                &borrowed,
+                &TableLocalData {
+                    type_reference: reference,
+                    initial_value: borrowed_name,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(captured.borrowed, Some(ReferenceAccess::Shared));
+        assert!(captured.homed);
+        assert!(matches!(
+            statement,
+            crate::lowering::Statement::CaptureReference {
+                slot: 1,
+                original: 0
+            }
+        ));
+        let mut refusal = |local: &TableLocalData| {
+            program
+                .local(machine(), &borrowed, local)
+                .map(drop)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: exclusive,
+                initial_value: borrowed_name,
+                ..local.clone()
+            }),
+            "statement reference capture without matching storage and access"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                is_mutable: true,
+                ..local.clone()
+            }),
+            "statement operand capture without its immutable value binding"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: TypeReferenceHandle::invalid(),
+                ..local.clone()
+            }),
+            "statement operand capture without its retained initializer and type"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                initial_value: ExpressionHandle::invalid(),
+                ..local
+            }),
+            "statement operand capture without its retained initializer and type"
+        );
+    }
+
+    /// A type is `u32` by its builtin slot. A declaration spelled `u32` is a
+    /// different symbol and is refused as nominal; a `Named` type with no
+    /// symbol is refused as a spelling.
+    #[test]
+    fn scalar_types_come_from_builtin_slots_not_spellings() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Data, SymbolNameRef::Static("u32"))]),
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let u32_slot = children.handles().nth(7).unwrap();
+        let impostor = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let named = |typed: &mut TypedTrees, symbol| {
+            typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol,
+                name: crate::source_state::name::Identifier::generated("u32"),
+            })
+        };
+        let builtin = named(&mut typed, u32_slot);
+        let nominal = named(&mut typed, impostor);
+        let unresolved = named(&mut typed, SymbolHandle::invalid());
+        let atomic_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::AtomicU32)
+            .unwrap();
+        let atomic = named(&mut typed, atomic_symbol);
+        let f32_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::F32)
+            .unwrap();
+        let f64_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::F64)
+            .unwrap();
+        let f32_type = named(&mut typed, f32_symbol);
+        let f64_type = named(&mut typed, f64_symbol);
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: builtin,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        assert_eq!(
+            typed.primitive_type_reference(builtin),
+            Some(symbols::PrimitiveType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(32)
+            ))
+        );
+        assert_eq!(typed.primitive_type_reference(nominal), None);
+        assert_eq!(typed.primitive_type_reference(unresolved), None);
+        assert_eq!(typed.primitive_type_reference(atomic), None);
+        assert_eq!(
+            typed.primitive_type_reference(f32_type),
+            Some(symbols::PrimitiveType::F32)
+        );
+        assert_eq!(
+            typed.primitive_type_reference(f64_type),
+            Some(symbols::PrimitiveType::F64)
+        );
+        assert_eq!(typed.type_reference_symbol(builtin), u32_slot);
+        assert_eq!(typed.type_reference_symbol(nominal), impostor);
+        let mut program = Program::new(&typed, false);
+        assert_eq!(
+            program.scalar_type(machine(), f32_type),
+            Ok(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary32
+            ))
+        );
+        assert_eq!(
+            program.scalar_type(machine(), f64_type),
+            Ok(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64
+            ))
+        );
+        assert_eq!(
+            program.scalar_type(machine(), builtin),
+            Ok(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            ))
+        );
+        let detail = |handle| program.scalar_type(machine(), handle).unwrap_err().detail;
+        assert_eq!(detail(nominal), "type nominal type");
+        assert_eq!(detail(unresolved), "spelling type without a symbol");
+        assert_eq!(detail(atomic), "type atomic");
+        assert_eq!(detail(reference), "type reference");
+        assert_eq!(
+            program.result_type(machine(), TypeReferenceHandle::invalid()),
+            Ok(None)
+        );
+    }
+
+    /// `requires embed(rest) + embed(count) * 10 <= 99` over two `u8`
+    /// formals compares mathematical integers: each `embed` keeps its
+    /// formal's carrier, the literals are unbounded integers, and no
+    /// operation is a carrier operation that could overflow. `>=` is the
+    /// same order from the other side and `==` holds its operands in the
+    /// vocabulary's order.
+    ///
+    /// The same sum without `embed` keeps both exact `u8` operations for
+    /// Stage 06 to prove representable before the clause can supply facts.
+    /// The separate refusal controls cover mathematical division, a formal
+    /// used without embedding in a mathematical term, a machine named
+    /// `embed`, and a guard that cannot restate the mathematical comparison.
+    #[test]
+    fn a_comparison_of_embedded_integers_is_a_mathematical_proposition() {
+        use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, Proposition};
+        use symbols::{BuiltinFunction};
+        use crate::source_symbols::{builtin_function_symbols};
+        use crate::source_state::expression::TableCallExpression;
+        use crate::source_state::name::Identifier;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("rest")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("count")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("embed")),
+                ]),
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let builtin = typed
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
+            .unwrap();
+        let declared = symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT;
+        let rest = children.handles().nth(declared).unwrap();
+        let count = children.handles().nth(declared + 1).unwrap();
+        let impostor = children.handles().nth(declared + 2).unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let call = |typed: &mut TypedTrees, target_symbol, argument| {
+            let arguments = typed.expression_table.insert_expression_handles([argument]);
+            typed
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    operational_acknowledgement: Default::default(),
+                    runtime_call: None,
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: arena::Handle::invalid(),
+                    authored_machine_application: arena::Handle::invalid(),
+                    exact_coercion_target: TypeReferenceHandle::invalid(),
+                    requirement_application: TypeReferenceHandle::invalid(),
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol,
+                    static_machine_parameter: SymbolHandle::invalid(),
+                    target: Identifier::generated("embed"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                }))
+        };
+        let literal = |typed: &mut TypedTrees, value| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+        };
+        let binary = |typed: &mut TypedTrees, left, operator, right| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+        };
+        let (rest_name, count_name) = (
+            name(&mut typed, rest, "rest"),
+            name(&mut typed, count, "count"),
+        );
+        let embedded_rest = call(&mut typed, builtin, rest_name);
+        let embedded_count = call(&mut typed, builtin, count_name);
+        let (ten, limit) = (literal(&mut typed, 10), literal(&mut typed, 99));
+        let tens = binary(&mut typed, embedded_count, BinaryOperator::Multiply, ten);
+        let packed = binary(&mut typed, embedded_rest, BinaryOperator::Add, tens);
+        let within = binary(&mut typed, packed, BinaryOperator::LessOrEqual, limit);
+        let at_least = binary(&mut typed, limit, BinaryOperator::GreaterOrEqual, packed);
+        let exactly = binary(&mut typed, packed, BinaryOperator::Equal, limit);
+        let carrier_tens = binary(&mut typed, count_name, BinaryOperator::Multiply, ten);
+        let carrier_sum = binary(&mut typed, rest_name, BinaryOperator::Add, carrier_tens);
+        let carrier = binary(&mut typed, carrier_sum, BinaryOperator::LessOrEqual, limit);
+        let halves = binary(&mut typed, embedded_rest, BinaryOperator::Divide, ten);
+        let divided = binary(&mut typed, halves, BinaryOperator::LessOrEqual, limit);
+        let mixed_sum = binary(&mut typed, embedded_rest, BinaryOperator::Add, count_name);
+        let mixed = binary(&mut typed, mixed_sum, BinaryOperator::LessOrEqual, limit);
+        let spelled = call(&mut typed, impostor, rest_name);
+        let spelled_embed = binary(&mut typed, spelled, BinaryOperator::LessOrEqual, limit);
+        let carrier_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let u8_type = ScalarType::Integer(carrier_type);
+        let slot = |symbol| Slot {
+            symbol,
+            value_type: ValueType::Scalar(u8_type, crate::lowering::body::Qualification::NONE),
+            assignable: false,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        };
+        let slots = [slot(rest), slot(count)];
+        let values = [ValueId::new(1), ValueId::new(2)];
+        let scope = || ClauseScope {
+            logical: None,
+            subject: None,
+            formal_fields: true,
+            slots: &slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let mut program = Program::new(&typed, false);
+        let served = scope();
+        let embedded = |value: u64| IntegerMathTerm::MathValue {
+            source_type: carrier_type,
+            value: ValueId::new(value).unwrap(),
+        };
+        let integer = |value: u128| {
+            IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, value).unwrap())
+        };
+        let sum = IntegerMathTerm::Add(
+            Box::new(embedded(1)),
+            Box::new(IntegerMathTerm::Multiply(
+                Box::new(embedded(2)),
+                Box::new(integer(10)),
+            )),
+        );
+        let bounded = Proposition::IntegerMathLessOrEqual(sum.clone(), integer(99));
+        assert_eq!(
+            program.clause(machine(), &served, within),
+            Ok(bounded.clone())
+        );
+        assert_eq!(program.clause(machine(), &served, at_least), Ok(bounded));
+        let equal = program.clause(machine(), &served, exactly).unwrap();
+        let Proposition::IntegerMathEqual(left, right) = &equal else {
+            panic!("an equality of mathematical integers: {equal:?}");
+        };
+        assert!(left <= right, "operands in the vocabulary's order");
+        assert!([left, right].contains(&&sum) && [left, right].contains(&&integer(99)));
+        terminal_codec::canonical_proposition_order_key(&equal).expect("an encodable clause");
+        // The authored clause, each formal left open for a call's argument.
+        assert_eq!(
+            program
+                .clause_text(&slots, within)
+                .render(&|position| ["a", "b"][position].to_owned()),
+            "embed(a) + embed(b) * 10 <= 99"
+        );
+        let formal = |position| ScalarTerm::Value {
+            id: ValueId::new(position).unwrap(),
+            scalar_type: u8_type,
+        };
+        let carrier_literal = |value| ScalarTerm::Integer {
+            scalar_type: carrier_type,
+            value: IntegerValue::Unsigned(value),
+        };
+        let carrier_tens = ScalarTerm::ExactIntegerMultiply {
+            scalar_type: carrier_type,
+            left: Box::new(formal(2)),
+            right: Box::new(carrier_literal(10)),
+        };
+        let carrier_sum = ScalarTerm::ExactIntegerAdd {
+            scalar_type: carrier_type,
+            left: Box::new(formal(1)),
+            right: Box::new(carrier_tens),
+        };
+        assert_eq!(
+            program.clause(machine(), &served, carrier),
+            Ok(Proposition::LessOrEqual(carrier_sum, carrier_literal(99)))
+        );
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
+            let refusal = program.clause(machine(), scope, handle).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            refusal.detail
+        };
+        assert_eq!(
+            detail(&served, divided),
+            "contract mathematical division in a clause"
+        );
+        assert_eq!(
+            detail(&served, mixed),
+            "contract runtime value in a mathematical term without embed"
+        );
+        assert_eq!(
+            detail(&served, spelled_embed),
+            "call target is not a machine declaration"
+        );
+    }
+}

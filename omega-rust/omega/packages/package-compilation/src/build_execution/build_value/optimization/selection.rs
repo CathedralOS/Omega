@@ -5,7 +5,7 @@
 // pass/report disabled, `1` enables it, and `> 1` or `< 0` rejects so duplicate
 // or malformed enablement in `build.omg` fails closed.
 
-use build_time_evaluation::BuildTimeValue;
+use source_compiler::evaluation::BuildTimeValue;
 use optimization_core::{Optimization, OptimizationSelections};
 
 use super::vocabulary::OptimizationBuildVocabulary;
@@ -39,14 +39,14 @@ pub(super) fn extract(
 ) -> Result<
     (
         OptimizationSelections,
-        optimization_core::OptimizationReportRequest,
+        optimization_requests::OptimizationReportRequest,
     ),
     String,
 > {
     if vocabulary == OptimizationBuildVocabulary::LegacyWithoutField {
         return Ok((
             OptimizationSelections::default(),
-            optimization_core::OptimizationReportRequest::Suppressed,
+            optimization_requests::OptimizationReportRequest::Suppressed,
         ));
     }
     let BuildTimeValue::Struct { fields, .. } = build else {
@@ -74,8 +74,8 @@ pub(super) fn extract(
         ));
     };
     let report = match *report_count {
-        0 => optimization_core::OptimizationReportRequest::Suppressed,
-        1 => optimization_core::OptimizationReportRequest::EmitHumanText,
+        0 => optimization_requests::OptimizationReportRequest::Suppressed,
+        1 => optimization_requests::OptimizationReportRequest::EmitHumanText,
         count if count > 1 => {
             return Err("optimization human report is requested more than once".to_owned());
         }

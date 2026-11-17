@@ -90,17 +90,17 @@ impl Sha256RegisterDigest for sha2::Sha256 {
     }
 }
 
-impl Sha256RegisterDigest for optimization_core::digest_encoder::DomainDigestEncoder {
+impl Sha256RegisterDigest for ::wire::digest_encoder::DomainDigestEncoder {
     fn byte(&mut self, value: u8) {
-        optimization_core::digest_encoder::DomainDigestEncoder::byte(self, value);
+        ::wire::digest_encoder::DomainDigestEncoder::byte(self, value);
     }
 
     fn u64(&mut self, value: u64) {
-        optimization_core::digest_encoder::DomainDigestEncoder::u64(self, value);
+        ::wire::digest_encoder::DomainDigestEncoder::u64(self, value);
     }
 
     fn raw(&mut self, bytes: &[u8]) {
-        optimization_core::digest_encoder::DomainDigestEncoder::raw(self, bytes);
+        ::wire::digest_encoder::DomainDigestEncoder::raw(self, bytes);
     }
 }
 

@@ -417,7 +417,7 @@ pub use placement::settle_native_callback_placements;
 mod installed_placement {
     use backend_plan::NativeCallbackPlacement;
     use calling_conventions::{BoundaryCallingApplication, NativePlace};
-    use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
+    use application_identity::callback_declarations::PrivateCallbackSlotSelection;
     use terminal_psi::{TerminalInstalledInterruptRegistration, TerminalModule};
 
     use super::placement::{calling_application, inbound_application, place_callback};

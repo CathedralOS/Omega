@@ -2914,10 +2914,8 @@ pub(crate) mod scalar_array {
 
             #[test]
             fn exact_capacity_retirement_keeps_funding_until_the_last_home_is_released() {
-                use evaluation_accounting::{
-                    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
-                    EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
-                };
+                use evaluation_accounting::{BuildEvaluationSponsor};
+                use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
                 let sponsor = BuildEvaluationSponsor::new_with_measurement(
                     BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 2, 100, 100, 100).unwrap(),
                     EvaluationMeasurementIdentity::TerminalPsi {
@@ -4104,10 +4102,8 @@ pub(crate) mod scalar_array {
         use super::*;
         use crate::boundary::effects::TerminalEffectRejection;
         use compiler_storage::{RecordLimits, decode, encode};
-        use evaluation_accounting::{
-            BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
-            EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
-        };
+        use evaluation_accounting::{BuildEvaluationSponsor};
+        use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity};
         use semantic_vocabulary::IntegerType;
 
         fn sponsor(cells: u64) -> BuildEvaluationSponsor {

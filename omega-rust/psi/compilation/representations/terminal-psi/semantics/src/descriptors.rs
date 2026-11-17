@@ -705,7 +705,7 @@ pub mod descriptor_lifetimes {
     /// establish permission even when its whole root is observed for liveness.
     pub type DescriptorFlowInput = (
         Option<DescriptorLocation>,
-        Option<(access_plans::AccessOperation, DescriptorFlowSource)>,
+        Option<(access_vocabulary::AccessOperation, DescriptorFlowSource)>,
     );
 
     #[derive(Clone, Default)]
@@ -1499,7 +1499,7 @@ pub mod descriptor_lifetimes {
                 inputs: vec![(
                     Some(root(1)),
                     Some((
-                        access_plans::AccessOperation::Write,
+                        access_vocabulary::AccessOperation::Write,
                         DescriptorFlowSource::Unavailable(root(1).root),
                     )),
                 )],
@@ -1513,7 +1513,7 @@ pub mod descriptor_lifetimes {
                 vec![&root(2)]
             );
             assert!(matches!(&replacement.inputs[0],
-                (None, Some((access_plans::AccessOperation::Write, DescriptorFlowSource::Unavailable(old))))
+                (None, Some((access_vocabulary::AccessOperation::Write, DescriptorFlowSource::Unavailable(old))))
                     if *old == root(1).root));
             let steps = BTreeMap::from([
                 (position(0), replacement),
@@ -10709,10 +10709,8 @@ pub mod descriptor_results {
 
         use std::collections::BTreeMap;
 
-        use semantic_vocabulary::{
-            IdTable, IdTableBuildError, PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind,
-            StructuralTypeId, ValueId,
-        };
+        use semantic_vocabulary::{PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
+        use arena::{IdTable, IdTableBuildError};
         use terminal_psi::{
             Operation, OperationKind, RecordFieldValue, TerminalMachine, TerminalModule, Terminator,
         };
@@ -11730,7 +11728,7 @@ pub mod descriptor_results {
                         .to_vec();
                     assert!(accesses.iter().any(|&input| matches!(
                         analysis.storage_access(helper, input),
-                        Some((access_plans::AccessOperation::Write, _))
+                        Some((access_vocabulary::AccessOperation::Write, _))
                     )));
                     if indirect {
                         assert!(
@@ -13583,7 +13581,7 @@ pub mod descriptor_results {
                         .filter(|(_, access)| access.is_some())
                         .collect();
                     assert_eq!(accesses.len(), 1);
-                    let (location, Some((access_plans::AccessOperation::Take, access))) =
+                    let (location, Some((access_vocabulary::AccessOperation::Take, access))) =
                         accesses[0]
                     else {
                         panic!("the projected move retains its take operation");
@@ -13739,7 +13737,7 @@ pub mod descriptor_results {
                         .collect();
                     assert!(
                         matches!(accesses.as_slice(),
-                        [(access_plans::AccessOperation::Write, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query))]
+                        [(access_vocabulary::AccessOperation::Write, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query))]
                             if query.root == source && matches!(query.steps.as_slice(),
                                 [DescriptorContentsStep::Element { selector: Some(selector), .. }]
                                     if **selector == semantic_vocabulary::ScalarTerm::value(index, integer))),
@@ -13933,7 +13931,8 @@ pub mod descriptor_results {
         use crate::descriptors::descriptor_lifetimes::{
             DescriptorFlowSource, descriptor_location, descriptor_location_type, value_locations,
         };
-        use semantic_vocabulary::{IdTable, InvocationSite, OperationId};
+        use semantic_vocabulary::{InvocationSite, OperationId};
+        use arena::{IdTable};
 
         pub(crate) mod flow {
             use super::*;

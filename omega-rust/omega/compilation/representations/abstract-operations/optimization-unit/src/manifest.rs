@@ -8,12 +8,8 @@ decoding reconstructs and re-verifies the complete report without external table
 
 use std::fmt::Write;
 
-use optimization_core::{
-    BaselineDecisionLog, OptimizationCandidateVerdict, OptimizationFactReference,
-    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity, hex,
-};
+use optimization_core::{BaselineDecisionLog, OptimizationCandidateVerdict, OptimizationFactReference, OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity};
+use wire::digest_encoder::hex;
 use semantic_vocabulary::WorkScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -92,12 +88,12 @@ pub enum PrePhysicalOptimizationManifestDecodeError {
     TrailingBytes,
 }
 
-optimization_core::invalid_error_display!(
+wire::invalid_error_display!(
     PrePhysicalOptimizationManifestDecodeError,
     "pre-physical manifest encoding"
 );
 
-optimization_core::take_error_from_adapter!(PrePhysicalOptimizationManifestDecodeError);
+::wire::take_error_from_adapter!(PrePhysicalOptimizationManifestDecodeError);
 
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
 const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 6;

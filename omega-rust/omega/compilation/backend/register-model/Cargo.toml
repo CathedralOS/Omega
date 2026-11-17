@@ -14,6 +14,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
-optimization-core = { path = "../../../foundation/optimization-core" }
+wire = { path = "../../../../psi/foundation/wire" }
+optimization-core = { path = "../../representations/optimization-contracts" }
 target = { path = "../target" }
 sha2 = "0.10.9"

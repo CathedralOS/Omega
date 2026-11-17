@@ -7,7 +7,7 @@ findings from this same retained compilation.
 
 use diagnostics::Diagnostic;
 use products::CheckedCompilation;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
 
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {

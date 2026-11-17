@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 pub use native_vocabulary::provenance::PsiProvenance;
-use optimization_core::digest_encoder::DomainDigestEncoder;
+use ::wire::digest_encoder::DomainDigestEncoder;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
 pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v3\0";
@@ -229,7 +229,7 @@ mod tests {
         facts.encode(&mut encoded);
         assert_eq!(
             facts.identity_bytes(),
-            optimization_core::digest_encoder::content_identity(&encoded)
+            ::wire::digest_encoder::content_identity(&encoded)
         );
         let mut ordinal = row.clone();
         ordinal.sites[0].1 = 1;

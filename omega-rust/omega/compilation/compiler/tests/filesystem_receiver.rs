@@ -25,7 +25,7 @@ use package_manager::{
 use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
-use terminal_psi_to_abstract_operations::provider_admission;
+use ::provider_admission::provider_admission;
 
 const FIXTURE: &str = "tests/fixtures/pass/filesystem/windows_canonicalize_exit/main.omg";
 const TARGET: &str = "windows_x86_64";
@@ -246,7 +246,7 @@ fn windows_canonicalize_receiver() {
     eprintln!("windows filesystem receiver policy: {receiver_identity:?}");
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     eprintln!("Windows receiver: preparing restricted native admission");
-    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
         .expect("scalar completion");
     let request = |receiver| native_compiler::NativeCompileRequest {

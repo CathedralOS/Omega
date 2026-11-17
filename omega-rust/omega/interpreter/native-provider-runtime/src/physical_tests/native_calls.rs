@@ -11,9 +11,8 @@ use crate::{NativeArgument, NativeProviderProcess};
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use machine_emission::native_foreign_bridge::{
-    NativeForeignBridgeRequest, emit_native_foreign_bridge,
-};
+use physical_planning::native_foreign_bridge::{NativeForeignBridgeRequest};
+use native_encoding::test_support::{emit_native_foreign_bridge};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
 pub(super) fn compile(command: &mut Command) {
@@ -142,10 +141,13 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
             .unwrap(),
         })
         .unwrap();
+        let locator = normalize_foreign_locator(candidate, profile).unwrap();
+        let imports = image_fixtures::encode_locator_import(&locator);
         let product = image_emission::emit_native_foreign_adapter(
             bridge,
-            normalize_foreign_locator(candidate, profile).unwrap(),
+            locator,
             [index as u8 + 1; 32],
+            imports,
         )
         .unwrap();
         installed.push(
@@ -420,12 +422,11 @@ fn guest_errno_survives_worker_housekeeping() {
             },
             ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
         };
-        image_emission::emit_native_foreign_adapter(
-            bridge,
-            normalize_foreign_locator(candidate, profile).unwrap(),
-            [tag; 32],
+        let locator = normalize_foreign_locator(candidate, profile
         )
-        .unwrap()
+        .unwrap();
+        let imports = image_fixtures::encode_locator_import(&locator);
+        image_emission::emit_native_foreign_adapter(bridge, locator, [tag; 32], imports).unwrap()
     };
     let word = ValueShape::integer(8, 8);
     let integer = ValueShape::integer(4, 4);

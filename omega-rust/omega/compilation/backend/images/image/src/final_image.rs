@@ -445,7 +445,7 @@ mod data_regions {
             validate_placed_data_region_inventory,
         };
         use diagnostics::Diagnostic;
-        use optimization_core::{
+        use mutation_matrix::{
             MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
         };
         use target::NativeTarget;
@@ -704,7 +704,7 @@ mod data_regions {
             });
         }
 
-        optimization_core::custody_field_inventory! {
+        mutation_matrix::custody_field_inventory! {
             pub(crate) enum PlacedDataInventoryFieldForTest {
                 SubstitutedDataBaseAddress,
                 OverflowingDataBaseAddress,
@@ -895,7 +895,7 @@ mod data_regions {
             })
         }
 
-        optimization_core::custody_field_inventory! {
+        mutation_matrix::custody_field_inventory! {
             pub(crate) enum PlacedDataIdentityBoundFieldForTest {
                 CompilerDataRemarkedAsBindingSlot,
                 CompilerDataRemarkedAsPadding,
@@ -1484,10 +1484,10 @@ mod executable_regions {
         hash
     }
 
-    pub(crate) const FNV_OFFSET: u64 = semantic_vocabulary::Fnv1a::OFFSET_BASIS;
+    pub(crate) const FNV_OFFSET: u64 = wire::fnv1a::Fnv1a::OFFSET_BASIS;
 
     pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-        let mut fingerprint = semantic_vocabulary::Fnv1a::resume(*hash);
+        let mut fingerprint = wire::fnv1a::Fnv1a::resume(*hash);
         fingerprint.bytes(bytes);
         *hash = fingerprint.finish();
     }
@@ -1625,6 +1625,7 @@ mod root {
     pub struct FinalImage {
         pub target: NativeTarget,
         pub memory: FinalImageMemory,
+        pub import_program: machine_code::import_code::EncodedImportProgram,
         pub symbol_table: FinalImageSymbolTable,
         pub relocation_table: FinalImageRelocationTable,
         pub executable_regions: Vec<FinalExecutableRegion>,
@@ -1656,6 +1657,7 @@ mod root {
             Self {
                 target,
                 memory,
+                import_program: machine_code::import_code::EncodedImportProgram::empty(target),
                 symbol_table: FinalImageSymbolTable::with_capacity(
                     entry_symbol,
                     symbol_capacity,

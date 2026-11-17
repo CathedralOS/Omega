@@ -138,6 +138,7 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
 
     let mut image = build_final_image(FinalImageInput {
         target,
+        import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
         object: &object,
         relocations: &relocations,
         text_bytes: &encoded,
@@ -188,6 +189,7 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
     foreign.push_record(text!(0 => 4 => callee => 0 => RelocationKind::Aarch64Branch26));
     let mut foreign_image = build_final_image(FinalImageInput {
         target,
+        import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
         object: &object,
         relocations: &foreign,
         text_bytes: &encoded,
@@ -253,6 +255,7 @@ fn applied_aarch64_relocations_replay_through_the_text_envelope() {
 
     let mut image = build_final_image(FinalImageInput {
         target,
+        import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
         object: &object,
         relocations: &relocations,
         text_bytes: &encoded,

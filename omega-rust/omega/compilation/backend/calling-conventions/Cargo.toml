@@ -9,11 +9,13 @@ name = "calling_conventions"
 path = "src/lib.rs"
 
 [dependencies]
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+layout-planning = { path = "../../../../psi/compilation/layout-planning" }
+wire = { path = "../../../../psi/foundation/wire" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 runtime-abi = { path = "../runtime/runtime-abi" }
-layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
 arena = { path = "../../../../psi/foundation/arena" }
-optimization-core = { path = "../../../foundation/optimization-core" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 target = { path = "../target" }
-language-semantics = { path = "../../../../psi/foundation/language-semantics" }

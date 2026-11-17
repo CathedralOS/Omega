@@ -15,8 +15,8 @@ mod unbuilt_frontier;
 use fixture_package_inputs::{
     FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
-use terminal_psi_to_terminal_psi::RouteVerdict;
-use typed_trees_to_terminal_psi::Compilation;
+use source_compiler::checking::RouteVerdict;
+use source_compiler::lowering::Compilation;
 
 /// Kept in step with `compiler`'s `lowered_route::NO_PRODUCT_ROUTE`.
 const NO_PRODUCT_ROUTE: &str = "no product route yet";
@@ -45,14 +45,14 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     else {
         panic!("{fixture}: the compilation must be rejected after Psi 04");
     };
-    let mut verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    let mut verdicts = source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
             Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -310,14 +310,14 @@ fn named_predicate_terms_form_under_their_own_inputs() {
         } else {
             frontier.subject
         };
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization

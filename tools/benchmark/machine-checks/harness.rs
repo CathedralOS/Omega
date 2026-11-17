@@ -2,10 +2,11 @@
 // Setup, input cloning and result fingerprints stay outside the discharge timer.
 
 use execution_admission::ExecutionBudget;
-use semantic_vocabulary::{IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
+use arena::{IdTable};
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
-use typed_trees_to_terminal_psi::{
+use source_compiler::lowering::{
     Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement,
     Strict, Target, Termination, Unpositioned, ValueType,
 };
@@ -82,7 +83,7 @@ fn generated(
             ranking: None,
         });
     }
-    typed_trees_to_terminal_psi::lower_bodies(
+    source_compiler::lowering::lower_bodies(
         MachineId::new(1).unwrap(),
         &bodies,
         &signatures,
@@ -109,10 +110,10 @@ fn main() {
         let mut obligations = 0;
         for _ in 0..repeats {
             let mut elaboration = input.clone();
-            let mut activity = terminal_psi_to_terminal_psi::ProofSearchActivity::default();
+            let mut activity = source_compiler::checking::ProofSearchActivity::default();
             let start = Instant::now();
             let result =
-                terminal_psi_to_terminal_psi::discharge(&mut elaboration, &mut activity).unwrap();
+                source_compiler::checking::discharge(&mut elaboration, &mut activity).unwrap();
             elapsed += start.elapsed();
             obligations = 0;
             for (_, machine) in result.machines.iter() {

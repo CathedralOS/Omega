@@ -86,11 +86,11 @@ pub fn ownership_frontier_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v3\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
-    optimization_core::codec_bytes::push_encoded(
+    ::wire::codec_bytes::push_encoded(
         &mut canonical,
         psi.vocabulary_marker.get().to_le_bytes(),
     );
-    optimization_core::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
+    ::wire::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
     encode_ownership_frontier_site(&mut canonical, site);
     encode_frontier_snapshot_identity(&mut canonical, snapshot);
     OwnershipFrontierFactIdentity::from_canonical_bytes(&canonical)
@@ -105,25 +105,25 @@ pub fn encode_ownership_frontier_site(bytes: &mut Vec<u8>, site: OwnershipFronti
         OwnershipFrontierSite::EdgeExit(id) => (5, id.get()),
     };
     bytes.push(tag);
-    optimization_core::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
+    ::wire::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
 }
 
 fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFrontierSnapshot) {
     encode_frontier_len(bytes, snapshot.claims.len());
     for claim in &snapshot.claims {
-        optimization_core::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
+        ::wire::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
         encode_frontier_optional_id(bytes, claim.input.map(PlaceId::get));
         encode_frontier_path(bytes, &claim.path);
         encode_frontier_multiplicity(bytes, claim.multiplicity);
     }
     encode_frontier_len(bytes, snapshot.owned_places.len());
     for place in &snapshot.owned_places {
-        optimization_core::codec_bytes::push_encoded(bytes, place.place.get().to_le_bytes());
+        ::wire::codec_bytes::push_encoded(bytes, place.place.get().to_le_bytes());
         encode_frontier_multiplicity(bytes, Some(place.multiplicity));
     }
     encode_frontier_len(bytes, snapshot.partial_custody.len());
     for partial in &snapshot.partial_custody {
-        optimization_core::codec_bytes::push_encoded(bytes, partial.place.get().to_le_bytes());
+        ::wire::codec_bytes::push_encoded(bytes, partial.place.get().to_le_bytes());
         encode_frontier_len(bytes, partial.moved_paths.len());
         for path in &partial.moved_paths {
             encode_frontier_path(bytes, path);
@@ -131,9 +131,9 @@ fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFr
     }
     encode_frontier_len(bytes, snapshot.nominal_partitions.len());
     for partition in &snapshot.nominal_partitions {
-        optimization_core::codec_bytes::push_encoded(bytes, partition.place.get().to_le_bytes());
+        ::wire::codec_bytes::push_encoded(bytes, partition.place.get().to_le_bytes());
         encode_frontier_path(bytes, &partition.path);
-        optimization_core::codec_bytes::push_encoded(
+        ::wire::codec_bytes::push_encoded(
             bytes,
             partition.structural_type.get().to_le_bytes(),
         );
@@ -151,7 +151,7 @@ fn encode_frontier_len(bytes: &mut Vec<u8>, len: usize) {
 fn encode_frontier_optional_id(bytes: &mut Vec<u8>, id: Option<u64>) {
     bytes.push(u8::from(id.is_some()));
     if let Some(id) = id {
-        optimization_core::codec_bytes::push_encoded(bytes, id.to_le_bytes());
+        ::wire::codec_bytes::push_encoded(bytes, id.to_le_bytes());
     }
 }
 

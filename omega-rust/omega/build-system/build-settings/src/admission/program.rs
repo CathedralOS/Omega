@@ -6,7 +6,7 @@ separate authority; an old checked result cannot replace any of them.
 */
 
 use build_declarations::DependencyPurpose;
-use build_time_evaluation::BuildEvaluationSponsor;
+use source_compiler::evaluation::BuildEvaluationSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
@@ -70,7 +70,7 @@ pub(crate) fn admit_build_program(
     let produced = prepared.produce(
         source_compiler::TerminalProductionCustody {
             invocation_sources: anonymous_source
-                .map(|capture| capture as &dyn source::InvocationSourceConsent),
+                .map(|capture| capture as &dyn source_compiler::source_inputs::InvocationSourceConsent),
             ..Default::default()
         },
         &mut source_compiler::UnmeasuredProduction,

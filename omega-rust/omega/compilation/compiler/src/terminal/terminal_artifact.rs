@@ -32,9 +32,9 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 
 pub(crate) struct TerminalProductionView<'a> {
     source_identity: products::ProductSourceIdentity,
-    publication: &'a products::ProductTerminalPublication,
+    publication: &'a source_compiler::SourcePublication,
     sources: &'a package_compilation::CheckedSourceCustody,
-    execution: &'a selected_dispatch::SelectedExecution,
+    execution: &'a native_program_planning::SelectedExecution,
     timings: &'a mut CompileTimings,
 }
 
@@ -85,6 +85,18 @@ pub(crate) struct ProducedTerminalProduct {
 }
 
 impl ProducedTerminalProduct {
+    pub(crate) fn into_executable_proposal(
+        self,
+        published: &products::PublishedCompilation,
+    ) -> Result<Option<backend_plan::TerminalTargetProviderProposal>, Vec<Diagnostic>> {
+        if !Arc::ptr_eq(self.program.artifact(), published.program().artifact()) {
+            return Err(vec![Diagnostic::error(
+                "entry planning requires this compilation's published program",
+            )]);
+        }
+        Ok(self.proposal)
+    }
+
     pub(crate) fn module(&self) -> &terminal_psi::TerminalModule {
         self.program.artifact().view().module()
     }
@@ -115,8 +127,8 @@ struct PreparedTerminalProduct<'a> {
 
 impl PreparedTerminalProduct<'_> {
     fn shares_production(&self, other: &Self) -> bool {
-        self.request.view.publication.optimizations().project_psi()
-            == other.request.view.publication.optimizations().project_psi()
+        self.request.view.publication.optimizations()
+            == other.request.view.publication.optimizations()
             && self.request.view.shares_source(&other.request.view)
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
@@ -177,7 +189,10 @@ fn produce_shared_terminal(
         publication: first.request.view.publication,
         sources: first.request.view.sources,
     }
-    .publish(first.request.selections, &mut observer)
+    .publish(
+        first.request.selections.project_psi().selections(),
+        &mut observer,
+    )
 }
 
 // Checking one selected target outside a batch: produce its accepted program
@@ -185,7 +200,7 @@ fn produce_shared_terminal(
 pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
 ) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
-    let selections = selection.terminal_publication.optimizations().clone();
+    let selections = selection.optimizations.clone();
     let produced = produce_retained_terminal_artifacts(vec![TerminalProductRequest::new(
         selection,
         &selections,

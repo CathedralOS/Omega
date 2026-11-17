@@ -15,20 +15,28 @@ use verified_optimization_input::ValidatedNativeProgramEntrySettlement;
 pub struct FragmentObjectPublicationRequest<'request> {
     pub program_entry: Option<&'request ValidatedNativeProgramEntrySettlement>,
     pub private_functions: &'request [image_emission::PrivateFunctionObject],
+    pub physical_entry: Option<image_emission::EncodedPhysicalEntry>,
+    pub hosted_entry: Option<image_emission::EncodedHostedProgramEntry>,
 }
 
 pub struct FragmentObjectProjection {
-    source: std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
     object: image_emission::ObjectArtifact,
 }
 
 impl FragmentObjectProjection {
-    pub fn with_semantic_source(
+    pub fn with_import_program(
         mut self,
-        code: terminal_codec::RetainedTerminalCode,
-        coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+        code: machine_code::import_code::EncodedImportProgram,
     ) -> Result<Self, &'static str> {
-        self.object = self.object.with_semantic_source(code, coverage)?;
+        self.object = self.object.with_import_program(code)?;
+        Ok(self)
+    }
+
+    pub fn with_windows_internet_provider(
+        mut self,
+        code: machine_code::WindowsInternetProviderCode,
+    ) -> Result<Self, &'static str> {
+        self.object = self.object.with_windows_internet_provider(code)?;
         Ok(self)
     }
 
@@ -37,23 +45,12 @@ impl FragmentObjectProjection {
     }
 
     pub fn entry_call_plan(&self) -> Result<&calling_conventions::CallPlan, Vec<Diagnostic>> {
-        let contracts = &self
-            .source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
-            .contracts;
-        contracts
-            .function_abi(self.object.entry())
-            .map(|function| &function.call_plan)
-            .ok_or_else(|| {
-                native_artifact_error(
-                    "entry transport",
-                    "emitted entry has no current calling contract",
-                )
-            })
+        self.object.entry_call_plan().ok_or_else(|| {
+            native_artifact_error(
+                "entry transport",
+                "emitted entry has no current calling contract",
+            )
+        })
     }
 
     pub fn into_object(self) -> image_emission::ObjectArtifact {
@@ -73,6 +70,10 @@ pub fn publish_fragment_object(
     let mut object =
         image_emission::compose_private_function_objects(object, request.private_functions)
             .map_err(|error| native_artifact_error("private object composition", error))?;
+    if let Some(hosted_entry) = request.hosted_entry {
+        image_emission::bind_hosted_program_entry(&mut object, hosted_entry)
+            .map_err(|error| vec![error])?;
+    }
     if let Some(entry) = request.program_entry {
         if entry.access_view_establishments().len() != entry.private_entry_ram().len()
             || entry
@@ -113,49 +114,19 @@ pub fn publish_fragment_object(
                     "emitted root is not the selected physical adapter",
                 ));
             }
-            let physical = entry.physical_calling_plan().ok_or_else(|| {
-                native_artifact_error("physical program entry", "missing physical calling plan")
+            let planned = request.physical_entry.ok_or_else(|| {
+                native_artifact_error(
+                    "physical program entry",
+                    "physical entry was not planned and encoded with its bodies",
+                )
             })?;
-            let contract = entry
-                .storage_entry()
-                .and_then(|storage| storage.physical_contract())
-                .ok_or_else(|| {
-                    native_artifact_error(
-                        "physical program entry",
-                        "missing selected physical entry contract",
-                    )
-                })?;
-            image_emission::bind_physical_entry(
-                &mut object,
-                entry.checked_entry().terminal_entry(),
-                physical.plan(),
-                adapter.parameter_formals(),
-                contract,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
-        } else {
-            let contract = entry
-                .storage_entry()
-                .and_then(|storage| storage.physical_contract())
-                .ok_or_else(|| {
-                    native_artifact_error(
-                        "ProgramEntry receiver provisioning",
-                        "missing exact hosted physical contract",
-                    )
-                })?;
-            let demand =
-                image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
-                    native_artifact_error("ProgramEntry receiver stack demand", error)
-                })?;
-            image_emission::bind_hosted_receiver(
-                &mut object,
-                entry.source(),
-                entry.checked_entry(),
-                contract,
-                &demand,
-                entry.private_entry_ram(),
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            image_emission::bind_encoded_physical_entry(&mut object, planned)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        } else if object.hosted_receiver_binding().is_none() {
+            return Err(native_artifact_error(
+                "ProgramEntry receiver provisioning",
+                "hosted entry was not planned and encoded with its bodies",
+            ));
         }
     }
     image_emission::require_installed_root_provision(&object)
@@ -164,19 +135,12 @@ pub fn publish_fragment_object(
     Ok(PublishedFragmentObject { object })
 }
 
-/// Emit the object for one realized program. `original_target` carries stage
-/// 02's output only when the compile requested a correspondence audit;
-/// emission itself reads the current program and its emission facts.
+/// Construct an object from fully placed text. The optional original is held
+/// for verification of the object against its admitted target input.
 pub fn emit_fragment_object(
-    emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+    text: function_layout::StagedOptimizedFixedFrameTextSection,
     original_target: Option<image_emission::RetainedTargetOperations>,
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
-    let emitted = machine_emission::stage_optimized_function_fragment_emission(emission)
-        .map_err(|error| native_artifact_error("function-fragment emission", error))?;
-    let applied = machine_emission::stage_function_fragment_frame_application(emitted)
-        .map_err(|error| native_artifact_error("function-fragment frame application", error))?;
-    let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-        .map_err(|error| native_artifact_error("framed text placement", error))?;
     let source = std::sync::Arc::new(
         object_file::stage_optimized_relocation_free_object_container(text)
             .map_err(|error| native_artifact_error("fragment object placement", error))?,
@@ -188,7 +152,7 @@ pub fn emit_fragment_object(
         },
     )
     .map_err(|error| native_artifact_error("fragment object publication", error))?;
-    Ok(FragmentObjectProjection { source, object })
+    Ok(FragmentObjectProjection { object })
 }
 
 fn validate_emitted_receiver_binding(

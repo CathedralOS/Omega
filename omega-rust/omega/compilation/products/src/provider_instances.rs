@@ -4,7 +4,7 @@
 // application evidence; projection refuses while that evidence is unavailable.
 
 use std::sync::Arc;
-use typed_trees::{FrozenTypedTrees, provider_declarations::PreparedProviderInventory};
+use source_compiler::source_state::{FrozenTypedTrees, provider_declarations::PreparedProviderInventory};
 
 pub struct SelectedProviderSource {
     inventory: Arc<PreparedProviderInventory>,

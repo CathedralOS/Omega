@@ -11,7 +11,7 @@ use crate::record::{
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
-use build_time_evaluation::product_declarations::ServiceAuditRegistration;
+use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::Path;
@@ -34,7 +34,7 @@ pub(super) fn project(
     let declarations = input;
     let accepted = checked.terminal_publication().accepted()?;
     let source = accepted.source();
-    let origins = super::callables::service_origins(accepted, source::DependencyScope::Product)?;
+    let origins = super::callables::service_origins(accepted, declaration_contracts::source_identity::DependencyScope::Product)?;
     let services = super::callables::service_identities(
         source,
         checked.sources().exact_toolchain_sources(),
@@ -214,9 +214,7 @@ fn service_audits(
             let coordinate = declaration_coordinate(declaration.source(), declaration.span());
             let first = boundaries.partition_point(|&(candidate, _)| candidate < coordinate);
             let end = boundaries.partition_point(|&(candidate, _)| candidate <= coordinate);
-            let symbol = declaration
-                .rejoin(
-                    &typed.symbols,
+            let symbol = source_compiler::source_symbols::rejoin_declaration(declaration, &typed.symbols,
                     boundaries[first..end].iter().map(|&(_, symbol)| symbol),
                 )
                 .map_err(unavailable)?;
@@ -226,9 +224,9 @@ fn service_audits(
 }
 
 fn declaration_coordinate(
-    source: &source::SourceFile,
-    span: source::Span,
-) -> (&Path, &Path, source::DependencyScope, usize, usize) {
+    source: &source_admission::SourceFile,
+    span: source_text::Span,
+) -> (&Path, &Path, declaration_contracts::source_identity::DependencyScope, usize, usize) {
     (
         &source.path,
         &source.package_root,
@@ -246,10 +244,10 @@ fn require_supported_inventory(
     let typed = declarations.typed();
     let owned = |symbol| {
         for purpose in [
-            source::DependencyScope::Product,
-            source::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Build,
         ] {
-            if typed_trees::source_subjects::contains(typed, symbol, &[Some(package)], purpose)
+            if source_compiler::source_state::source_subjects::contains(typed, symbol, &[Some(package)], purpose)
                 .map_err(unavailable)?
             {
                 return Ok(true);
@@ -258,7 +256,7 @@ fn require_supported_inventory(
         Ok::<_, Vec<Diagnostic>>(false)
     };
     for declaration in typed.data_definitions() {
-        if declaration.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        if declaration.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
             && owned(declaration.symbol)?
         {
             return Err(unavailable(
@@ -266,11 +264,11 @@ fn require_supported_inventory(
             ));
         }
         if declaration.is_public
-            && typed_trees::source_subjects::contains(
+            && source_compiler::source_state::source_subjects::contains(
                 typed,
                 declaration.symbol,
                 &[Some(package)],
-                source::DependencyScope::Build,
+                declaration_contracts::source_identity::DependencyScope::Build,
             )
             .map_err(unavailable)?
         {
@@ -282,11 +280,11 @@ fn require_supported_inventory(
         .iter()
         .filter(|row| row.is_public)
     {
-        if typed_trees::source_subjects::contains(
+        if source_compiler::source_state::source_subjects::contains(
             typed,
             declaration.symbol,
             &[Some(package)],
-            source::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Build,
         )
         .map_err(unavailable)?
         {
@@ -315,7 +313,7 @@ fn require_supported_inventory(
         row.is_public
             || matches!(
                 row.body,
-                typed_trees::proposition::PropositionBody::Primitive
+                source_compiler::source_state::proposition::PropositionBody::Primitive
             )
     }) {
         if owned(declaration.symbol)? {
@@ -326,7 +324,7 @@ fn require_supported_inventory(
         row.is_public
             || matches!(
                 row.body,
-                typed_trees::mathematical::MathematicalBody::Assumption
+                source_compiler::source_state::mathematical::MathematicalBody::Assumption
             )
     }) {
         if owned(declaration.symbol)? {

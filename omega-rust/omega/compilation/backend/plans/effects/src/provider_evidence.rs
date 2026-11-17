@@ -10,7 +10,7 @@ external requirement applications, or target-family realization coordinates.
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 pub(crate) mod executable_scopes;
 pub(crate) mod providers;
 
@@ -1088,7 +1088,7 @@ pub(crate) fn identity_text(
 }
 
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
-    let mut hash = semantic_vocabulary::Fnv1a::new();
+    let mut hash = wire::fnv1a::Fnv1a::new();
     hash.u64(plans.len() as u64);
     for plan in plans {
         hash.u64(plan.report_fingerprint());
@@ -1103,7 +1103,7 @@ fn selected_closure_report_fingerprint(
     external_applications: &[SelectedExternalRequirementApplication],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> u64 {
-    let mut hash = semantic_vocabulary::Fnv1a::resume(selected_plans_report_fingerprint(plans));
+    let mut hash = wire::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
     for resolution in resolutions {
         hash.bytes(identity_text(identities, resolution.requirement_identity).as_bytes());
         hash.u64(resolution.provider_plan_report_identity);

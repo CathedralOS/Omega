@@ -184,12 +184,12 @@ impl ValueShape {
     /// schema reflection and native placement share the selected defaults
     /// through `layout_plans`.
     pub fn standalone_integer(integer: ClosedIntegerType) -> Self {
-        Self::integer_geometry(layout_plans::standalone_integer_geometry(integer))
+        Self::integer_geometry(layout_planning::standalone_integer_geometry(integer))
     }
 
     /// The same integer as a structural record field: alignment capped at 16.
     pub fn field_integer(integer: ClosedIntegerType) -> Self {
-        Self::integer_geometry(layout_plans::field_integer_geometry(integer))
+        Self::integer_geometry(layout_planning::field_integer_geometry(integer))
     }
 
     fn integer_geometry(geometry: layout_plans::StorageGeometry) -> Self {

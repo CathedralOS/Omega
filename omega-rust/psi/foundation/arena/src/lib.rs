@@ -60,3 +60,9 @@ pub use paged::{
     OwnedInterner, OwnedTextInterner, PagedArenaFrontier, PagedArenaSet, PublishedArenaPage,
     SealedPagedArena, SlotRef,
 };
+
+mod id_table;
+pub use id_table::{IdTable, IdSet, IdTableBuildError, NonDenseIdentities, NumericId};
+
+mod normalized_set;
+pub use normalized_set::NormalizedIdentitySet;

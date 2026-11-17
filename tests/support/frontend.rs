@@ -1,6 +1,7 @@
 //! Fixture construction through the public lexical and parsing operations.
 #![allow(dead_code)]
-use source::{LoadedSource, SourceId};
+use source_admission::LoadedSource;
+use source_text::SourceId;
 use std::sync::Arc;
 use syntax_trees::{ParsedRootItems, SyntaxTrees};
 
@@ -11,21 +12,21 @@ impl<'text> Lexer<'text> {
     }
     pub fn tokenize(
         self,
-    ) -> Result<tokens::TokenStream<'static>, source_files_to_tokens::LexError> {
+    ) -> Result<tokens::TokenStream<'static>, source_compiler::lexing::LexError> {
         lex_retained(Arc::from(self.0))
     }
 }
 
 pub fn lex_retained(
     source: Arc<str>,
-) -> Result<tokens::TokenStream<'static>, source_files_to_tokens::LexError> {
+) -> Result<tokens::TokenStream<'static>, source_compiler::lexing::LexError> {
     let loaded = [LoadedSource {
         source,
         ..Default::default()
     }]
     .into_iter()
     .collect();
-    let mut lexed = source_files_to_tokens::lex(loaded)?;
+    let mut lexed = source_compiler::lexing::lex(loaded)?;
     Ok(std::mem::take(
         &mut lexed.sources.span_mut_or_empty(lexed.batch)[0].tokens,
     ))
@@ -33,14 +34,14 @@ pub fn lex_retained(
 
 pub fn parse_syntax_trees(
     tokens: &tokens::TokenStream<'_>,
-) -> Result<SyntaxTrees, tokens_to_syntax_trees::ParseError> {
+) -> Result<SyntaxTrees, source_compiler::parsing::ParseError> {
     parse_syntax_trees_with_id(SourceId::default(), tokens)
 }
 
 pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
     tokens: &tokens::TokenStream<'_>,
-) -> Result<SyntaxTrees, tokens_to_syntax_trees::ParseError> {
+) -> Result<SyntaxTrees, source_compiler::parsing::ParseError> {
     let (mut pages, _) = parse_pages(source_id, tokens, 1)?.into_parts();
     Ok(pages.pop().expect("one source produces one syntax page"))
 }
@@ -49,7 +50,7 @@ pub fn parse(
     syntax: &mut SyntaxTrees,
     source_id: SourceId,
     tokens: &tokens::TokenStream<'_>,
-) -> Result<ParsedRootItems, tokens_to_syntax_trees::ParseError> {
+) -> Result<ParsedRootItems, source_compiler::parsing::ParseError> {
     let first_page = u32::try_from(syntax.page_count())
         .unwrap()
         .checked_add(1)
@@ -70,7 +71,7 @@ fn parse_pages(
     source_id: SourceId,
     tokens: &tokens::TokenStream<'_>,
     first_page_identity: u32,
-) -> Result<syntax_trees::ParsedSyntaxPages, tokens_to_syntax_trees::ParseError> {
+) -> Result<syntax_trees::ParsedSyntaxPages, source_compiler::parsing::ParseError> {
     let source = tokens
         .source_owner()
         .cloned()
@@ -82,9 +83,9 @@ fn parse_pages(
         tokens: tokens.clone().retain_source(source),
         ..Default::default()
     }]);
-    tokens_to_syntax_trees::parse(
+    source_compiler::parsing::parse(
         &lexed,
-        tokens_to_syntax_trees::ParseOptions {
+        source_compiler::parsing::ParseOptions {
             first_page_identity,
             ..Default::default()
         },

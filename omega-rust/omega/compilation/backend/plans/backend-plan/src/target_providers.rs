@@ -652,173 +652,27 @@ pub fn selected_provider_candidate_rows<'plan>(
     plan: &'plan effects::provider_plan::ProviderPlan,
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<SelectedProviderCandidateRow<'plan>>, String> {
-    let owner = plan
-        .provider_declaration
-        .as_deref()
-        .filter(|owner| !owner.is_empty())
+    use terminal_semantics::provider_candidates::{CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions};
+    let owner = plan.provider_declaration.as_deref().filter(|owner| !owner.is_empty())
         .ok_or("checked provider plan has no exact selecting declaration")?;
-    let mut selections = Vec::new();
-    for row in &plan.rows {
-        let effects::provider_plan::ProviderBinding::CheckedAdapter {
-            machine_identity,
-            machine_package_identity,
-        } = &row.binding
-        else {
-            continue;
-        };
-        let requirement = plan.identity_text(row.requirement_identity);
-        let realization = plan.identity_text(*machine_identity);
-        let matching = module
-            .provider_candidates
-            .iter()
-            .enumerate()
-            .filter(|(_, candidate)| {
-                module
-                    .identities
-                    .text(candidate.provider_declaration.identity())
-                    == Some(owner)
-                    && candidate.source_candidate_package_identity == *machine_package_identity
-                    && module.identities.text(candidate.provider_identity)
-                        == Some(plan.provider_type.as_str())
-                    && module
-                        .identities
-                        .text(candidate.source_requirement_identity)
-                        == Some(requirement)
-                    && module.identities.text(candidate.source_candidate_identity)
-                        == Some(realization)
-                    && receiving_application_matches(
-                        plan,
-                        row,
-                        module,
-                        candidate.declaration_application,
-                    )
-            })
-            .map(|(position, _)| position)
-            .collect::<Vec<_>>();
-        let mut requirements = matching
-            .iter()
-            .map(|position| module.provider_candidates[*position].requirement_identity)
-            .collect::<Vec<_>>();
-        requirements.sort();
-        if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(format!(
-                "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
-                matching
-                    .iter()
-                    .map(|position| &module.provider_candidates[*position])
-                    .map(|candidate| (
-                        candidate.candidate,
-                        module.identities.text(candidate.candidate_identity),
-                        module
-                            .machine(candidate.candidate)
-                            .and_then(|machine| machine.declaration.as_ref())
-                            .and_then(|declaration| module
-                                .identities
-                                .text(declaration.semantic_declaration)),
-                        module.identities.text(candidate.receiving_application),
-                    ))
-                    .collect::<Vec<_>>()
-            ));
-        }
-        selections.push(SelectedProviderCandidateRow {
-            row,
-            candidate_positions: matching,
-        });
-    }
-    for selected in &selections {
-        let requirement_template = plan.identity_text(selected.row.requirement_identity);
-        let method = plan
-            .schema
-            .declaration
-            .methods
-            .iter()
-            .find(|method| {
-                plan.schema.identity_text(method.requirement_identity) == requirement_template
-            })
-            .ok_or("selected provider row lost its exact requirement declaration")?;
-        for obligations in module
-            .provider_instance_requirements
-            .iter()
-            .filter(|obligations| {
-                obligations.package == method.requirement_owner_package_identity
-                    && module.identities.text(obligations.template) == Some(requirement_template)
-                    && obligations
-                        .selecting_declaration
-                        .as_ref()
-                        .is_none_or(|declaration| {
-                            module.identities.text(declaration.identity()) == Some(owner)
-                                && match selected.row.binding {
-                                    effects::provider_plan::ProviderBinding::CheckedAdapter {
-                                        machine_identity,
-                                        ..
-                                    } => {
-                                        module
-                                            .identities
-                                            .text(obligations.source_candidate_identity)
-                                            == Some(plan.identity_text(machine_identity))
-                                    }
-                                    _ => false,
-                                }
-                        })
-            })
-        {
-            for required in &obligations.required_instances {
-                if !receiving_application_matches(
-                    plan,
-                    selected.row,
-                    module,
-                    required.declaration_application,
-                ) {
-                    continue;
-                }
-                let count = selected
-                    .candidate_positions
-                    .iter()
-                    .filter(|position| {
-                        let candidate = &module.provider_candidates[**position];
-                        candidate.requirement_identity == required.requirement_identity
-                            && (required.candidate_identity.is_absent()
-                                || candidate.candidate_identity == required.candidate_identity)
-                            && candidate.declaration_application == required.declaration_application
-                            && candidate.receiving_application == required.receiving_application
-                            && candidate.receiving_region_arguments
-                                == required.receiving_region_arguments
-                    })
-                    .count();
-                if count != 1 {
-                    return Err(format!(
-                        "selected provider plan `{}` resolves retained closed requirement `{}` to {count} canonical provider instances; exactly one must serve it",
-                        plan.name,
-                        module
-                            .identities
-                            .text(required.requirement_identity)
-                            .unwrap_or("<unknown requirement>"),
-                    ));
-                }
-            }
-        }
-    }
-    Ok(selections)
-}
-
-fn receiving_application_matches(
-    plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
-    module: &terminal_psi::TerminalModule,
-    receiving_application: terminal_psi::TerminalIdentityIndex,
-) -> bool {
-    let receiving = if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
-        None
-    } else {
-        let Some(receiving) = module.identities.text(receiving_application) else {
-            return false;
-        };
-        Some(receiving)
-    };
-    plan.schema.declaration.matches_receiving_application(
-        plan.identity_text(row.declared_requirement_identity),
-        receiving,
-    )
+    let rows = plan.rows.iter().filter_map(|row| {
+        let effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, machine_package_identity } = row.binding else { return None; };
+        Some((row, CheckedProviderRow {
+            requirement: plan.identity_text(row.requirement_identity),
+            declared_requirement: plan.identity_text(row.declared_requirement_identity),
+            machine: plan.identity_text(machine_identity),
+            machine_package: machine_package_identity,
+        }))
+    }).collect::<Vec<_>>();
+    let (rows, query_rows): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+    let positions = selected_candidate_positions(CheckedProviderQuery {
+        name: &plan.name,
+        declaration: owner,
+        provider: &plan.provider_type,
+        surface: &plan.schema.declaration,
+        rows: &query_rows,
+    }, module)?;
+    Ok(rows.into_iter().zip(positions).map(|(row, candidate_positions)| SelectedProviderCandidateRow { row, candidate_positions }).collect())
 }
 
 #[cfg(test)]

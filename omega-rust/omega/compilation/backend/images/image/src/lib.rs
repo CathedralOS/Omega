@@ -78,6 +78,7 @@ macro_rules! rejection_carrier {
 }
 
 mod builder;
+mod import_code;
 pub mod codec_bytes {
     pub fn write_u16(bytes: &mut Vec<u8>, value: u16) {
         bytes.extend(value.to_le_bytes());
@@ -92,11 +93,11 @@ pub mod codec_bytes {
     }
 
     #[cfg(test)]
-    pub(crate) use optimization_core::codec_bytes::patch_encoded;
+    pub(crate) use ::wire::codec_bytes::patch_encoded;
 }
 
 mod final_image;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 mod output;
 mod patch_bytes {
     use std::ops::Range;
@@ -344,6 +345,7 @@ mod tests {
 
         let image = build_final_image(FinalImageInput {
             target,
+            import_program: &image_fixtures::encode_locator_import(&locator),
             object: &object,
             relocations: &relocations,
             text_bytes: &[],
@@ -382,6 +384,7 @@ mod tests {
         ];
         let image = build_final_image(FinalImageInput {
             target,
+            import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
             object: &object,
             relocations: &relocations,
             text_bytes: &text,

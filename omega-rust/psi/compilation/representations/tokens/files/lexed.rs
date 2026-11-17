@@ -1,6 +1,8 @@
 use crate::TokenStream;
 use arena::{Arena, HandleSpan};
-use source::{DependencyScope, SourceId, SourceOrigin};
+use declaration_contracts::source_identity::DependencyScope;
+use source_text::SourceId;
+use source_admission::SourceOrigin;
 use std::path::PathBuf;
 use std::sync::Arc;
 

@@ -30,7 +30,7 @@ struct PackageBuildHandoffContents {
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     sources: Vec<PackageGeneratedSource>,
     provider_selections:
-        Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
+        Arc<[source_compiler::evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native: super::native_bindings::NativeBuildOutputs,
 }
@@ -132,19 +132,19 @@ impl PackageBuildHandoff {
 
     pub fn provider_selections(
         &self,
-    ) -> &[build_time_evaluation::provider_declarations::RetainedProviderSelection] {
+    ) -> &[source_compiler::evaluation::provider_declarations::RetainedProviderSelection] {
         &self.contents.provider_selections
     }
 
     pub fn native_declarations(
         &self,
-    ) -> &[build_time_evaluation::native_bindings::CapturedNativeDeclaration] {
+    ) -> &[source_compiler::evaluation::native_bindings::CapturedNativeDeclaration] {
         &self.contents.native.declarations
     }
 
     pub fn native_intents(
         &self,
-    ) -> &[language_semantics::declaration_selection::CapturedNativeIntent] {
+    ) -> &[source_compiler::declaration_selection::CapturedNativeIntent] {
         &self.contents.native.intents
     }
 
@@ -155,8 +155,8 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_native_binding_outputs(
         self,
-        declarations: Vec<build_time_evaluation::native_bindings::CapturedNativeDeclaration>,
-        intents: Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
+        declarations: Vec<source_compiler::evaluation::native_bindings::CapturedNativeDeclaration>,
+        intents: Vec<source_compiler::declaration_selection::CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
         if let (Some(provider_observation), Some(native)) =
@@ -185,7 +185,7 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_retained_provider_selections(
         self,
-        selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
+        selections: Vec<source_compiler::evaluation::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
         if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())
@@ -222,8 +222,8 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_checked_provider_selections(
         self,
-        typed: &typed_trees::TypedTrees,
-        selections: &[build_time_evaluation::provider_declarations::ProviderSelection],
+        typed: &source_compiler::source_state::TypedTrees,
+        selections: &[source_compiler::evaluation::provider_declarations::ProviderSelection],
         observation: Option<&crate::BuildObservationSummary>,
     ) -> Result<Self, String> {
         // Each selection leaves this typing as source anchors a consumer
@@ -231,7 +231,7 @@ impl PackageBuildHandoff {
         let retained = selections
             .iter()
             .map(|selection| {
-                build_time_evaluation::provider_declarations::RetainedProviderSelection::capture(
+                source_compiler::evaluation::provider_declarations::RetainedProviderSelection::capture(
                     typed, selection,
                 )
             })

@@ -10,14 +10,13 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../../../psi/foundation/arena" }
-symbols = { path = "../../../../psi/foundation/symbols" }
+symbols = { path = "../../../../psi/compilation/representations/declaration-identity" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-layout-plans = { path = "../../../../psi/foundation/layout-plans" }
-numerics = { path = "../../../../psi/foundation/numerics" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
+numerics = { path = "../../../../psi/compilation/representations/scalar-values" }
 runtime-abi = { path = "../runtime/runtime-abi" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }

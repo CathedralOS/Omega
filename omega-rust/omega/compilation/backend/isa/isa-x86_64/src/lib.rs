@@ -37,7 +37,7 @@ x64, Linux, macOS, and UEFI targets:
   lowering.
 */
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 
 pub(crate) fn encoder_resolved(
     minimum_bytes: u16,
@@ -218,6 +218,7 @@ pub use selected_form_encoding::system_call::{
 };
 
 pub use frame_protocol::{
+    X86_64FrameProtocolPlan, plan_system_v_amd64_frame_protocol, encode_planned_system_v_amd64_frame_protocol,
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol, encode_x86_64_aligned_frame_address,
     encode_x86_64_frame_address, encode_x86_64_frame_memory, encode_x86_64_integer_constant,
@@ -333,7 +334,6 @@ pub use selected_form_encoding::{
     encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
 };
 
-pub use selected_form_encoding::callback_group_bytes as encode_private_callback_materialization;
 
 pub use selected_form_encoding::register_access::installed_table::{
     X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,

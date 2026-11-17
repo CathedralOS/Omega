@@ -1,130 +1,51 @@
-//! Match placed descriptor/layout addresses to the current instruction columns.
-//! Only this selected family is indexed; no earlier function or analysis graph
-//! is needed to match its carried source occurrence and result carrier.
-
-use machine_code::PlacedImageAddress;
-use post_allocation_machine::PhysicalFunction;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    SelectedBlockId, SelectedImageAddressReference, SelectedInstructionId, SelectedInstructionKind,
-};
-use semantic_vocabulary::{MachineId, OperationId, ScalarType};
-
+//! Resolve placed descriptor and layout references against their carried
+//! physical origins. The object producer cannot reopen instruction graphs.
 use super::Error;
+use machine_code::{PlacedImageAddress, image_origins::ImageAddressOrigins};
+use semantic_vocabulary::ScalarType;
 
-type Key = (MachineId, SelectedBlockId, SelectedInstructionId);
-type Row = (Key, OperationId, SelectedImageAddressReference, ScalarType);
-
-pub(crate) struct CurrentImageSelections {
-    rows: Vec<Row>,
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CurrentImageSelections(ImageAddressOrigins);
 
 impl CurrentImageSelections {
-    fn indexes(reference: SelectedImageAddressReference) -> bool {
-        matches!(
-            reference,
-            SelectedImageAddressReference::MachineDescriptor { .. }
-                | SelectedImageAddressReference::ImplementationTable { .. }
-                | SelectedImageAddressReference::NativeCodeLayout { .. }
-        )
-    }
-
-    pub(super) fn prepare_for<'input>(
+    pub(super) fn prepare_for(
         addresses: &[PlacedImageAddress],
-        functions: impl IntoIterator<Item = &'input PhysicalFunction>,
+        origins: &Result<ImageAddressOrigins, &'static str>,
     ) -> Result<Option<Self>, Error> {
         if !addresses
             .iter()
-            .any(|address| Self::indexes(address.reference))
+            .any(|address| ImageAddressOrigins::indexes(address.reference))
         {
             return Ok(None);
         }
-        Self::new(functions).map(Some)
+        origins
+            .clone()
+            .map(|origins| Some(Self(origins)))
+            .map_err(Error::Mismatch)
     }
-
-    pub(super) fn new<'input>(
-        functions: impl IntoIterator<Item = &'input PhysicalFunction>,
-    ) -> Result<Self, Error> {
-        let mut rows = Vec::new();
-        for function in functions {
-            for block in &function.blocks {
-                for instruction in &block.instructions {
-                    let SelectedInstructionKind::ImageAddress { reference } = instruction.kind
-                    else {
-                        continue;
-                    };
-                    if !Self::indexes(reference) {
-                        continue;
-                    }
-                    let [operation] = instruction.provenance.operations.as_slice() else {
-                        return Err(Error::Mismatch(
-                            "current image address has no exact source occurrence",
-                        ));
-                    };
-                    let output = instruction
-                        .operand(0)
-                        .filter(|operand| {
-                            matches!(
-                                operand.access,
-                                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                            )
-                        })
-                        .ok_or(Error::Mismatch(
-                            "current image address has no result operand",
-                        ))?;
-                    let register = function
-                        .virtual_registers
-                        .get(output.virtual_register.0 as usize)
-                        .filter(|register| register.id == output.virtual_register)
-                        .ok_or(Error::Mismatch(
-                            "current image address has an unreadable result register",
-                        ))?;
-                    rows.push((
-                        (function.machine, block.id, instruction.id),
-                        *operation,
-                        reference,
-                        register.scalar_type,
-                    ));
-                }
-            }
-        }
-        rows.sort_unstable_by_key(|row| row.0);
-        if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err(Error::Mismatch(
-                "current image address repeats its instruction owner",
-            ));
-        }
-        Ok(Self { rows })
-    }
-
     pub(super) fn require(
         &self,
         address: &PlacedImageAddress,
         result: Option<ScalarType>,
     ) -> Result<(), Error> {
-        let key = (address.machine, address.block, address.instruction);
-        let index = self
-            .rows
-            .binary_search_by_key(&key, |row| row.0)
-            .map_err(|_| Error::Mismatch("placed image address has no current instruction"))?;
-        let row = &self.rows[index];
-        if row.1 != address.operation || row.2 != address.reference {
-            return Err(Error::Mismatch(
-                "placed image address differs from its current selection",
-            ));
-        }
-        if result.is_some_and(|result| result != row.3) {
-            return Err(Error::Mismatch(
-                "current image address has another result type",
-            ));
-        }
-        Ok(())
+        self.0.require(address, result).map_err(Error::Mismatch)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use machine_code::PlacedImageAddress;
+    use post_allocation_machine::PhysicalFunction;
+    use register_model::RegisterOperandAccess;
+    use selected_instructions::{
+        SelectedBlockId, SelectedImageAddressReference, SelectedInstructionId,
+        SelectedInstructionKind,
+    };
+    use semantic_vocabulary::{MachineId, OperationId, ScalarType};
+    fn current(functions: &[PhysicalFunction]) -> Result<CurrentImageSelections, &'static str> {
+        physical_planning::image_origins::capture(functions).map(CurrentImageSelections)
+    }
     use selected_instructions::{
         SelectedBlock, SelectedBlockOrigin, SelectedFunctionContracts, SelectedInstruction,
         SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
@@ -230,19 +151,22 @@ mod tests {
     #[test]
     fn placed_addresses_keep_exact_current_owners_references_and_types() {
         let (function, address, result) = fixture();
-        let rows = CurrentImageSelections::new(std::slice::from_ref(&function)).unwrap();
+        let rows = current(std::slice::from_ref(&function)).unwrap();
         rows.require(&address, Some(result)).unwrap();
         assert!(
-            CurrentImageSelections::prepare_for(&[], std::iter::once(&function))
-                .unwrap()
-                .is_none()
+            CurrentImageSelections::prepare_for(
+                &[],
+                &physical_planning::image_origins::capture(std::iter::once(&function))
+            )
+            .unwrap()
+            .is_none()
         );
         let mut scratch = function.clone();
         scratch.virtual_registers[0].origin = VirtualRegisterOrigin::InstructionScratch {
             instruction: address.instruction,
             operand: 0,
         };
-        CurrentImageSelections::new(&[scratch])
+        current(&[scratch])
             .unwrap()
             .require(&address, Some(result))
             .unwrap();
@@ -260,16 +184,16 @@ mod tests {
         assert!(rows.require(&address, Some(ScalarType::Boolean)).is_err());
         let mut unreadable = function.clone();
         unreadable.virtual_registers.clear();
-        assert!(CurrentImageSelections::new(&[unreadable]).is_err());
+        assert!(current(&[unreadable]).is_err());
         let mut repeated = function.clone();
         let instruction = repeated.blocks[0].instructions[0].clone();
         repeated.blocks[0].instructions.push(instruction);
-        assert!(CurrentImageSelections::new(&[repeated]).is_err());
+        assert!(current(&[repeated]).is_err());
         let mut no_origin = function;
         no_origin.blocks[0].instructions[0]
             .provenance
             .operations
             .clear();
-        assert!(CurrentImageSelections::new(&[no_origin]).is_err());
+        assert!(current(&[no_origin]).is_err());
     }
 }

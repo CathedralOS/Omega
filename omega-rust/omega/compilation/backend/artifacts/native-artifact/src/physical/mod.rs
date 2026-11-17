@@ -22,6 +22,8 @@ pub(crate) mod derivation {
     pub(crate) use evidence::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
 }
 mod fragment_publication;
+mod originals;
+pub use originals::{NativePhysicalOriginals, PrivatePhysicalOriginal};
 pub(crate) mod identity_bytes {
     use super::canonical_usize;
 

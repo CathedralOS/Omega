@@ -13,10 +13,7 @@ use filesystem_authority::{
     FilesystemSponsorLimits, canonical_filesystem_metadata_path_is_canonical, observation_codec,
 };
 
-use evaluation_accounting::{
-    BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
-    TerminalStorageScheduleIdentity,
-};
+use evaluation_contracts::{BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
 use semantic_vocabulary::WorkScheduleIdentity;
 
 const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x02";

@@ -6,9 +6,9 @@
 
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::ComponentNativeInputs;
-use terminal_psi_to_abstract_operations::admit_prepared_native_realization;
-use terminal_psi_to_abstract_operations::provider_admission::{
+use native_program_planning::ComponentNativeInputs;
+use native_program_planning::admit_prepared_native_realization;
+use provider_admission::provider_admission::{
     AdmittedNativeCallableAuthority, SourceEvaluatedImportSettlement,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, realization_error,
 };
@@ -28,7 +28,9 @@ pub struct ComponentNativeExport<'input> {
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
     entry_bridge: image_emission::CallableEntryTransport,
-    runtime: native_artifact::TerminalCallableRuntimeProvisions,
+    runtime: native_artifact::TerminalCallableRuntimeProvisions<
+        super::auxiliary_native::EncodedForeignAdapter,
+    >,
     authority: AdmittedNativeCallableAuthority,
 }
 
@@ -45,7 +47,7 @@ pub struct ComponentExportImage<'input> {
 impl<'input> ComponentExportImage<'input> {
     pub fn into_product(
         self,
-        call: &terminal_psi_to_abstract_operations::AdmittedNativeComponentCall<'_>,
+        call: &native_program_planning::AdmittedNativeComponentCall<'_>,
     ) -> Result<native_artifact::NativeComponentProduct, String> {
         if self.component.artifact() != call.component().artifact()
             || self.candidate.candidate != call.selection().candidate()
@@ -109,7 +111,7 @@ impl<'input> ComponentNativeExport<'input> {
             candidate,
             calling_application,
             image,
-            runtime,
+            runtime: runtime.map_adapters(super::auxiliary_native::emit),
             authority,
         })
     }
@@ -128,13 +130,13 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
-    executions: Vec<terminal_psi_to_abstract_operations::PreparedNativeExecution>,
-    scalars: Option<terminal_psi_to_abstract_operations::NativeScalarApplications<'_>>,
+    executions: Vec<native_program_planning::PreparedNativeExecution>,
+    scalars: Option<native_program_planning::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
     let artifact = inputs.component().artifact();
     let proposal = inputs.proposal();
-    let mut exports = Vec::with_capacity(inputs.exports().len());
+    let mut planned = Vec::with_capacity(inputs.exports().len());
     if executions.len() != inputs.exports().len() {
         return Err(vec![Diagnostic::error(
             "component prepared execution and export rosters differ",
@@ -142,21 +144,21 @@ pub fn emit_component_exports<'input>(
     }
     for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = terminal_psi_to_abstract_operations::lower_native_execution(
+        let (input, execution) = native_program_planning::lower_native_execution(
             proposal,
             execution,
             &[],
-            scalars.as_ref().map(|scalars| {
-                terminal_psi_to_abstract_operations::NativeScalarApplications {
+            scalars.as_ref().map(
+                |scalars| native_program_planning::NativeScalarApplications {
                     completed: scalars.completed,
-                }
-            }),
+                },
+            ),
         )?;
         let selections = proposal.post_terminal_optimizations().selections();
-        let prepared = terminal_psi_to_abstract_operations::prepare_native_providers(
+        let prepared = native_program_planning::prepare_native_providers(
             proposal,
             artifact,
-            terminal_psi_to_abstract_operations::RetainedNativeProviderInputs {
+            native_program_planning::RetainedNativeProviderInputs {
                 execution: &execution,
                 optimization_selections: selections,
                 accepted_package_permissions: request.accepted_package_permissions,
@@ -172,7 +174,7 @@ pub fn emit_component_exports<'input>(
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;
-        let projection = super::callable_objects::emit_callable_object(
+        let target = native_program_planning::callable_planning::plan_callable(
             admitted,
             admission,
             selections,
@@ -180,9 +182,8 @@ pub fn emit_component_exports<'input>(
             artifact,
             request.retain_native_stage_inputs,
         )?;
-        let runtime = projection.runtime;
-        let authority = projection.authority;
-        let projection = projection.projection;
+        let physical =
+            super::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
         let boundary = inputs
             .component()
             .module()
@@ -253,19 +254,46 @@ pub fn emit_component_exports<'input>(
                 "component export requires an independently retained private callback companion",
             ));
         }
-        let body = projection.into_object();
-        if !body.object().layout.function_symbols.is_empty() {
+        if !physical.body.private_references.is_empty() {
             return Err(realization_error(
                 "component export closure",
                 "component export retains private callback bodies requiring their own publication custody",
             ));
         }
-        let entry_bridge = image_emission::create_callable_entry_transport(
-            &body,
+        let entry_plan = image_emission::plan_callable_entry_transport(
+            &physical.body.frame,
+            &physical.body.installations,
             application.plan.plan(),
             &ordinals,
         )
         .map_err(|error| realization_error("component entry ABI", error))?;
+        planned.push((export, physical, entry_plan));
+    }
+    // Close every export, entry transport and foreign helper before encoding
+    // the component. No export can discover more source or bodies afterward.
+    let handlers = installation_binding::RetainedHandlerMeasurements::default();
+    let mut bound = Vec::with_capacity(planned.len());
+    for (export, physical, entry_plan) in planned {
+        bound.push((export, physical.bind(&handlers)?, entry_plan));
+    }
+    let mut encoded = Vec::with_capacity(bound.len());
+    for (export, physical, entry_plan) in bound {
+        let body = physical.encode()?;
+        let entry = image_emission::encode_callable_entry_transport(entry_plan)
+            .map_err(|error| realization_error("component entry ABI", error))?;
+        encoded.push((export, body, entry));
+    }
+    let mut layouts = Vec::with_capacity(encoded.len());
+    for (export, body, entry) in encoded {
+        layouts.push((export, body.layout()?, entry));
+    }
+    let mut exports = Vec::with_capacity(layouts.len());
+    for (export, layout, entry_bridge) in layouts {
+        let application = export.calling_application;
+        let emitted = layout.construct_object()?;
+        let body = emitted.projection.into_object();
+        let runtime = emitted.runtime;
+        let authority = emitted.authority;
         exports.push(ComponentNativeExport {
             component: inputs.component(),
             selected_provider_plans: &proposal.providers().selection,

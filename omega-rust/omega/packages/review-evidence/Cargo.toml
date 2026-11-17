@@ -7,29 +7,30 @@ version.workspace = true
 
 
 [dependencies]
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
+application-identity = { path = "../../../psi/compilation/representations/application-identity" }
+numeric-literals = { path = "../../../psi/compilation/representations/numeric-literals" }
+source-admission = { path = "../../../psi/compilation/representations/source-admission" }
+source-text = { path = "../../../psi/foundation/source-text" }
+wire = { path = "../../../psi/foundation/wire" }
 arena = { path = "../../../psi/foundation/arena" }
 build-settings = { path = "../../build-system/build-settings" }
 backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
-build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
-layout-plans = { path = "../../../psi/foundation/layout-plans" }
-optimization-core = { path = "../../foundation/optimization-core" }
+layout-plans = { path = "../../../psi/compilation/representations/storage-layout" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 products = { path = "../../compilation/products" }
 source-compiler = { path = "../../../psi/compilation/source-compiler" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 package-compilation = { path = "../package-compilation" }
-provider-planning = { path = "../../compilation/realization/provider-planning" }
+native-program-planning = { path = "../../compilation/pipeline/00_native-program-planning" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
-selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
 effects = { path = "../../compilation/backend/plans/effects" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 target = { path = "../../compilation/backend/target" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-flow-effects = { path = "../../../psi/foundation/flow-effects" }
-language-core = { path = "../../../psi/foundation/language-core" }
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
-numerics = { path = "../../../psi/foundation/numerics" }
-source = { path = "../../../psi/foundation/source" }
-symbols = { path = "../../../psi/foundation/symbols" }
-typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+flow-effects = { path = "../../../psi/compilation/representations/source-effects" }
+language-core = { path = "../../../psi/compilation/representations/source-vocabulary" }
+numerics = { path = "../../../psi/compilation/representations/scalar-values" }
+symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
 

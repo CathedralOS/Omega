@@ -1,0 +1,9 @@
+[package]
+name = "schema-reflection"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+wire = { path = "../../../foundation/wire" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }

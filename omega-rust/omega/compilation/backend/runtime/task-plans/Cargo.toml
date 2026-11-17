@@ -9,15 +9,17 @@ name = "task_plans"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../../psi/foundation/arena" }
+wire = { path = "../../../../../psi/foundation/wire" }
 calling-conventions = { path = "../../calling-conventions" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 effects = { path = "../../plans/effects" }
 target = { path = "../../target" }
-language-core = { path = "../../../../../psi/foundation/language-core" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 
 [dev-dependencies]
 # The source guards delegate their scan to the shared audit crate.
-source-audit = { path = "../../../../../psi/foundation/source-audit" }
+source-audit = { path = "../../../../../test-support/source-audit" }

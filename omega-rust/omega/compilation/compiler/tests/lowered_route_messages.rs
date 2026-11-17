@@ -12,8 +12,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees_to_terminal_psi::elaborate_closure;
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::elaborate_closure;
 use unbuilt_frontier::repository as repo_root_at;
 
 // Fixture compilation shares process-wide counters; run one at a time.

@@ -9,6 +9,8 @@ so both `realize_native_artifact` and `admit_terminal_runtime` (`omega run
 realizations.
 */
 
+mod auxiliary_native;
+mod body_resources;
 mod callable_objects;
 mod callback_thunks;
 mod component_calls;
@@ -24,8 +26,8 @@ use diagnostics::Diagnostic;
 use native_artifact::RequestedNativeArtifact;
 
 use self::object_emission::emit_realization_object;
-use terminal_psi_to_abstract_operations::provider_admission::realization_error;
-use terminal_psi_to_abstract_operations::{
+use provider_admission::provider_admission::realization_error;
+use native_program_planning::{
     AdmittedNativeRealization, admit_prepared_native_realization,
 };
 
@@ -37,20 +39,22 @@ pub struct RealizedNativeProduct {
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
     entry_settlement:
-        Option<terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement>,
-    runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+        Option<native_program_planning::ValidatedNativeProgramEntrySettlement>,
+    runtime_provisions: Option<
+        native_runtime_provisions::NativeRuntimePlan<native_runtime_provisions::NativeForeignAdapterRequest>,
+    >,
 }
 
 fn admit_realization<'request>(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    input: native_program_planning::VerifiedNativeArtifactInput,
     request: &NativeRealizationRequest<'request>,
 ) -> Result<AdmittedRealization<'request>, Vec<Diagnostic>> {
     let admitted = admit_prepared_native_realization(input, artifact, &request.admission)?;
     let AdmittedNativeRealization {
         input, providers, ..
     } = &admitted;
-    let entry_settlement = terminal_psi_to_abstract_operations::admit_executable_entry(
+    let entry_settlement = native_program_planning::admit_executable_entry(
         input,
         artifact,
         request.program_entry,
@@ -60,7 +64,7 @@ fn admit_realization<'request>(
     let runtime_provisions = entry
         .checked_entry
         .map(|_| {
-            native_artifact::TerminalRuntimeProvisions::capture_native_admission(
+            native_runtime_provisions::NativeRuntimePlan::capture_native_admission(
                 entry,
                 input.optimization_input().runtime_input(),
                 providers
@@ -70,14 +74,14 @@ fn admit_realization<'request>(
                 providers
                     .settlements
                     .iter()
-                    .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
+                    .map(|settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
                         boundary: settlement.boundary,
                         realization: settlement.realization.clone(),
                     })
                     .collect(),
                 request.admission.providers.selected_provider_plans,
                 request.admission.providers.external_binding_rows,
-                native_artifact::NativeBindingRuntimeInputs {
+                native_runtime_provisions::NativeBindingRuntimeInputs {
                     bindings: request.admission.providers.native_bindings,
                     calling: request.admission.providers.installed_calling,
                 },
@@ -94,7 +98,7 @@ fn admit_realization<'request>(
 
 pub(crate) fn realize_native_artifact(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    input: native_program_planning::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
     let AdmittedRealization {
@@ -115,14 +119,17 @@ pub(crate) fn realize_native_artifact(
         &providers.settlements,
         entry_settlement.as_ref(),
         &program_provider_context,
+        runtime_provisions,
         &request,
     )?;
-    let runtime_provisions = runtime_provisions.map(|provisions| {
+    let runtime_provisions = emitted.runtime_provisions.map(|provisions| {
         provisions
+            .map_adapters(auxiliary_native::emit)
             .with_private_entry_ram(private_entry_ram)
             .with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
             .with_target_provider_proposals(request.target_provider_proposals.to_vec())
     });
+    let physical_originals = emitted.physical_originals;
     let emitted = emitted.object;
     let image_request = request
         .image_request
@@ -141,6 +148,7 @@ pub(crate) fn realize_native_artifact(
             request.admission.providers.selected_provider_plans,
             providers,
             boundary_application_coverage,
+            physical_originals,
         )
     }?;
     Ok(RealizedNativeProduct {
@@ -151,7 +159,7 @@ pub(crate) fn realize_native_artifact(
 
 pub(crate) fn admit_terminal_runtime(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    input: native_program_planning::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
 ) -> Result<Option<native_artifact::TerminalRuntimeProvisions>, Vec<Diagnostic>> {
     let AdmittedRealization {
@@ -160,27 +168,22 @@ pub(crate) fn admit_terminal_runtime(
         ..
     } = admit_realization(artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let optimized = crate::pipeline::optimize_abstract(
-        input,
-        request.optimization_selections,
-        request.optimization_budget(),
-        request.observation,
-    )
-    .map_err(|error| realization_error("canonical abstract optimization", error))?;
-    let (program, lowering_facts) = optimized.into_lowering_parts();
-    let borrowed_storage_layouts =
-        abstract_operations_to_target_operations::capture_runtime_borrowed_storage_layouts(
-            &program,
-            &lowering_facts,
-            request.admission.providers.target(),
-        )
-        .map_err(|error| realization_error("runtime borrowed storage layout", error))?;
+    let borrowed_storage_layouts = native_program_planning::plan_runtime_storage(
+        input, request.admission.providers.target(), request.optimization_selections,
+        request.optimization_budget(), request.observation.counter(crate::observations::NativePipelineStage::AbstractOptimization),
+    ).map_err(|error| match error {
+        native_program_planning::NativeBodyPlanningError::AbstractOptimization(error) => realization_error("canonical abstract optimization", error),
+        native_program_planning::NativeBodyPlanningError::Target(error) => realization_error("runtime borrowed storage layout", error),
+    })?;
     Ok(runtime_provisions.map(|provisions| {
         provisions
+            .map_adapters(auxiliary_native::plan)
+            .map_adapters(auxiliary_native::encode)
+            .map_adapters(auxiliary_native::emit)
             .with_private_entry_ram(private_entry_ram)
             .with_borrowed_storage_layouts(borrowed_storage_layouts)
             .with_target_provider_proposals(request.target_provider_proposals.to_vec())
-    }))
+    }).map(native_artifact::TerminalRuntimeProvisions::from_plan))
 }
 
 pub(crate) fn selected_physical_pipeline_failed(

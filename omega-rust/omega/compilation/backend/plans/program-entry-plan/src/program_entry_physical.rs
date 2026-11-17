@@ -84,17 +84,13 @@ impl ProgramEntryPhysicalContractPackageSourceDigest {
         package: target::ProgramEntryPhysicalContractPackage,
         source: &[u8],
     ) -> Self {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
-        hash_digest_field(
-            &mut digest,
-            b"omega.program-entry-physical-contract-package-source.v1",
-        );
-        hash_digest_field(&mut digest, package.manifest_identity().as_bytes());
-        hash_digest_field(&mut digest, package.package_relative_source().as_bytes());
-        hash_digest_field(&mut digest, source);
         Self {
             package,
-            bytes: digest.finish(),
+            bytes: declaration_contracts::entry_contract_identity::digest(
+                package.manifest_identity(),
+                package.package_relative_source(),
+                source,
+            ),
         }
     }
 
@@ -247,10 +243,6 @@ impl ProgramEntryPhysicalContractPlan {
     pub const fn guaranteed_entry_stack(&self) -> Option<&target::TargetEntryStackGuarantee> {
         self.guaranteed_entry_stack.as_ref()
     }
-}
-
-fn hash_digest_field(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
-    digest.bytes(bytes);
 }
 
 struct PhysicalArrival {

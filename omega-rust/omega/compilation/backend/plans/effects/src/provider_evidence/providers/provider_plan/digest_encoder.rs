@@ -62,7 +62,7 @@ impl DigestFeed for ProviderPlanDigestEncoder {
     }
 }
 
-impl language_semantics::service_surface::ServiceContractSink for ProviderPlanDigestEncoder {
+impl declaration_contracts::service_surface::ServiceContractSink for ProviderPlanDigestEncoder {
     fn service_contract_bytes(&mut self, bytes: &[u8]) {
         DigestFeed::raw(self, bytes);
     }

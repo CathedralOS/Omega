@@ -1472,7 +1472,7 @@ weakening admission is no substitute for this split. See [embedding](../wiki/spe
 A coordinator forwards complete typed results; it does not own package
 loading, build evaluation, stage algorithms, artifact formatting or a generic
 orchestration subsystem. Allocation counters and phase-report deltas belong to
-the independent host [artifacts](omega/foundation/artifacts/README.md) utility,
+the independent host [artifacts](omega/compilation/products/measurements/README.md) utility,
 not program representations; it depends only on diagnostic foundations, not
 semantic reports, backend encoders or producing stages.
 

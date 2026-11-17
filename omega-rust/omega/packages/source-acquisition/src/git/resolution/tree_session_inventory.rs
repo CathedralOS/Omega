@@ -105,15 +105,15 @@ impl GitWorkspaceSession {
                     }
 
                     let node = match entry.kind {
-                        GitTreeEntryKind::Tree => source::CapturedSourceNode::Directory,
+                        GitTreeEntryKind::Tree => source_capture::CapturedSourceNode::Directory,
                         GitTreeEntryKind::File { executable, bytes } => {
-                            source::CapturedSourceNode::File {
+                            source_capture::CapturedSourceNode::File {
                                 bytes: Arc::from(bytes.as_slice()),
                                 executable,
                             }
                         }
                         GitTreeEntryKind::Symlink { target_bytes } => {
-                            source::CapturedSourceNode::Symlink {
+                            source_capture::CapturedSourceNode::Symlink {
                                 target: git_path_from_bytes(target_bytes.as_slice())?,
                             }
                         }
@@ -123,10 +123,10 @@ impl GitWorkspaceSession {
                     };
                     rows.push((entry.relative_path, node));
                 }
-                let tree = source::CapturedSourceTree::new(rows)
+                let tree = source_capture::CapturedSourceTree::new(rows)
                     .map_err(|error| crate::tree::filesystem::io_error(&root, error))?;
                 for (path, node) in tree.entries() {
-                    if matches!(node, source::CapturedSourceNode::Symlink { .. }) {
+                    if matches!(node, source_capture::CapturedSourceNode::Symlink { .. }) {
                         tree.canonicalize(path).map_err(|error| {
                             crate::tree::filesystem::io_error(&root.join(path), error)
                         })?;

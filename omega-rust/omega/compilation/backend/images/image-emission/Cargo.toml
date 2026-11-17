@@ -12,17 +12,23 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+native-verification = { path = "../../../verification/native-verification" }
+installation-binding = { path = "../../../pipeline/02_installation-binding" }
+native-encoding = { path = "../../../pipeline/03_native-encoding" }
+physical-planning = { path = "../../../pipeline/01_physical-program-planning" }
+register-homes = { path = "../../../representations/register-homes" }
+wire = { path = "../../../../../psi/foundation/wire" }
 native-vocabulary = { path = "../../../representations/native-vocabulary" }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
-language-core = { path = "../../../../../psi/foundation/language-core" }
-provider-admission = { path = "../../../realization/provider-admission" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+provider-admission = { path = "../../../verification/provider-admission" }
 register-model = { path = "../../register-model" }
 post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
-machine-emission = { path = "../../machine-emission" }
+function-layout = { path = "../../../pipeline/04_native-layout/function-layout" }
 runtime-abi = { path = "../../runtime/runtime-abi" }
 arena = { path = "../../../../../psi/foundation/arena" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
@@ -31,26 +37,24 @@ abstract-operations = { path = "../../../representations/abstract-operations" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
 image-macho = { path = "../image-macho" }
 image-pe = { path = "../image-pe" }
-object-file = { path = "../../object-file" }
+object-file = { path = "../../../pipeline/05_object-construction" }
 target = { path = "../../target" }
 x86_64-encoding = { path = "../../isa/x86_64-encoding" }
 machine-code = { path = "../../../representations/machine-code" }
-function-identity = { path = "../../../../foundation/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 boundary-applications = { path = "../../artifacts/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
-native-preparation = { path = "../../../pipeline/02_abstract-operations-to-target-operations/native-preparation" }
-abstract-operations-to-target-operations = { path = "../../../pipeline/02_abstract-operations-to-target-operations" }
-target-operations-to-selected-instructions = { path = "../../../pipeline/03_target-operations-to-selected-instructions" }
+native-program-planning = { path = "../../../pipeline/00_native-program-planning" }
 task-plans = { path = "../../runtime/task-plans" }
 isa-aarch64 = { path = "../../isa/isa-aarch64" }
 isa-x86_64 = { path = "../../isa/isa-x86_64" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
@@ -59,14 +63,13 @@ terminal-work = { path = "../../../../../psi/compilation/representations/termina
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+native-encoding = { path = "../../../pipeline/03_native-encoding", features = ["test-support"] }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
-abstract-operations-to-abstract-operations = { path = "../../../pipeline/01_abstract-operations-to-abstract-operations" }
+native-program-planning = { path = "../../../pipeline/00_native-program-planning" }
 compiler = { path = "../../../compiler" }
 image-emission = { path = ".", features = ["test-support"] }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
-optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
-extents = { path = "../../../../../psi/foundation/extents" }
-source-files-to-tokens = { path = "../../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+extents = { path = "../../../../../psi/runtime/extents" }
+
+source-compiler = { path = "../../../../../psi/compilation/source-compiler", features = ["test-support"] }

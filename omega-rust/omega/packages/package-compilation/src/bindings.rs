@@ -21,7 +21,7 @@ pub struct PackageSourceBinding {
     pub(super) canonical_name: String,
     pub(super) source_root: PathBuf,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
-    pub(super) captured_source: Option<Arc<source::CapturedSourceTree>>,
+    pub(super) captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     pub(super) captured_build_source: Option<build_output::CapturedBuildSourceInput>,
 }
 
@@ -43,7 +43,7 @@ impl PackageSourceBinding {
 
     pub fn with_captured_source(
         mut self,
-        tree: Arc<source::CapturedSourceTree>,
+        tree: Arc<source_capture::CapturedSourceTree>,
     ) -> Result<Self, String> {
         let input = source_snapshot::retained_source_input(&tree)?;
         self.canonical_source_metadata = None;

@@ -6,9 +6,8 @@
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use machine_emission::native_foreign_bridge::{
-    NativeForeignBridgeRequest, emit_native_foreign_bridge,
-};
+use physical_planning::native_foreign_bridge::{NativeForeignBridgeRequest};
+use native_encoding::test_support::{emit_native_foreign_bridge};
 use std::{path::PathBuf, process::Command};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -139,10 +138,13 @@ fn emitted_adapters_load_and_share_the_real_provider_registration() {
             .unwrap(),
         })
         .unwrap();
+        let locator = normalize_foreign_locator(locator, profile).unwrap();
+        let imports = image_fixtures::encode_locator_import(&locator);
         let adapter = image_emission::emit_native_foreign_adapter(
             bridge,
-            normalize_foreign_locator(locator, profile).unwrap(),
+            locator,
             [index as u8 + 1; 32],
+            imports,
         )
         .unwrap();
         let path = directory.join(format!("adapter-{index}.{extension}"));

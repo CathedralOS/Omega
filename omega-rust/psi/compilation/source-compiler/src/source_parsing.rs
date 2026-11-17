@@ -1,38 +1,230 @@
-//! Sequence complete lexical and parsing stages, then admit or retain their results.
+//! Stream admitted source units into ordered syntax pages.
+
+mod batches {
+    use arena::Arena;
+    use diagnostics::Diagnostic;
+    use rayon::prelude::*;
+    use source_admission::LoadedSource;
+    use source_admission::LoadedSources;
+    use source_text::SourcePosition;
+    use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees};
+
+    struct ParsedPageSources {
+        sources: Vec<ParsedSource>,
+        lexical_error: Option<Diagnostic>,
+        parse_error: Option<Diagnostic>,
+    }
+
+    pub(super) fn parse(
+        mut loaded: LoadedSources,
+        first_page: u32,
+        independent_units: bool,
+    ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
+        let sources = loaded.sources.span_mut_or_empty(loaded.batch);
+        let count = sources.len();
+        let desired_pages = if independent_units {
+            count.max(1)
+        } else {
+            count
+                .min(execution_admission::current_workers().saturating_mul(4))
+                .max(1)
+        };
+        let chunk_size = count.max(1).div_ceil(desired_pages);
+        let page_count = count.div_ceil(chunk_size);
+        if first_page == 0
+            || (page_count != 0
+                && u32::try_from(page_count - 1)
+                    .ok()
+                    .and_then(|last| first_page.checked_add(last))
+                    .is_none())
+        {
+            return Err(vec![Diagnostic::error(
+                "parser exhausted its source-page directory",
+            )]);
+        }
+        let mut trees: Vec<_> = sources
+            .chunks(chunk_size)
+            .enumerate()
+            .map(|(index, chunk)| {
+                SyntaxTrees::new_with_generation(chunk[0].source_id, first_page + index as u32)
+            })
+            .collect();
+        let mut pages = Vec::with_capacity(if page_count == 1 { 0 } else { page_count });
+        let mut single_page_sources = execution_admission::within_budget(|| {
+            if let [syntax] = trees.as_mut_slice() {
+                Some(parse_page(sources, syntax))
+            } else {
+                sources
+                    .par_chunks_mut(chunk_size)
+                    .zip_eq(trees.par_iter_mut())
+                    .map(|(sources, syntax)| parse_page(sources, syntax))
+                    .collect_into_vec(&mut pages);
+                None
+            }
+        });
+        for page in single_page_sources.iter_mut().chain(&mut pages) {
+            if let Some(error) = page.lexical_error.take() {
+                return Err(vec![error]);
+            }
+        }
+        for page in single_page_sources.iter_mut().chain(&mut pages) {
+            if let Some(error) = page.parse_error.take() {
+                return Err(vec![error]);
+            }
+        }
+        let mut parsed = Arena::with_capacity(count);
+        let batch = parsed.insert_many(
+            single_page_sources
+                .into_iter()
+                .chain(pages)
+                .flat_map(|page| page.sources),
+        );
+        Ok((
+            trees,
+            ParsedSources {
+                sources: parsed,
+                batch,
+            },
+        ))
+    }
+
+    fn parse_page(sources: &mut [LoadedSource], syntax: &mut SyntaxTrees) -> ParsedPageSources {
+        let mut page = ParsedPageSources {
+            sources: Vec::with_capacity(sources.len()),
+            lexical_error: None,
+            parse_error: None,
+        };
+        // Keep this frontier streamed: lex and parse one admitted unit,
+        // then recycle its token buffer for the next. After a parse error
+        // we still scan later units to preserve lexical-error precedence.
+        let mut scratch = tokens::TokenScratch::default();
+        for source in sources {
+            let tokens = match crate::lexing::lex_unit_reusing(&source.source, &mut scratch)
+            {
+                Ok(tokens) => tokens.retain_source(source.source.clone()),
+                Err(error) => {
+                    page.lexical_error =
+                        Some(located_error(source, error.span.start, error.message));
+                    break;
+                }
+            };
+            if page.parse_error.is_none() {
+                match crate::parsing::parse_into(syntax, source.source_id, &tokens) {
+                    Ok(roots) => page.sources.push(ParsedSource {
+                        source_id: source.source_id,
+                        path: std::mem::take(&mut source.path),
+                        source: source.source.clone(),
+                        origin: source.origin,
+                        root_items: roots.items,
+                        import_root_range: roots.import_range,
+                        scope: source.scope,
+                    }),
+                    Err(error) => {
+                        page.parse_error = Some(located_error(
+                            source,
+                            error.source_span.span.start,
+                            error.message,
+                        ))
+                    }
+                }
+            }
+            tokens.recycle(&mut scratch);
+        }
+        page
+    }
+
+    fn located_error(source: &LoadedSource, start: usize, message: String) -> Diagnostic {
+        let position = SourcePosition::of(&source.source, start);
+        Diagnostic::error(format!(
+            "{}:{}:{}: {}",
+            source.path.display(),
+            position.line,
+            position.column,
+            message
+        ))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use source_text::SourceId;
+        use std::sync::Arc;
+
+        fn loaded(texts: &[&str]) -> LoadedSources {
+            texts
+                .iter()
+                .enumerate()
+                .map(|(index, text)| LoadedSource {
+                    source_id: SourceId(index),
+                    path: format!("source-{index}.omg").into(),
+                    source: Arc::from(*text),
+                    ..Default::default()
+                })
+                .collect()
+        }
+
+        #[test]
+        fn fused_batch_preserves_lexical_error_priority_and_source_order() {
+            for texts in [
+                vec!["machine", "\"unterminated"],
+                vec!["machine", "data Good {}", "\"unterminated"],
+            ] {
+                let input = loaded(&texts);
+                let expected = vec![crate::lexing::lex(input.clone()).unwrap_err().into_diagnostic()];
+                let actual = parse(input, 1, false).unwrap_err();
+                assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+            }
+            let mut same_page = loaded(&["machine", "\"unterminated"]);
+            let mut syntax = SyntaxTrees::new_with_generation(SourceId(0), 1);
+            let page = parse_page(
+                same_page.sources.span_mut_or_empty(same_page.batch),
+                &mut syntax,
+            );
+            assert!(page.lexical_error.is_some());
+            assert!(page.parse_error.is_some());
+            let input = loaded(&["machine", "data"]);
+            let lexed = crate::lexing::lex(input.clone()).unwrap();
+            let expected = vec![crate::parsing::parse(&lexed, Default::default()).err().unwrap().into_diagnostic()];
+            let actual = parse(input, 1, false).unwrap_err();
+            assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+        }
+
+        #[test]
+        fn fused_batch_matches_page_identity_metadata_and_owned_literals() {
+            let texts = (0..97)
+                .map(|index| format!("const Text{index}: [u8] = \"value\\n{index}\";"))
+                .collect::<Vec<_>>();
+            let input = loaded(&texts.iter().map(String::as_str).collect::<Vec<_>>());
+            let lexed = crate::lexing::lex(input.clone()).unwrap();
+            let (expected_pages, expected_sources) =
+                crate::parsing::parse(&lexed, crate::parsing::ParseOptions { first_page_identity: 5, ..Default::default() })
+                    .unwrap()
+                    .into_parts();
+            let (actual_pages, actual_sources) = parse(input, 5, false).unwrap();
+            assert_eq!(
+                format!("{actual_sources:?}"),
+                format!("{expected_sources:?}")
+            );
+            assert_eq!(actual_pages.len(), expected_pages.len());
+            for (actual, expected) in actual_pages.iter().zip(&expected_pages) {
+                assert_eq!(actual.snapshot(), expected.snapshot());
+            }
+            let units = parse(loaded(&["data First {}", "data Second {}"]), 1, true)
+                .unwrap()
+                .0;
+            assert_eq!(units.len(), 2);
+            assert_eq!(units[0].root_item_handles()[0].generation(), 1);
+            assert_eq!(units[1].root_item_handles()[0].generation(), 2);
+        }
+    }
+}
 
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use arena::Arena;
 use diagnostics::Diagnostic;
-use source::{DependencyScope, LoadedSource, LoadedSources, SourceContents, SourceFileSystem};
-use std::path::PathBuf;
+use source_admission::LoadedSource;
+use source_admission::LoadedSources;
 use syntax_trees::{ParsedSource, ParsedSources, ParsedUnit, SyntaxTrees};
-
-pub fn load_source_files(
-    frontier: Vec<(PathBuf, DependencyScope)>,
-    filesystem: &SourceFileSystem,
-    observer: &mut impl PsiCompilationObserver,
-) -> Result<Vec<SourceContents>, Vec<Diagnostic>> {
-    observer.record_result(PsiCompilationStage::SourceParsing, || {
-        let mut loaded = Vec::with_capacity(frontier.len());
-
-        for (path, scope) in frontier {
-            let source = filesystem.read_to_string(&path).map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "failed to read {}: {error}",
-                    path.display()
-                ))]
-            })?;
-
-            loaded.push(SourceContents {
-                path,
-                source,
-                scope,
-            });
-        }
-
-        Ok(loaded)
-    })
-}
 
 pub struct SourceInput(pub LoadedSources);
 
@@ -142,29 +334,17 @@ impl SourceInput {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
         observer.record_result(PsiCompilationStage::SourceParsing, || {
-            let tokens = source_files_to_tokens::lex(self.0)
-                .map_err(|error| vec![error.into_diagnostic()])?;
-            let options = tokens_to_syntax_trees::ParseOptions {
-                first_page_identity: first_page,
-                layout: if independent_units {
-                    tokens_to_syntax_trees::ParseLayout::IndependentUnits
-                } else {
-                    tokens_to_syntax_trees::ParseLayout::SharedPages
-                },
-            };
-            tokens_to_syntax_trees::parse(&tokens, options)
-                .map(|parsed| parsed.into_parts())
-                .map_err(|error| vec![error.into_diagnostic()])
+            batches::parse(self.0, first_page, independent_units)
         })
     }
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/source_parsing.rs"]
-mod batch_tests;
-#[cfg(test)]
 #[path = "../tests/unit/reused_sources.rs"]
 mod reuse_tests;
+#[cfg(test)]
+#[path = "../tests/unit/source_parsing.rs"]
+mod batch_tests;
 
 pub struct ParsedText<'text> {
     pub tokens: tokens::TokenStream<'text>,
@@ -178,22 +358,15 @@ pub enum SourceParseError {
 }
 
 pub fn parse_text(text: &str) -> Result<ParsedText<'_>, SourceParseError> {
-    let loaded = [LoadedSource {
-        source: std::sync::Arc::from(text),
-        ..Default::default()
-    }]
-    .into_iter()
-    .collect();
-    let mut lexed = source_files_to_tokens::lex(loaded).map_err(|error| SourceParseError::Lex {
-        message: error.message,
-    })?;
-    let parsed = tokens_to_syntax_trees::parse(&lexed, Default::default()).map_err(|error| {
+    let tokens = crate::lexing::lex_unit_reusing(text, &mut tokens::TokenScratch::default())
+        .map_err(|error| SourceParseError::Lex {
+            message: error.message,
+        })?;
+    let mut syntax = SyntaxTrees::new(source_text::SourceId::default());
+    crate::parsing::parse_into(&mut syntax, source_text::SourceId::default(), &tokens).map_err(|error| {
         SourceParseError::Parse {
             message: error.message,
         }
     })?;
-    let (mut pages, _) = parsed.into_parts();
-    let syntax = pages.pop().expect("one source produces one syntax page");
-    let tokens = std::mem::take(&mut lexed.sources.span_mut_or_empty(lexed.batch)[0].tokens);
     Ok(ParsedText { tokens, syntax })
 }

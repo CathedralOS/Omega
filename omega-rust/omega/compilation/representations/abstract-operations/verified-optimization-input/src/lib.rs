@@ -16,6 +16,10 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };
 
+mod emission_admission;
+pub use emission_admission::EmissionAdmission;
+pub mod publication;
+
 mod native_execution_scope;
 pub use native_execution_scope::{NativeExecutionScope, NativeExecutionScopeError};
 
@@ -399,7 +403,7 @@ impl AdmittedLoweringFacts {
         }
         let module = self.module();
         let installed_helpers =
-            provider_selection::CallbackProviderDeclarations::installed_helper_roots(module);
+            provider_correspondence::CallbackProviderDeclarations::installed_helper_roots(module);
         let mut roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
         for machine in &module.machines {
             for operation in machine.blocks.iter().flat_map(|block| &block.operations) {

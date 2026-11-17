@@ -9,7 +9,7 @@ alone.
 use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
 
-pub use language_semantics::declaration_selection::AuthoredRootGrant;
+pub use declaration_contracts::selection::AuthoredRootGrant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGrantSelectorKind {
@@ -35,7 +35,7 @@ pub struct ResolvedSelectedProviderGrant {
 pub struct ResolvedAuthoredSelectedProviderGrant {
     pub grant: ResolvedSelectedProviderGrant,
     pub selecting_machine: symbols::SymbolHandle,
-    pub source_span: source::SourceSpan,
+    pub source_span: source_text::SourceSpan,
 }
 
 impl ResolvedSelectedProviderGrant {
@@ -183,7 +183,7 @@ pub fn resolve_authored_selected_provider_grants(
     selected: &crate::SelectedProviderPlanFacts,
     authored_grants: &[AuthoredRootGrant],
 ) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {
-    use language_semantics::declaration_selection::RootGrantSubject;
+    use declaration_contracts::selection::RootGrantSubject;
     fn application_key(plan: &ProviderPlan) -> (&str, &str) {
         (
             &plan.provider_type,

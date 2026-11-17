@@ -46,7 +46,7 @@ pub fn evaluate_conventional_sum_layout(
         byte_size: runtime_abi::CASE_TAG_BYTE_SIZE,
         byte_alignment: runtime_abi::CASE_TAG_BYTE_ALIGNMENT,
     };
-    let geometry = layout_plans::conventional_sum_geometry(
+    let geometry = layout_planning::conventional_sum_geometry(
         tag,
         common_field_shapes.iter().map(storage_geometry),
         case_field_shapes

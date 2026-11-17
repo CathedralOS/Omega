@@ -9,9 +9,11 @@ name = "program_entry_plan"
 path = "src/lib.rs"
 
 [dependencies]
-optimization-core = { path = "../../../../foundation/optimization-core" }
+declaration-contracts = { path = "../../../../../psi/compilation/representations/declaration-contracts" }
+wire = { path = "../../../../../psi/foundation/wire" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 calling-conventions = { path = "../../calling-conventions" }
 effects = { path = "../effects" }
 target = { path = "../../target" }

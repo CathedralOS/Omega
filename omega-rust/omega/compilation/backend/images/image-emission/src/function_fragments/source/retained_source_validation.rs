@@ -6,25 +6,43 @@
 use super::placed_reference::backing_geometry;
 use super::{
     AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractStructuralCallResult, Error, MachineId, StagedOptimizedRelocationFreeObjectContainer,
-    abstract_function, access_lifecycle_retained, aggregate_results, byte_concatenation_retained,
-    byte_operation_retained, call_target_matches, control_flow, correspondence, descriptor_tables,
-    element_operation_retained, empty_run_release_retained, fixed_byte_length_is_static, fragments,
-    ieee_float_builtin_retained, ieee_literal_retained, installed_calls, installed_interrupts,
-    parameter_abi, placed_reference, placed_scalar_retained, primitive_accesses,
-    program_image_retained, static_interrupts, structural_case, structural_fields,
+    AbstractStructuralCallResult, Error, MachineId, access_lifecycle_retained, aggregate_results,
+    byte_concatenation_retained, byte_operation_retained, call_target_matches, control_flow,
+    correspondence, descriptor_tables, element_operation_retained, empty_run_release_retained,
+    fixed_byte_length_is_static, fragments, ieee_float_builtin_retained, ieee_literal_retained,
+    installed_calls, installed_interrupts, parameter_abi, placed_reference, placed_scalar_retained,
+    primitive_accesses, program_image_retained, static_interrupts, structural_case,
+    structural_fields,
 };
+use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use target_operations::TargetUnitOperation;
+
+fn original_function(
+    original: &crate::RetainedTargetOperations,
+    machine: MachineId,
+) -> Result<&AbstractFunction, Error> {
+    let mut rows = original
+        .target()
+        .optimized()
+        .plan()
+        .functions
+        .iter()
+        .filter(|row| row.machine == machine);
+    match (rows.next(), rows.next()) {
+        (Some(row), None) => Ok(row),
+        _ => Err(Error::Mismatch("audit has no unique original function")),
+    }
+}
 
 /// The optimized function and stage 02's lowered function for `machine`.
 /// Only the replay validators call this; ordinary emission reads the
 /// prepared plan.
 pub(in crate::function_fragments) fn audited_function<'a>(
-    source: &'a StagedOptimizedRelocationFreeObjectContainer,
+    _source: &'a StagedOptimizedRelocationFreeObjectContainer,
     original: &'a crate::RetainedTargetOperations,
     machine: MachineId,
 ) -> Result<(&'a AbstractFunction, &'a target_operations::TargetFunction), Error> {
-    let abstracted = abstract_function(source, machine)?;
+    let abstracted = original_function(original, machine)?;
     let mut targeted = crate::retained_working_program::target_operations(original)
         .functions
         .iter()
@@ -42,9 +60,12 @@ pub(in crate::function_fragments) fn establish_geometry(
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), super::Error> {
     let current = source.source().source().source().source();
+    let physical = current.original_physical_program().ok_or(Error::Mismatch(
+        "original physical instructions were not retained (ReplayUnavailable)",
+    ))?;
     let abstracted = original.target().optimized().plan();
     let targeted = crate::retained_working_program::target_operations(original);
-    let selected = current.physical_program();
+    let selected = physical;
     if !targeted.functions.iter().any(|function| {
         function.graph.operations().any(|operation| {
             matches!(
@@ -92,9 +113,11 @@ pub(in crate::function_fragments) fn establish_geometry(
 // checks. Ordinary pool validation reads exact current instruction owners.
 fn validate_image_selection_origins(
     source: &StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
     use selected_instructions::SelectedImageAddressReference as Reference;
-    let catalogs = super::code_catalogs(source);
+    let current_input = crate::object_input::ObjectEmissionInput::capture(source)?;
+    let catalogs = super::code_catalogs(&current_input);
     for address in &source.source().text_section().unresolved_image_addresses {
         if !matches!(
             address.reference,
@@ -104,7 +127,7 @@ fn validate_image_selection_origins(
         ) {
             continue;
         }
-        let function = abstract_function(source, address.machine)?;
+        let function = original_function(original, address.machine)?;
         let matches = function
             .operations()
             .filter(|operation| match (address.reference, operation) {
@@ -256,7 +279,8 @@ pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
-    let fragments = fragments(source);
+    let current_input = crate::object_input::ObjectEmissionInput::capture(source)?;
+    let fragments = fragments(&current_input);
     if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8
         || fragments.target.pointer_alignment != 8
@@ -266,8 +290,11 @@ pub(in crate::function_fragments) fn admit(
         ));
     }
     let current = source.source().source().source().source();
+    let physical = current.original_physical_program().ok_or(Error::Mismatch(
+        "original physical instructions were not retained (ReplayUnavailable)",
+    ))?;
     let published = original.target().execution_plan().plan();
-    let contracts = &current.physical_program().contracts;
+    let contracts = &physical.contracts;
     if contracts.profile() != published.profile
         || contracts.function_abis().as_ref() != published.function_abis.as_ref()
     {
@@ -285,7 +312,7 @@ pub(in crate::function_fragments) fn admit(
             "current callable facts differ from the prepared execution input",
         ));
     }
-    validate_image_selection_origins(source)?;
+    validate_image_selection_origins(source, original)?;
     let mut original_functions: Vec<_> = original
         .target()
         .optimized()
@@ -302,7 +329,7 @@ pub(in crate::function_fragments) fn admit(
             "block declarations have no unique original function",
         ));
     }
-    for function in current.physical_program().functions.iter() {
+    for function in physical.functions.iter() {
         let index = original_functions
             .binary_search_by_key(&function.machine, |function| function.machine)
             .map_err(|_| Error::Mismatch("block declarations have no unique original function"))?;
@@ -316,11 +343,11 @@ pub(in crate::function_fragments) fn admit(
         original_rows.sort_by_key(|(block, _)| *block);
         validate_block_parameter_rows(&original_rows, &function.structural_block_parameters)?;
     }
-    validate_byte_writers(published, current.physical_program())?;
+    validate_byte_writers(published, physical)?;
     let abstract_plan = original.target().optimized().plan();
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
-        current.physical_program(),
+        physical,
         crate::retained_working_program::target_operations(original),
         current
             .installation_authority()
@@ -344,7 +371,7 @@ pub(in crate::function_fragments) fn admit(
     let mut geometry = geometry_graph.as_ref().map(|graph| {
         placed_reference::backing_geometry::BackingGeometry::new(
             abstract_plan,
-            current.physical_program(),
+            physical,
             crate::retained_working_program::target_operations(original),
             graph,
         )
@@ -352,25 +379,28 @@ pub(in crate::function_fragments) fn admit(
     let interrupt_helpers =
         provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
             abstract_plan.psi,
-            source.emission_facts().lowering.module(),
-            source.emission_facts().lowering.installed_interrupts(),
+            original.target().lowering_facts().module(),
+            original.target().lowering_facts().installed_interrupts(),
         );
     for fragment in &fragments.functions {
         let (abstracted, targeted) = audited_function(source, original, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
         let selected = current
-            .physical_program()
+            .original_physical_program()
+            .ok_or(Error::Mismatch(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            ))?
             .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
         installed_calls::validate(abstracted, targeted, selected)?;
         let installed_scopes = installed_interrupts::validate(
-            source.emission_facts().lowering.module(),
-            source.emission_facts().lowering.installed_interrupts(),
+            original.target().lowering_facts().module(),
+            original.target().lowering_facts().installed_interrupts(),
             current
                 .installation_authority()
                 .installed_stack_requirements(),
-            current.physical_program().target,
+            physical.target,
             targeted,
             selected,
         )?;

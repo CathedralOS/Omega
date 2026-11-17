@@ -1,0 +1,641 @@
+//! Prepare the complete Terminal checking input while typed source is available.
+//! Generic dependency discovery, selected witnesses and source correspondence
+//! belong here; the next stage only judges the modules and relationships emitted.
+
+use symbols::SymbolHandle;
+use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
+use crate::source_state::TypedTrees;
+
+type WitnessRow<'source> = (
+    SymbolHandle,
+    SymbolHandle,
+    Vec<semantic_vocabulary::ScalarTerm>,
+    SymbolHandle,
+    Option<&'source crate::source_state::signature::StateSignature>,
+);
+
+/// The driver keeps source publication custody while passing only `program`
+/// into checking. Both were minted from the same source owner and traversal.
+pub struct PreparedSource {
+    pub program: TerminalCompilation,
+    pub source: crate::lowering::SourceCorrespondence,
+}
+
+pub fn prepare_compilation(
+    typed: &TypedTrees,
+    compilation: crate::lowering::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> PreparedSource {
+    match crate::lowering::check_bound_callable_shapes(typed, compilation.bindings) {
+        Ok(failures) if !failures.is_empty() => {
+            return PreparedSource {
+                program: TerminalCompilation::FormationFailures(failures),
+                source: Default::default(),
+            };
+        }
+        Ok(_) => {}
+        Err(defect) => {
+            return PreparedSource {
+                program: TerminalCompilation::FormationDefect(defect),
+                source: Default::default(),
+            };
+        }
+    }
+    let captures = crate::lowering::shared_reading(typed);
+    let arrivals = compilation
+        .bindings
+        .iter()
+        .map(|binding| {
+            let requirement = crate::source_symbols::rejoin_declaration(&binding
+                .requirement, &typed.symbols,
+                    typed.traits().iter().flat_map(|owner| {
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|row| row.symbol)
+                    }),
+                )
+                .map_err(|detail| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: semantic_vocabulary::MachineId::new(1)
+                        .expect("nonzero diagnostic identity"),
+                    concerns: terminal_check_tables::Construct::Machine,
+                    source_span: None,
+                    detail: detail.to_owned(),
+                })?;
+            let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
+                crate::lowering::refuse(
+                    semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
+                    terminal_check_tables::Construct::Machine,
+                    crate::lowering::Unserved::Contract("bound arrival lost its exact source signature"),
+                )
+            })?;
+            let source = binding.source_span.map_or(
+                crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::ConformanceWitness),
+                crate::lowering::SourceOrigin::Authored,
+            );
+            let mut witness = crate::lowering::read::logical::projected_arrival(
+                typed,
+                compilation.purpose,
+                required,
+                binding.implementation,
+                &binding.visible_parameters,
+                binding.address_model.as_ref(),
+                source,
+                captures.clone(),
+            )?;
+            witness.slot = binding.slot.clone();
+            Ok(witness)
+        })
+        .collect();
+    // Every refusal reading met is reported: the first as the closure's
+    // verdict, the rest beside it (`PreparedCompilation::further`).
+    let mut further = Vec::new();
+    let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
+        match crate::lowering::elaborate_source_for(typed, compilation, publication, captures.clone()) {
+            Ok(prepared) => (
+                Ok(prepared.program),
+                Some(prepared.source),
+                prepared.selected_calls,
+                prepared.prepared_applications,
+                prepared.pending_publication,
+            ),
+            Err(mut refused) => {
+                let first = refused.remove(0);
+                further = refused;
+                (Err(first), None, Vec::new(), Vec::new(), None)
+            }
+        };
+    let mut source = crate::lowering::SourceCorrespondence {
+        forms: vec![primary_source],
+    };
+    let mut templates = Vec::new();
+    let mut rows: Vec<WitnessRow<'_>> = Vec::new();
+    let mut selected_failure = None;
+    let mut specializations = arena::IdTable::default();
+    let mut selection_witnesses = Vec::new();
+    if let Ok(closure) = &mut closure {
+        templates = std::mem::take(&mut closure.generic_templates);
+        let mut indexed_templates = templates
+            .iter()
+            .copied()
+            .map(|template| (template, ()))
+            .collect::<symbols::SymbolMap<_>>();
+        rows.extend(
+            std::mem::take(&mut closure.conformance_witnesses)
+                .into_iter()
+                .map(|row| {
+                    (
+                        row.declaring_trait,
+                        row.requirement,
+                        row.value_arguments,
+                        row.implementation,
+                        None,
+                    )
+                }),
+        );
+        for (_, symbol) in closure.machines.iter() {
+            let template = crate::lowering::template_of(typed, *symbol);
+            // A closed invocation still owes the generic source declaration's
+            // universal check, even when no whole-package subject was requested.
+            if let Some(template) = template
+                && indexed_templates.insert(template, ()).is_none()
+                && typed
+                    .machine_by_symbol(template)
+                    .is_some_and(|machine| crate::lowering::is_generic_template(typed, machine))
+            {
+                templates.push(template);
+            }
+            specializations.push(template);
+        }
+        for (selection, selected) in closure.selections.iter().enumerate() {
+            if selected_failure.is_some() {
+                break;
+            }
+            let Some(implementation) = closure.machines.get(selected.implementation) else {
+                continue;
+            };
+            let signature = match selected_signature_key(selected).and_then(|key| {
+                signatures
+                    .binary_search_by_key(&key, |row| row.key)
+                    .map(|position| signatures[position].signature)
+                    .map_err(|_| {
+                        crate::lowering::refuse(
+                            selected.caller,
+                            terminal_check_tables::Construct::Machine,
+                            crate::lowering::Unserved::Declaration(
+                                "selected witness has no exact source call correspondence",
+                            ),
+                        )
+                    })
+            }) {
+                Ok(signature) => signature,
+                Err(reason) => {
+                    selected_failure = Some(reason);
+                    break;
+                }
+            };
+            let row = (
+                selected.declaring_trait,
+                selected.requirement,
+                selected.value_arguments.clone(),
+                *implementation,
+                Some(signature),
+            );
+            let position = rows
+                .iter()
+                .position(|known| *known == row)
+                .unwrap_or_else(|| {
+                    rows.push(row);
+                    rows.len() - 1
+                });
+            selection_witnesses.push((selection, position));
+        }
+    }
+    if let Some(reason) = selected_failure {
+        closure = Err(reason);
+    }
+    // Template proof forms retain both the checked source context and the
+    // actual publication mode of the invocation using their captures.
+    let mut forms = prepare_generic_forms(
+        typed,
+        compilation.purpose,
+        templates,
+        &captures,
+        publication,
+        &mut source,
+    );
+    // Policies discovered inside a check form owe their own conformance
+    // witnesses too. Move those exact source rows into the existing worklist.
+    for generic in &mut forms {
+        for form in generic.forms.iter_mut().flatten() {
+            for witness in std::mem::take(&mut form.conformance_witnesses) {
+                let row = (
+                    witness.declaring_trait,
+                    witness.requirement,
+                    witness.value_arguments,
+                    witness.implementation,
+                    None,
+                );
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+    }
+    closure = closure.and_then(|mut elaboration| {
+        crate::lowering::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
+            .map_err(|(owner, reason)| {
+                crate::lowering::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::lowering::Unserved::Declaration(reason),
+                )
+            })?;
+        // Proof scope retains the completed callable headers for later
+        // admission. Capture commitments are part of those headers.
+        crate::lowering::publication::finalize_source(
+            typed,
+            &mut elaboration,
+            &signatures,
+            pending_publication,
+        )?;
+        Ok(elaboration)
+    });
+    let mut witnesses = Vec::new();
+    let mut next = 0;
+    while next < rows.len() {
+        let (declaring_trait, requirement, arguments, implementation, signature) = &rows[next];
+        let prepared = crate::lowering::prepare_witness(
+            typed,
+            *declaring_trait,
+            *requirement,
+            arguments,
+            *implementation,
+            *signature,
+            crate::lowering::WitnessInputs {
+                captures: captures.clone(),
+                purpose: compilation.purpose,
+                outcome_subjects: Some(compilation.subjects),
+            },
+        );
+        let prepared = prepared.and_then(|mut prepared| {
+            crate::lowering::declare::close_specializations(
+                &forms,
+                std::mem::take(&mut prepared.prepared_applications),
+                &mut prepared.program,
+            )
+            .map_err(|(owner, reason)| {
+                crate::lowering::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::lowering::Unserved::Declaration(reason),
+                )
+            })?;
+            prepared.finalize_check_form()
+        });
+        let mut witness = match prepared {
+            Ok(prepared) => {
+                source.forms.push(Some(prepared.source));
+                Ok(prepared.program)
+            }
+            Err(refusal) => {
+                source.forms.push(None);
+                Err(refusal)
+            }
+        };
+        if let Ok(witness) = &mut witness {
+            for row in std::mem::take(&mut witness.conformance_witnesses) {
+                let row = (
+                    row.declaring_trait,
+                    row.requirement,
+                    row.value_arguments,
+                    row.implementation,
+                    None,
+                );
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+        witnesses.push(witness);
+        next += 1;
+    }
+    PreparedSource {
+        source,
+        program: TerminalCompilation::Prepared(PreparedCompilation {
+            closure,
+            further,
+            arrivals,
+            forms,
+            witnesses,
+            specializations,
+            selection_witnesses,
+        }),
+    }
+}
+
+type SelectedSignatureKey = (
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::ContractId,
+    semantic_vocabulary::MachineId,
+);
+/// A borrowed view of the call already joined to its emitted operation. It
+/// stays inside source preparation and is discarded before Terminal checking.
+/// It describes the chosen contract; no call or witness is accepted by it.
+pub(crate) struct SelectedSourceCall<'source> {
+    pub key: SelectedSignatureKey,
+    pub signature: &'source crate::source_state::signature::StateSignature,
+    pub call: crate::source_state::references::StaticArgumentCall<'source>,
+    pub emitted_caller: semantic_vocabulary::MachineId,
+}
+
+fn selected_signature_key(
+    selected: &crate::lowering::Selected,
+) -> terminal_check_tables::Checked<SelectedSignatureKey> {
+    let required = selected.required_contract.ok_or_else(|| {
+        crate::lowering::refuse(
+            selected.caller,
+            terminal_check_tables::Construct::Machine,
+            crate::lowering::Unserved::Declaration("selected witness has no public header"),
+        )
+    })?;
+    Ok((selected.caller, required, selected.implementation))
+}
+
+/// Several public contracts can select the same body. Join each source call
+/// to its exact emitted site once, then reuse that applied signature for the
+/// independent witnesses. A body's identity cannot choose its public contract.
+pub(crate) fn prepare_selected_signatures<'source>(
+    typed: &'source TypedTrees,
+    closure: &crate::lowering::Elaboration,
+    source: &crate::lowering::SourceFormCorrespondence,
+) -> terminal_check_tables::Checked<Vec<SelectedSourceCall<'source>>> {
+    use terminal_check_tables::Construct;
+    use crate::source_state::expression::ExpressionNode;
+    let mut demanded = closure
+        .selections
+        .iter()
+        .filter(|selected| closure.machines.get(selected.implementation).is_some())
+        .map(selected_signature_key)
+        .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+    demanded.sort_unstable();
+    demanded.dedup();
+    if demanded.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut invocations = closure
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.module_invocations().filter_map(move |invocation| {
+                invocation.inputs.required_contract.map(|required| {
+                    (
+                        (machine.id, invocation.site),
+                        required,
+                        invocation.inputs.callee,
+                    )
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    invocations.sort_unstable_by_key(|(site, _, _)| *site);
+    if let Some(pair) = invocations.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        return Err(crate::lowering::refuse(
+            pair[0].0.0,
+            Construct::Machine,
+            crate::lowering::Unserved::Declaration("selected source call has duplicate emitted sites"),
+        ));
+    }
+    let mut signatures = Vec::new();
+    for correspondence in &source.calls {
+        let caller = correspondence.machine;
+        let member = correspondence.source_member;
+        let site = (caller, correspondence.site);
+        let Ok(position) = invocations.binary_search_by_key(&site, |(site, _, _)| *site) else {
+            continue;
+        };
+        let (_, required, body) = invocations[position];
+        let key = (member, required, body);
+        if demanded.binary_search(&key).is_err() {
+            continue;
+        }
+        let unavailable = |reason| {
+            crate::lowering::refuse(
+                member,
+                Construct::Machine,
+                crate::lowering::Unserved::Declaration(reason),
+            )
+        };
+        let declaration = closure
+            .module
+            .declaration_contract(required)
+            .ok_or_else(|| unavailable("selected witness lost its public header"))?
+            .declaration
+            .as_ref()
+            .ok_or_else(|| unavailable("selected witness lost its public source declaration"))?;
+        let source_owner = closure
+            .machines
+            .get(member)
+            .ok_or_else(|| unavailable("source call lost its requesting member"))?;
+        if *source_owner != correspondence.owner
+            || !typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(correspondence.owner)
+        {
+            return Err(unavailable(
+                "source call lost its exact original declaration owner",
+            ));
+        }
+        let call = match correspondence.source {
+            crate::source_state::SourceNode::Expression(expression) => {
+                if !typed.expression_table.expression_is_valid(expression) {
+                    return Err(unavailable("source call has a stale expression coordinate"));
+                }
+                let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+                else {
+                    return Err(unavailable(
+                        "source call no longer names its retained expression",
+                    ));
+                };
+                crate::source_state::references::StaticArgumentCall::Expression(expression, call)
+            }
+            crate::source_state::SourceNode::Statement(statement) => {
+                if !typed.statement_table.statement_is_valid(statement) {
+                    return Err(unavailable("source call has a stale statement coordinate"));
+                }
+                let crate::source_state::statement::StatementNode::Call(call) =
+                    typed.statement_table.statement(statement)
+                else {
+                    return Err(unavailable(
+                        "selected requirement call has no retained static-call statement",
+                    ));
+                };
+                crate::source_state::references::StaticArgumentCall::Statement(call)
+            }
+        };
+        let lexical_owner = call.lexical_owner(typed);
+        let owner = if lexical_owner == SymbolHandle::invalid() {
+            correspondence.owner
+        } else {
+            lexical_owner
+        };
+        if !typed.symbols.symbols().nodes().is_valid(owner) {
+            return Err(unavailable(
+                "selected source call has a stale supplying declaration",
+            ));
+        }
+        let applied = typed
+            .source_call_requirement_signature(owner, call)
+            .map_err(|reason| {
+                let mut refusal = unavailable("applied public requirement");
+                refusal.detail.push_str(": ");
+                refusal.detail.push_str(&reason);
+                refusal
+            })?;
+        let (declaring, _) = typed
+            .trait_machine_signature(applied.symbol)
+            .ok_or_else(|| unavailable("selected witness lost its exact declaring trait"))?;
+        let identity = typed.trait_requirement_callable_identity_text(declaring, applied);
+        if closure.module.identities.text(declaration.callable) != Some(identity.as_str()) {
+            return Err(unavailable(
+                "selected witness differs from the invocation's public signature",
+            ));
+        }
+        signatures.push(SelectedSourceCall {
+            key,
+            signature: applied,
+            call,
+            emitted_caller: caller,
+        });
+    }
+    signatures.sort_unstable_by_key(|row| row.key);
+    for pair in signatures.windows(2) {
+        if pair[0].key == pair[1].key && pair[0].signature != pair[1].signature {
+            let (caller, _, _) = pair[0].key;
+            return Err(crate::lowering::refuse(
+                caller,
+                Construct::Machine,
+                crate::lowering::Unserved::Declaration(
+                    "selected witness has different applied public signatures",
+                ),
+            ));
+        }
+    }
+    // Equal signatures can originate in different supplying scopes. Keep
+    // every occurrence for declaration-authority requests, while witnesses
+    // reuse any matching signature only after full equality was checked.
+    for (caller, required, body) in demanded {
+        if signatures
+            .binary_search_by_key(&(caller, required, body), |row| row.key)
+            .is_err()
+        {
+            return Err(crate::lowering::refuse(
+                caller,
+                Construct::Machine,
+                crate::lowering::Unserved::Declaration(
+                    "selected witness has no exact source call correspondence",
+                ),
+            ));
+        }
+    }
+    Ok(signatures)
+}
+
+fn prepare_generic_forms(
+    typed: &TypedTrees,
+    purpose: declaration_contracts::source_identity::DependencyScope,
+    mut templates: Vec<SymbolHandle>,
+    captures: &crate::lowering::SharedReading,
+    publication: terminal_codec::TerminalPublication,
+    source: &mut crate::lowering::SourceCorrespondence,
+) -> Vec<GenericForms> {
+    struct PreparedGeneric<'source> {
+        template: SymbolHandle,
+        name: String,
+        forms: terminal_check_tables::Checked<Vec<crate::lowering::publication::PreparedProgram<'source>>>,
+        applies: Option<Vec<usize>>,
+    }
+    let mut prepared = Vec::new();
+    let mut next = 0;
+    while next < templates.len() {
+        let template = templates[next];
+        let mut elaborated = crate::lowering::prepare_generic_forms(
+            typed,
+            purpose,
+            &[template],
+            captures.clone(),
+            publication,
+        );
+        let mut applies = Some(Vec::new());
+        for form in elaborated.iter_mut().flatten() {
+            for application in &form.program.applications {
+                let Some(symbol) = form.program.machines.get(*application).copied() else {
+                    applies = None;
+                    continue;
+                };
+                let position = templates
+                    .iter()
+                    .position(|template| *template == symbol)
+                    .unwrap_or_else(|| {
+                        templates.push(symbol);
+                        templates.len() - 1
+                    });
+                if let Some(applies) = &mut applies {
+                    applies.push(position);
+                }
+            }
+            for template in std::mem::take(&mut form.program.generic_templates) {
+                if !templates.contains(&template) {
+                    templates.push(template);
+                }
+            }
+        }
+        prepared.push(PreparedGeneric {
+            template,
+            name: typed.symbols.name(template).to_owned(),
+            forms: elaborated,
+            applies,
+        });
+        next += 1;
+    }
+    // Borrow the source forms' actual headers once. Closing applications adds
+    // their receipts; it does not change the template's public contract hash.
+    let bases: crate::lowering::declare::TemplateCommitments = prepared
+        .iter()
+        .map(|generic| {
+            let commitment = match &generic.forms {
+                Ok(forms) => crate::lowering::declare::template_commitment_for(
+                    generic.template,
+                    forms.iter().map(|form| &form.program),
+                ),
+                Err(_) => Ok(None),
+            };
+            (generic.template, commitment)
+        })
+        .collect();
+    prepared
+        .into_iter()
+        .map(|generic| {
+            let forms = generic.forms.and_then(|forms| {
+                let forms = forms
+                    .into_iter()
+                    .map(|mut prepared| {
+                        crate::lowering::declare::close_specializations_with_bases(
+                            &bases,
+                            std::mem::take(&mut prepared.prepared_applications),
+                            &mut prepared.program,
+                        )
+                        .map_err(|(owner, reason)| {
+                            crate::lowering::refuse(
+                                owner,
+                                terminal_check_tables::Construct::Machine,
+                                crate::lowering::Unserved::Declaration(reason),
+                            )
+                        })?;
+                        prepared.finalize_check_form()
+                    })
+                    .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+                Ok(forms
+                    .into_iter()
+                    .map(|prepared| {
+                        source.forms.push(Some(prepared.source));
+                        prepared.program
+                    })
+                    .collect())
+            });
+            if forms.is_err() {
+                source.forms.push(None);
+            }
+            GenericForms {
+                template: generic.template,
+                name: generic.name,
+                forms,
+                applies: generic.applies,
+            }
+        })
+        .collect()
+}

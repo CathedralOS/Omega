@@ -17,7 +17,7 @@ use crate::item::{
 };
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
-use source::SourceId;
+use source_text::SourceId;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, compiler_storage::Record)]
@@ -160,7 +160,7 @@ impl SyntaxTrees {
         self.roots.items.len()
     }
 
-    pub fn constant_initializer_owns_selection(&self, reference: source::SourceSpan) -> bool {
+    pub fn constant_initializer_owns_selection(&self, reference: source_text::SourceSpan) -> bool {
         self.root_items().any(|item| {
             let Item::Const(definition) = item else {
                 return false;

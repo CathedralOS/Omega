@@ -53,7 +53,7 @@ fn narrow_and_wide_captures_retain_their_own_namespace_and_real_origin() {
     .unwrap();
     assert_eq!(narrow.canonical_live_root(), root.canonicalize().unwrap());
     assert!(!narrow.tree().exists(Path::new("invalid/main.omg")));
-    let mut view = source::SourceFileSystem::new();
+    let mut view = source_capture::SourceFileSystem::new();
     view.add_capture(
         narrow.canonical_live_root().to_path_buf(),
         narrow.tree().clone(),

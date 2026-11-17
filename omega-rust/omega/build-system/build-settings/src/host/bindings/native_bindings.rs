@@ -8,14 +8,15 @@ against the original prepared source request before charging result-custody
 storage and decoding the `NativeLocatorValue` tree.
 */
 
+mod locator;
+use locator::{NativeLocatorCase, NativeLocatorValue, decode_native_locator};
+
 use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
-use language_semantics::{
-    declaration_selection::{
-        BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedNativeBinding,
-        ProductTarget,
-    },
-    native_bindings::{NativeLocatorCase, NativeLocatorValue, decode_native_locator},
-};
+use source_compiler::declaration_selection::BuildOperation;
+use source_compiler::declaration_selection::BuildSelectionRequest;
+use source_compiler::declaration_selection::ExecutedBuildSelection;
+use source_compiler::declaration_selection::ExecutedNativeBinding;
+use declaration_contracts::selection::ProductTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, IntegerValue};
 use source_compiler::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use terminal_interpreter::{

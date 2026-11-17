@@ -5,14 +5,14 @@ and separately emitted callable bodies.
 `lower_to_target` drives abstract optimization (`Omega 01`) and target lowering
 (`Omega 02`), which ends by publishing the prepared execution plan. The caller
 resolves the installations that plan lists (callback bodies, handler stacks)
-and binds them before `emit_target` hands the plan and those bound
+and binds them before physical planning hands the plan and those bound
 installations to instruction selection (`Omega 03`), selected-instruction optimization (`Omega 04`), register
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
 optimization (`Omega 09`), and fragment object emission.
 
 Emission reads the current machine program plus `EmissionFacts`, the few facts
-settled before instruction selection that it still needs, which `emit_target`
+settled before instruction selection that it still needs, which physical planning
 copies out of stage 02's output. Stage 02's output and the original
 allocation, encoding and layout inputs reach emission only when a validator
 request asked to retain them (`retain_native_stage_inputs`); otherwise they
@@ -20,45 +20,24 @@ are dropped as soon as their successor stage has run.
 */
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
-use abstract_operations_to_target_operations::lower_optimized_to_target_operations;
-use abstract_operations_to_target_operations::{
-    OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
+use function_layout::FunctionRelativeOptimizationRealizationError;
+use native_encoding::stage_optimized_layout_independent_selected_form_encoding;
+use native_program_planning::NativeBodyPlan;
+use physical_planning::{
+    OptimizedPostAllocationMachinePipelineError, OptimizedSelectionPipelineError,
+    PhysicalPlanningOriginals, SelectedInstructionOptimizationError,
 };
-use machine_emission::{
-    FunctionRelativeOptimizationRealizationError, StagedOptimizedFunctionFragmentEmissionSource,
-};
-use optimization_core::OptimizationExecutionPhase;
-use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
-use register_environment::baseline_target_register_environment;
-use register_homes_to_post_allocation_machine::{
-    OptimizedPostAllocationMachinePipelineError, stage_optimized_post_allocation_machine_plan,
-};
-use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
-use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instruction_analyses::SelectedOptimizationRecord;
-use selected_instructions_to_register_homes::stage_register_allocation;
-use selected_instructions_to_selected_instructions::{
-    SelectedInstructionOptimizationError, SelectedOptimizationInput, optimize_selected_instructions,
-};
-use target_operations_to_selected_instructions::{
-    OptimizedSelectionPipelineError, SelectionInput, stage_optimized_instruction_selection,
-};
-
-pub(crate) enum TargetLoweringError {
-    AbstractOptimization(abstract_operations_to_abstract_operations::AbstractOptimizationError),
-    Target(abstract_operations_to_target_operations::LoweringError),
-}
 
 #[derive(Debug)]
 pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
     SelectedOptimization(SelectedInstructionOptimizationError),
     RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
-    RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
+    RegisterAllocation(physical_planning::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
-    Encoding(post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError),
-    Layout(selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError),
-    LayoutOptimization(resolved_layout_to_resolved_layout::ResolvedLayoutOptimizationError),
+    Encoding(native_encoding::OptimizedSelectedFormEncodingError),
+    Layout(native_layout::OptimizedResolvedSelectedFormLayoutError),
+    LayoutOptimization(native_layout::ResolvedLayoutOptimizationError),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
@@ -87,205 +66,441 @@ impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
 
 impl std::error::Error for OptimizedVerifiedPhysicalPipelineError {}
 
-pub(crate) fn lower_to_target(
-    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
-    request: OptimizedTargetLoweringRequest<'_>,
-    selections: &optimization_core::PostTerminalOptimizationSelections,
-    budget: optimization_core::OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<ValidatedOptimizedTargetOperations, TargetLoweringError> {
-    let optimized = optimize_abstract(input, selections, budget, observation)
-        .map_err(TargetLoweringError::AbstractOptimization)?;
-    observation.enter(NativePipelineStage::AbstractToTarget);
-    let (program, lowering_facts) = optimized.into_lowering_parts();
-    lower_optimized_to_target_operations(program, lowering_facts, request)
-        .map_err(TargetLoweringError::Target)
-}
-
-pub(crate) fn optimize_abstract(
-    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
-    selections: &optimization_core::PostTerminalOptimizationSelections,
-    budget: optimization_core::OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<
-    abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
-    abstract_operations_to_abstract_operations::AbstractOptimizationError,
-> {
-    observation.enter(NativePipelineStage::AbstractOptimization);
-    let selections = selections.selections();
-    abstract_operations_to_abstract_operations::optimize_abstract_operations(
-        input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
-        budget,
-    )
-}
-
 /// Bind measured stacks and the checked installed entry once. Selection reads
 /// the receipt's plain facts; image publication retains the same receipt.
-pub(crate) fn bound_installations(
-    target: &ValidatedOptimizedTargetOperations,
-    execution: Option<terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution>,
+pub(crate) fn plan_installations(
+    target: &NativeBodyPlan,
+    execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
     requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
 ) -> Result<
-    std::sync::Arc<
-        terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
-    >,
+    std::sync::Arc<physical_planning::installation_resources::PlannedInstallationResources>,
     &'static str,
 > {
     let plan = target.execution_plan().plan();
-    terminal_psi_to_abstract_operations::provider_admission::bind_installation_authority(
+    physical_planning::installation_resources::plan_installation_resources(
         bound_installations::BoundInstalledEntry {
             psi: plan.psi,
             target: plan.target,
             machine: plan.entry,
         },
-        target.lowering_facts().installed_interrupts(),
-        target.lowering_facts().native_callbacks(),
+        target.facts.admission.installed_interrupts(),
+        target.facts.admission.native_callbacks(),
         execution,
         requirements,
+        &plan.installation_operations,
     )
     .map(std::sync::Arc::new)
 }
 
-pub(crate) fn emit_target(
-    optimized_target: ValidatedOptimizedTargetOperations,
+pub(crate) type PreparedPhysicalBody =
+    PhysicalBody<physical_planning::installation_resources::PlannedInstallationResources>;
+pub(crate) type BoundPhysicalBody = PhysicalBody<installation_binding::BoundInstallationAuthority>;
+
+pub(crate) struct PhysicalBody<Resources> {
+    pub frame: physical_planning::PhysicalFrameProgram,
+    pub private_references: Vec<function_identity::MachineFunctionIdentity>,
+    pub facts: physical_planning::EmissionFacts,
+    pub installations: std::sync::Arc<Resources>,
+    imports: physical_planning::imports::PhysicalImportProgram,
+    windows_internet: Option<physical_planning::windows_internet::WindowsInternetProgram>,
+    original_target: Option<image_emission::RetainedTargetOperations>,
+    originals: Option<PhysicalPlanningOriginals>,
+}
+
+impl PreparedPhysicalBody {
+    pub(crate) fn bind(
+        self,
+        handlers: &installation_binding::RetainedHandlerMeasurements,
+        root: Option<installation_evidence::InstalledPhysicalStackRoot>,
+    ) -> Result<BoundPhysicalBody, Vec<diagnostics::Diagnostic>> {
+        let PhysicalBody {
+            frame,
+            private_references,
+            facts,
+            installations,
+            imports,
+            windows_internet,
+            original_target,
+            originals,
+        } = self;
+        let authority = installation_binding::BoundInstallationAuthority::bind(
+            &frame,
+            installations,
+            handlers,
+            root,
+        )
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        Ok(PhysicalBody {
+            frame,
+            private_references,
+            facts,
+            installations: std::sync::Arc::new(authority),
+            imports,
+            windows_internet,
+            original_target,
+            originals,
+        })
+    }
+}
+
+pub(crate) fn prepare_physical_body(
+    optimized_target: NativeBodyPlan,
     installations: std::sync::Arc<
-        terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
+        physical_planning::installation_resources::PlannedInstallationResources,
     >,
     observation: &NativePipelineObservation,
     retain_native_stage_inputs: bool,
-) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
-    let register_environment = baseline_target_register_environment(optimized_target.target())
-        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
-    let target_input = std::sync::Arc::new(optimized_target);
-    let selected = {
-        observation.enter(NativePipelineStage::InstructionSelection);
-        let optimized = target_input.optimized();
-        stage_optimized_instruction_selection(
-            SelectionInput {
-                plan: target_input.execution_plan(),
-                installations: installations.facts(),
-                optimization: optimized.identity_bundle().identity(),
-                projection: optimized.projection(),
-                manifest: optimized.pre_physical_manifest().identity,
-                selections: optimized.selections().clone(),
-                budget_per_pass: optimized.budget_per_pass(),
+) -> Result<PreparedPhysicalBody, BodyEmissionError> {
+    let native_program_planning::NativeBodyPlan {
+        selection,
+        facts,
+        private_references: native_references,
+        original_for_audit,
+    } = optimized_target;
+    let input = physical_planning::PhysicalBodyInput {
+        program: selection,
+        installations: std::sync::Arc::clone(installations.facts()),
+    };
+    let original_target = original_for_audit.map(image_emission::RetainedTargetOperations::new);
+    let physical_planning::PlannedPhysicalProgram { frame, originals } =
+        physical_planning::plan_physical_program(
+            input,
+            physical_planning::PhysicalPlanningObservation {
+                instruction_selection: observation
+                    .counter(NativePipelineStage::InstructionSelection),
+                selected_optimization: observation
+                    .counter(NativePipelineStage::SelectedOptimization),
+                register_allocation: observation.counter(NativePipelineStage::RegisterAllocation),
+                post_allocation_machine: observation
+                    .counter(NativePipelineStage::PostAllocationMachine),
             },
-            register_environment,
+            retain_native_stage_inputs,
         )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
-    }?;
-    let facts = emission_facts(&target_input);
-    let original_target = retain_native_stage_inputs
-        .then(|| image_emission::RetainedTargetOperations::new(target_input));
-    let selected = {
-        observation.enter(NativePipelineStage::SelectedOptimization);
-        optimize_selected_instructions(SelectedOptimizationInput {
-            program: selected.selected_program(),
-            custody: selected.custody().core(),
-            register_environment: selected.register_environment().clone(),
-            selections: selected.selections().clone(),
-            budget_per_pass: selected.budget_per_pass(),
-            record: SelectedOptimizationRecord::default(),
-        })
-        .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
-    }?;
-    // A validator request keeps Omega 04's completed run as replay evidence;
-    // a default compile drops it here and allocation never sees it.
-    let (selected, selected_optimization) = if retain_native_stage_inputs {
-        selected.retain_replay_for_validation()
-    } else {
-        (selected.into_allocation_input(), None)
+        .map_err(|error| match error {
+            physical_planning::PhysicalPlanningError::RegisterEnvironment(error) => {
+                BodyEmissionError::from(
+                    OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment(error),
+                )
+            }
+            physical_planning::PhysicalPlanningError::Selection(error) => {
+                BodyEmissionError::from(OptimizedVerifiedPhysicalPipelineError::Selection(error))
+            }
+            physical_planning::PhysicalPlanningError::SelectedOptimization(error) => {
+                BodyEmissionError::from(
+                    OptimizedVerifiedPhysicalPipelineError::SelectedOptimization(error),
+                )
+            }
+            physical_planning::PhysicalPlanningError::Allocation(error) => BodyEmissionError::from(
+                OptimizedVerifiedPhysicalPipelineError::RegisterAllocation(error),
+            ),
+            physical_planning::PhysicalPlanningError::Machine(error) => BodyEmissionError::from(
+                OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine(error),
+            ),
+            physical_planning::PhysicalPlanningError::Frame(error) => {
+                BodyEmissionError::from(match error {
+                    physical_planning::PhysicalFrameError::CalleeSaveStorage(error) => {
+                        FunctionRelativeOptimizationRealizationError::CalleeSaveStorage(error)
+                    }
+                    physical_planning::PhysicalFrameError::FrameLayout(error) => {
+                        FunctionRelativeOptimizationRealizationError::FrameLayout(error)
+                    }
+                    physical_planning::PhysicalFrameError::FrameProtocol(error) => {
+                        FunctionRelativeOptimizationRealizationError::FrameProtocol(error)
+                    }
+                })
+            }
+        })?;
+    let stack =
+        physical_planning::stack_demand::plan_physical_stack_program(&frame).map_err(|reason| {
+            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+        })?;
+    let calls = physical_planning::call_origins::capture(&frame.instructions);
+    let foreign_calls =
+        physical_planning::foreign_call_plans::capture(&frame.instructions, frame.frame.plan());
+    let image_origins =
+        physical_planning::image_origins::capture(frame.instructions.functions.iter());
+    let contracts = std::sync::Arc::clone(&frame.instructions.contracts);
+    let temporary_stack =
+        physical_planning::physical_facts::temporary_stack_bounds(&frame.instructions);
+    let port_writes = physical_planning::physical_facts::port_writes(&frame.instructions);
+    let boundary_settlements =
+        physical_planning::boundary_settlements::capture(&frame.instructions);
+    let internal_calls = physical_planning::internal_call_plans::capture(
+        &frame.instructions,
+        frame.frame.plan(),
+        &facts,
+    );
+    let cpu = image_emission::prepare_native_cpu_origins(&frame.instructions);
+    let faults = image_emission::prepare_native_fault_origins(&frame.instructions);
+    let facts = physical_planning::EmissionFacts {
+        termination: image_emission::prepare_privileged_termination(
+            installations.installed_entry_execution(),
+            &frame.instructions,
+        ),
+        faults,
+        cpu,
+        internal_calls,
+        boundary_settlements,
+        semantic: facts,
+        stack,
+        calls,
+        foreign_calls,
+        image_origins,
+        contracts,
+        temporary_stack,
+        port_writes,
     };
-    let allocation = {
-        observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
-    }?;
-    let machine = {
-        observation.enter(NativePipelineStage::PostAllocationMachine);
-        stage_optimized_post_allocation_machine_plan(allocation.facts())
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
-    }?;
-    let framed = machine_emission::stage_function_frame(
-        machine.current().clone(),
-        machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-    )?;
-    let encoding = {
-        observation.enter(NativePipelineStage::SelectedFormEncoding);
-        stage_optimized_layout_independent_selected_form_encoding(framed)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::Encoding)
-    }?;
-    let layout = {
-        observation.enter(NativePipelineStage::ResolvedLayout);
-        stage_optimized_resolved_selected_form_layout(encoding.current())
-            .map_err(OptimizedVerifiedPhysicalPipelineError::Layout)
-    }?;
-    let optimized_layout = {
-        observation.enter(NativePipelineStage::LayoutOptimization);
-        execute_resolved_layout_optimization(
-            layout.current(),
-            &layout
-                .current()
-                .instructions
-                .publication
-                .selections()
-                .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-            layout.current().instructions.publication.budget(),
-        )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::LayoutOptimization)
-    }?;
-    // Machine emission reads stage 09's current form. The stage checks an
-    // audit runs travel beside it; a validator request adds the originals,
-    // and a default compile drops them here.
-    let (optimized_layout, relaxation) = optimized_layout.into_parts();
-    let originals = if retain_native_stage_inputs {
-        Some(crate::stage_audit::RetainedOriginals {
-            allocation,
-            machine,
-            encoding,
-            baseline_layout: layout,
-            selected_optimization: selected_optimization.map(|run| {
-                Box::new(run)
-                    as Box<dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>
-            }),
-        })
-    } else {
-        drop((allocation, machine, encoding, layout, selected_optimization));
-        None
-    };
-    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?
-        .with_stage_audit(Box::new(crate::stage_audit::NativeStageAudit::new(
-            relaxation, originals,
-        )));
-    let physical =
-        StagedOptimizedFunctionFragmentEmissionSource::new(realization, facts, installations)
-            .map_err(|error| {
-                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
-                    "native artifact function-fragment emission failed: {error}"
-                ))])
-            })?;
-    observation.enter(NativePipelineStage::FragmentEmission);
-    native_artifact::emit_fragment_object(physical, original_target)
-        .map_err(BodyEmissionError::Object)
+    let mut private_references = frame.instructions.functions.iter().flat_map(|function| {
+        function.normalized_foreign_calls.iter()
+            .flat_map(|call| &call.call.callbacks)
+            .map(|callback| callback.callback_function)
+            .chain(function.instructions_and_terminators().filter_map(|instruction| match instruction.kind {
+                selected_instructions::SelectedInstructionKind::ImageAddress {
+                    reference: selected_instructions::SelectedImageAddressReference::PrivateFunction { identity },
+                } => Some(identity),
+                _ => None,
+            }))
+    }).collect::<Vec<_>>();
+    private_references.sort_unstable_by_key(|identity| identity.to_bytes());
+    private_references.dedup();
+    if private_references != native_references {
+        return Err(BodyEmissionError::Object(vec![
+            diagnostics::Diagnostic::error(
+                "physical selection changed the closed native private-body references",
+            ),
+        ]));
+    }
+    if private_references
+        .iter()
+        .any(|identity| !identity.is_valid() || identity.caller() != frame.instructions.psi)
+    {
+        return Err(BodyEmissionError::Object(vec![
+            diagnostics::Diagnostic::error(
+                "private function reference escaped its exact physical program namespace",
+            ),
+        ]));
+    }
+    let windows_internet = (frame.instructions.target == target::NativeTarget::windows_x64()
+        && frame.instructions.functions.iter().any(|function| {
+            function.normalized_foreign_calls.iter().any(|call| {
+                function
+                    .instructions_and_terminators()
+                    .any(|instruction| instruction.id == call.instruction)
+                    && call
+                        .call
+                        .binding
+                        .foreign_import_locator()
+                        .is_some_and(|locator| {
+                            locator.target() == target::TargetProfile::WindowsX64
+                                && matches!(
+                                    locator.locator(),
+                                    target::ForeignLocatorCandidate::PeByName { library, .. }
+                                    | target::ForeignLocatorCandidate::PeByOrdinal { library, .. }
+                                        if library == runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY
+                                )
+                        })
+            })
+        }))
+    .then(physical_planning::windows_internet::plan_windows_internet_provider);
+    let imports = physical_planning::imports::plan_import_program(
+        frame.instructions.target,
+        frame.instructions.functions.iter().flat_map(|function| {
+            function
+                .normalized_foreign_calls
+                .iter()
+                .filter(|call| {
+                    function
+                        .instructions_and_terminators()
+                        .any(|instruction| instruction.id == call.instruction)
+                })
+                .filter_map(|call| call.call.binding.import_locator())
+                .map(|locator| {
+                    machine_code::import_code::ImportCodeIdentity::Normalized(locator.to_owned())
+                })
+        }),
+    )
+    .map_err(|reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]))?;
+    Ok(PreparedPhysicalBody {
+        frame,
+        private_references,
+        facts,
+        installations,
+        imports,
+        windows_internet,
+        original_target,
+        originals,
+    })
 }
 
-/// Copy what emission needs from stage 02's output and cannot read from the
-/// current machine program: the admitted lowering facts and the optimized
-/// abstract program with its projection identities. The program is shared,
-/// not copied.
-fn emission_facts(target: &ValidatedOptimizedTargetOperations) -> machine_emission::EmissionFacts {
-    let optimized = target.optimized();
-    machine_emission::EmissionFacts {
-        lowering: target.lowering_facts().clone(),
-        abstract_program: optimized.shared_program(),
-        projection: machine_emission::OptimizedProgramProjection {
-            identity: optimized.projection(),
-            terminal: optimized.projection_psi(),
-            final_unit: optimized.final_unit(),
+// Placement and publication consume these facts for the same closed body.
+struct BodyObjectInputs {
+    private_references: Vec<function_identity::MachineFunctionIdentity>,
+    imports: machine_code::import_code::EncodedImportProgram,
+    windows_internet: Option<machine_code::WindowsInternetProviderCode>,
+    original_target: Option<image_emission::RetainedTargetOperations>,
+}
+
+pub(crate) struct EncodedBody {
+    facts: physical_planning::EmissionFacts,
+    installations: std::sync::Arc<installation_binding::BoundInstallationAuthority>,
+    program: machine_code::EncodedMachineProgram,
+    object: BodyObjectInputs,
+    originals: Option<(
+        PhysicalPlanningOriginals,
+        post_allocation_machine::PostAllocationMachineProgram,
+    )>,
+}
+
+pub(crate) struct LaidOutBody {
+    text: function_layout::StagedOptimizedFixedFrameTextSection,
+    object: BodyObjectInputs,
+}
+
+pub(crate) fn encode_physical_body(
+    prepared: BoundPhysicalBody,
+    observation: &NativePipelineObservation,
+) -> Result<EncodedBody, BodyEmissionError> {
+    let BoundPhysicalBody {
+        frame,
+        private_references,
+        facts,
+        installations,
+        imports,
+        windows_internet,
+        original_target,
+        originals,
+    } = prepared;
+    let imports = native_encoding::imports::encode_import_program(imports);
+    let windows_internet = windows_internet
+        .map(native_encoding::windows_internet::encode_windows_internet_provider)
+        .transpose()
+        .map_err(|reason| {
+            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+        })?;
+    observation.enter(NativePipelineStage::SelectedFormEncoding);
+    let framed = native_encoding::encode_function_frame(frame)
+        .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
+    let originals = originals.map(|originals| (originals, framed.instructions.clone()));
+    let program = stage_optimized_layout_independent_selected_form_encoding(framed)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Encoding)?
+        .into_current();
+    Ok(EncodedBody {
+        facts,
+        installations,
+        program,
+        originals,
+        object: BodyObjectInputs {
+            private_references,
+            imports,
+            windows_internet,
+            original_target,
         },
+    })
+}
+
+pub(crate) fn layout_encoded_body(
+    encoded: EncodedBody,
+    observation: &NativePipelineObservation,
+) -> Result<LaidOutBody, BodyEmissionError> {
+    let EncodedBody {
+        facts,
+        installations,
+        program,
+        originals,
+        object,
+    } = encoded;
+    let output = native_layout::layout_program(
+        program,
+        originals.is_some(),
+        native_layout::LayoutObservation {
+            placement: observation.counter(NativePipelineStage::ResolvedLayout),
+            relaxation: observation.counter(NativePipelineStage::LayoutOptimization),
+        },
+    )
+    .map_err(|error| match error {
+        native_layout::LayoutError::Placement(error) => {
+            OptimizedVerifiedPhysicalPipelineError::Layout(error)
+        }
+        native_layout::LayoutError::Optimization(error) => {
+            OptimizedVerifiedPhysicalPipelineError::LayoutOptimization(error)
+        }
+    })?;
+    let retained = match (originals, output.originals) {
+        (Some((originals, physical)), Some(layout)) => {
+            Some(native_verification::RetainedPhysicalInputs {
+                physical,
+                allocation: originals.allocation,
+                machine: originals.machine,
+                encoding: layout.encoding,
+                baseline_layout: layout.baseline,
+                selected_optimization: originals.selected_optimization,
+            })
+        }
+        (None, None) => None,
+        _ => {
+            return Err(BodyEmissionError::Object(vec![
+                diagnostics::Diagnostic::error(
+                    "layout did not preserve requested verification inputs",
+                ),
+            ]));
+        }
+    };
+    let verification =
+        native_verification::PhysicalVerificationEvidence::new(output.relaxation, retained);
+    let text = function_layout::place_function_text(
+        output.current,
+        verification,
+        facts,
+        installations,
+        observation.counter(NativePipelineStage::FragmentEmission),
+    )
+    .map_err(|error| match error {
+        function_layout::FunctionTextLayoutError::Realization(error) => {
+            BodyEmissionError::from(error)
+        }
+        error => BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(error.to_string())]),
+    })?;
+    Ok(LaidOutBody { text, object })
+}
+
+pub(crate) fn construct_body_object(
+    body: LaidOutBody,
+) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
+    let BodyObjectInputs {
+        private_references,
+        imports,
+        windows_internet,
+        original_target,
+    } = body.object;
+    let mut object = native_artifact::emit_fragment_object(body.text, original_target)
+        .map_err(BodyEmissionError::Object)?;
+    object = object.with_import_program(imports).map_err(|reason| {
+        BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+    })?;
+    if let Some(code) = windows_internet {
+        object = object
+            .with_windows_internet_provider(code)
+            .map_err(|reason| {
+                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+            })?;
     }
+    let mut emitted_references = object
+        .object()
+        .object()
+        .layout
+        .function_symbols
+        .iter()
+        .map(|(_, reference)| reference.identity)
+        .collect::<Vec<_>>();
+    emitted_references.sort_unstable_by_key(|identity| identity.to_bytes());
+    if emitted_references != private_references {
+        return Err(BodyEmissionError::Object(vec![
+            diagnostics::Diagnostic::error(
+                "object publication changed the closed physical program's private references",
+            ),
+        ]));
+    }
+    Ok(object)
 }
 
 pub(crate) enum BodyEmissionError {

@@ -12,8 +12,8 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionStatus, TerminalStructuralInputs,
 };
-use terminal_psi_to_terminal_psi::RouteVerdict;
-use typed_trees_to_terminal_psi::Compilation;
+use source_compiler::checking::RouteVerdict;
+use source_compiler::lowering::Compilation;
 use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -29,14 +29,14 @@ fn call_arguments_read_fields_beside_a_sibling_loan() {
     for (directory, refused) in [("pass", false), ("fail", true)] {
         let fixture = format!("tests/fixtures/{directory}/borrows/sibling_field_call_loans");
         let frontier = fixture_frontier(&fixture);
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -83,14 +83,14 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
     for (directory, rejected) in [("pass", false), ("fail", true)] {
         let fixture = format!("tests/fixtures/{directory}/borrows/exclusive_formation_attenuation");
         let frontier = fixture_frontier(&fixture);
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -110,7 +110,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                 .expect("pinned exclusive/shared overlap diagnostic");
             assert!(verdicts.iter().any(|verdict| matches!(verdict,
                 Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
-                    conflict.conflict == terminal_psi_to_terminal_psi::LoanConflict::ExclusiveAndShared
+                    conflict.conflict == source_compiler::checking::LoanConflict::ExclusiveAndShared
                         && conflict.message().contains(expected.trim()))
             )), "the still-live cohort must reject exclusive formation: {verdicts:?}");
             assert!(
@@ -324,14 +324,14 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
     for (directory, rejected) in [("pass", false), ("fail", true)] {
         let fixture = format!("tests/fixtures/{directory}/borrows/borrowed_runtime_element");
         let frontier = fixture_frontier(&fixture);
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -356,7 +356,7 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
             assert!(
                 verdicts.iter().any(|verdict| matches!(verdict,
                     Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
-                        conflict.conflict == terminal_psi_to_terminal_psi::LoanConflict::ChangeWhileBorrowed
+                        conflict.conflict == source_compiler::checking::LoanConflict::ChangeWhileBorrowed
                             && conflict.message().contains(expected.trim()))
                 )),
                 "a write that may select the viewed element must conflict: {verdicts:?}"
@@ -407,14 +407,14 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     );
     // Match the default router's complete scope, including every generic
     // check form it claims; one undecided form refuses the whole compilation.
-    let mut verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    let mut verdicts = source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
             Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -453,14 +453,14 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         publication.artifact.semantic_module(),
         &closure.elaboration.module
     );
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("Omega 00 carries the checked affine operations and their seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+    native_program_planning::test_support::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )
@@ -488,14 +488,14 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier = fixture_frontier("tests/fixtures/fail/borrows/owned_address_after_operand_move");
-    let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    let verdicts = source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
             Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -534,7 +534,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
 }
 
 fn execute_ownership_oracle(
-    closure: &terminal_psi_to_terminal_psi::AcceptedClosure,
+    closure: &source_compiler::checking::AcceptedClosure,
 ) -> optimization_unit::PsiOptimizationUnit {
     let publication = closure.publish().expect("checked ownership publishes");
     assert!(
@@ -550,7 +550,7 @@ fn execute_ownership_oracle(
             )),
         "the interpreted module retains its exact-value execution oracle"
     );
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
@@ -558,7 +558,7 @@ fn execute_ownership_oracle(
     .into_optimization_artifact()
     .into_optimization_input();
     let (_, unit) =
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+        native_program_planning::test_support::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),
         )
@@ -637,14 +637,14 @@ machine main() crashes Trap {
             source.to_owned()
         };
         let frontier = unbuilt_frontier::staged_frontier("constructor-reference-access", &source);
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -726,14 +726,14 @@ machine main() crashes Trap {
             source.to_owned()
         };
         let frontier = unbuilt_frontier::staged_frontier("owned-match-results", &source);
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     calling: None,
@@ -808,8 +808,8 @@ machine main() crashes Trap {
             },
             &source,
         );
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     calling: frontier
@@ -822,7 +822,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[],
@@ -901,8 +901,8 @@ machine main() crashes Trap {
             },
             &source,
         );
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     calling: frontier
@@ -915,7 +915,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[], // This source-only check runs no Build provider selections.
@@ -1006,8 +1006,8 @@ machine main() crashes Trap {
             },
             &source,
         );
-        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-            typed_trees_to_terminal_psi::prepare_compilation(
+        let verdicts = source_compiler::checking::judge_compilation(
+            source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
                 Compilation {
                     calling: frontier
@@ -1020,7 +1020,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[],
@@ -1055,14 +1055,13 @@ machine main() crashes Trap {
 /// factory result enters a named home, moves to a call argument, and is consumed.
 #[test]
 fn whole_owned_transfers_consume_their_homes_once() {
-    use semantic_vocabulary::{
-        IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
-    };
-    use typed_trees_to_terminal_psi::{
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+    use arena::{IdTable, NumericId};
+    use source_compiler::lowering::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
     };
-    fn id<T: PsiSemanticId>(raw: u64) -> T {
+    fn id<T: NumericId>(raw: u64) -> T {
         T::new(raw).unwrap()
     }
     let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
@@ -1099,7 +1098,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "Owned".into(),
-        shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
+        shape: source_compiler::lowering::StorageShape::Record(vec![RecordField {
             id: id(1),
             identity: "number".into(),
             value_type: scalar,
@@ -1156,15 +1155,15 @@ fn whole_owned_transfers_consume_their_homes_once() {
             result,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
-            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            reaches: source_compiler::lowering::Ceiling::Inferred,
+            invokes: source_compiler::lowering::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
             ranking: None,
         });
     }
-    let closure = match terminal_psi_to_terminal_psi::judge(
-        typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records),
+    let closure = match source_compiler::checking::judge(
+        source_compiler::lowering::lower_bodies(id(1), &bodies, &signatures, &records),
     ) {
         Ok(RouteVerdict::Accepted(closure)) => closure,
         other => panic!("whole transfers must check: {other:?}"),
@@ -1249,10 +1248,9 @@ fn whole_owned_transfers_consume_their_homes_once() {
 /// frontier.
 mod transferred_on_one_path {
     use crate::artifact_trust;
-    use semantic_vocabulary::{
-        IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
-    };
-    use typed_trees_to_terminal_psi::{
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+    use arena::{IdTable, NumericId};
+    use source_compiler::lowering::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
     };
@@ -1262,7 +1260,7 @@ mod transferred_on_one_path {
         TerminalStructuralInputs,
     };
 
-    fn id<T: PsiSemanticId>(raw: u64) -> T {
+    fn id<T: NumericId>(raw: u64) -> T {
         T::new(raw).unwrap()
     }
 
@@ -1293,7 +1291,7 @@ mod transferred_on_one_path {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Inner".into(),
-            shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
+            shape: source_compiler::lowering::StorageShape::Record(vec![field(
                 3,
                 "number",
                 number(),
@@ -1305,7 +1303,7 @@ mod transferred_on_one_path {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Pair".into(),
-            shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
+            shape: source_compiler::lowering::StorageShape::Record(vec![
                 field(1, "a", ValueType::record(id(1))),
                 field(2, "b", ValueType::record(id(1))),
             ]),
@@ -1473,14 +1471,14 @@ mod transferred_on_one_path {
                 result: Some(result),
                 requires: Vec::new(),
                 ensures: Vec::new(),
-                reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
-                invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
+                reaches: source_compiler::lowering::Ceiling::Inferred,
+                invokes: source_compiler::lowering::Ceiling::Inferred,
                 crashes: CrashCeiling::Authored(Vec::new()),
                 termination: Termination::Silent,
                 ranking: None,
             });
         }
-        terminal_psi_to_terminal_psi::judge(typed_trees_to_terminal_psi::lower_bodies(
+        source_compiler::checking::judge(source_compiler::lowering::lower_bodies(
             id(1),
             &bodies,
             &signatures,
@@ -1505,7 +1503,7 @@ mod transferred_on_one_path {
             other => panic!("the program must be accepted: {other:?}"),
         };
         let publication = closure.publish().expect("publication");
-        let input = terminal_psi_to_abstract_operations::lower_artifact(
+        let input = native_program_planning::lower_artifact(
             &artifact_trust::authorize(&publication.artifact),
             Some(publication.seals.clone()),
         )
@@ -1513,7 +1511,7 @@ mod transferred_on_one_path {
         .into_optimization_artifact()
         .into_optimization_input();
         let (_, unit) =
-            abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+            native_program_planning::test_support::build_verified_psi_optimization_unit(
                 input,
                 terminal_work::WorkSchedule::CURRENT.identity(),
             )

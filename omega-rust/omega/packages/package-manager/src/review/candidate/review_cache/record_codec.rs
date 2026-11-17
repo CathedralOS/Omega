@@ -21,7 +21,8 @@ use effects::provider_plan::{
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use language_semantics::{CarryPolicy, DomainPredicatePresence};
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::DomainPredicatePresence;
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::native_output_codec::{decode, encode};
 use package_compilation::provider_selection_codec::decode_package_provider_selections;
@@ -188,42 +189,42 @@ fn recover_binding(cursor: &mut ObservationCursor<'_>) -> Option<AcceptedSemanti
 
 fn encode_carry(carry: &CarryPolicy, out: &mut Vec<u8>) {
     out.push(match carry.suspension {
-        language_semantics::CarrySuspension::Forbidden => 0,
-        language_semantics::CarrySuspension::Allowed => 1,
+        declaration_contracts::CarrySuspension::Forbidden => 0,
+        declaration_contracts::CarrySuspension::Allowed => 1,
     });
     out.push(match carry.cpu {
-        language_semantics::CarryCpu::Origin => 0,
-        language_semantics::CarryCpu::Any => 1,
+        declaration_contracts::CarryCpu::Origin => 0,
+        declaration_contracts::CarryCpu::Any => 1,
     });
     out.push(match carry.host_thread {
-        language_semantics::CarryHostThread::Origin => 0,
-        language_semantics::CarryHostThread::Any => 1,
+        declaration_contracts::CarryHostThread::Origin => 0,
+        declaration_contracts::CarryHostThread::Any => 1,
     });
     out.push(match carry.address {
-        language_semantics::CarryAddress::Stable => 0,
-        language_semantics::CarryAddress::Movable => 1,
+        declaration_contracts::CarryAddress::Stable => 0,
+        declaration_contracts::CarryAddress::Movable => 1,
     });
 }
 
 fn recover_carry(cursor: &mut ObservationCursor<'_>) -> Option<CarryPolicy> {
     let suspension = match cursor.u8()? {
-        0 => language_semantics::CarrySuspension::Forbidden,
-        1 => language_semantics::CarrySuspension::Allowed,
+        0 => declaration_contracts::CarrySuspension::Forbidden,
+        1 => declaration_contracts::CarrySuspension::Allowed,
         _ => return None,
     };
     let cpu = match cursor.u8()? {
-        0 => language_semantics::CarryCpu::Origin,
-        1 => language_semantics::CarryCpu::Any,
+        0 => declaration_contracts::CarryCpu::Origin,
+        1 => declaration_contracts::CarryCpu::Any,
         _ => return None,
     };
     let host_thread = match cursor.u8()? {
-        0 => language_semantics::CarryHostThread::Origin,
-        1 => language_semantics::CarryHostThread::Any,
+        0 => declaration_contracts::CarryHostThread::Origin,
+        1 => declaration_contracts::CarryHostThread::Any,
         _ => return None,
     };
     let address = match cursor.u8()? {
-        0 => language_semantics::CarryAddress::Stable,
-        1 => language_semantics::CarryAddress::Movable,
+        0 => declaration_contracts::CarryAddress::Stable,
+        1 => declaration_contracts::CarryAddress::Movable,
         _ => return None,
     };
     Some(CarryPolicy {
@@ -702,8 +703,8 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         ConsumedSourceUnitKind::PackageGenerated(scope) => {
             out.push(1);
             out.push(match scope {
-                source::DependencyScope::Product => 0,
-                source::DependencyScope::Build => 1,
+                declaration_contracts::source_identity::DependencyScope::Product => 0,
+                declaration_contracts::source_identity::DependencyScope::Build => 1,
             });
         }
         ConsumedSourceUnitKind::ToolchainVirtual => out.push(2),
@@ -728,8 +729,8 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
     let kind = match cursor.u8()? {
         0 => ConsumedSourceUnitKind::PackageAuthored,
         1 => ConsumedSourceUnitKind::PackageGenerated(match cursor.u8()? {
-            0 => source::DependencyScope::Product,
-            1 => source::DependencyScope::Build,
+            0 => declaration_contracts::source_identity::DependencyScope::Product,
+            1 => declaration_contracts::source_identity::DependencyScope::Build,
             _ => return None,
         }),
         2 => ConsumedSourceUnitKind::ToolchainVirtual,
@@ -958,13 +959,13 @@ mod tests {
                 vec![0],
             ),
             (
-                ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product),
+                ConsumedSourceUnitKind::PackageGenerated(declaration_contracts::source_identity::DependencyScope::Product),
                 Some(package),
                 None,
                 vec![1, 0],
             ),
             (
-                ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Build),
+                ConsumedSourceUnitKind::PackageGenerated(declaration_contracts::source_identity::DependencyScope::Build),
                 Some(package),
                 None,
                 vec![1, 1],

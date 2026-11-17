@@ -8,7 +8,7 @@ use crate::record::PackagePolicyServiceMethod;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use language_semantics::DomainPredicatePresence;
+use declaration_contracts::DomainPredicatePresence;
 use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(

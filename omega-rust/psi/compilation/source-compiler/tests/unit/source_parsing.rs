@@ -7,7 +7,7 @@ fn parse(
 ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
     SourceInput(loaded).parse_batch(first_page, independent_units, &mut UnmeasuredProduction)
 }
-use source::SourceId;
+use source_text::SourceId;
 use std::sync::Arc;
 
 fn loaded(texts: &[&str]) -> LoadedSources {
@@ -31,7 +31,7 @@ fn stage_batch_preserves_lexical_error_priority_and_source_order() {
     ] {
         let input = loaded(&texts);
         let expected = vec![
-            source_files_to_tokens::lex(input.clone())
+            source_compiler::lexing::lex(input.clone())
                 .unwrap_err()
                 .into_diagnostic(),
         ];
@@ -39,8 +39,8 @@ fn stage_batch_preserves_lexical_error_priority_and_source_order() {
         assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
     }
     let input = loaded(&["machine", "data"]);
-    let lexed = source_files_to_tokens::lex(input.clone()).unwrap();
-    let expected = tokens_to_syntax_trees::parse(&lexed, Default::default())
+    let lexed = source_compiler::lexing::lex(input.clone()).unwrap();
+    let expected = source_compiler::parsing::parse(&lexed, Default::default())
         .map_err(|error| vec![error.into_diagnostic()])
         .err()
         .unwrap();
@@ -54,10 +54,10 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
         .map(|index| format!("const Text{index}: [u8] = \"value\\n{index}\";"))
         .collect::<Vec<_>>();
     let input = loaded(&texts.iter().map(String::as_str).collect::<Vec<_>>());
-    let lexed = source_files_to_tokens::lex(input.clone()).unwrap();
-    let (expected_pages, expected_sources) = tokens_to_syntax_trees::parse(
+    let lexed = source_compiler::lexing::lex(input.clone()).unwrap();
+    let (expected_pages, expected_sources) = source_compiler::parsing::parse(
         &lexed,
-        tokens_to_syntax_trees::ParseOptions {
+        source_compiler::parsing::ParseOptions {
             first_page_identity: 5,
             ..Default::default()
         },

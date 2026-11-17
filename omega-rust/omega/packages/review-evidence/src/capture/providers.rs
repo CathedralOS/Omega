@@ -18,7 +18,7 @@ use crate::record::{
     PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
-use build_time_evaluation::provider_declarations::{
+use source_compiler::evaluation::provider_declarations::{
     ProviderSelectionIdentity, ProviderSelectionSubject,
 };
 use diagnostics::Diagnostic;
@@ -32,8 +32,8 @@ use terminal_psi::{
     BoundaryDeclarationRole, BoundaryMachineDeclaration, CheckedBoundaryExecution, TerminalMachine,
     UnoptimizedMachineBehavior,
 };
-use typed_trees::signature::StateSignature;
-use typed_trees::trait_definition::TraitDefinition;
+use source_compiler::source_state::signature::StateSignature;
+use source_compiler::source_state::trait_definition::TraitDefinition;
 
 pub(super) struct ReviewedProviders {
     pub slots: Vec<SymbolHandle>,
@@ -1042,7 +1042,7 @@ impl PackageReviewInput<'_> {
             .iter()
             .map(|parameter| {
                 use crate::record::PackagePolicyTypeParameterKind as Kind;
-                use typed_trees::data::TypeParameterKind as Source;
+                use source_compiler::source_state::data::TypeParameterKind as Source;
                 let kind = match parameter.kind {
                     Source::Type => Kind::Type,
                     Source::Const { type_reference } => {
@@ -1153,7 +1153,7 @@ impl PackageReviewInput<'_> {
     }
 }
 
-fn closed_service(source: &typed_trees::TypedTrees, service: &TraitDefinition) -> bool {
+fn closed_service(source: &source_compiler::source_state::TypedTrees, service: &TraitDefinition) -> bool {
     service.is_boundary
         && service.lifetime_parameters.is_empty()
         && service.conformance_bounds.is_empty()

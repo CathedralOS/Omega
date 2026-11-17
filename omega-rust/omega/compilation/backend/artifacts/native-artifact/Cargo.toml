@@ -9,11 +9,14 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+native-runtime-provisions = { path = "../../../pipeline/00_native-program-planning/runtime-provisions" }
+physical-planning = { path = "../../../pipeline/01_physical-program-planning" }
+wire = { path = "../../../../../psi/foundation/wire" }
 component-description = { path = "../component-description" }
 task-plans = { path = "../../runtime/task-plans" }
 runtime-abi = { path = "../../runtime/runtime-abi" }
 terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
-platform-custody = { path = "../../../../foundation/platform-custody" }
+platform-custody = { path = "../../../../host-support/platform-custody" }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
@@ -21,7 +24,7 @@ abstract-operations = { path = "../../../representations/abstract-operations" }
 boundary-applications = { path = "../boundary-applications" }
 calling-conventions = { path = "../../calling-conventions" }
 effects = { path = "../../plans/effects" }
-function-identity = { path = "../../../../foundation/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 target = { path = "../../target" }
 image = { path = "../../images/image" }
 image-macho = { path = "../../images/image-macho" }
@@ -32,11 +35,11 @@ isa-x86_64 = { path = "../../isa/isa-x86_64" }
 x86_64-encoding = { path = "../../isa/x86_64-encoding" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 machine-code = { path = "../../../representations/machine-code" }
-machine-emission = { path = "../../machine-emission" }
-object-file = { path = "../../object-file" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+function-layout = { path = "../../../pipeline/04_native-layout/function-layout" }
+object-file = { path = "../../../pipeline/05_object-construction" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 target-operations = { path = "../../../representations/target-operations" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
@@ -45,8 +48,8 @@ program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 backend-plan = { path = "../../plans/backend-plan" }
-provider-admission = { path = "../../../realization/provider-admission" }
+provider-admission = { path = "../../../verification/provider-admission" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 
 [dev-dependencies]
-optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
+optimization-core = { path = "../../../representations/optimization-contracts" }

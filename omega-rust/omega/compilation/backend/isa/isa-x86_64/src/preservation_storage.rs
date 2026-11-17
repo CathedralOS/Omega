@@ -22,7 +22,7 @@ pub enum X86_64PreservationStorageCatalogError {
     InvalidCatalog(PreservationStorageCatalogValidationError),
 }
 
-optimization_core::invalid_error_display!(
+wire::invalid_error_display!(
     X86_64PreservationStorageCatalogError,
     "x86-64 preservation-storage catalog"
 );

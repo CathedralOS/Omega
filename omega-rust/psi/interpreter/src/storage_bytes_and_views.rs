@@ -2160,10 +2160,8 @@ pub(crate) mod byte_sequences {
             use super::ByteSequenceStorage;
             use crate::boundary::errors::malformed;
             use crate::storage::byte_sequences::ByteSequenceView;
-            use evaluation_accounting::{
-                BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
-                EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
-            };
+            use evaluation_accounting::{BuildEvaluationSponsor};
+            use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
 
             fn sponsor(bytes: u64) -> BuildEvaluationSponsor {
                 let measurement = EvaluationMeasurementIdentity::TerminalPsi {

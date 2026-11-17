@@ -240,7 +240,7 @@ impl NativeExecutionScope {
             selected_by_req,
         };
         let installed_helpers =
-            provider_selection::CallbackProviderDeclarations::installed_helper_roots(module);
+            provider_correspondence::CallbackProviderDeclarations::installed_helper_roots(module);
         // Resolve each occurrence once. A registrar's local operation number
         // identifies its callback entries only together with the owning machine.
         let mut callback_entries = std::collections::BTreeMap::<_, Vec<MachineId>>::new();

@@ -31,42 +31,54 @@ fn authorize_fixture(
 }
 
 fn emit_body<'execution>(
-    mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+    admitted: native_program_planning::AdmittedNativeRealization<'execution>,
     retain_native_stage_inputs: bool,
-    inspect_target: impl FnOnce(
-        &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-    ),
+    inspect_target: impl FnOnce(&native_program_planning::NativeBodyPlan),
 ) -> (
     native_artifact::FragmentObjectProjection,
-    terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders<'execution>,
+    provider_admission::provider_admission::AdmittedNativeProviders<'execution>,
+) {
+    emit_body_inspecting_physical(admitted, retain_native_stage_inputs, inspect_target, |_| {})
+}
+
+fn emit_body_inspecting_physical<'execution>(
+    mut admitted: native_program_planning::AdmittedNativeRealization<'execution>,
+    retain_native_stage_inputs: bool,
+    inspect_target: impl FnOnce(&native_program_planning::NativeBodyPlan),
+    inspect_physical: impl FnOnce(&crate::pipeline::PreparedPhysicalBody),
+) -> (
+    native_artifact::FragmentObjectProjection,
+    provider_admission::provider_admission::AdmittedNativeProviders<'execution>,
 ) {
     let profile = target::TargetProfile::WindowsX64;
     let observation = crate::observations::NativePipelineObservation::new(
         profile,
         crate::observations::NativePipelineUnit::Application,
     );
-    let target = crate::pipeline::lower_to_target(
+    let mut target = native_program_planning::plan_native_body(
         admitted.input,
-        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+        native_program_planning::OptimizedTargetLoweringRequest {
             target: profile.native_target(),
             settlements: &admitted.providers.settlements,
             installation: admitted.providers.installation.take(),
         },
         &optimization_core::PostTerminalOptimizationSelections::default(),
         optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
-        &observation,
+        observation.native_body(),
+        true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {
-        crate::pipeline::TargetLoweringError::AbstractOptimization(error) => {
+        native_program_planning::NativeBodyPlanningError::AbstractOptimization(error) => {
             panic!("constant optimization: {error:?}")
         }
-        crate::pipeline::TargetLoweringError::Target(error) => {
+        native_program_planning::NativeBodyPlanningError::Target(error) => {
             panic!("constant target lowering: {error:?}")
         }
     });
     inspect_target(&target);
-    let installations = crate::pipeline::bound_installations(&target, None, Vec::new()).unwrap();
-    let projection = crate::pipeline::emit_target(
+    if !retain_native_stage_inputs {target.original_for_audit=None;}
+    let installations = crate::pipeline::plan_installations(&target, None, Vec::new()).unwrap();
+    let physical = crate::pipeline::prepare_physical_body(
         target,
         installations,
         &observation,
@@ -80,11 +92,52 @@ fn emit_body<'execution>(
             panic!("constant object: {errors:?}")
         }
     });
+    inspect_physical(&physical);
+    let planned_cpu = image_emission::plan_native_body_cpu_state(
+        &physical.frame,
+        physical.frame.instructions.entry,
+        calling_conventions::Preemption::NotApplicable,
+    );
+    let bound = physical
+        .bind(
+            &installation_binding::RetainedHandlerMeasurements::default(),
+            None,
+        )
+        .unwrap();
+    let projection = crate::pipeline::encode_physical_body(bound, &observation)
+        .and_then(|body| crate::pipeline::layout_encoded_body(body, &observation))
+        .and_then(crate::pipeline::construct_body_object)
+        .unwrap_or_else(|error| match error {
+            crate::pipeline::BodyEmissionError::Physical(error) => {
+                panic!("constant encoding: {error}")
+            }
+            crate::pipeline::BodyEmissionError::Object(errors) => {
+                panic!("constant publication: {errors:?}")
+            }
+        });
+    let decoded_cpu = image_emission::observe_native_body_cpu_state(
+        projection.object(),
+        calling_conventions::Preemption::NotApplicable,
+    );
+    match (planned_cpu, decoded_cpu) {
+        (Ok(planned), Ok(decoded)) => assert_eq!(
+            planned, decoded,
+            "physical CPU facts must agree with independent encoded readback"
+        ),
+        (Err(planned), Err(decoded)) => assert_eq!(
+            planned.to_string(),
+            decoded.to_string(),
+            "physical and encoded refusal must agree"
+        ),
+        (planned, decoded) => {
+            panic!("CPU planning changed availability: planned={planned:?}, decoded={decoded:?}")
+        }
+    }
     (projection, admitted.providers)
 }
 
 fn reject_changed_entry_literal(
-    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    target: &native_program_planning::ValidatedOptimizedTargetOperations,
     entry: MachineId,
 ) {
     // Keep the compiled operation and result paired with their optimized
@@ -114,7 +167,7 @@ fn reject_changed_entry_literal(
     *value = IntegerValue::Unsigned(8);
 
     let optimized = target.optimized();
-    let error = native_preparation::verify_target_operation_plan_with_closed_module(
+    let error = native_program_planning::replay::verify_target_operation_plan_with_closed_module(
         &mismatched,
         optimized.plan(),
         optimized.unit(),
@@ -125,7 +178,7 @@ fn reject_changed_entry_literal(
     .expect_err("a retained target literal must agree with the compiled source");
     assert!(
         matches!(error,
-            native_preparation::TargetOperationAuditError::SourceCustodyMismatch {
+            native_program_planning::replay::TargetOperationAuditError::SourceCustodyMismatch {
                 machine: Some(rejected_machine), ..
             } if rejected_machine == entry),
         "{error:?}"
@@ -142,26 +195,27 @@ fn reject_changed_entry_literal(
 /// proof record by stage 02's validator, and installations admitted for another program by the binding
 /// check in front of selection.
 fn check_published_plan(
-    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    body: &native_program_planning::NativeBodyPlan,
     entry: MachineId,
 ) {
     use legalized_operations::PreparedExecutionPlan;
-    use native_preparation::TargetOperationAuditError::PublishedPlanMismatch;
-    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType};
-    use target_operations_to_selected_instructions::{
+    use native_program_planning::replay::TargetOperationAuditError::PublishedPlanMismatch;
+    use physical_planning::test_support::{
         BoundInstallations, InstallationBindingError, OptimizedSelectionPipelineError,
         select_instructions_for_plan,
     };
+    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType};
 
+    let target = body.original_for_audit.as_deref().unwrap();
     let optimized = target.optimized();
     let verify = |prepared: &PreparedExecutionPlan| {
         let callable_roots = target
             .lowering_facts()
             .callable_invocation_roots(target.working_program_for_validation())
             .unwrap();
-        native_preparation::verify_execution_plan(
+        native_program_planning::replay::verify_execution_plan(
             prepared,
-            native_preparation::ExecutionPlanReplayInputs {
+            native_program_planning::replay::ExecutionPlanReplayInputs {
                 target: target.working_program_for_validation(),
                 abstract_plan: optimized.plan(),
                 unit: optimized.unit(),
@@ -178,7 +232,7 @@ fn check_published_plan(
 
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
-    let authority = crate::pipeline::bound_installations(target, None, Vec::new()).unwrap();
+    let authority = crate::pipeline::plan_installations(body, None, Vec::new()).unwrap();
     let installations = authority.facts().as_ref().clone();
     let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
@@ -399,12 +453,7 @@ fn check_published_plan(
     // Installations admitted for another program cannot be bound to this plan.
     let mut other_program = published.plan().psi;
     other_program.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
-    let foreign_cohort = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
-    let foreign = terminal_psi_to_abstract_operations::provider_admission::bind_installations(
-        &foreign_cohort,
-        None,
-        Vec::new(),
-    );
+    let foreign = BoundInstallations::empty(other_program);
     let error = select_instructions_for_plan(published, &foreign, &environment)
         .expect_err("a foreign interrupt cohort is refused");
     assert!(matches!(
@@ -610,7 +659,7 @@ fn check_publication(
     through_boundary: bool,
     retain_native_stage_inputs: bool,
 ) -> native_artifact::NativeArtifactIdentity {
-    use terminal_psi_to_abstract_operations::provider_admission::{
+    use provider_admission::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
     let artifact = constant_artifact(through_boundary);
@@ -630,14 +679,12 @@ fn check_publication(
     })
     .unwrap();
     let adapters =
-        terminal_psi_to_abstract_operations::provider_admission::retain_selected_provider_adapters(
-            &selected,
-        )
-        .unwrap();
+        provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
+            .unwrap();
     let policy = current_terminal_authority_policy();
     let exclusions = effects::BehaviorExclusions::default();
     let profile = target::TargetProfile::WindowsX64;
-    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+    let admission = native_program_planning::NativeAdmissionRequest {
         entry,
         private_entry_ram: &[],
         providers: ProviderAdmissionRequest {
@@ -662,7 +709,7 @@ fn check_publication(
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
     };
-    let admitted = terminal_psi_to_abstract_operations::admit_native_realization(
+    let admitted = native_program_planning::admit_native_realization(
         &authorize_fixture(&artifact),
         &admission,
     )
@@ -676,7 +723,7 @@ fn check_publication(
         runtime_input.boundary_machines(),
         admitted.input.plan().boundary_machines.as_slice(),
     ));
-    let runtime_host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(
+    let runtime_host = native_runtime_provisions::TerminalRuntimeHostProvisions::capture_native_admission(
         admitted
             .providers
             .installation
@@ -686,7 +733,7 @@ fn check_publication(
         runtime_input,
         &selected,
         &[],
-        native_artifact::NativeBindingRuntimeInputs {
+        native_runtime_provisions::NativeBindingRuntimeInputs {
             bindings: &Default::default(),
             calling: &[],
         },
@@ -718,31 +765,42 @@ fn check_publication(
         },
     );
     let (projection, providers) = emit_body(admitted, retain_native_stage_inputs, |target| {
+        assert!(target.private_references.is_empty());
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {
-            reject_changed_entry_literal(target, bootstrap_entry);
+            reject_changed_entry_literal(target.original_for_audit.as_deref().unwrap(), bootstrap_entry);
         }
     });
     let unrelated = constant_artifact(!through_boundary);
     assert!(
-        projection
-            .object()
-            .clone()
-            .with_semantic_source(unrelated.retain_code(), coverage.clone(),)
-            .is_err(),
-        "an emitted object cannot adopt another semantic owner"
+        native_artifact::PrivatePhysicalOriginal::new(
+            projection.object().psi(),
+            unrelated.retain_code(),
+            coverage.clone(),
+        )
+        .is_err(),
+        "a physical proof cannot adopt another semantic owner"
     );
-    let projection = projection
-        .with_semantic_source(artifact.retain_code(), coverage.clone())
-        .expect("retain the emitted body's own semantic owner");
     let published = native_artifact::publish_fragment_object(
         projection,
         native_artifact::FragmentObjectPublicationRequest {
+            physical_entry: None,
+            hosted_entry: None,
             program_entry: None,
             private_functions: &[],
         },
     )
     .expect("publish actual emitted object");
+    assert_eq!(
+        published.object.retained_fragment_source().is_some(),
+        retain_native_stage_inputs,
+        "only an explicit audit may retain compiler stages behind an emitted object"
+    );
+    assert_eq!(
+        published.object.native_instruction_source_rows().is_some(),
+        retain_native_stage_inputs,
+        "ordinary image publication has no instruction graph lookup capability"
+    );
     let target_audit = image_emission::verify_retained_target_operations(&published.object);
     let audit = image_emission::verify_retained_fixed_frame(&published.object);
     if retain_native_stage_inputs {
@@ -767,6 +825,7 @@ fn check_publication(
         &selected,
         providers,
         Some(coverage),
+        Default::default(),
     )
     .expect("emit native image with retained physical scope");
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {

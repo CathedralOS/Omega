@@ -1,23 +1,19 @@
 //! Read call demands from the current form's prepared invocation records.
 
-use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use terminal_semantics::callable_values::ReachableCallableInvocations;
 
-/// Borrow the exact entry summary already bound during native preparation.
-/// Image emission neither revisits optimized code nor rebuilds registrar roots.
-pub(crate) fn prepare_from(
-    source: &StagedOptimizedFunctionFragmentEmissionSource,
+pub(crate) fn prepare_with<'a>(
+    calls: &machine_code::call_origins::PhysicalCallOrigins,
+    contracts: &'a selected_instructions::SelectedProgramContracts,
     entry: semantic_vocabulary::MachineId,
-) -> Result<&ReachableCallableInvocations, String> {
-    if source.physical_program().function(entry).is_none() {
+) -> Result<&'a ReachableCallableInvocations, String> {
+    if calls.function(entry).is_none() {
         return Err(format!(
             "entry {} has no current native function",
             entry.get()
         ));
     }
-    source
-        .physical_program()
-        .contracts
+    contracts
         .execution()
         .and_then(|facts| facts.callable_invocations_from(entry))
         .ok_or_else(|| {

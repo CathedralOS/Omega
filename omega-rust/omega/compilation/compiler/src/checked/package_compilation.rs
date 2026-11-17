@@ -29,7 +29,7 @@ impl PackageSourceRequest {
         }
     }
 
-    pub fn set_optimization_rollback(&mut self, rollback: optimization_core::OptimizationRollback) {
+    pub fn set_optimization_rollback(&mut self, rollback: optimization_requests::OptimizationRollback) {
         match self {
             Self::Execute(request) => request.optimization_rollback = rollback,
             Self::Product(request) => request.options.optimization_rollback = rollback,
@@ -108,7 +108,7 @@ pub struct CompletedBuild {
 
 #[derive(Clone, Default)]
 pub struct PackageProductOptions {
-    pub optimization_rollback: optimization_core::OptimizationRollback,
+    pub optimization_rollback: optimization_requests::OptimizationRollback,
 }
 
 impl CompletedBuild {
@@ -164,7 +164,7 @@ impl CompletedBuild {
 impl PackageBuildInvocation {
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -388,7 +388,7 @@ impl CompilationSession {
             if !roster.supplies.contains(&supply) {
                 roster.supplies.push(supply);
             }
-            let supplied = products::ProductTerminalPublication::judge(
+            let supplied = source_compiler::SourcePublication::judge(
                 std::sync::Arc::clone(accepted.source()),
                 roster,
                 publication.optimizations().clone(),

@@ -1967,8 +1967,8 @@ pub(crate) mod dynamic_linkage_templates {
             ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy,
         };
         use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
-            AARCH64_PLT_ENTRY, AARCH64_PLT_ENTRY_SIZE, AARCH64_PLT_HEADER, AARCH64_PLT_HEADER_SIZE,
-            ELF64_GOT_WORD_SIZE, ELF64_RELA_SIZE, GOT_PLT_HEADER_WORDS, X86_PLT_ENTRY_SIZE, X86_PLT_HEADER,
+            AARCH64_PLT_ENTRY_SIZE, AARCH64_PLT_HEADER_SIZE,
+            ELF64_GOT_WORD_SIZE, ELF64_RELA_SIZE, GOT_PLT_HEADER_WORDS, X86_PLT_ENTRY_SIZE,
             X86_PLT_HEADER_SIZE,
         };
         use diagnostics::Diagnostic;
@@ -1995,8 +1995,8 @@ pub(crate) mod dynamic_linkage_templates {
                     ));
                 }
             };
-            let bytes = encode_template_bytes(target, linkage.contents())?;
-            let fixups = derive_fixups(target, linkage.contents())?;
+            let bytes = place_template_bytes(target, linkage)?;
+            let fixups = place_import_fixups(linkage)?;
             let constraints = derive_constraints(&fixups)?;
             Ok(ElfProcedureLinkageTemplateContents {
                 policy,
@@ -2018,46 +2018,63 @@ pub(crate) mod dynamic_linkage_templates {
                 .target()
         }
 
-        fn encode_template_bytes(
+        fn place_template_bytes(
             target: TargetProfile,
-            linkage: &ElfProcedureLinkageRelocationContents,
+            plan: &ValidatedElfProcedureLinkageRelocationPlan,
         ) -> Result<ElfProcedureLinkageTemplateBytes, Diagnostic> {
+            let linkage = plan.contents();
+            let inputs = plan.descriptors().payloads().plan().inputs();
+            let image = inputs.image();
+            image.validate_import_program()?;
             let slot_count = linkage.slots.len();
-            let mut plt = match target {
-                TargetProfile::LinuxX64 => Vec::with_capacity(checked_sum(
-                    X86_PLT_HEADER_SIZE,
-                    checked_product(slot_count, X86_PLT_ENTRY_SIZE, "x86-64 PLT entries")?,
-                    "x86-64 PLT template size",
-                )?),
-                TargetProfile::LinuxArm64 => Vec::with_capacity(checked_sum(
-                    AARCH64_PLT_HEADER_SIZE,
-                    checked_product(slot_count, AARCH64_PLT_ENTRY_SIZE, "AArch64 PLT entries")?,
-                    "AArch64 PLT template size",
-                )?),
-                _ => return Err(Diagnostic::error("unsupported ELF GOT/PLT template target")),
-            };
-            match target {
-                TargetProfile::LinuxX64 => {
-                    plt.extend(X86_PLT_HEADER);
-                    for slot in &linkage.slots {
-                        let relocation_index =
-                            i32::try_from(slot.logical_ordinal).map_err(|_| {
-                                Diagnostic::error(
-                                    "x86-64 lazy-binding relocation index exceeds signed imm32",
-                                )
-                            })?;
-                        plt.extend([0xff, 0x25, 0, 0, 0, 0, 0x68]);
-                        plt.extend(relocation_index.to_le_bytes());
-                        plt.extend([0xe9, 0, 0, 0, 0]);
+            let resolver = image.import_program.resolver.as_ref().ok_or_else(|| {
+                Diagnostic::error("ELF imports have no previously encoded resolver")
+            })?;
+            let mut plt = resolver.bytes.clone();
+            for slot in &linkage.slots {
+                let request = inputs.imports().get(slot.request_index).ok_or_else(|| {
+                    Diagnostic::error("ELF import slot exceeds its closed request roster")
+                })?;
+                let body = image.encoded_import_body(request.symbol_handle)?;
+                let mut bytes = body.bytes.clone();
+                let mut ordinals = body.operands.iter().filter(|operand| {
+                    operand.target == machine_code::import_code::ImportOperandTarget::BindingOrdinal
+                });
+                if target == TargetProfile::LinuxX64 {
+                    let operand = ordinals.next().ok_or_else(|| {
+                        Diagnostic::error("ELF import lacks an encoded binding ordinal operand")
+                    })?;
+                    if operand.kind
+                        != machine_code::import_code::ImportOperandKind::X86SignedOrdinal32
+                        || ordinals.next().is_some()
+                    {
+                        return Err(Diagnostic::error(
+                            "ELF binding ordinal operand has a different encoding",
+                        ));
                     }
-                }
-                TargetProfile::LinuxArm64 => {
-                    plt.extend(AARCH64_PLT_HEADER);
-                    for _ in &linkage.slots {
-                        plt.extend(AARCH64_PLT_ENTRY);
+                    let ordinal = i32::try_from(slot.logical_ordinal).map_err(|_| {
+                        Diagnostic::error(
+                            "x86-64 lazy-binding relocation index exceeds signed imm32",
+                        )
+                    })?;
+                    let end = operand.offset.checked_add(4).ok_or_else(|| {
+                        Diagnostic::error("ELF binding ordinal operand overflows")
+                    })?;
+                    let field = bytes.get_mut(operand.offset..end).ok_or_else(|| {
+                        Diagnostic::error("ELF binding ordinal operand is out of bounds")
+                    })?;
+                    if field != [0; 4] {
+                        return Err(Diagnostic::error(
+                            "ELF binding ordinal is not an encoded zero placeholder",
+                        ));
                     }
+                    field.copy_from_slice(&ordinal.to_le_bytes());
+                } else if ordinals.next().is_some() {
+                    return Err(Diagnostic::error(
+                        "AArch64 import carries an unexpected binding ordinal operand",
+                    ));
                 }
-                _ => unreachable!("target was checked above"),
+                plt.extend(bytes);
             }
 
             let got_word_count =
@@ -2100,6 +2117,91 @@ pub(crate) mod dynamic_linkage_templates {
                 rela_plt,
                 rela_dyn,
             })
+        }
+
+        fn place_import_fixups(
+            plan: &ValidatedElfProcedureLinkageRelocationPlan,
+        ) -> Result<Vec<ElfProcedureLinkageFixup>, Diagnostic> {
+            let inputs = plan.descriptors().payloads().plan().inputs();
+            let image = inputs.image();
+            let resolver =
+                image.import_program.resolver.as_ref().ok_or_else(|| {
+                    Diagnostic::error("ELF import resolver has no encoded operands")
+                })?;
+            let mut fixups = Vec::new();
+            append_encoded_operands(&mut fixups, resolver, 0, None)?;
+            let mut offset = resolver.bytes.len();
+            for slot in &plan.contents().slots {
+                let request = inputs.imports().get(slot.request_index).ok_or_else(|| {
+                    Diagnostic::error("ELF import slot exceeds its closed request roster")
+                })?;
+                let body = image.encoded_import_body(request.symbol_handle)?;
+                append_encoded_operands(&mut fixups, body, offset, Some(slot.logical_ordinal))?;
+                offset = checked_sum(offset, body.bytes.len(), "placed encoded import body")?;
+            }
+            append_data_fixups(target(plan), plan.contents(), &mut fixups)?;
+            Ok(fixups)
+        }
+
+        fn append_encoded_operands(
+            fixups: &mut Vec<ElfProcedureLinkageFixup>,
+            body: &machine_code::import_code::EncodedImportBody,
+            offset: usize,
+            ordinal: Option<u32>,
+        ) -> Result<(), Diagnostic> {
+            use machine_code::import_code::{
+                ImportOperandKind as Kind, ImportOperandTarget as Target,
+            };
+            for operand in &body.operands {
+                if operand.target == Target::BindingOrdinal {
+                    if ordinal.is_none() || operand.kind != Kind::X86SignedOrdinal32 {
+                        return Err(Diagnostic::error(
+                            "ELF binding ordinal is outside an encoded import entry",
+                        ));
+                    }
+                    continue; // Filled from the canonical import table before address placement.
+                }
+                let kind = match operand.kind {
+                    Kind::X86Relative32 => ElfProcedureLinkageFixupKind::X86PcRelative32,
+                    Kind::Aarch64Page21 => ElfProcedureLinkageFixupKind::Aarch64Page21,
+                    Kind::Aarch64PageOffset12 { scale: 3 } => {
+                        ElfProcedureLinkageFixupKind::Aarch64Load64Low12
+                    }
+                    Kind::Aarch64PageOffset12 { scale: 0 } => {
+                        ElfProcedureLinkageFixupKind::Aarch64AddLow12
+                    }
+                    _ => return Err(Diagnostic::error("unsupported encoded ELF import operand")),
+                };
+                let target = match operand.target {
+                    Target::BindingSlot => ElfProcedureLinkageSemanticTarget::GotPltSlot {
+                        logical_ordinal: ordinal.ok_or_else(|| {
+                            Diagnostic::error("ELF resolver refers to an import-local binding slot")
+                        })?,
+                    },
+                    Target::LoaderContext if ordinal.is_none() => {
+                        ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { word_index: 1 }
+                    }
+                    Target::LoaderResolver if ordinal.is_none() => {
+                        ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { word_index: 2 }
+                    }
+                    Target::ResolverEntry if ordinal.is_some() => {
+                        ElfProcedureLinkageSemanticTarget::PltHeader
+                    }
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "encoded ELF import operand has an invalid symbolic target",
+                        ));
+                    }
+                };
+                push_fixup(
+                    fixups,
+                    ElfProcedureLinkageFixupStorage::Plt,
+                    checked_sum(offset, operand.offset, "placed encoded import operand")?,
+                    kind,
+                    target,
+                );
+            }
+            Ok(())
         }
 
         pub(crate) fn derive_fixups(
@@ -2150,24 +2252,6 @@ pub(crate) mod dynamic_linkage_templates {
                             ElfProcedureLinkageSemanticTarget::PltHeader,
                         );
                     }
-                    push_fixup(
-                        &mut fixups,
-                        ElfProcedureLinkageFixupStorage::GotPlt,
-                        0,
-                        ElfProcedureLinkageFixupKind::Absolute64,
-                        ElfProcedureLinkageSemanticTarget::FutureDynamicSection,
-                    );
-                    for slot in &linkage.slots {
-                        push_fixup(
-                            &mut fixups,
-                            ElfProcedureLinkageFixupStorage::GotPlt,
-                            got_slot_byte_offset(slot.logical_ordinal)?,
-                            ElfProcedureLinkageFixupKind::Absolute64,
-                            ElfProcedureLinkageSemanticTarget::PltLazyTail {
-                                logical_ordinal: slot.logical_ordinal,
-                            },
-                        );
-                    }
                 }
                 TargetProfile::LinuxArm64 => {
                     for (offset, kind) in [
@@ -2209,9 +2293,44 @@ pub(crate) mod dynamic_linkage_templates {
                             );
                         }
                     }
+                }
+                _ => return Err(Diagnostic::error("unsupported ELF GOT/PLT fixup target")),
+            }
+
+            append_data_fixups(target, linkage, &mut fixups)?;
+            Ok(fixups)
+        }
+
+        fn append_data_fixups(
+            target: TargetProfile,
+            linkage: &ElfProcedureLinkageRelocationContents,
+            fixups: &mut Vec<ElfProcedureLinkageFixup>,
+        ) -> Result<(), Diagnostic> {
+            match target {
+                TargetProfile::LinuxX64 => {
+                    push_fixup(
+                        fixups,
+                        ElfProcedureLinkageFixupStorage::GotPlt,
+                        0,
+                        ElfProcedureLinkageFixupKind::Absolute64,
+                        ElfProcedureLinkageSemanticTarget::FutureDynamicSection,
+                    );
                     for slot in &linkage.slots {
                         push_fixup(
-                            &mut fixups,
+                            fixups,
+                            ElfProcedureLinkageFixupStorage::GotPlt,
+                            got_slot_byte_offset(slot.logical_ordinal)?,
+                            ElfProcedureLinkageFixupKind::Absolute64,
+                            ElfProcedureLinkageSemanticTarget::PltLazyTail {
+                                logical_ordinal: slot.logical_ordinal,
+                            },
+                        );
+                    }
+                }
+                TargetProfile::LinuxArm64 => {
+                    for slot in &linkage.slots {
+                        push_fixup(
+                            fixups,
                             ElfProcedureLinkageFixupStorage::GotPlt,
                             got_slot_byte_offset(slot.logical_ordinal)?,
                             ElfProcedureLinkageFixupKind::Absolute64,
@@ -2221,10 +2340,9 @@ pub(crate) mod dynamic_linkage_templates {
                 }
                 _ => return Err(Diagnostic::error("unsupported ELF GOT/PLT fixup target")),
             }
-
             for (index, relocation) in linkage.jump_slot_relocations.iter().enumerate() {
                 push_fixup(
-                    &mut fixups,
+                    fixups,
                     ElfProcedureLinkageFixupStorage::RelaPlt,
                     checked_product(index, ELF64_RELA_SIZE, "procedure RELA r_offset")?,
                     ElfProcedureLinkageFixupKind::Elf64RelaOffset,
@@ -2235,7 +2353,7 @@ pub(crate) mod dynamic_linkage_templates {
             }
             for (index, relocation) in linkage.general_relocations.iter().enumerate() {
                 push_fixup(
-                    &mut fixups,
+                    fixups,
                     ElfProcedureLinkageFixupStorage::RelaDyn,
                     checked_product(index, ELF64_RELA_SIZE, "general RELA r_offset")?,
                     ElfProcedureLinkageFixupKind::Elf64RelaOffset,
@@ -2248,7 +2366,7 @@ pub(crate) mod dynamic_linkage_templates {
             for slot in &linkage.slots {
                 for call_site in &slot.call_sites {
                     push_fixup(
-                        &mut fixups,
+                        fixups,
                         ElfProcedureLinkageFixupStorage::SourceText,
                         call_site.relocation_offset,
                         match target {
@@ -2266,7 +2384,7 @@ pub(crate) mod dynamic_linkage_templates {
                     );
                 }
             }
-            Ok(fixups)
+            Ok(())
         }
 
         fn push_fixup(
@@ -2599,6 +2717,7 @@ pub(crate) mod dynamic_linkage_templates {
             contents: &ElfProcedureLinkageTemplateContents,
         ) -> Result<(), Diagnostic> {
             let target = target(linkage);
+            validate_encoded_resources(linkage, target)?;
             let expected_policy = match target {
                 TargetProfile::LinuxX64 => ElfProcedureLinkageTemplatePolicy::X86_64SmallMediumLazy,
                 TargetProfile::LinuxArm64 => ElfProcedureLinkageTemplatePolicy::Aarch64StandardLazy,
@@ -2620,6 +2739,61 @@ pub(crate) mod dynamic_linkage_templates {
                 contents.constraints == derive_constraints(&contents.fixups)?,
                 "ELF procedure-linkage placement constraints drifted from exact fixups",
             )
+        }
+
+        fn validate_encoded_resources(
+            linkage: &ValidatedElfProcedureLinkageRelocationPlan,
+            target: TargetProfile,
+        ) -> Result<(), Diagnostic> {
+            use calling_conventions::{
+                MachineRegister as R, MachineState as S, MachineStateSet, RegisterSet,
+                StateEffectsEvidence,
+            };
+            let image = linkage.descriptors().payloads().plan().inputs().image();
+            let program = &image.import_program;
+            let expected = |resolver: bool| {
+                let (reads, writes, stack) = match target {
+                    TargetProfile::LinuxX64 => (vec![R::X86Rsp], vec![R::X86Rsp], 8),
+                    TargetProfile::LinuxArm64 if resolver => (
+                        vec![R::Aarch64X(16), R::Aarch64X(17), R::Aarch64X(30)],
+                        vec![R::Aarch64X(16), R::Aarch64X(17)],
+                        16,
+                    ),
+                    TargetProfile::LinuxArm64 => (
+                        vec![R::Aarch64X(16), R::Aarch64X(17)],
+                        vec![R::Aarch64X(16), R::Aarch64X(17)],
+                        0,
+                    ),
+                    _ => unreachable!("validated ELF template target"),
+                };
+                let mut states = vec![S::InstructionPointer];
+                if stack != 0 {
+                    states.push(S::StackPointer);
+                }
+                machine_code::import_code::ImportBodyResources {
+                    effects: StateEffectsEvidence::new(
+                        RegisterSet::new(reads),
+                        RegisterSet::new(writes),
+                        MachineStateSet::new(states.iter().copied()),
+                        MachineStateSet::new(states),
+                    ),
+                    local_stack_bytes: stack,
+                }
+            };
+            require(
+                program
+                    .resolver
+                    .as_ref()
+                    .is_some_and(|body| body.resources == expected(true)),
+                "ELF encoded resolver effects or local stack demand differ from its instructions",
+            )?;
+            for body in &program.imports {
+                require(
+                    body.body.resources == expected(false),
+                    "ELF encoded import effects or local stack demand differ from its instructions",
+                )?;
+            }
+            Ok(())
         }
 
         fn validate_fixed_template_bytes(
@@ -2998,6 +3172,49 @@ pub(crate) mod dynamic_linkage_templates {
                 linkage,
                 contents,
                 non_authoritative_template_compatibility_fingerprint,
+            }
+        }
+
+        #[test]
+        fn image_writer_requires_encoded_import_bodies_operands_and_effects() {
+            for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+                let mut image = crate::test_support::import_image(target, 16, 1);
+                let imported = crate::test_support::versioned_import(
+                    &mut image,
+                    "call",
+                    b"libc.so.6",
+                    b"write",
+                    b"V1",
+                    target,
+                    "normalized fixture",
+                );
+                crate::test_support::insert_text_call_relocations(
+                    &mut image,
+                    target,
+                    [(0, imported)],
+                );
+                let plan = crate::test_support::resolved_linkage(image.clone(), target);
+                let _complete = plan_elf_procedure_linkage_templates(plan).expect("complete encoded program");
+                for change in 0..4 {
+                    let mut invalid = image.clone();
+                    match change {
+                        0 => invalid.import_program.imports.clear(),
+                        1 => invalid.import_program.imports[0].body.operands[0].offset += 4,
+                        2 => invalid.import_program.imports[0].body.bytes[0] ^= 0x80,
+                        3 => {
+                            invalid.import_program.imports[0]
+                                .body
+                                .resources
+                                .local_stack_bytes += 8
+                        }
+                        _ => unreachable!(),
+                    }
+                    let plan = crate::test_support::resolved_linkage(invalid, target);
+                    assert!(
+                        plan_elf_procedure_linkage_templates(plan).is_err(),
+                        "{target:?}, mutation {change}"
+                    );
+                }
             }
         }
 

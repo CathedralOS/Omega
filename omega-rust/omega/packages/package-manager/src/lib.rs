@@ -35,12 +35,12 @@ macro_rules! reserve {
 }
 pub(crate) use reserve;
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 mod build_session;
 mod hex;
 pub(crate) use hex::{Hex, hex_digest};
 pub mod declarations;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 pub mod lock;
 pub mod operations;
 pub mod package_manager;

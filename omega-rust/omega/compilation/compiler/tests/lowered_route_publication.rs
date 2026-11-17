@@ -16,11 +16,11 @@
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
+use source_compiler::checking::RoutePublication;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
-use terminal_psi_to_terminal_psi::RoutePublication;
 use terminal_work::WorkMeter;
 
 // Fixture compilation shares process-wide counters; run one at a time.
@@ -33,7 +33,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (publication, _, _, _) =
         published_fixture("tests/fixtures/run/calls/indexed_case_discriminator");
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
@@ -41,7 +41,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     .into_optimization_artifact()
     .into_optimization_input();
     let (_, unit) =
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+        native_program_planning::test_support::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),
         )
@@ -171,8 +171,9 @@ fn published_fixture(
         .closure()
         .publish()
         .expect("the accepted module publishes");
-    let (signature, application) = compiler::prepare_program_entry(&checked)
-        .expect("the Build-selected entry has a real producer");
+    let (signature, application) =
+        compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+            .expect("the Build-selected entry has a real producer");
     let receipt = application
         .receipt
         .expect("entry preparation")
@@ -236,7 +237,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
@@ -244,7 +245,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     .into_optimization_artifact()
     .into_optimization_input();
     let (_, unit) =
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+        native_program_planning::test_support::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),
         )
@@ -293,22 +294,22 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (check_publication, _, _, checked) = published_fixture(fixture);
-    let (signature, _) = compiler::prepare_program_entry(&checked).unwrap();
+    let (signature, _) =
+        compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
     let accepted = checked.terminal_publication().accepted().unwrap();
     let catalog = checked
         .source_inspection()
         .inventory()
         .services_for(accepted.source().as_ref())
         .expect("the accepted source's retained Product service catalog");
-    let boundary = package_compilation::selected_program_entry_boundary(
+    let boundary = source_compiler::entry_contracts::selected_program_entry_boundary(
         catalog,
-        signature.target_slot(),
-        None,
+        &package_compilation::source_imports::source_target(signature.target_slot().owner, None),
     )
     .expect("the selected target's authenticated entry declaration");
     let mut roster = checked.terminal_publication().roster().unwrap().clone();
     roster.declaration_metadata.push(boundary);
-    let executable = products::ProductTerminalPublication::judge(
+    let executable = source_compiler::SourcePublication::judge(
         std::sync::Arc::clone(accepted.source()),
         roster,
         checked.terminal_publication().optimizations().clone(),
@@ -350,7 +351,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 }
 
 /// The Terminal product the default compile builds for `fixture`.
-fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
+fn default_product(fixture: &str) -> native_program_planning::RetainedTerminalArtifact {
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {

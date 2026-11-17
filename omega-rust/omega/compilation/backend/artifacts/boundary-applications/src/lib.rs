@@ -28,7 +28,7 @@ them into physical execution evidence.
 use effects::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
 use semantic_vocabulary::{IntegerType, ScalarType};
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 
 pub mod coverage;
 pub mod demands;
@@ -159,10 +159,10 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
             },
             format: match self.format {
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                    numerics::literals::FloatFormat::F32
+                    numeric_literals::FloatFormat::F32
                 }
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                    numerics::literals::FloatFormat::F64
+                    numeric_literals::FloatFormat::F64
                 }
             },
         }

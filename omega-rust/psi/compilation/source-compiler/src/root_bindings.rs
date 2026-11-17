@@ -14,10 +14,10 @@ machine is a valid entry is judged where the entry is checked.
 */
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{
-    ExecutedRootBinding, RootBinding, RootBindingSelection,
-};
-use typed_trees::TypedTrees;
+use crate::declaration_selection::ExecutedRootBinding;
+use declaration_contracts::selection::RootBinding;
+use crate::declaration_selection::RootBindingSelection;
+use crate::source_state::TypedTrees;
 
 pub(crate) fn collect_root_bindings(
     typed: &TypedTrees,
@@ -40,10 +40,8 @@ pub(crate) fn collect_root_bindings(
             );
                     continue;
                 }
-                let selected = described
-                    .declaration
-                    .rejoin(
-                        &typed.symbols,
+                let selected = crate::source_symbols::rejoin_declaration(&described
+                    .declaration, &typed.symbols,
                         typed.machines().iter().filter_map(|machine| {
                             typed
                                 .symbols
@@ -176,8 +174,8 @@ pub(crate) fn collect_root_bindings(
 mod tests {
     use super::*;
 
-    fn typed(text: &str) -> (TypedTrees, source::SourceId) {
-        let mut sources = source::SourceMap::from_files(Vec::new());
+    fn typed(text: &str) -> (TypedTrees, source_text::SourceId) {
+        let mut sources = crate::source_inputs::SourceMap::from_files(Vec::new());
         let source_id = sources
             .add(
                 std::path::PathBuf::from("program/main.omg"),
@@ -189,8 +187,8 @@ mod tests {
             .expect("source lexes");
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("source parses");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+        let resolved = crate::resolution::resolve(
+            crate::resolution::ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
@@ -199,7 +197,7 @@ mod tests {
         )
         .expect("source resolves");
         let base =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+            crate::typing::lower_symbol_resolved_trees_to_seeded_base(
                 resolved,
             )
             .expect("source types");
@@ -312,7 +310,7 @@ mod tests {
             .begin_extension(Some(std::sync::Arc::new(sources)), Vec::new());
         let current = symbols.insert_top_level([(
             symbols::SymbolKind::Machine,
-            symbols::SymbolNameRef::Source(source::SourceSpan::new(
+            symbols::SymbolNameRef::Source(source_text::SourceSpan::new(
                 current_source,
                 original_name.span,
             )),

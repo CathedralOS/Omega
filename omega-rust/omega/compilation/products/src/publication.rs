@@ -127,7 +127,7 @@ fn publish_native(mut report: CompileReport, build_dir: &Path) -> Result<Compile
     } else {
         let output_path = build_dir.join(&output.file_name);
         component_receipts =
-            publish_flat_native_files(&output_path, &output.bytes, artifact.target(), components)?;
+            publish_flat_native_files(&output_path, &output.bytes, artifact.target(), artifact.image().companion_images(), components)?;
         output_path
     };
 
@@ -160,7 +160,7 @@ fn publish_dynamic_elf(
         .map(|runtime| runtime.component_products().to_vec())
         .unwrap_or_default();
     let receipts =
-        publish_flat_native_files(&output_path, &output.bytes, artifact.target(), components)?;
+        publish_flat_native_files(&output_path, &output.bytes, artifact.target(), &[], components)?;
     let receipt = publication.into_receipt(output_path);
     if !receipts.is_empty() {
         report.record_component_publications(receipts)?;
@@ -172,6 +172,7 @@ fn publish_flat_native_files(
     output_path: &Path,
     output: &[u8],
     target: target::NativeTarget,
+    root_companions: &[image_emission::NativeCompanionImage],
     components: Vec<std::sync::Arc<native_artifact::NativeComponentProduct>>,
 ) -> Result<Vec<native_artifact::NativeComponentPublicationReceipt>, String> {
     let directory = output_path
@@ -216,32 +217,25 @@ fn publish_flat_native_files(
         false,
     )?);
     staged.push(stage_exact_bytes(output_path, output, true)?);
-    if target.object_format == target::ObjectFormat::Coff {
-        let provider = runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY;
-        let imported = runtime_abi::image_imports_windows_internet_provider(output)
-            || components.iter().any(|component| {
-                runtime_abi::image_imports_windows_internet_provider(
-                    component.image().image().contents(),
-                )
-            });
-        if imported {
-            let library = std::str::from_utf8(provider)
-                .map_err(|_| "windows internet provider library name is not utf-8")?;
-            if components
-                .iter()
-                .any(|component| component.locator().image_filename() == library)
-            {
-                return Err(
-                    "a component image already uses the windows internet provider library name"
-                        .into(),
-                );
-            }
-            staged.push(stage_exact_bytes(
-                &directory.join(library),
-                &runtime_abi::windows_internet_provider_dll(),
-                false,
-            )?);
+    let mut companions = Vec::<&image_emission::NativeCompanionImage>::new();
+    for companion in root_companions.iter().chain(
+        components.iter().flat_map(|component| component.image().companion_images()),
+    ) {
+        if components.iter().any(|component| component.locator().image_filename() == companion.filename())
+            || output_path.file_name().is_some_and(|name| name == companion.filename())
+        {
+            return Err("a native product already uses a compiler companion filename".into());
         }
+        if let Some(previous) = companions.iter().find(|previous| previous.filename() == companion.filename()) {
+            if previous.contents() != companion.contents() {
+                return Err("native products disagree on a compiler companion image".into());
+            }
+        } else {
+            companions.push(companion);
+        }
+    }
+    for companion in companions {
+        staged.push(stage_exact_bytes(&directory.join(companion.filename()), companion.contents(), false)?);
     }
     install_staged_files(&staged)?;
     components

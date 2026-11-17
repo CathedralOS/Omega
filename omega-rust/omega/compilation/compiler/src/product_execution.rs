@@ -111,11 +111,11 @@ pub enum CompilationProductError {
     Production(Vec<Diagnostic>),
     ProductionAttempt {
         diagnostics: Vec<Diagnostic>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
     BuildConsentRequired {
         requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
 }
 
@@ -169,7 +169,7 @@ impl From<CompilationProductError> for crate::CompileFailure {
 impl CompilationProductError {
     pub fn with_source_completion_accounting(
         self,
-        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+        mut accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         match self {
             Self::ProductionAttempt {
@@ -331,8 +331,10 @@ impl TargetCompilation {
                     mut settlement,
                     rollback,
                 } => {
+                    let published = checked.into_published()?;
+                    let proposal = produced.into_executable_proposal(&published)?;
                     let (terminal, _, _) =
-                        executable::prepare(&checked, produced, &self.selections, None)?;
+                        executable::prepare(&published, proposal, &self.selections, None)?;
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     settlement
                         .finish_terminal(terminal, rollback.into_receipt())
@@ -344,10 +346,17 @@ impl TargetCompilation {
                     request,
                     rollback,
                 } => {
+                    let published = checked.into_published()?;
+                    let proposal = produced.into_executable_proposal(&published)?;
                     let (terminal, accepted_package_permissions, retained_native_inputs) =
-                        executable::prepare(&checked, produced, &self.selections, Some(&request))?;
-                    if checked.execution().realization().composition_modes().any(|mode| {
-                        mode == language_semantics::declaration_selection::CompositionMode::Independent
+                        executable::prepare(
+                            &published,
+                            proposal,
+                            &self.selections,
+                            Some(&request),
+                        )?;
+                    if published.execution().realization().composition_modes().any(|mode| {
+                        mode == declaration_contracts::selection::CompositionMode::Independent
                     }) {
                         return Err(CompilationProductError::Production(vec![Diagnostic::error(
                             "native composition needs the selected independent components' verified products",
@@ -429,10 +438,8 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission)
-            && let Err(diagnostics) = crate::terminal::prepare_entry_metadata(
-                &mut realization.custody,
-                package_inputs.as_ref(),
-            )
+            && let Err(diagnostics) =
+                crate::terminal::bind_folded_entry_dependencies(&mut realization.custody)
         {
             return Err(CompilationProductError::from(diagnostics)
                 .with_source_completion_accounting(
@@ -459,7 +466,7 @@ fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
 impl TerminalCompilation {
     pub(crate) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         match self {
             Self::Product(product) => &product.realization.custody.source_completion_accounting,
             Self::Inspection(product) => product.source_completion_accounting(),

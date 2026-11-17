@@ -81,10 +81,8 @@ The crate is organized along that lifecycle:
 mod activation;
 mod admission;
 mod build_evaluation;
-mod calling_policy_execution;
 pub mod host;
 pub mod settings;
-mod via_binding_evaluation;
 
 pub use activation::scalar_completion;
 
@@ -94,17 +92,14 @@ pub use activation::{
     BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,
     TerminalBuildHost, TerminalBuildStep,
 };
-pub use admission::build_stages::select_build_stage;
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
-pub use admission::target_helpers::select_build_helpers;
 pub use build_evaluation::{
     BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation,
     RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
-pub use build_time_evaluation::WireCompatibilityDemand;
-pub use calling_policy_execution::{CALLING_POLICY_EVALUATOR, evaluate_terminal_calling_policy};
+pub use source_compiler::evaluation::WireCompatibilityDemand;
 pub use effects::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
@@ -120,15 +115,17 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
-pub use products::BuildStage;
 pub use products::{BuildConfig, ComputedBuildConfig};
-pub use provider_planning::program_entry::{
-    RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
+pub use native_program_planning::program_entry::{
+    SelectedCompilerProgramEntry,
     SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
-    selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use via_binding_evaluation::prepare_source_via_bindings;
+
+mod program_entry_selection;
+pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
+pub use declaration_contracts::selection::RootBinding;
+
 
 #[cfg(test)]
 #[path = "../../../../../tests/support/frontend.rs"]

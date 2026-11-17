@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+pub mod code_layout;
+mod companion_code;
+pub mod import_code;
+pub use companion_code::{EncodedAuxiliaryExport, WindowsInternetProviderCode};
+
 /*
 Target machine-code representations for the Omega native backend (`Omega 07–09 -> Machine Emission`).
 
@@ -28,8 +33,8 @@ importing producer transformation passes. Constructing or decoding a record chec
 digest consistency only; it never grants lowering, optimization, or publication authority.
 */
 
-pub(crate) use optimization_core::cursor;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::cursor;
+pub(crate) use ::wire::digest_encoder;
 
 use register_model::RegisterViewId;
 use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
@@ -42,8 +47,8 @@ use terminal_psi::{
 
 pub(crate) mod codec_bytes {
     #[cfg(test)]
-    pub(crate) use optimization_core::codec_bytes::patch_encoded;
-    pub(crate) use optimization_core::codec_bytes::push_encoded;
+    pub(crate) use ::wire::codec_bytes::patch_encoded;
+    pub(crate) use ::wire::codec_bytes::push_encoded;
 
     pub(crate) fn encode_manifest_envelope(
         magic: &[u8],
@@ -500,3 +505,39 @@ pub use layout::{
 pub use ownership::*;
 pub use provenance::*;
 pub use storage::*;
+
+mod branch_encoding;
+pub use branch_encoding::{
+    BranchDisplacementField, BranchPatchError, EncodedBranchAlternative,
+    EncodedControlAlternatives, EncodedControlIndex, EncodedControlIndexError,
+};
+
+pub mod call_origins;
+
+pub mod foreign_call_plans;
+
+pub mod image_origins;
+
+pub mod function_metadata;
+
+pub mod boundary_settlements;
+
+pub mod internal_call_plans;
+
+pub mod cpu_origins;
+
+pub mod fault_origins;
+
+pub mod frame_branch_origins;
+
+pub mod frame_demands;
+
+pub mod layout_requirements;
+
+pub mod fragment_origins;
+
+pub mod exit_requirements;
+
+pub mod program_context;
+
+pub mod hosted_entry;

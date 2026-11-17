@@ -19,7 +19,8 @@ filesystem observations and build logs, and assembles `ComputedBuildConfig`.
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
 use build_declarations::BuildRequest;
 use diagnostics::Diagnostic;
-use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use evaluation_accounting::{BuildEvaluationSponsor};
+use evaluation_contracts::{BuildEvaluationSponsorLimits};
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
@@ -269,10 +270,10 @@ impl PreparedBuildExecution {
             None
         } else {
             Some(Arc::new(
-                provider_planning::native_bindings::NativeBuildEvaluation::from_execution(
+                evaluation_receipts::NativeBuildEvaluation::from_observation_digest(
                     completed.identity.semantic(),
                     usage,
-                    &observation_summary,
+                    observation_summary.identity().digest(),
                 )
                 .map_err(|reason| self.refuse(&reason))?,
             ))
@@ -310,7 +311,7 @@ impl PreparedBuildExecution {
 /// native bindings choose implementations for the executable product, which
 /// artifact-only mode never builds.
 fn executable_selection_in_artifact_only(completed: &crate::ReturnedBuild) -> Option<&'static str> {
-    use language_semantics::declaration_selection::BuildOperation;
+    use source_compiler::declaration_selection::BuildOperation;
     if !completed.root_bindings.is_empty() {
         return Some("artifact-only Build cannot bind executable entries");
     }

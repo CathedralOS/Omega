@@ -113,7 +113,7 @@ pub struct ConstQualification {
     compiler_storage::Record,
 )]
 pub struct ConstDestinationObligation {
-    pub declaration: source::SourceSpan,
+    pub declaration: source_text::SourceSpan,
     pub destination: TypeReferenceHandle,
     pub initializer: ExpressionHandle,
 }
@@ -129,8 +129,8 @@ pub struct ConstDestinationObligation {
 )]
 pub struct ConstInitializerCustody {
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub builtin_operators: Vec<source_text::SourceSpan>,
+    pub call_selections: Vec<(source_text::SourceSpan, source_text::SourceSpan)>,
 }
 
 #[derive(
@@ -149,8 +149,8 @@ pub struct ConstInitializerNormalization {
     pub authored_expression: ExpressionHandle,
     pub result_value: language_core::constant_value::EvaluatedConstant,
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub builtin_operators: Vec<source_text::SourceSpan>,
+    pub call_selections: Vec<(source_text::SourceSpan, source_text::SourceSpan)>,
 }
 
 #[derive(
@@ -258,7 +258,7 @@ paged_roster! {
         arena operators: OperatorDefinition,
         arena measures: MeasureDefinition,
         arena proof_facts: ProofFact,
-        arena proof_fact_source_spans: Option<source::SourceSpan>,
+        arena proof_fact_source_spans: Option<source_text::SourceSpan>,
         arena mathematical_types: MathematicalTypeNode,
         arena mathematical_parameters: MathematicalParameterNode,
         arena mathematical_parameter_handles: MathematicalParameterHandle,
@@ -454,7 +454,7 @@ impl ItemTable {
         self.declaration_storage.proof_facts.get(handle)
     }
 
-    pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<source::SourceSpan> {
+    pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<source_text::SourceSpan> {
         *self
             .declaration_storage
             .proof_fact_source_spans
@@ -464,7 +464,7 @@ impl ItemTable {
     pub fn set_proof_fact_source_span(
         &mut self,
         handle: Handle<ProofFact>,
-        source_span: source::SourceSpan,
+        source_span: source_text::SourceSpan,
     ) {
         *self
             .declaration_storage
@@ -646,7 +646,7 @@ impl Default for ItemTable {
     }
 }
 
-fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<source::SourceSpan>> {
+fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<source_text::SourceSpan>> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
@@ -691,11 +691,11 @@ pub struct NativeCallbackParameterNode {
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
-    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
+    pub service_reach_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
-    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
-    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
+    pub suspends_keyword_source_spans: Vec<source_text::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,

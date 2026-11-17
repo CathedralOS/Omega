@@ -9,14 +9,16 @@ name = "legalized_operations"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../../psi/foundation/arena" }
+wire = { path = "../../../../../psi/foundation/wire" }
 target-vocabulary = { path = "../target-vocabulary" }
 native-vocabulary = { path = "../../native-vocabulary" }
-language-core = { path = "../../../../../psi/foundation/language-core" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
 calling-conventions = { path = "../../../backend/calling-conventions" }
-function-identity = { path = "../../../../foundation/function-identity" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+function-identity = { path = "../../function-identity" }
+optimization-core = { path = "../../optimization-contracts" }
 target = { path = "../../../backend/target" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 runtime-abi = { path = "../../../backend/runtime/runtime-abi" }

@@ -56,7 +56,7 @@ use source_acquisition::{
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-pub(crate) fn package_entry(root: &Path, captured: Option<&source::CapturedSourceTree>) -> PathBuf {
+pub(crate) fn package_entry(root: &Path, captured: Option<&source_capture::CapturedSourceTree>) -> PathBuf {
     let has_main = match captured {
         Some(tree) => tree.is_file(Path::new("main.omg")),
         None => root.join("main.omg").is_file(),

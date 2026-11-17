@@ -39,7 +39,7 @@ struct Fixture {
     selected: effects::SelectedProviderPlanFacts,
     external: Vec<ExternalBindingRow>,
     calling: Vec<BoundaryCallingApplication>,
-    callbacks: Vec<terminal_psi_to_abstract_operations::NativeCallbackArgumentProposal>,
+    callbacks: Vec<provider_admission::NativeCallbackArgumentProposal>,
     occurrences: Vec<backend_plan::TerminalCallbackOccurrenceProposal>,
 }
 
@@ -346,7 +346,7 @@ fn build_fixture() -> Fixture {
         inbound.plan.plan().clone(),
         Vec::new(),
     );
-    let callback = terminal_psi_to_abstract_operations::NativeCallbackArgumentProposal {
+    let callback = provider_admission::NativeCallbackArgumentProposal {
         registrar_machine: MachineId::new(1).unwrap(),
         registrar_invokes_callback: true,
         terminal_operation: OperationId::new(1).unwrap(),
@@ -391,20 +391,19 @@ fn physical_publication_retains_linked_callback_children() {
 }
 
 fn check_callback_publication(retain_body_source: bool) {
-    use terminal_psi_to_abstract_operations::provider_admission::{
-        ProviderAdmissionRequest, current_terminal_authority_policy,
-        prepare_source_evaluated_bindings,
-    };
-    use terminal_psi_to_abstract_operations::{
+    use native_program_planning::{
         NativeAdmissionRequest, NativeExecutionSelection, VerifiedNativeArtifactInput,
         admit_prepared_native_realization,
     };
+    use provider_admission::provider_admission::{
+        ProviderAdmissionRequest, current_terminal_authority_policy,
+        prepare_source_evaluated_bindings,
+    };
     let fixture = build_fixture();
-    let adapters =
-        terminal_psi_to_abstract_operations::provider_admission::retain_selected_provider_adapters(
-            &fixture.selected,
-        )
-        .unwrap();
+    let adapters = provider_admission::provider_admission::retain_selected_provider_adapters(
+        &fixture.selected,
+    )
+    .unwrap();
     let artifact = &fixture.artifact;
     let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
         artifact.manifest().semantic(),
@@ -471,6 +470,10 @@ fn check_callback_publication(retain_body_source: bool) {
     let admitted = admit_prepared_native_realization(input, artifact, &request)
         .expect("admit callback registrar with exact selected foreign contract");
     let (root, providers) = super::emit_body(admitted, false, |target| {
+        assert_eq!(
+            target.private_references.as_slice(),
+            &[fixture.occurrences[0].callback_thunk_identity()]
+        );
         let callback = MachineId::new(2).unwrap();
         let facts = target.execution_plan().execution_facts();
         assert!(facts.callable_invocations().roots.contains(&callback));
@@ -482,6 +485,33 @@ fn check_callback_publication(retain_body_source: bool) {
                 .contains(&callback)
         );
     });
+    let object = root.object();
+    let calls = &object.foreign_call_plans().calls;
+    assert!(
+        !calls.is_empty(),
+        "fixture must exercise real foreign transport"
+    );
+    let reconstructed = calls
+        .iter()
+        .map(|call| image_emission::place_foreign_call(call, object.publication().text()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(reconstructed, object.foreign_calls());
+    let mut changed = calls[0].clone();
+    changed.spans.push(
+        machine_code::foreign_call_plans::InstructionSpanObligation::NonEmpty(
+            selected_instructions::SelectedInstructionId(u32::MAX),
+        ),
+    );
+    assert!(
+        image_emission::place_foreign_call(&changed, object.publication().text()).is_err(),
+        "foreign evidence cannot omit a demanded instruction span"
+    );
+    let mut changed = calls[0].clone();
+    changed.record.instruction = selected_instructions::SelectedInstructionId(u32::MAX);
+    assert!(
+        image_emission::place_foreign_call(&changed, object.publication().text()).is_err(),
+        "a foreign contract cannot be attached to another instruction"
+    );
     let program_context = Arc::clone(providers.program_provider_context());
     let body_request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
@@ -502,23 +532,50 @@ fn check_callback_publication(retain_body_source: bool) {
     .expect("prepare callback body under the same retained program");
     let admitted = admit_prepared_native_realization(input, artifact, &body_request)
         .expect("admit actual callback body");
-    let (body, _) = super::emit_body(admitted, false, |_| {});
-    let body = if retain_body_source {
-        body.with_semantic_source(artifact.retain_code(), coverage.clone())
-            .unwrap()
+    let mut planned_entry = None;
+    let (body, _) = super::emit_body_inspecting_physical(
+        admitted,
+        false,
+        |_| {},
+        |physical| {
+            planned_entry = Some(
+                image_emission::plan_private_function_entry(
+                    fixture.occurrences[0].callback_thunk_identity(),
+                    &physical.frame,
+                    &physical.installations,
+                    fixture.occurrences[0].boundary_entry_plan(),
+                    &[],
+                    None,
+                )
+                .expect("plan callback entry before producing any bytes"),
+            );
+        },
+    );
+    let originals = if retain_body_source {
+        vec![(
+            fixture.occurrences[0].callback_thunk_identity(),
+            native_artifact::PrivatePhysicalOriginal::new(
+                body.object().psi(),
+                artifact.retain_code(),
+                coverage.clone(),
+            )
+            .unwrap(),
+        )]
     } else {
-        body
+        Vec::new()
     };
-    let private = image_emission::create_private_function_object(
-        fixture.occurrences[0].callback_thunk_identity(),
-        Arc::new(body.into_object()),
-        fixture.occurrences[0].boundary_entry_plan(),
-        &[],
+    let physical_originals = native_artifact::NativePhysicalOriginals::new(originals).unwrap();
+    let private = image_emission::encode_private_function_entry(
+        planned_entry.expect("complete callback entry plan"),
     )
-    .expect("bridge the actual callback body to its admitted inbound ABI");
+    .expect("encode the closed callback entry plan")
+    .bind(Arc::new(body.into_object()))
+    .expect("bind the encoded entry to its body");
     let published = native_artifact::publish_fragment_object(
         root,
         native_artifact::FragmentObjectPublicationRequest {
+            physical_entry: None,
+            hosted_entry: None,
             program_entry: None,
             private_functions: &[private],
         },
@@ -532,6 +589,7 @@ fn check_callback_publication(retain_body_source: bool) {
         &fixture.selected,
         providers,
         Some(coverage),
+        physical_originals,
     )
     .expect("publish physical evidence over root and relocated private body");
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {

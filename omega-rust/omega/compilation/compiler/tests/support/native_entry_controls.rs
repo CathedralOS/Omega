@@ -127,8 +127,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
     use calling_conventions::{MachineState as State, MachineStateSet};
     let vector = MachineStateSet::new([State::VectorRegisters]);
     let generated_vector = bridge
-        .generated()
-        .effects
+        .adapter_effects()
         .machine_state()
         .contains_all(vector);
     let body_vector = bridge
@@ -175,7 +174,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         return Err("native vector control must remove exactly vector permission".into());
     }
     if !generated_vector_control {
-        let scalar = machine_emission::native_entry_bridge::emit_native_entry_bridge(missing)
+        let scalar = native_encoding::test_support::emit_native_entry_bridge(missing)
             .map_err(|error| {
                 format!("scalar entry unexpectedly needs vector permission: {error:?}")
             })?;
@@ -189,11 +188,10 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
     // This check isolates generated instructions from the callback body's
     // effects. The complete-emission refusal below must survive as well.
     bridge
-        .generated()
-        .effects
+        .adapter_effects()
         .validate(&bridge.request().inbound.state)
         .map_err(|reason| format!("unchanged generated vector evidence: {reason}"))?;
-    match bridge.generated().effects.validate(&missing.inbound.state) {
+    match bridge.adapter_effects().validate(&missing.inbound.state) {
         Err("complete entry code uses machine state outside its declared ceiling") => {}
         Err(reason) => {
             return Err(format!(
@@ -202,9 +200,9 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         }
         Ok(()) => return Err("generated entry accepted undeclared vector use".into()),
     }
-    match machine_emission::native_entry_bridge::emit_native_entry_bridge(missing) {
+    match native_encoding::test_support::emit_native_entry_bridge(missing) {
         Err(
-            machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+            physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                 reason,
             ),
         ) if reason.starts_with(
@@ -355,7 +353,8 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
             let source = rows.frame_application.source().source();
             let model = source.register_environment().physical().model();
             let actual_abi_vector_clobber = source
-                .physical_program()
+                .original_physical_program()
+                .ok_or("CPU-state audit requires retained originals")?
                 .machine
                 .functions
                 .iter()
@@ -544,10 +543,10 @@ fn inspect_instruction_sources(
 }
 
 fn inspect_relative_branches(
-    framed: &machine_emission::StagedFunctionFragmentFrameApplication,
+    framed: &function_layout::StagedFunctionFragmentFrameApplication,
 ) -> Result<(), String> {
     use machine_code::FunctionFragmentBranchEvidence as Branch;
-    use machine_emission::FunctionFragmentFrameApplicationError as Error;
+    use function_layout::FunctionFragmentFrameApplicationError as Error;
     let mut observed = [false; 2];
     for function in &framed.fragments().functions {
         let rows: Vec<_> = function

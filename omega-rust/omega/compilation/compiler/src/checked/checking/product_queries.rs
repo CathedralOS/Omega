@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 
 pub struct ProductQueries {
-    preparation: products::SourcePreparation,
+    preparation: source_compiler::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,
     initial: source_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
@@ -103,36 +103,9 @@ impl ProductQueries {
             .as_ref()
             .ok_or_else(|| refuse("Product query has no prepared declaration frontier"))?
             .1;
-        let author = self
-            .initial
-            .typed()
-            .symbols
-            .source_file(query.occurrence)
-            .ok_or_else(|| refuse("Product query lost its authored source occurrence"))?;
-        let source_map = source
-            .typed()
-            .symbols
-            .source_map()
-            .ok_or_else(|| refuse("Product query has no source custody"))?;
-        let selected = source_map.rejoined_source_id(author).ok_or_else(|| {
-            refuse("Product query author lost its admitted source correspondence")
-        })?;
-        let occurrence = source::SourceSpan::new(selected, query.occurrence.span);
-        let selecting = query
-            .selecting_machine
-            .map(|span| {
-                let author = self
-                    .initial
-                    .typed()
-                    .symbols
-                    .source_file(span)
-                    .ok_or_else(|| refuse("declaration query lost its selecting source"))?;
-                let selected = source_map.rejoined_source_id(author).ok_or_else(|| {
-                    refuse("declaration query lost its selecting source correspondence")
-                })?;
-                Ok::<_, Vec<Diagnostic>>(source::SourceSpan::new(selected, span.span))
-            })
-            .transpose()?;
+        let (occurrence, selecting) = source.rejoin_product_query_origin(
+            &self.initial, query.occurrence, query.selecting_machine,
+        ).map_err(refuse)?;
         match query.operation {
             source_compiler::TerminalBuildQueryOperation::Parameter => source
                 .describe_parameter(

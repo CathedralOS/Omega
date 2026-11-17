@@ -9,17 +9,20 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+register-environment = { path = "../../backend/register-environment" }
+compiler-storage = { path = "../../../../psi/foundation/compiler-storage" }
+wire = { path = "../../../../psi/foundation/wire" }
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../native-vocabulary" }
 register-homes = { path = "../register-homes" }
 post-allocation-machine = { path = "../post-allocation-machine" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-function-identity = { path = "../../../foundation/function-identity" }
-optimization-core = { path = "../../../foundation/optimization-core" }
+function-identity = { path = "../function-identity" }
+optimization-core = { path = "../optimization-contracts" }
 target = { path = "../../backend/target" }
 register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../selected-instructions" }
 task-plans = { path = "../../backend/runtime/task-plans" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 sha2 = "0.10.9"

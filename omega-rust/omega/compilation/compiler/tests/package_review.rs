@@ -776,7 +776,7 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
         decode_package_provider_selections, encode_package_provider_selections,
     };
 
-    fn authored_name(declaration: &symbols::RetainedDeclaration) -> &str {
+    fn authored_name(declaration: &source_admission::RetainedDeclaration) -> &str {
         let span = declaration.span();
         &declaration.source().source[span.start..span.end]
     }
@@ -1835,7 +1835,7 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
         installation_assumptions: Vec::new(),
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2056,7 +2056,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             retain_native_stage_inputs: false,
             image: Default::default(),
             private_entry_ram: Vec::new(),
-            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
             terminal_authority_permission_policy: None,
             optimization_rollback: Default::default(),
         });
@@ -2387,36 +2387,36 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
 fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
     let text =
         "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let id = sources
         .add_checked_instance(
             "/unit/build.omg".into(),
             text,
             "/unit".into(),
             None,
-            source::SourceOrigin::Toolchain,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Build,
+            source_admission::SourceOrigin::Toolchain,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Build,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
     let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed.realized_machine_named("build").unwrap().symbol;
-    let prepared = source_compiler::SourcePreparationRequest {
+    let prepared = source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
         program: typed,
         accounting: Default::default(),
         admission: Default::default(),
         compilation: source_compiler::TerminalSourceCompilation {
             entries: &[entry],
             subjects: &[],
-            purpose: source::DependencyScope::Build,
+            purpose: declaration_contracts::source_identity::DependencyScope::Build,
             selected: &[],
             declaration_metadata: &[],
             bindings: &[],
@@ -2424,8 +2424,7 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             providers: None,
             supplies: &[],
         },
-    }
-    .prepare()
+    })
     .unwrap();
     assert_eq!(prepared.accounting.receipts().len(), 1);
     prepared.accounting.validate_charges().unwrap();
@@ -2588,7 +2587,7 @@ fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
             .receipts()
             .iter()
             .filter_map(|record| match record {
-                build_time_evaluation::PureEvaluationRecord::Invocation(receipt)
+                source_compiler::evaluation::PureEvaluationRecord::Invocation(receipt)
                     if receipt.request_source().symbols.name(receipt.requester()) == "VALUE" =>
                 {
                     Some(receipt.request_source().identity.get())
@@ -2954,7 +2953,7 @@ machine main() {}
         input.module().unwrap(),
         checked.terminal_publication().accepted().unwrap().module()
     ));
-    let detached: typed_trees::TypedTrees = checked
+    let detached: source_compiler::source_state::TypedTrees = checked
         .source_inspection()
         .program()
         .as_ref()
@@ -3021,7 +3020,7 @@ machine main() {}
     let roster = checked.terminal_publication().roster().unwrap().clone();
     let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
-        products::ProductTerminalPublication::judge(
+        source_compiler::SourcePublication::judge(
             source,
             roster,
             checked.terminal_publication().optimizations().clone(),

@@ -1,0 +1,19 @@
+[package]
+name = "native-runtime-provisions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+backend-plan = { path = "../../../backend/plans/backend-plan" }
+calling-conventions = { path = "../../../backend/calling-conventions" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../../../backend/target" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
+target-operations = { path = "../../../representations/target-operations" }
+provider-admission = { path = "../../../verification/provider-admission" }
+effects = { path = "../../../backend/plans/effects" }
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+runtime-abi = { path = "../../../backend/runtime/runtime-abi" }

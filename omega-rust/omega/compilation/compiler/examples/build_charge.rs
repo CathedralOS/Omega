@@ -10,7 +10,7 @@ mod default_build_workflow;
 use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
-use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use compiler::{CheckedCompileRequest, CompilationSession};
 
 /// Resolve one project's sources with the host-profile execution defaults that
@@ -48,9 +48,9 @@ fn exclusive_workspace(name: &str) -> platform_custody::temporary_directory::Tem
 fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
-        evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-            storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+            storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
         },
     )
     .expect("current Terminal measurement")
@@ -565,9 +565,9 @@ fn source_discovery_root_resources() {
     ] {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
-        let filesystem = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+        let filesystem = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
             workspace.join("caller"),
-            build_time_evaluation::BuildMachineFilesystemSponsorLimits {
+            source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
                 maximum_entries: 32,
                 maximum_total_logical_bytes: bytes,
                 maximum_object_extent: 1024,
@@ -1048,9 +1048,9 @@ fn terminal_build_filesystem() {
     );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
-    let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");
@@ -1091,7 +1091,7 @@ fn initial_build_source_isolation() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/fixtures/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
-    let mut catalogue = source::SourceCatalogue::default();
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
@@ -1109,7 +1109,7 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("naming.omg")
-                && file.dependency_scope == source::DependencyScope::Build)
+                && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build)
     );
     assert!(
         syntax
@@ -1138,7 +1138,7 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("result.omg")
-                && file.dependency_scope == source::DependencyScope::Product)
+                && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product)
     );
     let retained = product.sources.get(original.source_id).unwrap();
     assert_eq!(retained.path, original.path);
@@ -1149,7 +1149,7 @@ fn initial_build_source_isolation() {
             sources
                 .files()
                 .any(|file| file.path.ends_with("float_operations.omg")
-                    && file.dependency_scope == source::DependencyScope::Build)
+                    && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build)
         );
     }
     println!("product_preparation_retained_the_exact_build_source_bytes");
@@ -1174,7 +1174,7 @@ fn deferred_product_uses_captured_imports() {
     }
     let root = std::fs::canonicalize(&temporary).expect("temporary root");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
-    let mut catalogue = source::SourceCatalogue::default();
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
@@ -1975,7 +1975,7 @@ fn completed_build_target_fanout() {
             retain_native_stage_inputs: false,
             image: Default::default(),
             private_entry_ram: Vec::new(),
-            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
             terminal_authority_permission_policy: None,
             optimization_rollback: Default::default(),
         }),
@@ -2310,7 +2310,7 @@ fn production_project_discovery() {
 
 fn unbound_join_inputs(
     capture: &package_compilation::CapturedLocalSource,
-    tree: std::sync::Arc<source::CapturedSourceTree>,
+    tree: std::sync::Arc<source_capture::CapturedSourceTree>,
     name: &str,
 ) -> package_compilation::PackageCompilationInputs {
     let identity = fixture_package_inputs::fixture_package_identity(71);

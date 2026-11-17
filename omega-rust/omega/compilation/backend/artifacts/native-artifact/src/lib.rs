@@ -27,8 +27,8 @@ compiler drivers install executables or macOS `.app` bundles.
 */
 #![forbid(unsafe_code)]
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 mod component_product;
 mod fragment_object_publication;
 mod native_artifact;
@@ -56,9 +56,11 @@ pub use package_publication::{
     NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
 pub use runtime_provisions::{
-    NativeBindingRuntimeInputs, TerminalCallableRuntimeProvisions, TerminalRuntimeHostProvision,
-    TerminalRuntimeHostProvisions, TerminalRuntimeProvisions,
+    TerminalCallableRuntimeProvisions,
+    TerminalRuntimeHostProvision, TerminalRuntimeHostProvisions, TerminalRuntimeProvisions,
 };
+
+pub use physical::{NativePhysicalOriginals, PrivatePhysicalOriginal};
 
 pub(crate) use physical::{
     BoundaryInternalCallCustody, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,

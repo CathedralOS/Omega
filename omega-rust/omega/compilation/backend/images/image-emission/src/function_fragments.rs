@@ -6,6 +6,7 @@ target operation is accounted for in the final native instructions.
 */
 
 mod current_image_selections;
+pub(crate) mod image_data;
 
 mod attribution {
     use super::{Error, host};
@@ -1517,11 +1518,12 @@ mod attribution {
 
 mod byte_literals {
     use super::{Error, source};
+    use crate::object_input::ObjectEmissionInput;
     use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
     use machine_code::PlacedImageAddress;
     use object_file::{
-        ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
-        StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
+        ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SymbolKind,
+        SymbolPlan, SymbolSection,
     };
     use std::borrow::Cow;
     use std::collections::BTreeMap;
@@ -1530,7 +1532,7 @@ mod byte_literals {
     const POOL_ALIGNMENT: usize = 16;
 
     pub(super) fn place(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         object: &mut ObjectPlan,
         text_bytes: &mut Vec<u8>,
     ) -> Result<Option<ObjectByteLiteralPool>, Error> {
@@ -1589,7 +1591,7 @@ mod byte_literals {
     }
 
     pub(super) fn validate(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         artifact: &ObjectArtifact,
         pool_text_offset: usize,
     ) -> Result<(), Error> {
@@ -1653,11 +1655,10 @@ mod byte_literals {
 
     #[allow(clippy::type_complexity)]
     fn pool_contents(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         text_offset: usize,
     ) -> Result<Option<(Vec<u8>, Vec<ObjectByteLiteralAddress>)>, Error> {
         let placed = source
-            .source()
             .text_section()
             .unresolved_image_addresses
             .iter()
@@ -1731,7 +1732,7 @@ mod byte_literals {
 
     /// The exact quoted bytes named by a retained literal address.
     fn literal_octets<'a>(
-        source: &'a StagedOptimizedRelocationFreeObjectContainer,
+        source: &'a ObjectEmissionInput,
         row: &PlacedImageAddress,
     ) -> Result<(Cow<'a, [u8]>, usize), Error> {
         let literal = row
@@ -2076,10 +2077,10 @@ pub(crate) mod image_residence {
     }
 
     pub(super) fn validate(
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+        source: &crate::object_input::ObjectEmissionInput,
         artifact: &crate::ObjectArtifact,
     ) -> Result<(), Error> {
-        let addresses = &source.source().text_section().unresolved_image_addresses;
+        let addresses = &source.text_section().unresolved_image_addresses;
         let present = addresses.iter().any(observes_residence);
         if present != artifact.retained_entry_storage.is_valid() {
             return Err(Error::Mismatch(
@@ -2418,18 +2419,16 @@ pub(crate) mod code_descriptors {
     }
 
     pub(super) fn validate(
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
-        let catalogs = super::source::code_catalogs(source);
+        let catalogs = artifact.program_contracts.publication().code_catalogs();
         let Some(pool) = &artifact.code_descriptor_pool else {
             if (!artifact.data_bytes.is_empty() && artifact.native_code_layout_pool.is_none())
                 || !catalogs.dynamic_dispatch().tables.is_empty()
-                || source
-                    .source()
-                    .text_section()
-                    .unresolved_image_addresses
+                || artifact
+                    .image_data
+                    .addresses
                     .iter()
                     .any(|address| address_source(address).is_some())
             {
@@ -2441,10 +2440,9 @@ pub(crate) mod code_descriptors {
         };
         if &pool.catalogs != catalogs
             || pool.addresses
-                != source
-                    .source()
-                    .text_section()
-                    .unresolved_image_addresses
+                != artifact
+                    .image_data
+                    .addresses
                     .iter()
                     .filter(|address| address_source(address).is_some())
                     .copied()
@@ -2526,21 +2524,7 @@ pub(crate) mod code_descriptors {
         let mut expected = Vec::new();
         for namespace in crate::object::private_object_composition::namespaces(artifact) {
             let local = namespace.artifact;
-            let image_selections = if let Some(replay) = &local.fragment_replay {
-                let current = replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .physical_program();
-                super::current_image_selections::CurrentImageSelections::prepare_for(
-                    &replay.0.source().text_section().unresolved_image_addresses,
-                    current.functions.iter(),
-                )?
-            } else {
-                None
-            };
+            let image_selections = local.image_data.selections.as_ref();
             let Some(pool) = &local.code_descriptor_pool else {
                 if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                     return Err(Error::Mismatch(
@@ -2551,14 +2535,11 @@ pub(crate) mod code_descriptors {
                     &namespace,
                     artifact,
                     object,
-                    image_selections.as_ref(),
+                    image_selections,
                 )?);
                 continue;
             };
-            let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
-                "code descriptor data requires admitted fragment source",
-            ))?;
-            validate(&replay.0, local, image_selections.as_ref())?;
+            validate(local, image_selections)?;
             for symbol in pool
                 .descriptors
                 .iter()
@@ -2590,7 +2571,7 @@ pub(crate) mod code_descriptors {
                 &namespace,
                 artifact,
                 object,
-                image_selections.as_ref(),
+                image_selections,
             )?);
         }
         validate_data_relocation_roster(&expected, relocations)
@@ -2758,16 +2739,16 @@ mod imports {
         ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
     };
 
+    use crate::object_input::ObjectEmissionInput;
     use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
     use object_file::{
-        ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
-        StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolSection,
-        invocation_relocation_origin, normalized_import_symbol_name, object_function_reference,
-        object_symbol_handle_by_import_locator,
+        ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind, SymbolKind,
+        SymbolSection, invocation_relocation_origin, normalized_import_symbol_name,
+        object_function_reference, object_symbol_handle_by_import_locator,
     };
 
     pub(super) fn publish(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         object: &mut ObjectPlan,
         functions: &[ObjectFunction],
         calls: &[ObjectForeignCall],
@@ -2776,10 +2757,7 @@ mod imports {
             .iter()
             .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
             .collect::<Vec<_>>();
-        let fields = &source
-            .source()
-            .text_section()
-            .unresolved_normalized_foreign_calls;
+        let fields = &source.text_section().unresolved_normalized_foreign_calls;
         if fields.len() != import_calls.len() {
             return Err(Error::Mismatch("fragment import field roster changed"));
         }
@@ -2874,19 +2852,24 @@ mod imports {
     }
 
     pub(super) fn validate(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         artifact: &ObjectArtifact,
         private_address_records: usize,
     ) -> Result<(), Error> {
-        let calls = derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
+        let calls = derive_normalized_foreign_call_custody(
+            source
+                .emission_facts()
+                .foreign_calls
+                .as_ref()
+                .map_err(|error| Error::ForeignCalls(error.clone().into()))?,
+            source.text_section(),
+        )
+        .map_err(Error::ForeignCalls)?;
         let import_calls = calls
             .iter()
             .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
             .collect::<Vec<_>>();
-        let fields = &source
-            .source()
-            .text_section()
-            .unresolved_normalized_foreign_calls;
+        let fields = &source.text_section().unresolved_normalized_foreign_calls;
         let layout = &artifact.object.layout;
         let expected_records = fields.len()
             + calls
@@ -2898,7 +2881,7 @@ mod imports {
                 })
                 .sum::<usize>();
         let mut observation_records = super::image_residence::records(
-            &source.source().text_section().unresolved_image_addresses,
+            &source.text_section().unresolved_image_addresses,
             artifact.retained_entry_storage,
             &artifact.functions,
         )?
@@ -3176,8 +3159,8 @@ mod mixed_scalar_abi {
 pub(crate) mod native_code_layouts {
     use super::{Error, host, refuse_symbol_collision};
     use crate::ObjectFunction;
+    use machine_code::code_layout::NativeCodeLayout;
     use machine_code::{ImageAddressFields, PlacedImageAddress};
-    use machine_emission::code_layout::{NativeCodeLayout, describe_native_code_layout};
     use object_file::{
         ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
         RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
@@ -3199,7 +3182,7 @@ pub(crate) mod native_code_layouts {
     }
 
     pub(super) fn place(
-        source: &machine_emission::StagedOptimizedFixedFrameTextSection,
+        native_layouts: &[NativeCodeLayout],
         addresses: &[PlacedImageAddress],
         object: &mut ObjectPlan,
         data: &mut Vec<u8>,
@@ -3230,8 +3213,20 @@ pub(crate) mod native_code_layouts {
             if layouts.iter().any(|row| row.layout.machine == machine) {
                 continue;
             }
-            let layout =
-                describe_native_code_layout(source, machine).map_err(Error::NativeCodeLayout)?;
+            let mut matching = native_layouts
+                .iter()
+                .filter(|layout| layout.machine == machine);
+            let layout = matching
+                .next()
+                .ok_or(Error::Mismatch(
+                    "native metadata lacks its final code layout",
+                ))?
+                .clone();
+            if matching.next().is_some() {
+                return Err(Error::Mismatch(
+                    "native metadata has competing final code layouts",
+                ));
+            }
             let data_offset = data.len();
             let byte_count = 24usize
                 .checked_add(
@@ -3398,14 +3393,12 @@ pub(crate) mod native_code_layouts {
     }
 
     pub(super) fn validate(
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
-        let addresses = source
-            .source()
-            .text_section()
-            .unresolved_image_addresses
+        let addresses = artifact
+            .image_data
+            .addresses
             .iter()
             .filter(|row| {
                 matches!(
@@ -3447,8 +3440,13 @@ pub(crate) mod native_code_layouts {
             .get(..prefix)
             .ok_or(Error::Mismatch("native metadata prefix is truncated"))?
             .to_vec();
-        let rebuilt = place(source.source(), &addresses, &mut object, &mut data)?
-            .ok_or(Error::Mismatch("native metadata pool disappeared"))?;
+        let rebuilt = place(
+            &artifact.image_data.native_layouts,
+            &addresses,
+            &mut object,
+            &mut data,
+        )?
+        .ok_or(Error::Mismatch("native metadata pool disappeared"))?;
         if data != artifact.data_bytes || rebuilt.layouts.len() != pool.layouts.len() {
             return Err(Error::Mismatch(
                 "native metadata bytes or realization roster changed",
@@ -3498,10 +3496,7 @@ pub(crate) mod native_code_layouts {
         let Some(pool) = &local.native_code_layout_pool else {
             return Ok(Vec::new());
         };
-        let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
-            "native metadata requires admitted final placement",
-        ))?;
-        validate(&replay.0, local, selections)?;
+        validate(local, selections)?;
         for symbol in pool
             .layouts
             .iter()
@@ -3538,23 +3533,25 @@ pub(crate) mod native_code_layouts {
 mod port_effects {
     use super::{Error, attribution, host, source, structural::placed_text_offset};
     use crate::ObjectPortEffect;
+    use crate::object_input::ObjectEmissionInput;
     use machine_code::{PortEffectRecord, SemanticCodeSite};
-    use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
-    pub(super) fn produce(
-        container: &StagedOptimizedRelocationFreeObjectContainer,
-    ) -> Result<Vec<ObjectPortEffect>, Error> {
+    pub(super) fn produce(container: &ObjectEmissionInput) -> Result<Vec<ObjectPortEffect>, Error> {
+        let origins = container
+            .emission_facts()
+            .port_writes
+            .as_ref()
+            .map_err(|reason| Error::Mismatch(reason))?;
         let mut effects = Vec::new();
-        for placed in &container.source().text_section().functions {
-            let function = source::current_function(container, placed.machine)?;
+        for placed in &container.text_section().functions {
             let fragment = source::fragments(container)
                 .function(placed.machine)
                 .ok_or(Error::Mismatch(
                     "port event lost its current function fragment",
                 ))?;
             append_function_effects(
-                function.instructions(),
+                origins.iter().filter(|row| row.machine == placed.machine),
                 fragment,
                 source::publication_function(container, placed.machine)?,
                 placed.section_offset,
@@ -3565,7 +3562,9 @@ mod port_effects {
     }
 
     fn append_function_effects<'input>(
-        instructions: impl IntoIterator<Item = &'input selected_instructions::SelectedInstruction>,
+        instructions: impl IntoIterator<
+            Item = &'input machine_code::function_metadata::PhysicalPortWrite,
+        >,
         fragment: &machine_code::FunctionFragment,
         publication: &target_vocabulary::NativeFunctionPublication,
         section_offset: u64,
@@ -3587,19 +3586,12 @@ mod port_effects {
         }
         let start = effects.len();
         for instruction in instructions {
-            let selected_instructions::SelectedInstructionKind::PortWrite {
-                service,
-                port,
-                value,
-            } = instruction.kind
-            else {
-                continue;
-            };
-            let [psi_operation] = instruction.provenance.operations.as_slice() else {
-                return Err(Error::Mismatch("port event has no exact source occurrence"));
-            };
+            if instruction.machine != publication.machine {
+                return Err(Error::Mismatch("port event has another function owner"));
+            }
+            let psi_operation = instruction.operation;
             let index = spans
-                .binary_search_by_key(&instruction.id, |span| span.instruction)
+                .binary_search_by_key(&instruction.instruction, |span| span.instruction)
                 .map_err(|_| Error::Mismatch("port event has no exact selected span"))?;
             let span = spans[index];
             if span.alternative
@@ -3607,7 +3599,7 @@ mod port_effects {
                     family: MachineAlternativeFamily::PortWrite,
                     variant: 0,
                 })
-                || span.provenance.operations.as_slice() != [*psi_operation]
+                || span.provenance.operations.as_slice() != [psi_operation]
             {
                 return Err(Error::Mismatch(
                     "port event differs from its current instruction",
@@ -3618,13 +3610,13 @@ mod port_effects {
                 machine: publication.machine,
                 text_offset: placed_text_offset(section_offset, code_offset)?,
                 effect: PortEffectRecord {
-                    psi_operation: *psi_operation,
-                    service,
-                    port,
-                    value,
+                    psi_operation,
+                    service: instruction.service,
+                    port: instruction.port,
+                    value: instruction.value,
                     operation_ordinal: attribution::ordinal(
                         publication,
-                        SemanticCodeSite::Operation(*psi_operation),
+                        SemanticCodeSite::Operation(psi_operation),
                     )?,
                     code_offset,
                     byte_count: span.bytes.len(),
@@ -3761,7 +3753,12 @@ mod port_effects {
             let instructions = [later, earlier];
             let run = |fragment: &_, publication: &_| {
                 let mut rows = Vec::new();
-                append_function_effects(&instructions, fragment, publication, 32, &mut rows)?;
+                let origins = physical_planning::physical_facts::port_writes_for_function(
+                    machine,
+                    &instructions,
+                )
+                .map_err(Error::Mismatch)?;
+                append_function_effects(&origins, fragment, publication, 32, &mut rows)?;
                 Ok::<_, Error>(rows)
             };
             let rows = run(&fragment, &publication).unwrap();
@@ -4042,8 +4039,8 @@ mod production {
         ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
     };
     use object_file::{
-        ObjectPlan, SectionKind, SectionPlan, StagedOptimizedRelocationFreeObjectContainer,
-        SymbolKind, SymbolPlan, SymbolSection, entry_symbol_name,
+        ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+        entry_symbol_name,
     };
     use std::sync::Arc;
 
@@ -4051,7 +4048,7 @@ mod production {
     pub(crate) struct ProjectedObject(());
 
     pub struct FunctionFragmentObjectArtifactRequest {
-        pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        pub replay: Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
         /// Stage 02's output, present only when the compile requested an
         /// explicit correspondence audit. Building the object never reads it.
         pub original_target: Option<crate::RetainedTargetOperations>,
@@ -4064,7 +4061,15 @@ mod production {
             replay,
             original_target,
         } = request;
-        let source = replay.as_ref();
+        let keep_originals = original_target.is_some()
+            || replay
+                .source()
+                .source()
+                .source()
+                .source()
+                .has_original_replay();
+        let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::capture(&replay)?);
+        let source = emission_input.as_ref();
         if let Some(original) = &original_target {
             let projection = &source.emission_facts().projection;
             let optimized = original.target().optimized();
@@ -4079,7 +4084,7 @@ mod production {
         let catalogs = source::code_catalogs(source);
         let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
-        let text = source.source().text_section();
+        let text = source.text_section();
         let fragments = source::fragments(source);
         let temporary_stack_bytes = if text.functions.is_empty() {
             std::collections::BTreeMap::new()
@@ -4093,11 +4098,10 @@ mod production {
         let mut requires_graph_storage_replay = false;
         for placed in &text.functions {
             let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
-            let abstracted = source::abstract_function(source, placed.machine)?;
+            let abstracted = source::function_facts(source, placed.machine)?;
             let abi = source::function_abi(source, placed.machine)?;
-            requires_graph_storage_replay |=
-                source::requires_graph_storage_replay(abstracted.operations())
-                    || super::structural::requires_call_graph_replay(source, placed.machine)?;
+            requires_graph_storage_replay |= abstracted.requires_graph_storage_replay
+                || super::structural::requires_call_graph_replay(source, placed.machine)?;
             let offset = host(placed.section_offset)?;
             let length = host(placed.byte_count)?;
             let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -4241,8 +4245,15 @@ mod production {
                 });
             }
         }
-        let foreign_calls =
-            crate::derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
+        let foreign_calls = crate::derive_normalized_foreign_call_custody(
+            source
+                .emission_facts()
+                .foreign_calls
+                .as_ref()
+                .map_err(|error| Error::ForeignCalls(error.clone().into()))?,
+            source.text_section(),
+        )
+        .map_err(Error::ForeignCalls)?;
         let private_identities = super::private_addresses::identities(
             &foreign_calls,
             &text.unresolved_image_addresses,
@@ -4252,17 +4263,18 @@ mod production {
         let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
         let (code_descriptor_pool, mut data_bytes) = super::code_descriptors::place(
             catalogs,
-            &source.source().text_section().unresolved_image_addresses,
+            &source.text_section().unresolved_image_addresses,
             &mut object,
         )?;
+        let image_data = super::image_data::ObjectImageData::prepare(source)?;
         let native_code_layout_pool = super::native_code_layouts::place(
-            source.source(),
-            &source.source().text_section().unresolved_image_addresses,
+            &image_data.native_layouts,
+            &source.text_section().unresolved_image_addresses,
             &mut object,
             &mut data_bytes,
         )?;
         let retained_entry_storage = super::image_residence::declare(
-            &source.source().text_section().unresolved_image_addresses,
+            &source.text_section().unresolved_image_addresses,
             &mut object,
             profile,
         )?;
@@ -4289,7 +4301,7 @@ mod production {
             &mut relocations,
         )?;
         super::image_residence::publish_relocations(
-            &source.source().text_section().unresolved_image_addresses,
+            &source.text_section().unresolved_image_addresses,
             retained_entry_storage,
             &functions,
             &mut relocations,
@@ -4303,34 +4315,33 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
-            installation_authority: Arc::clone(
+            body_readback: Arc::clone(&source.readback),
+            emission_input: Arc::clone(&emission_input),
+            publication: source.publication(),
+            semantic: Arc::new(source.emission_facts().semantic.clone()),
+            statistics: source.statistics.clone(),
+            image_data,
+            call_origins: Arc::new(source.emission_facts().calls.clone()),
+            foreign_call_plans: Arc::new(
                 source
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .installation_authority(),
+                    .emission_facts()
+                    .foreign_calls
+                    .clone()
+                    .map_err(|error| Error::ForeignCalls(error.into()))?,
             ),
-            program_contracts: Arc::clone(
-                &source
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .physical_program()
-                    .contracts,
-            ),
+            imports: machine_code::import_code::EncodedImportProgram::empty(text.target),
+            windows_internet: None,
+            stack_program: Arc::new(source.emission_facts().stack.clone()),
+            installation_authority: Arc::clone(source.installation_authority()),
+            program_contracts: Arc::clone(&source.emission_facts().contracts),
             projected: ProjectedObject(()),
-            hosted_receiver: None,
+            hosted_entry: None,
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: Some(super::replay::FragmentReplay(
-                Arc::clone(&replay),
-                original_target,
-            )),
+            fragment_replay: keep_originals
+                .then(|| super::replay::FragmentReplay(Arc::clone(&replay), original_target)),
             composition_source: None,
-            semantic_source: None,
             psi: text.psi,
             target: text.target,
             profile,
@@ -4362,7 +4373,7 @@ pub(crate) mod replay {
         verify_retained_target_operations,
     };
 
-    use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
+    use native_program_planning::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
     /// Stage 02's output, kept beside an emitted object only when the compile
@@ -4390,54 +4401,6 @@ pub(crate) mod replay {
         pub(crate) Option<RetainedTargetOperations>,
     );
 
-    impl FragmentReplay {
-        pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
-            self.0.emission_facts().lowering.module()
-        }
-
-        pub(crate) fn target_context(
-            &self,
-        ) -> Option<&terminal_installation::TerminalTargetContext> {
-            self.0.emission_facts().lowering.target_context()
-        }
-
-        pub(crate) fn selected_terminal_entry(
-            &self,
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
-            entry: semantic_vocabulary::MachineId,
-            native_target: target::NativeTarget,
-        ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
-            let identity = artifact.view().identity();
-            let facts = self.0.emission_facts();
-            let input = &facts.lowering;
-            let plan = &facts.abstract_program;
-            if plan.psi != identity
-                || input.module() != artifact.semantic_module()
-                || plan.entry != entry
-            {
-                return Err("native object entry differs from its admitted executable input");
-            }
-            let Some(selections) = input.target_context() else {
-                return Ok(None);
-            };
-            let profile = target::TargetProfile::from_canonical_target_name(selections.target())
-                .map_err(|_| "native object entry has an unknown admitted deployment tag")?;
-            if profile.native_realization() != Some(native_target) {
-                return Err("native object target differs from its admitted deployment profile");
-            }
-            selections
-                .entry(
-                    identity,
-                    artifact.semantic_module(),
-                    terminal_psi::TargetMachineCallable::Machine(entry),
-                )
-                .map(Some)
-                .map_err(
-                    |_| "native object entry has no executable member at its admitted deployment",
-                )
-        }
-    }
-
     impl PartialEq for FragmentReplay {
         fn eq(&self, other: &Self) -> bool {
             self.0.object() == other.0.object()
@@ -4451,167 +4414,11 @@ pub(crate) mod replay {
     #[cfg(any(test, feature = "test-support"))]
     impl crate::ObjectArtifact {}
 
-    /// The entry's optimized function and the calling contract the prepared
-    /// plan records for it.
-    pub(crate) fn entry_source(
-        artifact: &crate::ObjectArtifact,
-    ) -> Result<
-        (
-            &abstract_operations::AbstractFunction,
-            &legalized_operations::LegalizedFunctionAbi,
-        ),
-        diagnostics::Diagnostic,
-    > {
-        let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
-            diagnostics::Diagnostic::error("hosted receiver requires current fragment replay")
-        })?;
-        let diagnostic = |error: super::Error| diagnostics::Diagnostic::error(error.to_string());
-        Ok((
-            super::source::abstract_function(&replay.0, artifact.entry).map_err(diagnostic)?,
-            super::source::function_abi(&replay.0, artifact.entry).map_err(diagnostic)?,
-        ))
-    }
-
-    pub(crate) fn has_free_unit_entry(
-        artifact: &crate::ObjectArtifact,
-    ) -> Result<bool, diagnostics::Diagnostic> {
-        let Some(replay) = &artifact.fragment_replay else {
-            return Ok(false);
-        };
-        let function = super::source::abstract_function(&replay.0, artifact.entry)
-            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-        Ok(matches!(
-            function.result,
-            abstract_operations::AbstractFunctionResult::Unit
-        ) && function.entry_claims.is_empty()
-            && function.parameters.is_empty()
-            && function.structural_parameters.is_empty())
-    }
-
     pub(crate) fn validate(
         artifact: &crate::ObjectArtifact,
     ) -> Result<(), diagnostics::Diagnostic> {
-        if artifact.requires_graph_storage_replay && artifact.fragment_replay.is_none() {
-            return Err(diagnostics::Diagnostic::error(
-                "graph storage and aggregate results require retained physical replay evidence",
-            ));
-        }
-        if artifact.fragment_replay.is_none()
-            && artifact.functions().iter().any(|function| {
-                function.unit_parameters.len() != function.unit_parameter_homes.len()
-                    || function.scalar_structural_parameters.len()
-                        != function.scalar_structural_parameter_homes.len()
-                    || function
-                        .mixed_structural_scalar_abi
-                        .as_ref()
-                        .is_some_and(|abi| {
-                            abi.structural_parameters.len()
-                                != function.scalar_structural_parameter_homes.len()
-                        })
-            })
-        {
-            return Err(diagnostics::Diagnostic::error(
-                "structural parameters without homes require common-pipeline replay evidence",
-            ));
-        }
-        let missing_borrowed_replay = artifact.fragment_replay.is_none()
-            && artifact.functions().iter().any(|function| {
-                function
-                        .unit_parameters
-                        .iter()
-                        .chain(&function.scalar_structural_parameters)
-                        .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
-                        || function
-                            .unit_parameter_homes
-                            .iter()
-                            .chain(&function.scalar_structural_parameter_homes)
-                            .any(|home| {
-                                home.access != terminal_psi::StructuralAccess::Owned
-                                    || matches!(
-                                        home.source.shape.class,
-                                        calling_conventions::ValueClass::BorrowedReference
-                                            | calling_conventions::ValueClass::BorrowedScalarReference
-                                    )
-                                    || matches!(
-                                home.location,
-                                machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
-                            )
-                            }) || function.call_arguments().any(|argument| {
-                        argument.access != terminal_psi::StructuralAccess::Owned
-                            || argument.source.placement().is_none_or(|placement| {
-                                matches!(
-                                    placement.shape.class,
-                                    calling_conventions::ValueClass::BorrowedReference
-                                        | calling_conventions::ValueClass::BorrowedScalarReference
-                                )
-                            })
-                            || matches!(
-                                argument.destination.shape.class,
-                                calling_conventions::ValueClass::BorrowedReference
-                                    | calling_conventions::ValueClass::BorrowedScalarReference
-                            )
-                            || matches!(
-                                argument.source_location,
-                                machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
-                            )
-                    })
-            });
-        if missing_borrowed_replay {
-            return Err(diagnostics::Diagnostic::error(
-                "borrowed structural pointers require common-pipeline replay evidence",
-            ));
-        }
-        if artifact.fragment_replay.is_none()
-            && artifact
-                .functions()
-                .iter()
-                .flat_map(|function| &function.internal_unit_calls)
-                .flat_map(|call| &call.scalar_arguments)
-                .any(|argument| {
-                    matches!(
-                        argument.source,
-                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
-                    )
-                })
-        {
-            return Err(diagnostics::Diagnostic::error(
-                "selected Unit call requires common-pipeline replay evidence",
-            ));
-        }
-        if artifact.fragment_replay.is_none()
-            && artifact.boundary_settlements().iter().any(|row| {
-                row.settlement
-                .runtime_scalar_arguments
-                .iter()
-                .any(|argument| {
-                    matches!(
-                        argument.source,
-                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-                    )
-                })
-            })
-        {
-            return Err(diagnostics::Diagnostic::error(
-                "selected boundary output requires common-pipeline replay evidence",
-            ));
-        }
-        if artifact.fragment_replay.is_none()
-            && artifact.boundary_settlements().iter().any(|row| {
-                matches!(
-                    row.settlement.realization,
-                    target_operations::BoundaryRealization::HostedReadByte(_)
-                )
-            })
-        {
-            return Err(diagnostics::Diagnostic::error(
-                "hosted byte input requires common-pipeline cleanup replay evidence",
-            ));
-        }
-        if let Some(replay) = &artifact.fragment_replay {
-            super::validate_function_fragment_object_artifact(replay, artifact)
-                .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-        }
-        Ok(())
+        super::validation::validate_available(artifact)
+            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }
 }
 
@@ -4623,37 +4430,64 @@ pub(crate) mod reporting {
 
     use crate::ObjectArtifact;
 
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct FunctionPublicationStatistics {
+        function_count: usize,
+        instruction_count: usize,
+        zero_width_instruction_count: usize,
+        frame_prologue_byte_count: usize,
+        frame_epilogue_byte_count: usize,
+        fragment_manifest_report_fingerprint: u64,
+        frame_application_report_fingerprint: u64,
+    }
+
+    impl FunctionPublicationStatistics {
+        pub(crate) fn from_source(
+            source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+        ) -> Result<Self, Diagnostic> {
+            let applied = source.source().source();
+            let manifest = applied.source().manifest().record();
+            let frame = applied.application();
+            let mut prologue_bytes = 0usize;
+            let mut epilogue_bytes = 0usize;
+            for function in &frame.functions {
+                prologue_bytes = prologue_bytes
+                    .checked_add(host(function.prologue_byte_count)?)
+                    .ok_or_else(overflow)?;
+                for epilogue in &function.epilogues {
+                    epilogue_bytes = epilogue_bytes
+                        .checked_add(host(epilogue.byte_count)?)
+                        .ok_or_else(overflow)?;
+                }
+            }
+            Ok(Self {
+                function_count: host(manifest.statistics.functions)?,
+                instruction_count: host(manifest.statistics.instruction_spans)?,
+                zero_width_instruction_count: host(
+                    manifest.statistics.zero_byte_instruction_spans,
+                )?,
+                frame_prologue_byte_count: prologue_bytes,
+                frame_epilogue_byte_count: epilogue_bytes,
+                fragment_manifest_report_fingerprint: compact(manifest.identity.bytes()),
+                frame_application_report_fingerprint: compact(frame.identity.bytes()),
+            })
+        }
+    }
+
     pub(crate) fn summarize(
         artifact: &ObjectArtifact,
         output: &EmittedImageOutput,
         text_validation: &CompilerTextValidationEvidence,
     ) -> Result<Option<CompilerFunctionValidationEvidence>, Diagnostic> {
-        let Some(replay) = &artifact.fragment_replay else {
-            return Ok(None);
-        };
-        let applied = replay.0.source().source();
-        let manifest = applied.source().manifest().record();
-        let frame = applied.application();
-        let mut prologue_bytes = 0usize;
-        let mut epilogue_bytes = 0usize;
-        for function in &frame.functions {
-            prologue_bytes = prologue_bytes
-                .checked_add(host(function.prologue_byte_count)?)
-                .ok_or_else(overflow)?;
-            for epilogue in &function.epilogues {
-                epilogue_bytes = epilogue_bytes
-                    .checked_add(host(epilogue.byte_count)?)
-                    .ok_or_else(overflow)?;
-            }
-        }
+        let stats = &artifact.statistics;
         Ok(Some(CompilerFunctionValidationEvidence {
-            function_count: host(manifest.statistics.functions)?,
-            instruction_count: host(manifest.statistics.instruction_spans)?,
-            zero_width_instruction_count: host(manifest.statistics.zero_byte_instruction_spans)?,
-            frame_prologue_byte_count: prologue_bytes,
-            frame_epilogue_byte_count: epilogue_bytes,
-            fragment_manifest_report_fingerprint: compact(manifest.identity.bytes()),
-            frame_application_report_fingerprint: compact(frame.identity.bytes()),
+            function_count: stats.function_count,
+            instruction_count: stats.instruction_count,
+            zero_width_instruction_count: stats.zero_width_instruction_count,
+            frame_prologue_byte_count: stats.frame_prologue_byte_count,
+            frame_epilogue_byte_count: stats.frame_epilogue_byte_count,
+            fragment_manifest_report_fingerprint: stats.fragment_manifest_report_fingerprint,
+            frame_application_report_fingerprint: stats.frame_application_report_fingerprint,
             boundary_contract_report_fingerprint: None,
             final_region_binding_report_fingerprint: output
                 .executable_regions
@@ -4680,16 +4514,9 @@ pub(crate) mod reporting {
 mod source {
     pub(super) mod retained_source_validation;
     pub(super) fn profile(
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+        source: &crate::object_input::ObjectEmissionInput,
     ) -> Option<target::TargetProfile> {
-        source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
-            .contracts
-            .profile()
+        source.emission_facts().contracts.profile()
     }
 
     mod descriptor_tables {
@@ -7661,7 +7488,7 @@ mod source {
                 pub stack_length: Expr,
                 pub arrival_length: Expr,
                 pub layout:
-                    target_operations_to_selected_instructions::InstalledInterruptOperandLayout,
+                    legalized_operations::installed_interrupt_geometry::InstalledInterruptOperandLayout,
             }
             struct Homes<'a> {
                 target: &'a TargetFunction,
@@ -7695,7 +7522,7 @@ mod source {
                 ) -> Result<(StructuralTypeId, Expr), Error> {
                     let (root, mut address) = self.root(argument.place)?;
                     let geometry =
-                        target_operations_to_selected_instructions::reference_formation_geometry(
+                        legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry(
                             root,
                             &argument.path,
                             &self.geometry,
@@ -7845,7 +7672,7 @@ mod source {
                         .try_into()
                         .map_err(|_| Error::Mismatch("installation type roster changed"))?;
                     let layout =
-                        target_operations_to_selected_instructions::InstalledInterruptOperandLayout::derive(
+                        legalized_operations::installed_interrupt_geometry::InstalledInterruptOperandLayout::derive(
                             &homes.geometry,
                             types,
                         )
@@ -8020,7 +7847,7 @@ mod source {
                 table: &Expr,
                 stack: &Expr,
                 home: &Expr,
-                layout: &target_operations_to_selected_instructions::InstalledInterruptOperandLayout,
+                layout: &legalized_operations::installed_interrupt_geometry::InstalledInterruptOperandLayout,
             ) -> Result<Vec<PairContract>, Error> {
                 let mut result = Vec::new();
                 for left_entry in entries {
@@ -10171,7 +9998,7 @@ mod source {
         use provider_admission::AdmittedInstalledEntryExecution;
         use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
-        pub(in crate::function_fragments) fn validate(
+        pub(crate) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
             selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
@@ -10507,6 +10334,14 @@ mod source {
         }
     }
 
+    pub(crate) fn planned_constant_operand(
+        function: &selected_instructions::SelectedFunction,
+        instruction: selected_instructions::SelectedInstructionId,
+        operand: u16,
+    ) -> Result<Option<u64>, super::Error> {
+        installed_interrupts::selected_constant_operand(function, instruction, operand)
+    }
+
     pub(crate) fn selected_constant_operand(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         machine: semantic_vocabulary::MachineId,
@@ -10518,7 +10353,10 @@ mod source {
             .source()
             .source()
             .source()
-            .physical_program()
+            .original_physical_program()
+            .ok_or(Error::Mismatch(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            ))?
             .function(machine)
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
@@ -10527,12 +10365,12 @@ mod source {
     }
 
     use super::Error;
+    use crate::object_input::ObjectEmissionInput;
     use abstract_operations::{
         AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
         AbstractStructuralCallResult,
     };
     use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
-    use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
     // Pair the existing block-owned rosters once. This keeps no-code events and
     // their annotations exact without searching the whole target graph per use.
@@ -10695,18 +10533,18 @@ mod source {
         mod tests {
             use super::*;
             use abstract_operations::AbstractFunctionResult;
+            use arena::NumericId;
             use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
             use optimization_unit::{
                 EffectLink, OptimizationNode, OwnershipEvent, PsiProvenance, WorkSettlement,
             };
-            use semantic_vocabulary::PsiSemanticId;
             use target_operations::{
                 TargetControlGraph, TargetControlTerminator, TargetInstructionSource,
                 TargetOperationMetadata,
             };
             use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
-            fn id<T: PsiSemanticId>(raw: u64) -> T {
+            fn id<T: NumericId>(raw: u64) -> T {
                 T::new(raw).unwrap()
             }
 
@@ -14451,7 +14289,7 @@ mod source {
             selected: &'a SelectedFunction,
             inputs: Option<AddressInputs<'a>>,
             spills: Option<super::spill_values::SpillValues<'a>>,
-            layouts: Option<Result<crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>, semantic_vocabulary::NonDenseIdentities>>,
+            layouts: Option<Result<crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>, arena::NonDenseIdentities>>,
             failure: Option<&'static str>,
         }
         impl<'a> AddressReplay<'a> {
@@ -14702,7 +14540,7 @@ mod source {
                 return None;
             }
             let address_source = correspondence.address_source(source, types.as_slice())?;
-            let native = target_operations_to_selected_instructions::reference_formation_geometry(
+            let native = legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry(
                 root,
                 &address_source.path,
                 addresses.geometry()?,
@@ -14918,7 +14756,7 @@ mod source {
 
         fn geometry_address<T>(
             base: Address,
-            native: &target_operations_to_selected_instructions::ReferenceSourceGeometry<T>,
+            native: &legalized_operations::structural_inputs::structural_reference_input::ReferenceSourceGeometry<T>,
             resident: bool,
         ) -> Option<Address> {
             let selectors = |range: std::ops::Range<usize>| -> Option<Vec<(ValueId, u64)>> {
@@ -15003,7 +14841,7 @@ mod source {
             addresses.failure = None;
             let (base, root) = address_root(&addresses.inputs().homes, place)?;
             let geometry =
-                target_operations_to_selected_instructions::reference_formation_geometry(
+                legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry(
                     root,
                     path,
                     addresses.geometry()?,
@@ -15047,7 +14885,7 @@ mod source {
             let machine = addresses.target.machine;
             let (_, root) = address_root(&addresses.inputs().homes, place)?;
             let geometry =
-                target_operations_to_selected_instructions::reference_formation_geometry(
+                legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry(
                     root,
                     path,
                     addresses.geometry()?,
@@ -15236,7 +15074,7 @@ mod source {
                     target.graph.parameters.iter().find(|row| row.place == source.place),
                     selected.local_storage_slots.iter().find(|row| row.id.structural_place() == Some(source.place)))
             })?;
-            let native = target_operations_to_selected_instructions::reference_formation_geometry(
+            let native = legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry(
                 root,
                 &source.path,
                 addresses.geometry().ok_or_else(|| {
@@ -16048,7 +15886,7 @@ mod source {
 
     mod stack_calls {
         use super::{Error, MachineId};
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
+        use crate::object_input::ObjectEmissionInput;
         use selected_instructions::SelectedCallTarget;
         use target_operations::{CallSiteOwner, NativeCallTarget};
 
@@ -16070,27 +15908,28 @@ mod source {
         }
 
         pub(in crate::function_fragments) fn stack_calls(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
+            source: &ObjectEmissionInput,
             machine: MachineId,
             callable_invocations: &terminal_semantics::callable_values::ReachableCallableInvocations,
         ) -> Result<Vec<CallStackEdge>, Error> {
-            let text = source.source().text_section();
+            let text = source.text_section();
             let mut edges = text
                 .resolved_internal_machine_calls
                 .iter()
                 .filter(|call| call.caller == machine)
                 .map(CallStackEdge::from)
                 .collect::<Vec<_>>();
-            let emissions = source.source().source().source().source();
+            let emissions = source;
             let selected = emissions
-                .physical_program()
+                .emission_facts()
+                .calls
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no selected function"))?;
             let placed = text
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no placed function"))?;
             let catalog = emissions
-                .physical_program()
+                .emission_facts()
                 .contracts
                 .publication()
                 .code_catalogs()
@@ -16125,13 +15964,11 @@ mod source {
                             "callable stack demand has unresolved code and no physical ceiling",
                         ));
                     }
-                    let instruction = selected
-                        .instructions()
-                        .find(|instruction| instruction.id == call.instruction)
+                    let instruction = call
+                        .occurrence
+                        .as_ref()
                         .ok_or(Error::Mismatch("callable stack call has no instruction"))?;
-                    if instruction.kind.call_target()
-                        != Some(SelectedCallTarget::Callable { contract })
-                    {
+                    if instruction.target != Some(SelectedCallTarget::Callable { contract }) {
                         return Err(Error::Mismatch("callable stack call target changed"));
                     }
                     let span = placed
@@ -16157,13 +15994,11 @@ mod source {
                 else {
                     continue;
                 };
-                let instruction = selected
-                    .instructions()
-                    .find(|instruction| instruction.id == call.instruction)
+                let instruction = call
+                    .occurrence
+                    .as_ref()
                     .ok_or(Error::Mismatch("dynamic stack call has no instruction"))?;
-                if instruction.kind.call_target()
-                    != Some(SelectedCallTarget::Dynamic { interface, slot })
-                {
+                if instruction.target != Some(SelectedCallTarget::Dynamic { interface, slot }) {
                     return Err(Error::Mismatch("dynamic stack call target changed"));
                 }
                 let span = placed
@@ -19560,7 +19395,7 @@ mod source {
             let Some(root) = field_root_type(function, *source) else {
                 return false;
             };
-            let Some(geometry) = target_operations_to_selected_instructions::projected_byte_field(
+            let Some(geometry) = legalized_operations::structural_inputs::structural_reference_input::projected_byte_field(
                 root,
                 path,
                 *field,
@@ -20791,114 +20626,22 @@ mod source {
         }
     }
 
+    #[cfg(test)]
+    pub(super) use abstract_operations::requires_graph_storage_replay;
     pub(super) use stack_calls::{CallStackEdge, stack_calls};
-    pub(super) fn requires_graph_storage_replay<'a>(
-        operations: impl IntoIterator<Item = &'a AbstractOperation>,
-    ) -> bool {
-        operations.into_iter().any(|operation| {
-            if operation.cleanup_rosters().any(|(_, actions)| {
-                actions.iter().any(|action| {
-                    matches!(
-                        action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
-                    )
-                })
-            }) {
-                return true;
-            }
-            if let AbstractOperation::CallStructural {
-                structural_arguments,
-                result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
-                ..
-            } = operation
-                && structural_arguments
-                    .iter()
-                    .any(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
-            {
-                return true;
-            }
-            matches!(
-                operation,
-                AbstractOperation::SelectImplementation { .. }
-                    | AbstractOperation::InvokeNoNormal { .. }
-                    | AbstractOperation::ExternalCompletion { .. }
-                    | AbstractOperation::CallStructural {
-                        callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
-                        ..
-                    }
-                    | AbstractOperation::AtomicEvent { .. }
-                    | AbstractOperation::RegisterAccess { .. }
-                    | AbstractOperation::ReadSegmentSelector { .. }
-                    | AbstractOperation::ReadTaskRegister { .. }
-                    | AbstractOperation::ReloadSegmentDescriptors { .. }
-                    | AbstractOperation::ActivateTaskRegister { .. }
-                    | AbstractOperation::GlobalDescriptorTable { .. }
-                    | AbstractOperation::EstablishByteSequenceConcatenation { .. }
-                    | AbstractOperation::EstablishPrimitiveLocal { .. }
-                    | abstract_operations::establish_record_or_case_pattern!(..)
-                    | AbstractOperation::EstablishScalarArray { .. }
-                    | AbstractOperation::EstablishStructuralArray { .. }
-                    | AbstractOperation::EstablishZeroedStructural { .. }
-                    | AbstractOperation::EstablishStructuralLocal { .. }
-                    | AbstractOperation::EstablishNativeCodeLayout { .. }
-                    | AbstractOperation::EstablishActivationClaim { .. }
-                    | AbstractOperation::SplitActivationClaim { .. }
-                    | AbstractOperation::MergeActivationClaim { .. }
-                    | AbstractOperation::ReleaseActivationClaim { .. }
-                    | AbstractOperation::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { .. },
-                        ..
-                    }
-                    | AbstractOperation::ReturnStructural { .. }
-                    | AbstractOperation::PrimitiveLocalStore { .. }
-                    | AbstractOperation::StorageAddress { .. }
-                    | AbstractOperation::PrimitiveScalarRead { .. }
-                    | AbstractOperation::WriteOnlyPrimitiveStore { .. }
-                    | AbstractOperation::StructuralScalarFieldRead { .. }
-                    | AbstractOperation::StructuralScalarFieldStore { .. }
-                    | abstract_operations::byte_len_or_field_read_pattern!(..)
-                    | abstract_operations::byte_sequence_store_pair_pattern!(..)
-                    | AbstractOperation::StructuralByteViewFieldStore { .. }
-                    | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
-                    | AbstractOperation::StructuralCaseMembership { .. }
-                    | AbstractOperation::StructuralLeafCopy { .. }
-                    | AbstractOperation::MoveStructuralValue { .. }
-                    | AbstractOperation::DecomposeStructuralValue { .. }
-                    | AbstractOperation::TransformContent { .. }
-                    | abstract_operations::move_or_store_structural_field_pattern!()
-            )
-        })
-    }
 
-    pub(super) fn fragments(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-    ) -> &FunctionFragmentEmissionPlan {
-        source.source().source().fragments()
-    }
-
-    /// Borrow this function's instructions and contracts from the current form.
-    pub(super) fn current_function(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-        machine: MachineId,
-    ) -> Result<&post_allocation_machine::PhysicalFunction, Error> {
-        source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
-            .function(machine)
-            .ok_or(Error::Mismatch("current native form has no function"))
+    pub(super) fn fragments(source: &ObjectEmissionInput) -> &FunctionFragmentEmissionPlan {
+        source.fragments()
     }
 
     /// The optimized program's function for `machine`, which must be unique.
-    pub(super) fn abstract_function(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+    pub(super) fn function_facts(
+        source: &ObjectEmissionInput,
         machine: MachineId,
-    ) -> Result<&AbstractFunction, Error> {
+    ) -> Result<&verified_optimization_input::publication::EmissionFunctionFacts, Error> {
         let mut functions = source
             .emission_facts()
-            .abstract_program
+            .program
             .functions
             .iter()
             .filter(|function| function.machine == machine);
@@ -20913,14 +20656,10 @@ mod source {
     /// Callable reach was evaluated during preparation against the exact optimized
     /// program and invocation roots; the driver carried the program entry's summary.
     pub(super) fn callable_invocations(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
     ) -> Result<&terminal_semantics::callable_values::ReachableCallableInvocations, Error> {
         source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
+            .emission_facts()
             .contracts
             .execution()
             .map(target_vocabulary::NativeExecutionFacts::callable_invocations)
@@ -20930,29 +20669,21 @@ mod source {
     }
 
     pub(super) fn code_catalogs(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
     ) -> &target_vocabulary::NativeCodeCatalogs {
         source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
+            .emission_facts()
             .contracts
             .publication()
             .code_catalogs()
     }
 
     pub(super) fn publication_function(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<&target_vocabulary::NativeFunctionPublication, Error> {
         source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
+            .emission_facts()
             .contracts
             .publication()
             .function(machine)
@@ -20961,15 +20692,11 @@ mod source {
 
     /// The target calling contract retained by the current physical program.
     pub(super) fn function_abi(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<&target_vocabulary::function_abi::LegalizedFunctionAbi, Error> {
         source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
+            .emission_facts()
             .contracts
             .function_abi(machine)
             .ok_or(Error::Mismatch(
@@ -20978,10 +20705,10 @@ mod source {
     }
 
     pub(super) fn frame(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<Option<&FunctionTargetFrameLayout>, Error> {
-        let layout = source.source().source().source().source().frame_layout();
+        let layout = source.frame_layout();
         let mut rows = layout.functions.iter().filter(|row| row.machine == machine);
         match (rows.next(), rows.next()) {
             (Some(row), None) => Ok(Some(row)),
@@ -21357,7 +21084,7 @@ mod source {
     }
 
     pub(super) fn fragment_metadata(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<
         (
@@ -21374,11 +21101,66 @@ mod source {
     }
 
     pub(super) fn temporary_stack_bytes_by_function(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
+    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
+        let mut bounds = std::collections::BTreeMap::new();
+        for row in &source.emission_facts().temporary_stack {
+            if bounds.insert(row.machine, row.byte_count).is_some() {
+                return Err(Error::Mismatch("temporary stack plan repeats a function"));
+            }
+        }
+        Ok(bounds)
+    }
+
+    pub(super) fn decoded_temporary_stack_bytes_by_function(
+        source: &crate::object_input::ObjectEmissionInput,
+    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
+        let mut peaks = std::collections::BTreeMap::new();
+        for function in &source.readback.cpu.functions {
+            if peaks.insert(function.machine, 0).is_some() {
+                return Err(Error::Mismatch(
+                    "encoding instruction roster changed for temporary stack replay",
+                ));
+            }
+        }
+        let mut rows = source.readback.encoding.rows().iter();
+        let mut seen = std::collections::BTreeSet::new();
+        for &(machine, instruction) in &source.readback.cpu.instruction_roster {
+            let row = rows.next().ok_or(Error::Mismatch(
+                "missing encoding row for temporary stack replay",
+            ))?;
+            if row.instruction != instruction || !seen.insert((machine, instruction)) {
+                return Err(Error::Mismatch(
+                    "encoding instruction roster changed for temporary stack replay",
+                ));
+            }
+            let peak = peaks.get_mut(&machine).ok_or(Error::Mismatch(
+                "missing selected function for temporary stack replay",
+            ))?;
+            if let Some(footprint) = source.readback.encoding.encoded().footprint(row.footprint) {
+                *peak = (*peak).max(temporary_stack_peak(std::iter::once(&footprint.encoded)));
+            }
+        }
+        if rows.next().is_some() {
+            return Err(Error::Mismatch(
+                "extra encoding row for temporary stack replay",
+            ));
+        }
+        Ok(peaks)
+    }
+
+    pub(super) fn replayed_temporary_stack_bytes_by_function(
+        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
         let current = source.source().source().source().source();
         temporary_stack_bytes_for_selected_functions(
-            current.physical_program().functions.iter(),
+            current
+                .original_physical_program()
+                .ok_or(Error::Mismatch(
+                    "original physical instructions were not retained (ReplayUnavailable)",
+                ))?
+                .functions
+                .iter(),
             current.encoding().rows(),
             current.encoding().encoded(),
         )
@@ -22232,21 +22014,20 @@ mod source {
     }
 }
 
-pub(crate) use source::selected_constant_operand;
+pub(crate) use source::{planned_constant_operand, selected_constant_operand};
+#[path = "function_fragments/internal_calls.rs"]
+mod internal_calls;
 mod structural {
     mod byte_input {
-        use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
+        use super::{Error, attribution, fragment, host, placed_text_offset, source};
         use crate::ObjectBoundarySettlement;
         use crate::object::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid;
+        use crate::object_input::ObjectEmissionInput;
         use machine_code::{
             BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
             BoundaryStructuralResultRecord, SemanticCodeSite,
         };
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
-        use selected_instructions::{
-            LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-            SelectedInstructionKind,
-        };
+        use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
         use semantic_vocabulary::MachineId;
         use target::{Architecture, NativeTarget};
         use target_operations::{BoundaryRealization, CompilerBuiltinExecution};
@@ -22325,9 +22106,9 @@ mod structural {
         }
 
         pub(super) fn settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
         ) -> Result<ObjectBoundarySettlement, Error> {
             let invalid = || Error::Mismatch("selected byte input result custody");
             let SelectedBoundarySettlementPayload::HostedReadByte {
@@ -22339,28 +22120,16 @@ mod structural {
             else {
                 return Err(invalid());
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let instruction = function
-                .block(located.block)
-                .and_then(|block| block.instructions.get(located.instruction_index as usize))
-                .ok_or_else(invalid)?;
             let slot = LocalStorageSlotId::Structural {
                 operation: *operation,
                 place: result.place,
             };
-            if instruction.kind != (SelectedInstructionKind::HostedReadByte { slot })
-                || !instruction.operands.is_empty()
-                || instruction.provenance.operations.last() != Some(operation)
-                || !instruction.provenance.values.is_empty()
-            {
-                return Err(invalid());
-            }
             let span = fragment
-                .instruction_span(instruction.id)
+                .instruction_span(located.anchor)
                 .ok_or_else(invalid)?;
-            let offset = decoded_home(container.source().text_section().target, &span.bytes)
-                .ok_or_else(invalid)?;
+            let offset =
+                decoded_home(container.text_section().target, &span.bytes).ok_or_else(invalid)?;
             let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
             let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
             if frame.red_zone_resident_bytes != 0
@@ -22392,7 +22161,7 @@ mod structural {
                 native_result: BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
                     defining_operation: *operation,
                     result: result.clone(),
-                    declaration: result_declaration(function, result.structural_type)?.clone(),
+                    declaration: result_declaration(located, result.structural_type)?.clone(),
                     layout: layout.clone(),
                     home_byte_offset: offset,
                 }),
@@ -22404,7 +22173,6 @@ mod structural {
                 byte_count: span.bytes.len(),
             };
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
@@ -22416,9 +22184,9 @@ mod structural {
         }
 
         pub(super) fn validate(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
             proposed: &ObjectBoundarySettlement,
         ) -> Result<(), Error> {
             let invalid = || Error::Mismatch("selected byte input publication custody");
@@ -22431,28 +22199,17 @@ mod structural {
             else {
                 return Err(invalid());
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let row = function
-                .block(located.block)
-                .and_then(|block| block.instructions.get(located.instruction_index as usize))
-                .ok_or_else(invalid)?;
             let slot = LocalStorageSlotId::Structural {
                 operation: *operation,
                 place: result.place,
             };
-            if row.kind != (SelectedInstructionKind::HostedReadByte { slot })
-                || !row.operands.is_empty()
-                || row.provenance.operations.last() != Some(operation)
-                || !row.provenance.values.is_empty()
-            {
-                return Err(invalid());
-            }
-            let span = fragment.instruction_span(row.id).ok_or_else(invalid)?;
+            let span = fragment
+                .instruction_span(located.anchor)
+                .ok_or_else(invalid)?;
             let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
             let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
@@ -22462,7 +22219,7 @@ mod structural {
             };
             let code_offset = host(span.offset)?;
             if proposed.machine != machine
-                || &produced.declaration != result_declaration(function, result.structural_type)?
+                || &produced.declaration != result_declaration(located, result.structural_type)?
                 || proposed.text_offset != placed_text_offset(placed.section_offset, code_offset)?
                 || record.invocation_site != (*operation).into()
                 || record.boundary != *boundary
@@ -22489,7 +22246,7 @@ mod structural {
                     .is_none_or(|end| end > frame.frame_size_bytes)
                 || record.code_offset != code_offset
                 || record.byte_count != span.bytes.len()
-                || decoded_home(container.source().text_section().target, &span.bytes)
+                || decoded_home(container.text_section().target, &span.bytes)
                     != Some(produced.home_byte_offset)
                 || fragment.bytes.get(
                     code_offset
@@ -22511,20 +22268,16 @@ mod structural {
         }
 
         fn result_declaration(
-            function: &selected_instructions::SelectedFunction,
+            plan: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
             structural_type: semantic_vocabulary::StructuralTypeId,
         ) -> Result<&terminal_psi::StructuralTypeDeclaration, Error> {
-            let invalid = || Error::Mismatch("selected byte input declaration custody");
-            let contract = function.structural.as_ref().ok_or_else(invalid)?;
-            let mut matching = contract
-                .structural_types
-                .iter()
-                .filter(|row| row.id == structural_type);
-            let declaration = matching.next().ok_or_else(invalid)?;
-            if matching.next().is_some() || !hosted_read_byte_declaration_is_valid(declaration) {
-                return Err(invalid());
-            }
-            Ok(declaration)
+            plan.read_result_declaration
+                .as_ref()
+                .filter(|declaration| {
+                    declaration.id == structural_type
+                        && hosted_read_byte_declaration_is_valid(declaration)
+                })
+                .ok_or(Error::Mismatch("selected byte input declaration custody"))
         }
 
         #[cfg(test)]
@@ -22771,24 +22524,21 @@ mod structural {
     }
 
     mod byte_output {
-        use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
+        use super::{Error, attribution, fragment, host, placed_text_offset, source};
         use crate::ObjectBoundarySettlement;
         use crate::object::object_artifact::replay::boundary::runtime_scalar_custody::hosted_i32_argument;
+        use crate::object_input::ObjectEmissionInput;
         use machine_code::{
             BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
             InternalUnitScalarArgumentSourceRecord, SemanticCodeSite,
         };
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
-        use selected_instructions::{
-            LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-            SelectedInstructionKind,
-        };
+        use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
         use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 
         pub(super) fn settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
         ) -> Result<ObjectBoundarySettlement, Error> {
             let SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                 operation,
@@ -22799,26 +22549,12 @@ mod structural {
             else {
                 return Err(Error::Mismatch("selected byte output payload"));
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let instruction = function
-                .block(located.block)
-                .and_then(|block| block.instructions.get(located.instruction_index as usize))
-                .ok_or(Error::Mismatch("selected byte output instruction"))?;
             let slot = LocalStorageSlotId::Boundary { operation };
-            if instruction.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
-                || instruction.operands.len() != 1
-                || instruction.provenance.operations.last() != Some(&operation)
-                || instruction.provenance.values != [value]
-            {
-                return Err(Error::Mismatch(
-                    "byte output source or scratch substitution",
-                ));
-            }
             let span = fragment
-                .instruction_span(instruction.id)
+                .instruction_span(located.anchor)
                 .ok_or(Error::Mismatch("selected byte output span"))?;
-            let native = container.source().text_section().target;
+            let native = container.text_section().target;
             let (register, offset) =
                 crate::object::object_artifact::replay::boundary::runtime_scalar_custody::decode_selected_byte_output(native, &span.bytes)
                     .ok_or(Error::Mismatch("selected byte output encoding"))?;
@@ -22850,7 +22586,7 @@ mod structural {
                     InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
                         source_value: value,
                         scalar_type,
-                        instruction: instruction.id,
+                        instruction: located.anchor,
                         scratch_byte_offset: scratch.frame_offset_bytes,
                     },
                     register,
@@ -22871,7 +22607,6 @@ mod structural {
                 byte_count: span.bytes.len(),
             };
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or(Error::Mismatch("byte output placed function"))?;
@@ -22883,9 +22618,9 @@ mod structural {
         }
 
         pub(super) fn validate(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
             proposed: &ObjectBoundarySettlement,
         ) -> Result<(), Error> {
             let invalid = || Error::Mismatch("selected byte output publication custody");
@@ -22898,25 +22633,14 @@ mod structural {
             else {
                 return Err(invalid());
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let row = function
-                .block(located.block)
-                .and_then(|block| block.instructions.get(located.instruction_index as usize))
-                .ok_or_else(invalid)?;
             let slot = LocalStorageSlotId::Boundary { operation };
-            if row.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
-                || row.operands.len() != 1
-                || row.provenance.operations.last() != Some(&operation)
-                || row.provenance.values != [value]
-            {
-                return Err(invalid());
-            }
-            let span = fragment.instruction_span(row.id).ok_or_else(invalid)?;
+            let span = fragment
+                .instruction_span(located.anchor)
+                .ok_or_else(invalid)?;
             let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
             let scratch = frame.local_storage_slot(slot).ok_or_else(invalid)?;
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
@@ -22944,7 +22668,7 @@ mod structural {
                 || settlement.operation_ordinal
                     != attribution::ordinal(source::publication_function(container, machine)?, SemanticCodeSite::Operation(operation))?
                 || source_value != value
-                || instruction != row.id
+                || instruction != located.anchor
                 || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                 || frame.red_zone_resident_bytes != 0
                 || scratch_byte_offset != scratch.frame_offset_bytes
@@ -22954,7 +22678,7 @@ mod structural {
                 || settlement.code_offset != offset
                 || settlement.byte_count != span.bytes.len()
                 || !crate::object::object_artifact::replay::boundary::runtime_scalar_custody::selected_byte_output_bytes_are_exact(
-                    container.source().text_section().target,
+                    container.text_section().target,
                     settlement,
                     &fragment.bytes,
                 )
@@ -22997,299 +22721,6 @@ mod structural {
     }
 
     pub(super) use byte_input::cleanup_actions_match as read_result_cleanup_actions_match;
-    mod established_views {
-        use super::{Error, source};
-        use calling_conventions::ValueShape;
-        use machine_code::StructuralSourceLocation;
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
-        use selected_instructions::{
-            FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionKind,
-            SelectedMemoryAccessRole, VirtualRegisterOrigin,
-        };
-        use semantic_vocabulary::{BlockId, OperationId, PlaceId};
-        use target_operations::TargetStructuralArgument;
-        use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
-
-        pub(super) fn location(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
-            selected: &SelectedFunction,
-            argument: &TargetStructuralArgument,
-            producer: OperationId,
-        ) -> Result<StructuralSourceLocation, Error> {
-            let invalid =
-                || Error::Mismatch("established view differs from current descriptor custody");
-            let abstracted = source::abstract_function(source, selected.machine)?;
-            let types = &selected
-                .structural
-                .as_ref()
-                .ok_or_else(invalid)?
-                .structural_types;
-            let mut producers = abstracted.operations().filter(|operation| {
-                matches!(operation,
-                abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation, ..)
-                | abstract_operations::AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-                | abstract_operations::AbstractOperation::EstablishElementView { psi_operation, .. }
-                if *psi_operation == producer)
-            });
-            match producers.next() {
-                Some(abstract_operations::AbstractOperation::ByteSequenceSubslice {
-                    result,
-                    ..
-                }) if result.place == argument.place
-                    && result.structural_type == argument.root_structural_type
-                    && matches!(
-                        result.multiplicity,
-                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                    )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty() => {}
-                Some(abstract_operations::AbstractOperation::ElementViewSubslice {
-                    result,
-                    ..
-                })
-                | Some(abstract_operations::AbstractOperation::EstablishElementView {
-                    result,
-                    ..
-                }) if result.place == argument.place
-                    && result.structural_type == argument.root_structural_type
-                    && matches!(
-                        result.multiplicity,
-                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                    )
-                    && result.qualifications.is_empty()
-                    && terminal_semantics::view_descriptor_projected_qualifications(
-                        types.iter(),
-                        result.structural_type,
-                        &result.projected_qualifications,
-                    )
-                    && result.claims.is_empty() => {}
-                Some(abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
-                    place,
-                    structural_type,
-                    ..
-                }) if place.id == argument.place
-                    && structural_type.id == argument.root_structural_type => {}
-                _ => return Err(invalid()),
-            };
-            if producers.next().is_some() {
-                return Err(invalid());
-            }
-            local_location(
-                source,
-                selected,
-                argument,
-                LocalStorageSlotId::Structural {
-                    operation: producer,
-                    place: argument.place,
-                },
-                selected_instructions::SelectedMemoryAccessOrigin::Operation(producer),
-            )
-        }
-
-        pub(super) fn block_location(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
-            selected: &SelectedFunction,
-            argument: &TargetStructuralArgument,
-            block: BlockId,
-            place: PlaceId,
-        ) -> Result<StructuralSourceLocation, Error> {
-            let invalid = || Error::Mismatch("block view differs from current descriptor custody");
-            let parameter = selected
-                .structural_block_parameter(block, place)
-                .ok_or_else(invalid)?;
-            let signature = selected.structural.as_ref().ok_or_else(invalid)?;
-            let access = terminal_semantics::descriptor_parameter_access(
-                parameter,
-                signature.structural_types.iter(),
-            )
-            .ok_or_else(invalid)?;
-            let owned_transfer = argument.access == StructuralAccess::Owned
-                && parameter.access == StructuralAccess::Owned
-                && terminal_semantics::descriptor_value_transfer_matches(
-                    signature.structural_types.iter(),
-                    parameter.structural_type,
-                    argument.structural_type,
-                    parameter.multiplicity,
-                );
-            if place != argument.place
-                || parameter.structural_type != argument.root_structural_type
-                || !(owned_transfer
-                    || matches!(
-                        (access, argument.access),
-                        (
-                            StructuralAccess::SharedBorrow,
-                            StructuralAccess::SharedBorrow
-                        ) | (
-                            StructuralAccess::MutableBorrow,
-                            terminal_psi::reading_borrow_pair_pattern!()
-                        )
-                    ))
-                || !(parameter.qualifications.is_empty()
-                    || access == StructuralAccess::SharedBorrow)
-            {
-                return Err(invalid());
-            }
-            local_location(
-                source,
-                selected,
-                argument,
-                LocalStorageSlotId::StructuralBlockParameter { block, place },
-                selected_instructions::SelectedMemoryAccessOrigin::Block(block),
-            )
-        }
-
-        fn local_location(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
-            selected: &SelectedFunction,
-            argument: &TargetStructuralArgument,
-            slot: LocalStorageSlotId,
-            origin: selected_instructions::SelectedMemoryAccessOrigin,
-        ) -> Result<StructuralSourceLocation, Error> {
-            let invalid = || Error::Mismatch("local view differs from current descriptor custody");
-            let declarations = &selected
-                .structural
-                .as_ref()
-                .ok_or_else(invalid)?
-                .structural_types;
-            let declaration =
-                terminal_psi::find_structural_type(declarations, argument.root_structural_type)
-                    .ok_or_else(invalid)?;
-            let byte_size = match declaration.shape {
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-                | StructuralTypeShape::ElementView { .. } => 16,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => 8,
-                _ => return Err(invalid()),
-            };
-            let element_loan = !argument.path.is_empty();
-            if element_loan {
-                if argument.access == StructuralAccess::Owned
-                    || !argument.path.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            terminal_psi::StructuralPathSegment::Field(_)
-                                | terminal_psi::StructuralPathSegment::FixedIndex(_)
-                                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-                        )
-                    })
-                    || argument.shape.alignment == 0
-                    || argument.fixed_array_length.is_some()
-                    || argument.element_stride.is_some()
-                {
-                    return Err(invalid());
-                }
-            } else if !matches!(
-                argument.access,
-                terminal_psi::reading_borrow_pair_pattern!()
-            ) || !matches!(
-                terminal_semantics::borrowed_referent_presentation(
-                    declarations.iter(),
-                    argument.root_structural_type,
-                    argument.structural_type,
-                ),
-                Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
-            ) || argument.shape != ValueShape::borrowed_reference(byte_size, 8)
-                || argument.source_byte_offset != 0
-                || argument.fixed_array_length.is_some()
-                || argument.element_stride.is_some()
-            {
-                return Err(invalid());
-            }
-            let mut selected_slots = selected
-                .local_storage_slots
-                .iter()
-                .filter(|candidate| candidate.id == slot);
-            let selected_slot = selected_slots.next().ok_or_else(invalid)?;
-            if selected_slots.next().is_some()
-                || selected_slot.byte_size != byte_size
-                || selected_slot.alignment != 8
-            {
-                return Err(invalid());
-            }
-            let frame = source::frame(source, selected.machine)?.ok_or_else(invalid)?;
-            let mut slots = frame
-                .local_storage_slots
-                .iter()
-                .filter(|candidate| candidate.id == slot);
-            let local = slots.next().ok_or_else(invalid)?;
-            if frame.red_zone_resident_bytes != 0
-                || slots.next().is_some()
-                || local.size_bytes != byte_size
-                || local.alignment_bytes != 8
-                || local.frame_offset_bytes % 8 != 0
-                || local
-                    .frame_offset_bytes
-                    .checked_add(u64::from(byte_size))
-                    .is_none_or(|end| end > frame.frame_size_bytes)
-            {
-                return Err(invalid());
-            }
-            let mut accesses = selected.memory_accesses.iter().filter(|access| {
-                access.origin == origin
-                    && access.place == argument.place
-                    && access.role == (SelectedMemoryAccessRole::AddressLocal { slot })
-                    && access.byte_offset == 0
-            });
-            let access = accesses.next().ok_or_else(invalid)?;
-            if accesses.next().is_some()
-                || access.byte_offset != 0
-                || access.byte_count != byte_size
-            {
-                return Err(invalid());
-            }
-            let mut instructions = selected
-                .instructions()
-                .filter(|instruction| instruction.id == access.instruction);
-            let instruction = instructions.next().ok_or_else(invalid)?;
-            if instructions.next().is_some()
-                || instruction.kind
-                    != (SelectedInstructionKind::FrameAddress {
-                        slot: FrameStorageSlotId::Local(slot),
-                        byte_offset: 0,
-                    })
-                || match origin {
-                    selected_instructions::SelectedMemoryAccessOrigin::Operation(producer) => {
-                        instruction.provenance.operations.last() != Some(&producer)
-                    }
-                    selected_instructions::SelectedMemoryAccessOrigin::Block(owner) => {
-                        instruction.provenance != Default::default()
-                            || !selected.blocks.iter().any(|block| {
-                                matches!(block.origin,
-                                    selected_instructions::SelectedBlockOrigin::Source(source)
-                                    | selected_instructions::SelectedBlockOrigin::Operation { source, .. }
-                                    if source == owner)
-                                    && block.instruction(instruction.id).is_some()
-                            })
-                    }
-                    selected_instructions::SelectedMemoryAccessOrigin::Edge(_) => true,
-                }
-                || instruction.operands.len() != 1
-            {
-                return Err(invalid());
-            }
-            let pointer = instruction.operands[0].virtual_register;
-            let mut registers = selected
-                .virtual_registers
-                .iter()
-                .filter(|register| register.id == pointer);
-            let register = registers.next().ok_or_else(invalid)?;
-            if registers.next().is_some()
-                || register.origin
-                    != (VirtualRegisterOrigin::AbiTransport {
-                        instruction: instruction.id,
-                        place: argument.place,
-                        byte_offset: 0,
-                    })
-            {
-                return Err(invalid());
-            }
-            Ok(StructuralSourceLocation::Stack {
-                byte_offset: u32::try_from(local.frame_offset_bytes)
-                    .map_err(|_| Error::Overflow)?,
-            })
-        }
-    }
-
     mod primitive_locals {
         mod access {
             use super::establishment::{establishment, primitive_size, producer};
@@ -23310,15 +22741,20 @@ mod structural {
                         result,
                         ..
                     } => {
-                        return establishment(function, selected, result.place)
-                            .is_some_and(|(actual, _)| actual == *psi_operation);
+                        return establishment(
+                            producer(function, result.place),
+                            selected,
+                            result.place,
+                        )
+                        .is_some_and(|(actual, _)| actual == *psi_operation);
                     }
                     AbstractOperation::PrimitiveLocalStore {
                         psi_operation,
                         destination,
                         value,
                     } => {
-                        if establishment(function, selected, *destination).is_none()
+                        if establishment(producer(function, *destination), selected, *destination)
+                            .is_none()
                             || producer(function, *destination).is_none_or(|(_, _, initializer)| {
                                 initializer.scalar_type != value.scalar_type
                             })
@@ -23429,11 +22865,15 @@ mod structural {
             }
 
             pub(super) fn establishment(
-                function: &AbstractFunction,
+                producer: Option<(
+                    OperationId,
+                    terminal_psi::StructuralOperationResult,
+                    abstract_operations::AbstractResult,
+                )>,
                 selected: &SelectedFunction,
                 place: PlaceId,
             ) -> Option<(OperationId, u8)> {
-                let (operation, result, value) = producer(function, place)?;
+                let (operation, result, value) = producer?;
                 let size = primitive_size(value.scalar_type)?;
                 let contract = selected.structural.as_ref()?;
                 if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -23547,73 +22987,15 @@ mod structural {
             }
         }
 
+        #[cfg(test)]
         mod frame_location {
-            use super::establishment::{establishment, producer};
-            use crate::object::function_fragments::{Error, source};
+            use crate::object::function_fragments::Error;
             use machine_code::StructuralSourceLocation;
-            use object_file::StagedOptimizedRelocationFreeObjectContainer;
-            use selected_instructions::{LocalStorageSlotId, SelectedFunction};
-            use semantic_vocabulary::{OperationId, ScalarType};
+            use selected_instructions::LocalStorageSlotId;
+            use semantic_vocabulary::ScalarType;
             use terminal_psi::{
-                StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-                StructuralTypeShape,
+                StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
             };
-
-            pub(in crate::function_fragments::structural) fn location(
-                source: &StagedOptimizedRelocationFreeObjectContainer,
-                selected: &SelectedFunction,
-                argument: &target_operations::TargetStructuralArgument,
-                operation: OperationId,
-            ) -> Result<StructuralSourceLocation, Error> {
-                let invalid = || {
-                    Error::Mismatch(
-                        "primitive local producer, initialization or frame identity differs",
-                    )
-                };
-                let function = source::abstract_function(source, selected.machine)?;
-                let (producer_operation, size) =
-                    establishment(function, selected, argument.place).ok_or_else(invalid)?;
-                let (_, result, value) = producer(function, argument.place).ok_or_else(invalid)?;
-                let contract = selected.structural.as_ref().ok_or_else(invalid)?;
-                if producer_operation != operation
-                    || !argument_matches_source(
-                        argument,
-                        result.structural_type,
-                        value.scalar_type,
-                        &contract.structural_types,
-                    )
-                    || argument.source_byte_offset != 0
-                    || !matches!(
-                        argument.access,
-                        StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
-                            | StructuralAccess::WriteOnlyBorrow
-                    )
-                    || argument.shape
-                        != calling_conventions::ValueShape::borrowed_reference(
-                            u32::from(u16::from(size)),
-                            u16::from(size),
-                        )
-                    || argument.fixed_array_length.is_some()
-                    || argument.element_stride.is_some()
-                {
-                    return Err(invalid());
-                }
-                let frame = source::frame(source, selected.machine)?.ok_or_else(invalid)?;
-                let slot = LocalStorageSlotId::Structural {
-                    operation,
-                    place: argument.place,
-                };
-                if frame.red_zone_resident_bytes != 0 {
-                    return Err(invalid());
-                }
-                frame_location(
-                    &frame.local_storage_slots,
-                    frame.frame_size_bytes,
-                    slot,
-                    size,
-                )
-            }
 
             pub(super) fn frame_location(
                 homes: &[machine_code::LocalStorageFrameSlot],
@@ -23684,11 +23066,10 @@ mod structural {
         }
 
         pub(in crate::function_fragments) use access::operation_retained;
-        pub(super) use frame_location::location;
 
         #[cfg(test)]
         mod tests {
-            use super::establishment::establishment;
+            use super::establishment::{establishment, producer};
             use super::frame_location::frame_location;
             use crate::object::object_artifact::test_support::structural_declaration;
             use abstract_operations::{
@@ -23950,11 +23331,11 @@ mod structural {
                     .make_mut()[0]
                     .shape = StructuralTypeShape::PrimitiveScalar(callable);
                 let place = PlaceId::new(1).unwrap();
-                assert!(establishment(&function, &selected, place).is_some());
+                assert!(establishment(producer(&function, place), &selected, place).is_some());
 
                 selected.virtual_registers[1].scalar_type =
                     ScalarType::Callable(semantic_vocabulary::CallableContractId::new(2).unwrap());
-                assert!(establishment(&function, &selected, place).is_none());
+                assert!(establishment(producer(&function, place), &selected, place).is_none());
                 selected.virtual_registers[1].scalar_type = callable;
                 selected
                     .structural
@@ -23965,14 +23346,14 @@ mod structural {
                     .shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 ));
-                assert!(establishment(&function, &selected, place).is_none());
+                assert!(establishment(producer(&function, place), &selected, place).is_none());
             }
 
             #[test]
             fn initialized_local_requires_exact_producer_address_and_executed_store() {
                 let (function, selected) = fixture();
                 let place = PlaceId::new(1).unwrap();
-                assert!(establishment(&function, &selected, place).is_some());
+                assert!(establishment(producer(&function, place), &selected, place).is_some());
                 for mutation in 0..13 {
                     let mut changed = selected.clone();
                     match mutation {
@@ -24009,14 +23390,14 @@ mod structural {
                         }
                     }
                     assert!(
-                        establishment(&function, &changed, place).is_none(),
+                        establishment(producer(&function, place), &changed, place).is_none(),
                         "mutation {mutation}"
                     );
                 }
                 let mut duplicate = function.clone();
                 let repeated = duplicate.blocks[0].operations[0].clone();
                 duplicate.blocks[0].operations.push(repeated);
-                assert!(establishment(&duplicate, &selected, place).is_none());
+                assert!(establishment(producer(&duplicate, place), &selected, place).is_none());
                 let mut changed = function.clone();
                 let AbstractOperation::EstablishPrimitiveLocal { result, .. } =
                     &mut changed.blocks[0].operations[0]
@@ -24024,7 +23405,7 @@ mod structural {
                     unreachable!()
                 };
                 result.place = PlaceId::new(2).unwrap();
-                assert!(establishment(&changed, &selected, place).is_none());
+                assert!(establishment(producer(&changed, place), &selected, place).is_none());
             }
 
             #[test]
@@ -24194,7 +23575,7 @@ mod structural {
                 };
                 result.qualifications.push(domain);
                 assert_eq!(
-                    establishment(&function, &selected, place),
+                    establishment(producer(&function, place), &selected, place),
                     Some((OperationId::new(1).unwrap(), 8))
                 );
 
@@ -24224,37 +23605,34 @@ mod structural {
                             }),
                     }
                     assert!(
-                        establishment(&changed, &selected, place).is_none(),
+                        establishment(producer(&changed, place), &selected, place).is_none(),
                         "custody mutation {mutation}"
                     );
                 }
                 let mut changed = selected.clone();
                 changed.blocks[0].instructions[1].provenance.values.clear();
-                assert!(establishment(&function, &changed, place).is_none());
+                assert!(establishment(producer(&function, place), &changed, place).is_none());
             }
         }
     }
 
     pub(super) use primitive_locals::operation_retained as primitive_operation_retained;
     mod process_exit {
-        use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
+        use super::{Error, attribution, fragment, host, placed_text_offset, source};
         use crate::ObjectBoundarySettlement;
         use crate::object::object_artifact::replay::boundary::runtime_scalar_custody::hosted_i32_argument;
+        use crate::object_input::ObjectEmissionInput;
         use machine_code::{
             BoundaryResultRecord, BoundarySettlementRecord, InternalUnitScalarArgumentSourceRecord,
             SemanticCodeSite,
         };
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
-        use selected_instructions::{
-            SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedInstructionKind,
-            SelectedTerminator,
-        };
+        use selected_instructions::SelectedBoundarySettlementPayload;
         use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 
         pub(super) fn settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
         ) -> Result<ObjectBoundarySettlement, Error> {
             let SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                 edge,
@@ -24265,40 +23643,20 @@ mod structural {
             else {
                 return Err(Error::Mismatch("selected process exit payload"));
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let block = function
-                .block(located.block)
-                .ok_or(Error::Mismatch("process exit block"))?;
-            let SelectedTerminator::HostedExitProcess {
-                instruction,
-                completion_edge,
-            } = &block.terminator
-            else {
-                return Err(Error::Mismatch("process exit terminal"));
-            };
-            if located.instruction_index as usize != block.instructions.len()
-                || edge != *completion_edge
-                || instruction.kind != SelectedInstructionKind::HostedExitProcessI32
-                || instruction.operands.len() != 1
-                || instruction.provenance.edges.last() != Some(&edge)
-                || instruction.provenance.values != [value]
-            {
-                return Err(Error::Mismatch("process exit source substitution"));
-            }
             let span = fragment
-                .instruction_span(instruction.id)
+                .instruction_span(located.anchor)
                 .ok_or(Error::Mismatch("process exit span"))?;
             if span.control
                 != (machine_code::FunctionFragmentControlProvenance::HostedExitProcess {
-                    completion_edge: *completion_edge,
+                    completion_edge: edge,
                 })
             {
                 return Err(Error::Mismatch("process exit completion edge"));
             }
             let register =
                 crate::object::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::decode(
-                    container.source().text_section().target,
+                    container.text_section().target,
                     &span.bytes,
                 )
                 .ok_or(Error::Mismatch("process exit encoding"))?;
@@ -24318,7 +23676,7 @@ mod structural {
                     InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
                         source_value: value,
                         scalar_type,
-                        instruction: instruction.id,
+                        instruction: located.anchor,
                     },
                     register,
                     code_offset,
@@ -24338,7 +23696,6 @@ mod structural {
                 byte_count: span.bytes.len(),
             };
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or(Error::Mismatch("process exit placed function"))?;
@@ -24350,9 +23707,9 @@ mod structural {
         }
 
         pub(super) fn validate(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
+            container: &ObjectEmissionInput,
             machine: MachineId,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
             proposed: &ObjectBoundarySettlement,
         ) -> Result<(), Error> {
             let invalid = || Error::Mismatch("process exit publication custody");
@@ -24365,21 +23722,12 @@ mod structural {
             else {
                 return Err(invalid());
             };
-            let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let block = function.block(located.block).ok_or_else(invalid)?;
-            let SelectedTerminator::HostedExitProcess {
-                instruction,
-                completion_edge,
-            } = &block.terminator
-            else {
-                return Err(invalid());
-            };
             let span = fragment
                 .blocks
                 .iter()
                 .flat_map(|row| &row.instructions)
-                .find(|row| row.instruction == instruction.id)
+                .find(|row| row.instruction == located.anchor)
                 .ok_or_else(invalid)?;
             let [argument] = proposed.settlement.runtime_scalar_arguments.as_slice() else {
                 return Err(invalid());
@@ -24393,22 +23741,15 @@ mod structural {
                 return Err(invalid());
             };
             let placed = container
-                .source()
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
             let offset = host(span.offset)?;
-            if located.instruction_index as usize != block.instructions.len()
-                || edge != *completion_edge
-                || instruction.kind != SelectedInstructionKind::HostedExitProcessI32
-                || instruction.operands.len() != 1
-                || instruction.provenance.edges.last() != Some(&edge)
-                || instruction.provenance.values != [value]
-                || source_value != value
-                || source_instruction != instruction.id
+            if source_value != value
+                || source_instruction != located.anchor
                 || span.control
                     != (machine_code::FunctionFragmentControlProvenance::HostedExitProcess {
-                        completion_edge: *completion_edge,
+                        completion_edge: edge,
                     })
                 || proposed.machine != machine
                 || proposed.text_offset != placed_text_offset(placed.section_offset, offset)?
@@ -24420,7 +23761,7 @@ mod structural {
                 || proposed.settlement.code_offset != offset
                 || proposed.settlement.byte_count != span.bytes.len()
                 || !crate::object::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::bytes_are_exact(
-                    container.source().text_section().target,
+                    container.text_section().target,
                     &proposed.settlement,
                     &fragment.bytes,
                 )
@@ -24431,209 +23772,26 @@ mod structural {
         }
     }
 
-    mod scalar_result {
-        use crate::object::function_fragments::{Error, source};
-        use abstract_operations::AbstractStructuralCallResult;
-        use object_file::StagedOptimizedRelocationFreeObjectContainer;
-        use selected_instructions::SelectedFunction;
-
-        pub(super) fn result(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
-            selected: &SelectedFunction,
-            contract: &selected_instructions::SelectedCallContract,
-        ) -> Result<Option<abstract_operations::AbstractResult>, Error> {
-            let Some(callee_machine) = contract.call.target.machine() else {
-                return Ok(None);
-            };
-            let Some(placement) = &contract.call.result_placement else {
-                return Ok(None);
-            };
-            let invalid =
-                || Error::Mismatch("structural scalar call result differs from current source");
-            let abstracted = source::abstract_function(source, selected.machine)?;
-            let installed_boundary = match &contract.call.source {
-                legalized_operations::NativeCallOrigin::InstalledProvider { boundary, .. }
-                | legalized_operations::NativeCallOrigin::ProgramEntry { boundary, .. } => {
-                    Some(*boundary)
-                }
-                legalized_operations::NativeCallOrigin::Authored => None,
-            };
-            let mut operations = abstracted
-                .operations()
-                .filter_map(|operation| match operation {
-                    abstract_operations::AbstractOperation::CallStructural {
-                        psi_operation,
-                        result: AbstractStructuralCallResult::Scalar(result),
-                        callee,
-                        ..
-                    } if installed_boundary.is_none()
-                        && contract.owner
-                            == target_operations::CallSiteOwner::Operation(*psi_operation)
-                        && source::call_target_matches(*callee, contract.call.target) =>
-                    {
-                        Some(*result)
-                    }
-                    abstract_operations::AbstractOperation::BoundaryCall {
-                        psi_operation,
-                        result: abstract_operations::AbstractBoundaryResult::Scalar(result),
-                        boundary,
-                        ..
-                    } if installed_boundary == Some(*boundary)
-                        && contract.owner
-                            == target_operations::CallSiteOwner::Operation(*psi_operation) =>
-                    {
-                        Some(*result)
-                    }
-                    _ => None,
-                });
-            let result = operations.next().ok_or_else(invalid)?;
-            let callee = source::abstract_function(source, callee_machine)?;
-            let abi = source::function_abi(source, callee_machine)?
-                .mixed_structural_scalar
-                .as_ref()
-                .ok_or_else(invalid)?;
-            if operations.next().is_some()
-                || callee
-                    .result
-                    .scalar()
-                    .is_none_or(|value| value.scalar_type != result.scalar_type)
-                || abi.result.scalar_type != result.scalar_type
-                || abi.result.placement != *placement
-                || abi.call_plan != contract.call.call_plan
-            {
-                return Err(invalid());
-            }
-            let mut instructions = selected
-                .instructions()
-                .filter(|instruction| instruction.id == contract.instruction);
-            let instruction = instructions.next().ok_or_else(invalid)?;
-            let output = instruction
-                .operands
-                .last()
-                .ok_or_else(invalid)?
-                .virtual_register;
-            if instructions.next().is_some()
-                || instruction.kind
-                    != (selected_instructions::SelectedInstructionKind::CallScalar {
-                        target: selected_instructions::SelectedCallTarget::Machine(callee_machine),
-                    })
-                || !selected.virtual_registers.iter().any(|register| {
-                    register.id == output
-                        && definition_is_exact(register, contract.instruction, result)
-                })
-            {
-                return Err(invalid());
-            }
-            Ok(Some(result))
-        }
-
-        fn definition_is_exact(
-            register: &selected_instructions::VirtualRegister,
-            instruction: selected_instructions::SelectedInstructionId,
-            result: abstract_operations::AbstractResult,
-        ) -> bool {
-            register.scalar_type == result.scalar_type
-                && matches!(register.origin,
-                    selected_instructions::VirtualRegisterOrigin::InstructionResult { instruction: defining, source_value }
-                        if defining == instruction && source_value == result.value)
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::definition_is_exact;
-            use selected_instructions::{
-                SelectedInstructionId, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-            };
-            use semantic_vocabulary::{ScalarType, ValueId};
-
-            #[test]
-            fn scalar_call_result_requires_the_exact_call_definition_and_value() {
-                let instruction = SelectedInstructionId(7);
-                let result = abstract_operations::AbstractResult {
-                    value: ValueId::new(9).unwrap(),
-                    scalar_type: ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .unwrap(),
-                    ),
-                };
-                let register = VirtualRegister {
-                    id: VirtualRegisterId(2),
-                    scalar_type: result.scalar_type,
-                    class: register_model::RegisterClassId(0),
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction,
-                        source_value: result.value,
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
-                };
-                assert!(definition_is_exact(&register, instruction, result));
-                for mutation in 0..4 {
-                    let mut changed = register.clone();
-                    match mutation {
-                        0 => changed.scalar_type = ScalarType::Boolean,
-                        1 => {
-                            changed.origin = VirtualRegisterOrigin::InstructionResult {
-                                instruction: SelectedInstructionId(8),
-                                source_value: result.value,
-                            }
-                        }
-                        2 => {
-                            changed.origin = VirtualRegisterOrigin::InstructionResult {
-                                instruction,
-                                source_value: ValueId::new(10).unwrap(),
-                            }
-                        }
-                        _ => {
-                            changed.origin = VirtualRegisterOrigin::EntryParameter {
-                                source_value: result.value,
-                                parameter_index: 0,
-                            }
-                        }
-                    }
-                    assert!(
-                        !definition_is_exact(&changed, instruction, result),
-                        "mutation {mutation}"
-                    );
-                }
-            }
-        }
-    }
-
     mod validation {
         use super::{
-            Error, IndirectPointerLocation, InternalUnitCallArgumentRecord, InternalUnitCallSource,
-            InternalUnitScalarArgumentSourceRecord, InternalUnitStructuralArgumentSourceRecord,
-            LegalizedScalarArgument, MachineId, NativeCallOrigin, ObjectBoundarySettlement,
-            ObjectFunction, OperationId, PlaceId, SelectedBoundarySettlement, SelectedFunction,
-            SelectedMemoryAccessRole, SemanticCodeAttribution, SemanticCodeSite,
-            StagedOptimizedRelocationFreeObjectContainer, StructuralSourceLocation, ValueLocation,
-            ValuePlacement, attribution, byte_input, byte_output, established_views, fragment,
-            host, inline_owned_placement, placed_text_offset, primitive_locals, process_exit,
-            published_call, scalar_result, scalar_type, selected, semantic_code_site, source,
+            Error, MachineId, ObjectBoundarySettlement, ObjectEmissionInput, ObjectFunction,
+            SemanticCodeAttribution, SemanticCodeSite, StructuralSourceLocation, attribution,
+            boundary_settlements, byte_input, byte_output, fragment, placed_text_offset,
+            process_exit, semantic_code_site, source,
         };
+        use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
         pub(in crate::function_fragments) fn validate_function(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
+            source: &ObjectEmissionInput,
             function: &ObjectFunction,
             rows: &[SemanticCodeAttribution],
         ) -> Result<(), Error> {
-            if function.unit_affine_cleanup.is_some() {
-                return Err(Error::Mismatch(
-                    "shared fragments cannot carry legacy singular cleanup",
-                ));
-            }
+            let plan = super::super::internal_calls::publication(source, function.machine)?;
             let invalid =
                 || Error::Mismatch("structural object differs from current ABI or call evidence");
-            let selected = selected(source, function.machine)?;
-            let fragment = fragment(source, function.machine)?;
-            let parameters = selected
-                .structural
-                .as_ref()
-                .map_or(&[][..], |contract| contract.parameters.as_slice());
-            let (records, homes, unused_records, unused_homes) =
+            if function.unit_affine_cleanup.is_some() {
+                return Err(invalid());
+            }
+            let (records, homes, unused, unused_homes) =
                 if function.mixed_structural_scalar_abi.is_some() {
                     (
                         &function.scalar_structural_parameters,
@@ -24649,293 +23807,22 @@ mod structural {
                         &function.scalar_structural_parameter_homes,
                     )
                 };
-            let pointer_parameters = || {
-                parameters.iter().filter(|parameter| {
-                    !inline_owned_placement(parameter.target.access, &parameter.target.placement)
-                })
-            };
-            if !unused_records.is_empty()
+            if !unused.is_empty()
                 || !unused_homes.is_empty()
-                || records.len() != parameters.len()
-                || homes.len() != pointer_parameters().count()
-                || function.internal_unit_calls.len()
-                    != selected
-                        .calls
-                        .iter()
-                        .filter(|row| published_call(selected, row))
-                        .count()
+                || records != &plan.parameters
+                || homes != &plan.homes
             {
                 return Err(invalid());
             }
-            for (parameter, expected) in records.iter().zip(parameters) {
-                let expected = &expected.target;
-                if parameter.place != expected.place
-                    || parameter.structural_type != expected.structural_type
-                    || parameter.multiplicity != expected.multiplicity
-                    || parameter.access != expected.access
-                    || parameter.shape != expected.shape
-                {
+            for home in homes {
+                validate_incoming_location(home.access, &home.source, home.location)?;
+                if !home.indirect {
                     return Err(invalid());
                 }
             }
-            for (home, expected) in homes.iter().zip(pointer_parameters()) {
-                let expected = &expected.target;
-                if home.place != expected.place
-                    || home.structural_type != expected.structural_type
-                    || home.multiplicity != expected.multiplicity
-                    || home.access != expected.access
-                    || home.shape != expected.shape
-                    || home.source != expected.placement
-                    || !home.indirect
-                {
-                    return Err(invalid());
-                }
-                validate_incoming_location(expected.access, &expected.placement, home.location)?;
-            }
-            let frame_bytes = u32::try_from(
-                source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),
-            )
-            .map_err(|_| Error::Overflow)?;
-            for (actual, contract) in function.internal_unit_calls.iter().zip(
-                selected
-                    .calls
-                    .iter()
-                    .filter(|row| published_call(selected, row)),
-            ) {
-                let expected = &contract.call;
-                let span = rows
-                    .iter()
-                    .find(|row| {
-                        super::call_site_owner_semantic_site(&contract.owner)
-                            .map(|site| row.site == site)
-                            .unwrap_or(false)
-                    })
-                    .ok_or_else(invalid)?;
-                let call_span = fragment
-                    .instruction_span(contract.instruction)
-                    .ok_or_else(invalid)?;
-                if actual.owner != contract.owner
-                    || expected.target
-                        != target_operations::NativeCallTarget::Machine(actual.target)
-                    || actual.semantic_result != scalar_result::result(source, selected, contract)?
-                    || actual.result != actual.semantic_result.map(|result| result.scalar_type)
-                    || actual.structural_result.is_some()
-                    || actual.scalar_arguments.len()
-                        != expected
-                            .arguments
-                            .iter()
-                            .filter(|argument| {
-                                matches!(argument, LegalizedScalarArgument::Scalar { .. })
-                            })
-                            .count()
-                    || actual.claim_transfers != expected.claim_transfers
-                    || actual.arguments.len() + actual.scalar_arguments.len()
-                        != expected.arguments.len()
-                    || actual.operation_ordinal != span.operation_ordinal
-                    || actual.code_offset != host(call_span.offset)?
-                    || actual.byte_count != call_span.bytes.len()
-                    || call_span
-                        .internal_machine_fixup
-                        .as_ref()
-                        .is_none_or(|fixup| {
-                            expected.target
-                                != target_operations::NativeCallTarget::Machine(fixup.callee)
-                        })
-                {
-                    return Err(invalid());
-                }
-                match (&actual.source, &expected.source) {
-                    (InternalUnitCallSource::Authored, NativeCallOrigin::Authored) => {}
-                    (
-                        InternalUnitCallSource::ProgramEntry {
-                            boundary,
-                            entry,
-                            source_signature,
-                            completion_claim_sources,
-                            completion_receipts,
-                        },
-                        NativeCallOrigin::ProgramEntry {
-                            boundary: wanted_boundary,
-                            entry: wanted_entry,
-                            source_signature: wanted_signature,
-                            completion_claim_sources: wanted_sources,
-                            completion_receipts: wanted_receipts,
-                        },
-                    ) if boundary == wanted_boundary
-                        && entry == wanted_entry
-                        && source_signature == wanted_signature
-                        && completion_claim_sources == wanted_sources
-                        && completion_receipts == wanted_receipts => {}
-                    (
-                        InternalUnitCallSource::InstalledProvider {
-                            boundary,
-                            provider,
-                            assumption,
-                            completion_claim_sources,
-                            completion_receipts,
-                        },
-                        NativeCallOrigin::InstalledProvider {
-                            boundary: wanted_boundary,
-                            provider: wanted_provider,
-                            assumption: wanted_assumption,
-                            completion_claim_sources: wanted_sources,
-                            completion_receipts: wanted_receipts,
-                        },
-                    ) if boundary == wanted_boundary
-                        && provider.as_ref() == wanted_provider
-                        && assumption == wanted_assumption
-                        && completion_claim_sources == wanted_sources
-                        && completion_receipts == wanted_receipts => {}
-                    _ => return Err(invalid()),
-                }
-                for (actual_argument, (parameter_index, expected_argument)) in
-                    actual.scalar_arguments.iter().zip(
-                        expected
-                            .arguments
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, argument)| {
-                                matches!(argument, LegalizedScalarArgument::Scalar { .. })
-                            }),
-                    )
-                {
-                    let LegalizedScalarArgument::Scalar {
-                        source: value,
-                        placement,
-                    } = expected_argument
-                    else {
-                        return Err(invalid());
-                    };
-                    if usize::try_from(actual_argument.parameter_index) != Ok(parameter_index)
-                        || actual_argument.source
-                            != (InternalUnitScalarArgumentSourceRecord::SelectedCall {
-                                source_value: *value,
-                                scalar_type: scalar_type(selected, *value)?,
-                                instruction: contract.instruction,
-                            })
-                        || actual_argument.destination != *placement
-                        || actual_argument.code_offset != actual.code_offset
-                        || actual_argument.byte_count != actual.byte_count
-                    {
-                        return Err(invalid());
-                    }
-                }
-                for (actual, expected) in
-                    actual
-                        .arguments
-                        .iter()
-                        .zip(expected.arguments.iter().filter(|argument| {
-                            matches!(argument, LegalizedScalarArgument::Structural { .. })
-                        }))
-                {
-                    let LegalizedScalarArgument::Structural { target, .. } = expected else {
-                        return Err(invalid());
-                    };
-                    if target.access == terminal_psi::StructuralAccess::Owned {
-                        validate_copy(
-                            selected,
-                            fragment,
-                            contract.owner.operation().ok_or(Error::Mismatch(
-                                "cleanup cannot own an outgoing value copy",
-                            ))?,
-                            target.place,
-                            actual,
-                        )?;
-                    } else if actual.code_offset != host(call_span.offset)?
-                        || actual.byte_count != call_span.bytes.len()
-                        || actual.bytes != call_span.bytes
-                    {
-                        return Err(invalid());
-                    }
-                    match (&target.source, &actual.source) {
-                        (
-                            target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                                psi_operation,
-                            },
-                            InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
-                                psi_operation: actual_operation,
-                            },
-                        ) if psi_operation == actual_operation => {
-                            if actual.source_location
-                                != primitive_locals::location(source, selected, target, *psi_operation)?
-                            {
-                                return Err(invalid());
-                            }
-                        }
-                        (
-                            target_operations::TargetStructuralArgumentSource::Placement(placement),
-                            InternalUnitStructuralArgumentSourceRecord::Placement(actual_placement),
-                        ) if placement == actual_placement => {
-                            let mut roots = parameters
-                                .iter()
-                                .filter(|parameter| parameter.target.place == target.place);
-                            let root = roots.next().ok_or_else(invalid)?;
-                            if roots.next().is_some() {
-                                return Err(invalid());
-                            }
-                            validate_incoming_location(
-                                root.target.access,
-                                &root.target.placement,
-                                actual.source_location,
-                            )?;
-                        }
-                        (
-                            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                                psi_operation,
-                            },
-                            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
-                                psi_operation: actual_operation,
-                            },
-                        )
-                        | (
-                            target_operations::TargetStructuralArgumentSource::EstablishedElementView {
-                                psi_operation,
-                            },
-                            InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
-                                psi_operation: actual_operation,
-                            },
-                        ) if psi_operation == actual_operation => {
-                            if actual.source_location
-                                != established_views::location(source, selected, target, *psi_operation)?
-                            {
-                                return Err(invalid());
-                            }
-                        }
-                        (
-                            target_operations::TargetStructuralArgumentSource::BlockParameter {
-                                block,
-                                place,
-                            },
-                            InternalUnitStructuralArgumentSourceRecord::BlockParameter {
-                                block: actual_block,
-                                place: actual_place,
-                            },
-                        ) if block == actual_block && place == actual_place => {
-                            if actual.source_location
-                                != established_views::block_location(
-                                    source, selected, target, *block, *place,
-                                )?
-                            {
-                                return Err(invalid());
-                            }
-                        }
-                        _ => return Err(invalid()),
-                    }
-                    if actual.place != target.place
-                        || actual.access != target.access
-                        || actual.path != target.path
-                        || actual.root_structural_type != target.root_structural_type
-                        || actual.structural_type != target.structural_type
-                        || actual.shape != target.shape
-                        || actual.source_byte_offset != target.source_byte_offset
-                        || actual.call_stack_bytes != frame_bytes
-                        || actual.fixed_array_length != target.fixed_array_length
-                        || actual.element_stride != target.element_stride
-                        || actual.destination != target.destination
-                    {
-                        return Err(invalid());
-                    }
-                }
+            let calls = super::super::internal_calls::place_calls(source, function.machine, rows)?;
+            if function.internal_unit_calls != calls {
+                return Err(invalid());
             }
             Ok(())
         }
@@ -25034,7 +23921,14 @@ mod structural {
                 ) if *pointer == actual
                     && *byte_size == placement.shape.byte_size
                     && *alignment == placement.shape.alignment
-                    && super::indirect_pointer_supports_copy(pointer) =>
+                    && match pointer {
+                        IndirectPointerLocation::Register(_) => true,
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset,
+                            alignment: 8,
+                        } => stack_byte_offset.is_multiple_of(8),
+                        _ => false,
+                    } =>
                 {
                     Ok(())
                 }
@@ -25043,14 +23937,14 @@ mod structural {
         }
 
         pub(in crate::function_fragments) fn validate_settlements(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
+            source: &ObjectEmissionInput,
             rows: &[ObjectBoundarySettlement],
         ) -> Result<(), Error> {
             let mut cursor = 0;
-            for placed in &source.source().text_section().functions {
-                let function = selected(source, placed.machine)?;
+            for placed in &source.text_section().functions {
+                let settlements = boundary_settlements(source, placed.machine)?;
                 let fragment = fragment(source, placed.machine)?;
-                for located in &function.boundary_settlements {
+                for located in settlements {
                     let actual = rows
                         .get(cursor)
                         .ok_or(Error::Mismatch("missing structural settlement"))?;
@@ -25067,7 +23961,7 @@ mod structural {
                         continue;
                     };
                     let row = &actual.settlement;
-                    validate_settlement_position(function, fragment, located, row.code_offset)?;
+                    validate_settlement_position(fragment, located, row.code_offset)?;
                     if actual.machine != placed.machine
                         || actual.text_offset
                             != placed_text_offset(placed.section_offset, row.code_offset)?
@@ -25116,7 +24010,7 @@ mod structural {
                             return Err(Error::Mismatch("completion provider custody"));
                         }
                     }
-                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.emission_facts().lowering.module().identities)
+                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, source.emission_facts().admission.identities())
                         .map_err(|_| Error::Mismatch("completion receipts"))?;
                 }
             }
@@ -25127,16 +24021,16 @@ mod structural {
         }
 
         pub(in crate::function_fragments) fn validate_settlement_attributions(
-            source: &StagedOptimizedRelocationFreeObjectContainer,
+            source: &ObjectEmissionInput,
             machine: MachineId,
             rows: &[SemanticCodeAttribution],
         ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-            let function = selected(source, machine)?;
+            let settlements = boundary_settlements(source, machine)?;
             let fragment = fragment(source, machine)?;
             let invalid =
                 || Error::Mismatch("settlement attribution differs from admitted operation");
             let mut sites = Vec::new();
-            for located in &function.boundary_settlements {
+            for located in settlements {
                 let site = semantic_code_site(located.settlement.invocation_site());
                 if sites.contains(&site) {
                     return Err(invalid());
@@ -25150,22 +24044,8 @@ mod structural {
                         | selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. }
                         | selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. }
                 ) {
-                    let block = function.block(located.block).ok_or_else(invalid)?;
-                    let instruction = block
-                        .instructions
-                        .get(located.instruction_index as usize)
-                        .or(match &block.terminator {
-                            selected_instructions::SelectedTerminator::HostedExitProcess {
-                                instruction,
-                                ..
-                            } if located.instruction_index as usize == block.instructions.len() => {
-                                Some(instruction)
-                            }
-                            _ => None,
-                        })
-                        .ok_or_else(invalid)?;
                     fragment
-                        .instruction_span(instruction.id)
+                        .instruction_span(located.anchor)
                         .ok_or_else(invalid)?
                         .bytes
                         .len()
@@ -25182,12 +24062,12 @@ mod structural {
                 {
                     return Err(invalid());
                 }
-                validate_settlement_position(function, fragment, located, row.code_offset)?;
+                validate_settlement_position(fragment, located, row.code_offset)?;
             }
             Ok(rows
                 .iter()
                 .filter(|row| {
-                    !function.boundary_settlements.iter().any(|located| {
+                    !settlements.iter().any(|located| {
                         matches!(
                             located.settlement,
                             selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(_)
@@ -25199,90 +24079,14 @@ mod structural {
         }
 
         fn validate_settlement_position(
-            function: &SelectedFunction,
             fragment: &machine_code::FunctionFragment,
-            located: &SelectedBoundarySettlement,
+            located: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
             proposed_offset: usize,
         ) -> Result<(), Error> {
-            let invalid = || Error::Mismatch("settlement position has no exact physical anchor");
-            let mut blocks = function
-                .blocks
-                .iter()
-                .filter(|block| block.id == located.block);
-            let block = blocks.next().ok_or_else(invalid)?;
-            if blocks.next().is_some() {
-                return Err(invalid());
-            }
-            let anchor = super::settlement_instruction(block, located.instruction_index)?.id;
-            let mut spans = fragment
-                .blocks
-                .iter()
-                .filter(|block| block.block == located.block)
-                .flat_map(|block| &block.instructions)
-                .filter(|span| span.instruction == anchor);
-            let span = spans.next().ok_or_else(invalid)?;
-            if spans.next().is_some() || host(span.offset)? != proposed_offset {
-                return Err(invalid());
-            }
-            Ok(())
-        }
-
-        fn validate_copy(
-            selected: &SelectedFunction,
-            fragment: &machine_code::FunctionFragment,
-            operation: OperationId,
-            place: PlaceId,
-            actual: &InternalUnitCallArgumentRecord,
-        ) -> Result<(), Error> {
-            let invalid =
-                || Error::Mismatch("owned argument copy differs from selected memory operations");
-            let memory = selected
-                .memory_accesses
-                .iter()
-                .filter(|row| {
-                    row.origin
-                        == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
-                        && row.place == place
-                        && matches!(
-                            row.role,
-                            SelectedMemoryAccessRole::ReadPlace
-                                | SelectedMemoryAccessRole::WriteOutgoing { .. }
-                        )
-                })
-                .collect::<Vec<_>>();
-            if memory.is_empty() {
-                return Err(invalid());
-            }
-            let mut seen = Vec::new();
-            let mut first = None;
-            let mut last_end = 0;
-            for span in fragment.instructions() {
-                let matches = memory
-                    .iter()
-                    .filter(|row| row.instruction == span.instruction)
-                    .count();
-                if matches == 0 {
-                    continue;
-                }
-                if matches != 1 || seen.contains(&span.instruction) || span.bytes.is_empty() {
-                    return Err(invalid());
-                }
-                let start = host(span.offset)?;
-                let end = start.checked_add(span.bytes.len()).ok_or(Error::Overflow)?;
-                if first.is_some() && start < last_end {
-                    return Err(invalid());
-                }
-                first.get_or_insert(start);
-                last_end = end;
-                seen.push(span.instruction);
-            }
-            let start = first.ok_or_else(invalid)?;
-            if seen.len() != memory.len()
-                || actual.code_offset != start
-                || actual.byte_count != last_end.checked_sub(start).ok_or(Error::Overflow)?
-                || fragment.bytes.get(start..last_end) != Some(actual.bytes.as_slice())
-            {
-                return Err(invalid());
+            if super::settlement_offset(fragment, located)? != proposed_offset {
+                return Err(Error::Mismatch(
+                    "settlement position has no exact physical anchor",
+                ));
             }
             Ok(())
         }
@@ -25489,10 +24293,6 @@ mod structural {
                         alignment: 8,
                     }],
                 };
-                assert_eq!(
-                    super::super::incoming_location(StructuralAccess::Owned, &placement).unwrap(),
-                    StructuralSourceLocation::IncomingIndirectPointer { register }
-                );
                 let mut stack = placement.clone();
                 let [ValueLocation::Indirect { pointer, .. }] = stack.locations.as_mut_slice()
                 else {
@@ -25502,20 +24302,17 @@ mod structural {
                     stack_byte_offset: 32,
                     alignment: 8,
                 };
-                let location = super::super::incoming_location(StructuralAccess::Owned, &stack)
-                    .expect("owned stack pointer retains its residence");
-                assert_eq!(
-                    location,
-                    StructuralSourceLocation::IncomingIndirectStackPointer {
-                        stack_byte_offset: 32,
-                        alignment: 8,
-                    }
-                );
+                let location = StructuralSourceLocation::IncomingIndirectStackPointer {
+                    stack_byte_offset: 32,
+                    alignment: 8,
+                };
                 assert!(
                     validate_incoming_location(StructuralAccess::Owned, &stack, location).is_ok()
                 );
                 stack.shape = ValueShape::integer(8, 8);
-                assert!(super::super::incoming_location(StructuralAccess::Owned, &stack).is_err());
+                assert!(
+                    validate_incoming_location(StructuralAccess::Owned, &stack, location).is_err()
+                );
                 assert!(
                     validate_incoming_location(
                         StructuralAccess::Owned,
@@ -25545,330 +24342,69 @@ mod structural {
     }
 
     use super::{Error, attribution, host, source};
+    use crate::object_input::ObjectEmissionInput;
     use crate::{ObjectBoundarySettlement, ObjectFunction};
-    use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
-    use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
     use machine_code::{
-        InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
-        InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
-        InternalUnitStructuralArgumentSourceRecord, SemanticCodeAttribution, SemanticCodeSite,
-        StructuralSourceLocation, UnitParameterHomeRecord, UnitParameterRecord, semantic_code_site,
+        SemanticCodeAttribution, SemanticCodeSite, StructuralSourceLocation, semantic_code_site,
     };
-    use object_file::StagedOptimizedRelocationFreeObjectContainer;
-    use selected_instructions::{
-        SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
-    };
-    use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
-    use target_operations::CallSiteOwner;
+    use semantic_vocabulary::MachineId;
     pub(super) use validation::{
         validate_function, validate_settlement_attributions, validate_settlements,
     };
 
-    fn selected(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
-        machine: MachineId,
-    ) -> Result<&SelectedFunction, Error> {
-        source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
-            .function(machine)
-            .ok_or(Error::Mismatch("function has no selected contract"))
-    }
-    fn fragment(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+    pub(super) fn fragment(
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<&machine_code::FunctionFragment, Error> {
         source::fragments(source)
             .function(machine)
             .ok_or(Error::Mismatch("missing ordinary function fragment"))
     }
-    fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType, Error> {
-        use selected_instructions::VirtualRegisterOrigin;
-        let mut matching = function.virtual_registers.iter().filter(|register| {
-            matches!(register.origin,
-                VirtualRegisterOrigin::EntryParameter { source_value, .. }
-                | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-                | VirtualRegisterOrigin::InstructionResult { source_value, .. }
-                if source_value == value)
-        });
-        let scalar_type = matching
-            .next()
-            .ok_or(Error::Mismatch("Unit call has no scalar source"))?
-            .scalar_type;
-        if matching.any(|register| register.scalar_type != scalar_type) {
-            return Err(Error::Mismatch("Unit call scalar source types disagree"));
-        }
-        Ok(scalar_type)
-    }
-
-    pub(super) fn published_call(
-        selected: &SelectedFunction,
-        contract: &selected_instructions::SelectedCallContract,
-    ) -> bool {
-        if contract.call.target.machine().is_none() {
-            return false;
-        }
-        if contract.call.arguments.iter().any(|argument| {
-            matches!(argument, LegalizedScalarArgument::Structural { target, .. }
-                if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference)
-        }) {
-            return false;
-        }
-        if !matches!(contract.owner, CallSiteOwner::Operation(_)) {
-            return false;
-        }
-        contract.call.structural_result.is_none()
-            && !contract.call.arguments.iter().any(|argument| {
-                let LegalizedScalarArgument::Structural { target, .. } = argument else {
-                    return false;
-                };
-                if inline_owned_placement(target.access, &target.destination) {
-                    return true;
-                }
-                use target_operations::TargetStructuralArgumentSource;
-                match &target.source {
-                    TargetStructuralArgumentSource::Placement(placement) => {
-                        selected.structural.as_ref().is_some_and(|signature| {
-                            signature.parameters.iter().any(|parameter| {
-                                parameter.target.place == target.place
-                                    && parameter.target.placement == *placement
-                                    && inline_owned_placement(parameter.target.access, placement)
-                            })
-                        })
-                    }
-                    TargetStructuralArgumentSource::StructuralHome { .. } => true,
-                    TargetStructuralArgumentSource::BlockParameter { block, place } => {
-                        let Some(signature) = &selected.structural else {
-                            return true;
-                        };
-                        let Some(parameter) = selected.structural_block_parameter(*block, *place)
-                        else {
-                            return true;
-                        };
-                        parameter.place != target.place
-                            || parameter.structural_type != target.root_structural_type
-                            || native_vocabulary::address_joins::is_address_join_in(
-                                parameter,
-                                signature.structural_types.as_slice(),
-                            )
-                            || !signature.structural_types.iter().any(|declaration| {
-                                declaration.id == target.root_structural_type
-                                    && matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                        ) | terminal_psi::StructuralTypeShape::ElementView { .. }
-                                    )
-                            })
-                    }
-                    _ => false,
-                }
-            })
-            && (contract.call.result_placement.is_none()
-                || contract
-                    .call
-                    .arguments
-                    .iter()
-                    .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })))
-    }
-
     pub(super) fn requires_call_graph_replay(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<bool, Error> {
-        let selected = selected(source, machine)?;
-        Ok(selected
-            .calls
-            .iter()
-            .any(|contract| !published_call(selected, contract)))
+        Ok(!super::internal_calls::plan(source, machine)?
+            .unpublished_calls
+            .is_empty())
     }
 
-    pub(super) fn inline_owned_placement(
-        access: terminal_psi::StructuralAccess,
-        placement: &ValuePlacement,
-    ) -> bool {
-        access == terminal_psi::StructuralAccess::Owned
-            && ((placement.shape == calling_conventions::ValueShape::integer(0, 1)
-                && placement.locations.is_empty())
-                || !placement.locations.is_empty()
-                    && placement.locations.iter().all(|location| {
-                        matches!(
-                            location,
-                            calling_conventions::register_or_stack_pair_pattern!(..)
-                        )
-                    }))
-    }
-    fn source_location(
-        function: &SelectedFunction,
-        place: PlaceId,
-    ) -> Result<StructuralSourceLocation, Error> {
-        let parameter = function
-            .structural
-            .as_ref()
-            .and_then(|contract| {
-                contract
-                    .parameters
-                    .iter()
-                    .find(|parameter| parameter.target.place == place)
-            })
-            .ok_or(Error::Mismatch("structural argument has no incoming root"))?;
-        incoming_location(parameter.target.access, &parameter.target.placement)
-    }
-
-    fn incoming_location(
-        access: terminal_psi::StructuralAccess,
-        placement: &ValuePlacement,
-    ) -> Result<StructuralSourceLocation, Error> {
-        if access == terminal_psi::StructuralAccess::Owned {
-            let [
-                ValueLocation::Indirect {
-                    pointer,
-                    copy_stack_byte_offset: Some(_),
-                    byte_size,
-                    alignment,
-                },
-            ] = placement.locations.as_slice()
-            else {
-                return Err(Error::Mismatch("owned incoming home has no ABI value copy"));
-            };
-            if !placement.shape.class.is_integer()
-                || *byte_size != placement.shape.byte_size
-                || *alignment != placement.shape.alignment
-            {
-                return Err(Error::Mismatch(
-                    "owned incoming home differs from value shape",
-                ));
-            }
-            return Ok(match pointer {
-                IndirectPointerLocation::Register(register) => {
-                    StructuralSourceLocation::IncomingIndirectPointer {
-                        register: *register,
-                    }
-                }
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset,
-                    alignment,
-                } => StructuralSourceLocation::IncomingIndirectStackPointer {
-                    stack_byte_offset: *stack_byte_offset,
-                    alignment: *alignment,
-                },
-            });
-        }
-        let scalar_descriptor =
-            placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
-        if !(placement.shape.class == calling_conventions::ValueClass::BorrowedReference
-            || scalar_descriptor
-                && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
-        {
-            return Err(Error::Mismatch("borrowed home has no reference ABI"));
-        }
-        let location = match placement.locations.as_slice() {
-            [
-                ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] if !scalar_descriptor => IndirectPointerLocation::Register(*register),
-            [
-                ValueLocation::Stack {
-                    stack_byte_offset,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                    alignment: 8,
-                },
-            ] if !scalar_descriptor => IndirectPointerLocation::Stack {
-                stack_byte_offset: *stack_byte_offset,
-                alignment: 8,
-            },
-            [
-                ValueLocation::Indirect {
-                    pointer,
-                    copy_stack_byte_offset: None,
-                    byte_size,
-                    alignment,
-                },
-            ] if *byte_size == placement.shape.byte_size
-                && *alignment == placement.shape.alignment
-                && indirect_pointer_supports_copy(pointer) =>
-            {
-                *pointer
-            }
-            _ => {
-                return Err(Error::Unsupported(
-                    "borrowed publication requires exact pointer placement",
-                ));
-            }
-        };
-        Ok(StructuralSourceLocation::IncomingBorrowedPointer { location })
-    }
-
-    fn copy_extent(
-        function: &SelectedFunction,
-        fragment: &machine_code::FunctionFragment,
-        operation: OperationId,
-        place: PlaceId,
-    ) -> Result<(usize, usize), Error> {
-        let mut spans = Vec::new();
-        for access in function.memory_accesses.iter().filter(|access| {
-            access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
-                && access.place == place
-                && !matches!(
-                    access.role,
-                    SelectedMemoryAccessRole::AddressOutgoing { .. }
-                )
-        }) {
-            let span = fragment
-                .instruction_span(access.instruction)
-                .ok_or(Error::Mismatch("memory operation has no physical span"))?;
-            spans.push((host(span.offset)?, span.bytes.len()));
-        }
-        spans.sort_unstable();
-        let start = spans
-            .first()
-            .ok_or(Error::Mismatch("owned argument has no copy"))?
-            .0;
-        let mut end = start;
-        for (offset, length) in spans {
-            if offset < end {
-                return Err(Error::Mismatch("owned copy has overlapping spans"));
-            }
-            end = offset.checked_add(length).ok_or(Error::Overflow)?;
-        }
-        Ok((start, end - start))
-    }
-
-    pub(super) fn settlement_instruction(
-        block: &selected_instructions::SelectedBlock,
-        instruction_index: u32,
-    ) -> Result<&selected_instructions::SelectedInstruction, Error> {
-        let index = usize::try_from(instruction_index).map_err(|_| Error::Overflow)?;
-        block
-            .instructions
-            .get(index)
-            .or_else(|| {
-                (index == block.instructions.len())
-                    .then(|| selected_instructions::terminator_instruction(&block.terminator))
-            })
-            .ok_or(Error::Mismatch("settlement position is outside block"))
+    fn boundary_settlements(
+        source: &ObjectEmissionInput,
+        machine: MachineId,
+    ) -> Result<&[machine_code::boundary_settlements::PhysicalBoundarySettlement], Error> {
+        source
+            .emission_facts()
+            .boundary_settlements
+            .function(machine)
+            .map_err(Error::Mismatch)
     }
 
     fn settlement_offset(
-        function: &SelectedFunction,
         fragment: &machine_code::FunctionFragment,
-        row: &SelectedBoundarySettlement,
+        row: &machine_code::boundary_settlements::PhysicalBoundarySettlement,
     ) -> Result<usize, Error> {
-        let block = function
-            .block(row.block)
-            .ok_or(Error::Mismatch("settlement has no block"))?;
-        let instruction = settlement_instruction(block, row.instruction_index)?;
-        fragment
-            .instruction_span(instruction.id)
-            .ok_or(Error::Mismatch("settlement has no physical anchor"))
-            .and_then(|span| host(span.offset))
+        let mut blocks = fragment
+            .blocks
+            .iter()
+            .filter(|block| block.block == row.block);
+        let block = blocks
+            .next()
+            .ok_or(Error::Mismatch("settlement has no physical block"))?;
+        if blocks.next().is_some() {
+            return Err(Error::Mismatch("settlement has duplicate physical blocks"));
+        }
+        let mut spans = block
+            .instructions
+            .iter()
+            .filter(|span| span.instruction == row.anchor);
+        let span = spans
+            .next()
+            .ok_or(Error::Mismatch("settlement has no physical anchor"))?;
+        if spans.next().is_some() {
+            return Err(Error::Mismatch("settlement has duplicate physical anchors"));
+        }
+        host(span.offset)
     }
 
     pub(crate) fn placed_text_offset(
@@ -25881,235 +24417,40 @@ mod structural {
     }
 
     pub(super) fn populate(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         function: &mut ObjectFunction,
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
-        let selected = selected(source, function.machine)?;
-        let fragment = fragment(source, function.machine)?;
-        if let Some(contract) = &selected.structural {
-            let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
-                (
-                    &mut function.scalar_structural_parameters,
-                    &mut function.scalar_structural_parameter_homes,
-                )
-            } else {
-                (
-                    &mut function.unit_parameters,
-                    &mut function.unit_parameter_homes,
-                )
-            };
-            for parameter in &contract.parameters {
-                let target = &parameter.target;
-                parameters.push(UnitParameterRecord {
-                    place: target.place,
-                    structural_type: target.structural_type,
-                    multiplicity: target.multiplicity,
-                    access: target.access,
-                    shape: target.shape,
-                });
-                if inline_owned_placement(target.access, &target.placement) {
-                    continue;
-                }
-                homes.push(UnitParameterHomeRecord {
-                    place: target.place,
-                    structural_type: target.structural_type,
-                    multiplicity: target.multiplicity,
-                    access: target.access,
-                    shape: target.shape,
-                    source: target.placement.clone(),
-                    location: incoming_location(target.access, &target.placement)?,
-                    indirect: true,
-                });
-            }
-        }
-        for contract in selected
-            .calls
-            .iter()
-            .filter(|contract| published_call(selected, contract))
-        {
-            let call = &contract.call;
-            let span = rows
-                .iter()
-                .find(|row| {
-                    call_site_owner_semantic_site(&contract.owner)
-                        .map(|site| row.site == site)
-                        .unwrap_or(false)
-                })
-                .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
-            let call_span = fragment
-                .instruction_span(contract.instruction)
-                .ok_or(Error::Mismatch("Unit call has no instruction span"))?;
-            let frame_bytes = u32::try_from(
-                source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),
+        let plan = super::internal_calls::publication(source, function.machine)?;
+        let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
+            (
+                &mut function.scalar_structural_parameters,
+                &mut function.scalar_structural_parameter_homes,
             )
-            .map_err(|_| Error::Overflow)?;
-            let mut arguments = Vec::new();
-            let mut scalar_arguments = Vec::new();
-            for (parameter_index, argument) in call.arguments.iter().enumerate() {
-                if let LegalizedScalarArgument::Scalar {
-                    source: value,
-                    placement,
-                } = argument
-                {
-                    scalar_arguments.push(InternalUnitScalarCallArgumentRecord {
-                        parameter_index: u32::try_from(parameter_index)
-                            .map_err(|_| Error::Overflow)?,
-                        source: InternalUnitScalarArgumentSourceRecord::SelectedCall {
-                            source_value: *value,
-                            scalar_type: scalar_type(selected, *value)?,
-                            instruction: contract.instruction,
-                        },
-                        destination: placement.clone(),
-                        code_offset: host(call_span.offset)?,
-                        byte_count: call_span.bytes.len(),
-                    });
-                    continue;
-                }
-                let LegalizedScalarArgument::Structural { target, .. } = argument else {
-                    return Err(Error::Unsupported("Unit call scalar publication"));
-                };
-                let (argument_source, location) = match &target.source {
-                    target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
-                        return Err(Error::Mismatch(
-                            "aggregate home cannot use pointer-only call records",
-                        ));
-                    }
-                    target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                        psi_operation,
-                    } => (
-                        InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
-                            psi_operation: *psi_operation,
-                        },
-                        primitive_locals::location(source, selected, target, *psi_operation)?,
-                    ),
-                    target_operations::TargetStructuralArgumentSource::Placement(placement) => (
-                        InternalUnitStructuralArgumentSourceRecord::Placement(placement.clone()),
-                        source_location(selected, target.place)?,
-                    ),
-                    target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                        psi_operation,
-                    } => (
-                        InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
-                            psi_operation: *psi_operation,
-                        },
-                        established_views::location(source, selected, target, *psi_operation)?,
-                    ),
-                    target_operations::TargetStructuralArgumentSource::EstablishedElementView {
-                        psi_operation,
-                    } => (
-                        InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
-                            psi_operation: *psi_operation,
-                        },
-                        established_views::location(source, selected, target, *psi_operation)?,
-                    ),
-                    target_operations::TargetStructuralArgumentSource::BlockParameter {
-                        block,
-                        place,
-                    } => (
-                        InternalUnitStructuralArgumentSourceRecord::BlockParameter {
-                            block: *block,
-                            place: *place,
-                        },
-                        established_views::block_location(source, selected, target, *block, *place)?,
-                    ),
-                };
-                let (code_offset, byte_count) =
-                    if target.access == terminal_psi::StructuralAccess::Owned {
-                        copy_extent(
-                            selected,
-                            fragment,
-                            contract.owner.operation().ok_or(Error::Mismatch(
-                                "cleanup cannot own an outgoing value copy",
-                            ))?,
-                            target.place,
-                        )?
-                    } else {
-                        (host(call_span.offset)?, call_span.bytes.len())
-                    };
-                arguments.push(InternalUnitCallArgumentRecord {
-                    place: target.place,
-                    access: target.access,
-                    path: target.path.clone(),
-                    root_structural_type: target.root_structural_type,
-                    structural_type: target.structural_type,
-                    shape: target.shape,
-                    source_byte_offset: target.source_byte_offset,
-                    source_location: location,
-                    call_stack_bytes: frame_bytes,
-                    fixed_array_length: target.fixed_array_length,
-                    element_stride: target.element_stride,
-                    source: argument_source,
-                    destination: target.destination.clone(),
-                    code_offset,
-                    byte_count,
-                    bytes: fragment
-                        .bytes
-                        .get(
-                            code_offset
-                                ..code_offset.checked_add(byte_count).ok_or(Error::Overflow)?,
-                        )
-                        .ok_or(Error::Mismatch("argument extent exceeds function"))?
-                        .to_vec(),
-                });
-            }
-            let call_source = match &call.source {
-                NativeCallOrigin::Authored => InternalUnitCallSource::Authored,
-                NativeCallOrigin::ProgramEntry {
-                    boundary,
-                    entry,
-                    source_signature,
-                    completion_claim_sources,
-                    completion_receipts,
-                } => InternalUnitCallSource::ProgramEntry {
-                    boundary: *boundary,
-                    entry: *entry,
-                    source_signature: *source_signature,
-                    completion_claim_sources: completion_claim_sources.clone(),
-                    completion_receipts: completion_receipts.clone(),
-                },
-                NativeCallOrigin::InstalledProvider {
-                    boundary,
-                    provider,
-                    assumption,
-                    completion_claim_sources,
-                    completion_receipts,
-                } => InternalUnitCallSource::InstalledProvider {
-                    boundary: *boundary,
-                    provider: Box::new(provider.clone()),
-                    assumption: assumption.clone(),
-                    completion_claim_sources: completion_claim_sources.clone(),
-                    completion_receipts: completion_receipts.clone(),
-                },
-            };
-            let semantic_result = scalar_result::result(source, selected, contract)?;
-            function.internal_unit_calls.push(InternalUnitCallRecord {
-                source: call_source,
-                owner: contract.owner,
-                target: call.target.machine().ok_or(Error::Mismatch(
-                    "legacy call mirror requires a direct machine target",
-                ))?,
-                result: semantic_result.map(|result| result.scalar_type),
-                semantic_result,
-                structural_result: None,
-                scalar_arguments,
-                arguments,
-                claim_transfers: call.claim_transfers.clone(),
-                operation_ordinal: span.operation_ordinal,
-                code_offset: host(call_span.offset)?,
-                byte_count: call_span.bytes.len(),
-            });
-        }
+        } else {
+            (
+                &mut function.unit_parameters,
+                &mut function.unit_parameter_homes,
+            )
+        };
+        parameters.extend_from_slice(&plan.parameters);
+        homes.extend_from_slice(&plan.homes);
+        function
+            .internal_unit_calls
+            .extend(super::internal_calls::place_calls(
+                source,
+                function.machine,
+                rows,
+            )?);
         Ok(())
     }
     pub(super) fn settlement_attributions(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
         machine: MachineId,
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        let function = selected(source, machine)?;
+        let settlements = boundary_settlements(source, machine)?;
         let fragment = fragment(source, machine)?;
-        function
-            .boundary_settlements
+        settlements
             .iter()
             .filter(|row| {
                 matches!(
@@ -26125,20 +24466,20 @@ mod structural {
                         source::publication_function(source, machine)?,
                         site,
                     )?,
-                    code_offset: settlement_offset(function, fragment, row)?,
+                    code_offset: settlement_offset(fragment, row)?,
                     byte_count: 0,
                 })
             })
             .collect()
     }
     pub(super) fn settlements(
-        source: &StagedOptimizedRelocationFreeObjectContainer,
+        source: &ObjectEmissionInput,
     ) -> Result<Vec<ObjectBoundarySettlement>, Error> {
         let mut result = Vec::new();
-        for placed in &source.source().text_section().functions {
-            let function = selected(source, placed.machine)?;
+        for placed in &source.text_section().functions {
+            let settlements = boundary_settlements(source, placed.machine)?;
             let fragment = fragment(source, placed.machine)?;
-            for located in &function.boundary_settlements {
+            for located in settlements {
                 let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(row) =
                     &located.settlement
                 else {
@@ -26149,7 +24490,7 @@ mod structural {
                     });
                     continue;
                 };
-                let offset = settlement_offset(function, fragment, located)?;
+                let offset = settlement_offset(fragment, located)?;
                 let execution = machine_code::BoundaryExecutionRecord::AdmittedProvider(
                     row.provider_execution.into(),
                 );
@@ -26189,26 +24530,6 @@ mod structural {
         }
         Ok(result)
     }
-
-    fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
-        match pointer {
-            IndirectPointerLocation::Register(_) => true,
-            IndirectPointerLocation::Stack {
-                stack_byte_offset,
-                alignment: 8,
-            } => stack_byte_offset.is_multiple_of(8),
-            _ => false,
-        }
-    }
-
-    fn call_site_owner_semantic_site(owner: &CallSiteOwner) -> Option<SemanticCodeSite> {
-        match owner {
-            CallSiteOwner::Operation(operation) => Some(SemanticCodeSite::Operation(*operation)),
-            CallSiteOwner::InvokeNoNormal(edge) => Some(SemanticCodeSite::Edge(*edge)),
-            CallSiteOwner::ExternalCompletion(_) | CallSiteOwner::Installation { .. } => None,
-            CallSiteOwner::CleanupAction { edge, .. } => Some(SemanticCodeSite::Edge(*edge)),
-        }
-    }
 }
 
 pub(crate) mod validation;
@@ -26217,10 +24538,10 @@ pub(crate) use production::ProjectedObject;
 pub use production::{
     FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,
 };
-pub(crate) use validation::validate_function_fragment_object_artifact;
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
+    PhysicalSourceObservation(String),
     CallableInvocation {
         detail: String,
     },
@@ -26238,7 +24559,7 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     InstalledRelativeBranches {
         machine: semantic_vocabulary::MachineId,
-        source: machine_emission::FunctionFragmentFrameApplicationError,
+        source: function_layout::FunctionFragmentFrameApplicationError,
     },
     InstalledFaultSurface {
         machine: semantic_vocabulary::MachineId,
@@ -26294,15 +24615,16 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     PrivateFunctions(crate::ObjectError),
     ForeignCalls(crate::ObjectError),
-    NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError),
+    NativeEntryBridge(physical_planning::native_entry_bridge::NativeEntryBridgeError),
     PhysicalEntry(diagnostics::Diagnostic),
-    NativeCodeLayout(machine_emission::code_layout::NativeCodeLayoutError),
+    NativeCodeLayout(machine_code::code_layout::NativeCodeLayoutError),
     Overflow,
 }
 
 impl std::fmt::Display for FunctionFragmentObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::PhysicalSourceObservation(detail) => formatter.write_str(detail),
             Self::CallableInvocation { detail } => {
                 write!(formatter, "callable invocation custody: {detail}")
             }
@@ -26446,4 +24768,23 @@ pub(crate) fn refuse_symbol_collision(
         return Err(Error::Mismatch(reason));
     }
     Ok(())
+}
+
+pub(crate) fn capture_privileged_termination(
+    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+) -> Result<(), Error> {
+    source
+        .emission_facts()
+        .termination
+        .clone()
+        .map_err(Error::PhysicalSourceObservation)
+}
+
+pub(crate) use validation::validate_available as validate_available_object;
+
+pub(crate) fn prepare_privileged_termination(
+    execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    program: &post_allocation_machine::PostAllocationMachineProgram,
+) -> Result<(), String> {
+    source::privileged_termination::validate(execution, program).map_err(|error| error.to_string())
 }

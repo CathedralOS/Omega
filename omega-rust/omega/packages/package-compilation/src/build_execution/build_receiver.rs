@@ -6,7 +6,7 @@ use source_compiler::AcceptedTerminalSource;
 use terminal_psi::{
     InvocationCodeScope, StructuralAccess, StructuralParameterDeclaration, TerminalModule,
 };
-use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
+use source_compiler::source_state::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 
 #[derive(Debug)]
 pub(super) struct BuildReceiver {
@@ -41,7 +41,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
     }
     let TypeReferenceNode::Reference {
         referee,
-        access: language_semantics::ReferenceAccess::Mutable,
+        access: declaration_contracts::ReferenceAccess::Mutable,
         ..
     } = typed
         .type_reference_table
@@ -54,7 +54,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
     else {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     };
-    if !build_time_evaluation::is_exact_toolchain_build_prelude_data(typed, *symbol, "Build") {
+    if !source_compiler::evaluation::is_exact_toolchain_build_prelude_data(typed, *symbol, "Build") {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     }
     Ok(*symbol)

@@ -20,7 +20,7 @@ use crate::{
     StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId, TaskStackFrameId,
     TaskStackFrameValidationId,
 };
-use semantic_vocabulary::Fnv1a;
+use wire::fnv1a::Fnv1a;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

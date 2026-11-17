@@ -10,9 +10,8 @@ receiver permissions.
 
 use crate::TerminalAuthorityClass;
 use diagnostics::Diagnostic;
-pub use language_semantics::declaration_selection::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
-};
+pub use declaration_contracts::selection::AuthoredBehaviorExclusion;
+pub use declaration_contracts::selection::AuthoredBehaviorExclusionKind;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, InvocationSite, MachineId, OperationId, ServiceId,
 };

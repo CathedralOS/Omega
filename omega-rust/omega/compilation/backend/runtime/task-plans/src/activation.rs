@@ -13,7 +13,7 @@ whole-call-graph WCSU stack demand, and validate the resulting
 use crate::*;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ServiceMethod, ServiceSchema};
-use semantic_vocabulary::Fnv1a;
+use wire::fnv1a::Fnv1a;
 use std::borrow::Cow;
 use terminal_psi::*;
 
@@ -231,7 +231,7 @@ fn selected_task_runtime_provider(
 }
 
 struct TaskStorage {
-    shapes: semantic_vocabulary::IdTable<
+    shapes: arena::IdTable<
         semantic_vocabulary::StructuralTypeId,
         Option<calling_conventions::ValueShape>,
     >,

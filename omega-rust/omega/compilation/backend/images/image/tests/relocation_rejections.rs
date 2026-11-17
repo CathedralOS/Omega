@@ -113,13 +113,16 @@ fn image_with(
     text: &[u8],
     data: &[u8],
 ) -> FinalImage {
-    build_final_image(FinalImageInput {
+    let mut image = build_final_image(FinalImageInput {
         target,
+        import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
         object,
         relocations,
         text_bytes: text,
         data_bytes: data,
-    })
+    });
+    image_fixtures::encode_imports(&mut image);
+    image
 }
 
 #[test]

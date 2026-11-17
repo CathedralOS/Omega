@@ -119,6 +119,7 @@ fn emitted_output(
     let encoded = encoded_data();
     let mut image = build_final_image(FinalImageInput {
         target,
+        import_program: &machine_code::import_code::EncodedImportProgram::empty(target),
         object: &object,
         relocations: &relocations,
         text_bytes: &TEXT_BYTES,

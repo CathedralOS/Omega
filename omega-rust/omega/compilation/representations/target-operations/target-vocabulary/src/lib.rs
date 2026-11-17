@@ -98,7 +98,7 @@ pub mod execution_facts;
 pub use execution_facts::{NativeExecutionFacts, NativeExecutionFactsError, NativeExecutionRoots};
 pub mod publication;
 pub use code_catalogs::NativeCodeCatalogs;
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 pub use publication::{NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts};
 pub mod identity;
 pub use identity::{

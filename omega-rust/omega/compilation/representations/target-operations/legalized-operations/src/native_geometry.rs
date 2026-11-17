@@ -5,7 +5,7 @@
 //! discard preparation by accepting only a slice of declarations.
 
 pub use calling_conventions::terminal_layout::NativeGeometry;
-use semantic_vocabulary::NonDenseIdentities;
+use arena::NonDenseIdentities;
 use terminal_psi::StructuralTypeDeclaration;
 
 /// Function contracts normally borrow one shared catalog. Prepare that catalog

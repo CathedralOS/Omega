@@ -36,8 +36,8 @@ macro_rules! invalid_display {
     };
 }
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 
 pub(crate) mod constraint_catalog;
 pub(crate) mod identities;

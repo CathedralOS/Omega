@@ -77,3 +77,6 @@ pub use provider_evidence::{
 
 #[cfg(test)]
 mod source_guards;
+
+/// Admitted package permissions as immutable native evidence.
+pub mod semantic_bindings;

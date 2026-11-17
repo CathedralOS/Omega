@@ -286,10 +286,7 @@ mod generated_writer {
             generated_post_handoff_writer_additional_machine_state,
             generated_post_handoff_writer_clobbers, generated_post_handoff_writer_width,
         };
-        use layout_plans::{
-            DataSymbolId, MaterializationWrite, PlacementConstraints, PlacementPhase,
-            RelocationTarget,
-        };
+        use layout_plans::{DataSymbolId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
         use post_handoff_writer_plan::{
             PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
         };

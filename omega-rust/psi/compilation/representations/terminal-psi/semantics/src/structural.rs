@@ -214,10 +214,12 @@ pub(crate) mod inline_carriers {
         // establishment must use the same pure-predicate classification.
         #[test]
         fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
-            use language_semantics::reflection::{
-                DeclarationDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
-                SchemaShape, SemanticSchemaGraph,
-            };
+            use schema_reflection::DeclarationDescription;
+use schema_reflection::SchemaNode;
+use schema_reflection::SchemaNodeHandle;
+use schema_reflection::SchemaQueryAuthority;
+use schema_reflection::SchemaShape;
+use schema_reflection::SemanticSchemaGraph;
             use semantic_vocabulary::{
                 DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
             };

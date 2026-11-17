@@ -117,7 +117,7 @@ impl ExpressionNode {
             Self::StructLiteral(struct_literal) => {
                 struct_literal.constructor_name.as_str(table).to_owned()
             }
-            Self::String(value) => source::display_literal_bytes(value),
+            Self::String(value) => source_text::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
             Self::TypeExpression(_) => "<type expression>".to_owned(),

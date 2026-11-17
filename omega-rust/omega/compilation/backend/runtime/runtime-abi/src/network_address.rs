@@ -5,7 +5,7 @@ and `inet_lnaof`) over C's 4-byte `in_addr` representation
 
 Unix hosts call libc's `inet_makeaddr` and `inet_lnaof` directly; non-Unix
 hosts evaluate the identical class A/B/C bit-packing and network-order byte
-swap that `windows_provider.rs` emits into `omega_host.dll`.
+swap that the physical compiler plans for `omega_host.dll`.
 */
 
 #[repr(C)]

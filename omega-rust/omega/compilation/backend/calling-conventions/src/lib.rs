@@ -31,8 +31,8 @@ host capability and operation catalog, external binding rows, Darwin and
 Windows import library tables, and x86-64 interrupt gate address assembly.
 */
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 mod aggregate_layout;
 mod boundary_application;
 mod boundary_values;
@@ -84,3 +84,11 @@ pub use plans::{
     evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
+
+/// The admitted foreign ABI and scalar parameters required by one native adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeForeignBridgeRequest {
+    pub target: target::NativeTarget, // Target platform for the foreign call adapter.
+    pub foreign: ValidatedBoundaryEntryPlan, // Admitted native C boundary entry plan.
+    pub scalar_parameters: Vec<Option<semantic_vocabulary::ScalarType>>, // Per-parameter scalar types for narrow sign extension.
+}

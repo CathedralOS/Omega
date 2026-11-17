@@ -2,7 +2,7 @@
 //! planning reads this normalized surface instead of reopening typed source.
 
 use crate::TerminalIdentityIndex;
-use language_semantics::service_surface::ServiceSurface;
+use declaration_contracts::service_surface::ServiceSurface;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,7 +74,7 @@ pub struct TerminalProgramEntryContract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalProviderSelection {
     pub target: String,
-    pub composition_mode: language_semantics::declaration_selection::CompositionMode,
+    pub composition_mode: declaration_contracts::selection::CompositionMode,
     pub schema_declaration: TerminalIdentityIndex,
     pub schema_application: TerminalIdentityIndex,
     pub provider_declaration: TerminalIdentityIndex,
@@ -94,10 +94,8 @@ impl crate::TerminalModule {
         service: semantic_vocabulary::ServiceId,
     ) -> Result<language_core::core_vocabulary::FilesystemService, String> {
         use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
-        use language_semantics::type_identity::{
-            encoding::{CoordinateTag, atom, bare, compound},
-            vocabulary::{NameForm, OwnerForm},
-        };
+        use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, compound};
+        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
 
         let mut services = self.services.iter().filter(|row| row.id == service);
         let (Some(service), None) = (services.next(), services.next()) else {
@@ -286,11 +284,8 @@ fn read_core_filesystem_declaration(
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
-    use language_semantics::type_identity::{
-        TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
-        visit_type_identity_package_owners,
-        vocabulary::{OwnerForm, TypeForm},
-    };
+    use application_identity::type_identity::{TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners};
+    use application_identity::type_identity::vocabulary::{OwnerForm, TypeForm};
 
     struct Declaration {
         depth: usize,
@@ -347,9 +342,9 @@ fn read_core_filesystem_declaration(
                     .file
                     .to_str()
                     .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
-                let revision = source::source_identity::owned_toolchain_source_identity_digest(
+                let revision = declaration_contracts::source_identity::toolchain_owned_identity_digest(
                     "core",
-                    &[file],
+                    vec![file.to_owned()],
                     site.source,
                 )
                 .map_err(|_| TypeIdentityVisitError::MalformedIdentity)?;
@@ -381,13 +376,9 @@ mod tests {
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
-    use language_semantics::{
-        service_surface::{ServiceMethod, ServiceReceiverApplication},
-        type_identity::{
-            encoding::{CoordinateTag, atom, bare, byte_atom, compound},
-            vocabulary::{NameForm, OwnerForm},
-        },
-    };
+    use declaration_contracts::service_surface::{ServiceMethod, ServiceReceiverApplication};
+    use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, byte_atom, compound};
+    use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
     use semantic_vocabulary::{PackageKeyIdentity, ServiceId};
 
     fn id() -> ServiceId {
@@ -417,9 +408,9 @@ mod tests {
             FilesystemService::MetadataQuery,
         ))
         .unwrap();
-        source::source_identity::owned_toolchain_source_identity_digest(
+        declaration_contracts::source_identity::toolchain_owned_identity_digest(
             namespace,
-            &[file],
+            vec![file.to_owned()],
             site.source,
         )
         .unwrap()

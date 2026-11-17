@@ -9,10 +9,10 @@
 mod selection;
 mod vocabulary;
 
-use build_time_evaluation::BuildTimeValue;
+use source_compiler::evaluation::BuildTimeValue;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
 
 use vocabulary::OptimizationBuildVocabulary;
 
@@ -36,7 +36,7 @@ impl BuildOptimizationAdmission {
     ) -> Result<
         (
             OptimizationSelections,
-            optimization_core::OptimizationReportRequest,
+            optimization_requests::OptimizationReportRequest,
         ),
         String,
     > {

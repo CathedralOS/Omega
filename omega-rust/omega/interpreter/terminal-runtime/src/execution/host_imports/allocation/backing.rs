@@ -4,14 +4,17 @@
 // identifies the issuance without minting any guest domain or ownership claim.
 
 use super::AllocationValues;
-use access_plans::{
-    AtomicCapability, BoundaryReach, ExternalCapability, PeerWritability, ResourceProfile,
-    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, StableCapability,
-};
-use extents::{
-    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId,
-    ExtentRights, ExtentRootGrant, MappingEraId,
-};
+use access_vocabulary::AtomicCapability;
+use access_vocabulary::BoundaryReach;
+use access_vocabulary::ExternalCapability;
+use access_vocabulary::PeerWritability;
+use access_vocabulary::ResourceProfile;
+use access_vocabulary::ResourceProfileReceiptId;
+use access_vocabulary::ResourceRegion;
+use access_vocabulary::StableCapability;
+use storage_access::{ResourceProfileGrant};
+use extent_contracts::{AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights, MappingEraId};
+use extents::{ExtentProviderIssuance, ExtentRootGrant};
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalEffectRejection, TerminalProviderStorageRequest, TerminalProviderStorageResolver,

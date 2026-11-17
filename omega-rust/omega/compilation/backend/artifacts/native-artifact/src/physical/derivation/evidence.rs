@@ -78,7 +78,9 @@ pub(crate) fn derive_physical_evidence(
     native_bindings: &provider_admission::RetainedNativeBindings,
     native_calling: &[calling_conventions::BoundaryCallingApplication],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    originals: &crate::NativePhysicalOriginals,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+    originals.require_roster(object)?;
     derive_object_physical_evidence(
         pass,
         scope,
@@ -93,6 +95,7 @@ pub(crate) fn derive_physical_evidence(
         native_bindings,
         native_calling,
         boundary_application_coverage,
+        originals,
     )
 }
 
@@ -110,6 +113,7 @@ fn derive_object_physical_evidence(
     native_bindings: &provider_admission::RetainedNativeBindings,
     native_calling: &[calling_conventions::BoundaryCallingApplication],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    originals: &crate::NativePhysicalOriginals,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(NativePhysicalEvidenceDerivation::Unavailable);
@@ -477,7 +481,7 @@ fn derive_object_physical_evidence(
     let identity = physical_evidence_identity(projection.identity(), &children);
     let mut evidence = native_physical_evidence(projection, children, identity);
     for private in object.private_functions() {
-        let Some(source) = private.body.semantic_source() else {
+        let Some(source) = originals.private(private.identity) else {
             return Ok(blocked(
                 NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
                     function: private.identity,
@@ -511,6 +515,7 @@ fn derive_object_physical_evidence(
             native_bindings,
             native_calling,
             Some(source.coverage()),
+            originals,
         )?;
         let NativePhysicalEvidenceDerivation::Complete(mut body_evidence) = derived else {
             return Ok(derived);

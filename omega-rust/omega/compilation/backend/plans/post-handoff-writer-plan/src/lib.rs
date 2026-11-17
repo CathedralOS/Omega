@@ -24,12 +24,7 @@ fragment geometry; provider invocation retains its separate custody obligations.
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
-use layout_plans::{
-    ByteOrder, MaterializationAction, MaterializationDiagnostic, MaterializationWrite,
-    PlacementConstraints, PlacementSite, RelocationTarget, StoredIntegerFit,
-    SymbolicMaterializationPlan, validate_fragment, validate_stored_integer_fit,
-    validate_stored_integer_fit_shape, validate_write, validate_write_source_value,
-};
+use layout_plans::{ByteOrder, MaterializationAction, MaterializationDiagnostic, MaterializationWrite, PlacementConstraints, PlacementSite, RelocationTarget, StoredIntegerFit, SymbolicMaterializationPlan, validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape, validate_write, validate_write_source_value};
 
 #[cfg(test)]
 mod tests;
@@ -469,7 +464,7 @@ fn generated_post_handoff_writer_report_fingerprint(
     source_slot_count: usize,
     steps: &[GeneratedPostHandoffWriterStep],
 ) -> u64 {
-    let mut hash = semantic_vocabulary::Fnv1a::new();
+    let mut hash = wire::fnv1a::Fnv1a::new();
     hash.bytes(b"omega.post-handoff-writer.v1");
     hash.u64(POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
     hash.u64(byte_len as u64);
@@ -545,9 +540,7 @@ pub fn validate_step(
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     use crate::{PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep};
-    use layout_plans::{
-        ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
-    };
+    use layout_plans::{ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
 
     pub fn single_address_writer(
         target: RelocationTarget,

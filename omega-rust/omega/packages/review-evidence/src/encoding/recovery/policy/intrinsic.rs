@@ -3,8 +3,9 @@
 use super::{Error, reader::Reader};
 use crate::encoding::intrinsic_tags::IntrinsicTag;
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-use provider_planning::{
+use numerics::{arithmetic::ArithmeticDomain};
+use numeric_literals::FloatFormat;
+use native_program_planning::{
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };

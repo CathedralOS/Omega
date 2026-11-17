@@ -28,7 +28,6 @@ mod preparation;
 mod realization;
 mod request;
 mod scalar_completion;
-mod stage_audit;
 
 #[cfg(test)]
 mod physical_publication_tests;
@@ -42,11 +41,11 @@ pub use installation_evidence::{
 pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use realization::RealizedNativeProduct;
 pub use request::NativeCompileRequest;
-pub use terminal_psi_to_abstract_operations::provider_admission::{
+pub use provider_admission::provider_admission::{
     CompilerIntrinsicPlanProvenance, NativeBindingInput, SourceEvaluatedImportSettlement,
     TerminalAuthorityPermissionPolicy, current_terminal_authority_policy,
 };
-pub use terminal_psi_to_abstract_operations::{
+pub use native_program_planning::{
     BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
     NativeProgramEntrySettlement, TerminalNativeProposalRequest,
 };

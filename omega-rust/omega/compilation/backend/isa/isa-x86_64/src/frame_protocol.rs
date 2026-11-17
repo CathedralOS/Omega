@@ -39,12 +39,20 @@ diagnostics::failed_display!(
 
 impl std::error::Error for X86_64FrameProtocolError {}
 
-pub fn encode_system_v_amd64_frame_protocol(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64FrameProtocolPlan {
+    model: register_model::PhysicalRegisterModelIdentity,
+    frame_size_bytes: u64,
+    probe: X86_64StackProbe,
+    slots: Vec<X86_64FrameSlot>,
+}
+
+pub fn plan_system_v_amd64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     frame_size_bytes: u64,
     probe: X86_64StackProbe,
     slots: &[X86_64FrameSlot],
-) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
+) -> Result<X86_64FrameProtocolPlan, X86_64FrameProtocolError> {
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
@@ -53,6 +61,14 @@ pub fn encode_system_v_amd64_frame_protocol(
     }
     validate_probe(frame_size_bytes, probe)?;
     validate_slots(frame_size_bytes, slots)?;
+    Ok(X86_64FrameProtocolPlan { model: model.identity(), frame_size_bytes, probe, slots: slots.to_vec() })
+}
+
+pub fn encode_planned_system_v_amd64_frame_protocol(model: &ValidatedPhysicalRegisterModel, plan: &X86_64FrameProtocolPlan) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
+    if model.identity() != plan.model { return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch); }
+    let frame_size_bytes = plan.frame_size_bytes;
+    let probe = plan.probe;
+    let slots = &plan.slots;
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
     if probe.touches == 0 {
@@ -87,6 +103,15 @@ pub fn encode_system_v_amd64_frame_protocol(
     }
     append_stack_adjust(&mut epilogue, frame_size_bytes, false)?;
     Ok((prologue, epilogue))
+}
+
+pub fn encode_system_v_amd64_frame_protocol(
+    model: &ValidatedPhysicalRegisterModel,
+    frame_size_bytes: u64,
+    probe: X86_64StackProbe,
+    slots: &[X86_64FrameSlot],
+) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
+    encode_planned_system_v_amd64_frame_protocol(model, &plan_system_v_amd64_frame_protocol(model, frame_size_bytes, probe, slots)?)
 }
 
 fn validate_probe(

@@ -91,9 +91,8 @@ const OMEGA_STAGES: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/03_native-encoding",
+    "omega-rust/omega/compilation/pipeline/04_native-layout",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -452,9 +451,8 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/03_native-encoding",
+    "omega-rust/omega/compilation/pipeline/04_native-layout",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -475,9 +473,8 @@ const AFTER_SELECTION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/03_native-encoding",
+    "omega-rust/omega/compilation/pipeline/04_native-layout",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
@@ -504,9 +501,8 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
     "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/03_native-encoding",
+    "omega-rust/omega/compilation/pipeline/04_native-layout",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -839,37 +835,37 @@ fn call_violations_in(
 /// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
-        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization.rs",
         "stage_function_frame",
         2,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/03_native-encoding/src/lib.rs",
         "stage_optimized_layout_independent_selected_form_encoding",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/03_native-encoding/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
         "stage_optimized_resolved_selected_form_layout",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/04_native-layout/src/lib.rs",
         "execute_resolved_layout_optimization",
         3,
     ),
     (
-        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization.rs",
         "assemble_fixed_frame_realization",
         1,
     ),
@@ -1069,6 +1065,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
+        violations.extend(crate::boundary_contracts::violations(
+            &root,
+            &root.join("omega-rust/pipeline-contracts.json"),
+        )?);
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
@@ -1212,7 +1212,7 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        const LIBRARY: &str = "omega-rust/omega/compilation/backend/machine-emission";
+        const LIBRARY: &str = "omega-rust/omega/compilation/pipeline/04_native-layout/function-layout";
         const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
         for (owner, dependency, kind, permitted) in [
             (NATIVE_ROOT, OMEGA_STAGES[9], None, true),

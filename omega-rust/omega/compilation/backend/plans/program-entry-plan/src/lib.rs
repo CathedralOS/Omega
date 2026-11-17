@@ -18,8 +18,8 @@ plans to native realization and image emission.
 
 #![forbid(unsafe_code)]
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 mod entry_signature;
 mod program_entry_physical;
 mod selected_entry;

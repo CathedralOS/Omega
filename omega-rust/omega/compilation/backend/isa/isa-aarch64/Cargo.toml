@@ -9,16 +9,17 @@ name = "isa_aarch64"
 path = "src/lib.rs"
 
 [dependencies]
+wire = { path = "../../../../../psi/foundation/wire" }
 normalized-foreign-call-plan = { path = "../../plans/normalized-foreign-call-plan" }
 encoded-scalar-plan = { path = "../../plans/encoded-scalar-plan" }
 calling-conventions = { path = "../../calling-conventions" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 register-model = { path = "../../register-model" }
 target = { path = "../../target" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 
 [dev-dependencies]
@@ -27,9 +28,9 @@ register-model = { path = "../../register-model", features = ["test-support"] }
 isa-conformance = { path = "../isa-conformance" }
 normalized-foreign-call-plan = { path = "../../plans/normalized-foreign-call-plan", features = ["test-support"] }
 encoded-scalar-plan = { path = "../../plans/encoded-scalar-plan", features = ["test-support"] }
-function-identity = { path = "../../../../foundation/function-identity" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+function-identity = { path = "../../../representations/function-identity" }
+symbols = { path = "../../../../../psi/compilation/representations/declaration-identity" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../../representations/target-operations" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }

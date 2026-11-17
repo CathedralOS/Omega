@@ -11,7 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
-use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
+use semantic_vocabulary::{CycleComponentId};
+use arena::{NumericId};
 use terminal_psi::{Block, StructuralArgument, TerminalMachine, TerminalNaturalCycle, Terminator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -408,7 +409,7 @@ fn topology_identity(
     semantic_id(&digest.finish())
 }
 
-fn semantic_id<Identity: PsiSemanticId>(digest: &[u8; 32]) -> Identity {
+fn semantic_id<Identity: NumericId>(digest: &[u8; 32]) -> Identity {
     let raw = u64::from_le_bytes(digest[..8].try_into().expect("SHA-256 prefix")) | 1;
     Identity::new(raw).expect("the low bit establishes a nonzero semantic identity")
 }

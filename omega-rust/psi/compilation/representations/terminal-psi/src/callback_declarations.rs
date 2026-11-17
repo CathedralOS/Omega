@@ -4,9 +4,8 @@ pub use prepared::PreparedCallbackDeclarations;
 
 use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
 use arena::{Arena, Handle};
-use language_semantics::callback_declarations::{
-    CallbackDeclaration, CallbackRegistrationDeclaration,
-};
+use application_identity::callback_declarations::CallbackDeclaration;
+use application_identity::callback_declarations::CallbackRegistrationDeclaration;
 
 pub type CallbackUseId = Handle<CallbackUseDeclaration>;
 pub type CallbackRequirementId = Handle<CallbackRequirementDeclaration>;

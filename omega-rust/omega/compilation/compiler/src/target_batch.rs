@@ -44,7 +44,7 @@ pub struct PreparedCompilation {
 impl PreparedCompilation {
     pub fn source_completion_accounting(
         &self,
-    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+    ) -> Option<&source_compiler::evaluation::SourceCompletionAccounting> {
         Some(
             self.source
                 .as_ref()?

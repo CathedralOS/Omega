@@ -7,45 +7,18 @@ use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
+use native_program_planning::SelectedExecution;
 use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
 };
-use provider_planning::target_supply::{SettledTargetSupply, SlotSchema};
-use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 
-/// The schema of each slot a settled supply chose a provider for, projected
-/// from the accepted source's declaration of that slot
-/// (`AcceptedTerminalSource::slot_schema`). A slot with no schema is left
-/// out, and the plan of its provider is refused by the slot's requirement
-/// (`SettledTargetSupply::plans`).
-pub fn settled_slot_schemas(
-    accepted: &source_compiler::AcceptedTerminalSource,
-    settled: &SettledTargetSupply,
-) -> Vec<SlotSchema> {
-    let mut schemas = Vec::<SlotSchema>::new();
-    for requirement in settled.requirements() {
-        if requirement.supply.checked().is_none() {
-            continue;
-        }
-        if requirement.supply.checked().is_none() {
-            continue;
-        }
-        let slot = requirement.reached.slot;
-        if schemas.iter().any(|schema| schema.slot == slot) {
-            continue;
-        }
-        if let Some(surface) = accepted.slot_schema(slot) {
-            schemas.push(SlotSchema { slot, surface });
-        }
-    }
-    schemas
-}
-
 pub(crate) struct SelectedProviderCustody {
-    pub(crate) terminal_publication: Arc<products::ProductTerminalPublication>,
-    pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub(crate) optimizations: optimization_core::OptimizationSelections,
+    pub(crate) terminal_publication: Arc<source_compiler::SourcePublication>,
+    pub(crate) source_completion_accounting:
+        source_compiler::evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
     pub(crate) source_inspection: Arc<products::SelectedProviderSource>,
     pub(crate) build: Arc<products::ComputedBuildConfig>,
@@ -71,6 +44,7 @@ impl SelectedProductTarget {
                 review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
             ),
             custody: SelectedProviderCustody {
+                optimizations: source.optimizations.clone(),
                 terminal_publication: Arc::clone(&source.terminal_publication),
                 source_completion_accounting: source.source_completion_accounting.clone(),
                 source_inspection: Arc::new(products::SelectedProviderSource::new(
@@ -127,6 +101,7 @@ impl SelectedProductTarget {
 
     pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, CompileFailure> {
         let SelectedProviderCustody {
+            optimizations: _,
             terminal_publication,
             source_completion_accounting,
             execution,
@@ -154,66 +129,20 @@ impl SelectedProductTarget {
     }
 }
 
-/// Grow only the body bindings of actually chosen maps. Registering their
-/// other rows makes those bodies available at a call; it does not invoke them.
-fn selected_boundary_implementations(
-    module: &terminal_psi::TerminalModule,
-    realization: &provider_planning::target_supply::RealizedTargetSupply,
-) -> Result<Vec<source_compiler::CallableBoundaryImplementation>, Vec<Diagnostic>> {
-    let mut bindings = Vec::new();
-    for declaration in realization.provider_declarations() {
-        if !declaration.rows.iter().any(|row| {
-            matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-            )
-        }) {
-            continue;
-        }
-        let selected = backend_plan::selected_provider_candidate_rows(declaration, module)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for row in selected {
-            for position in row.candidate_positions {
-                let candidate = module.provider_candidates.get(position).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "chosen provider lost its authenticated candidate coordinate",
-                    )]
-                })?;
-                bindings.push(source_compiler::CallableBoundaryImplementation {
-                    boundary: candidate.boundary,
-                    machine: candidate.candidate,
-                });
-            }
-        }
-    }
-    bindings.sort_unstable();
-    bindings.dedup();
-    if bindings
-        .windows(2)
-        .any(|pair| pair[0].boundary == pair[1].boundary)
-    {
-        return Err(vec![Diagnostic::error(
-            "chosen provider has competing exact bodies for one boundary application",
-        )]);
-    }
-    Ok(bindings)
-}
-
 fn settle_execution(
     source: &CheckedProductSource,
     profile: Option<target::TargetProfile>,
     entry: Option<semantic_vocabulary::MachineId>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
-    use provider_planning::target_supply::{
-        TargetSupplyRealizationError, TargetSupplyRealizationRequest, realize_target_supply,
-    };
+    use native_program_planning::NativeProgramPlanningError;
+    use native_program_planning::target_supply::TargetSupplyRealizationError;
     let accepted = source.terminal_publication.accepted()?;
     let declared = accepted
         .boundary_requirements_declared()
         .map_err(|error| vec![error])?
         .into_iter()
         .map(
-            |row| provider_planning::target_supply::ReachedBoundaryRequirement {
+            |row| source_compiler::provider_supply::ReachedBoundaryRequirement {
                 boundary: row.boundary,
                 requirement: row.requirement,
                 slot: row.slot,
@@ -221,7 +150,7 @@ fn settle_execution(
             },
         )
         .collect::<Vec<_>>();
-    let selected_requirements = provider_planning::target_supply::explicit_build_requirements(
+    let selected_requirements = source_compiler::provider_supply::explicit_build_requirements(
         &declared,
         &source.computed_build_config.config.provider_selections,
         profile.map(|profile| profile.target_name()),
@@ -252,116 +181,47 @@ fn settle_execution(
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let realization = provider_planning::target_supply::RealizedTargetSupply::unscoped(
-            accepted.module(),
-            &roots,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        return SelectedExecution::from_realization(None, realization);
+        return native_program_planning::plan_unscoped_execution(accepted.module(), &roots);
     };
-    let mut bindings: Vec<source_compiler::CallableBoundaryImplementation> = Vec::new();
-    let mut execution_inputs = None::<(
-        Vec<semantic_vocabulary::BoundaryMachineId>,
-        provider_planning::target_supply::TargetSupplyExecutionInputs,
-    )>;
-    loop {
-        let (mut reached, invoked_machines) = match entry {
-            Some(entry) => {
-                let reach = accepted
-                    .boundary_call_reach(entry, &bindings, Some(target.target_name()))
-                    .map_err(|error| vec![error])?;
-                (reach.boundaries, reach.reached_machines)
-            }
-            None => (Vec::new(), Vec::new()),
-        };
-        // An explicit Build selection commits its exact requirements even in a
-        // reusable package. An invoked body already retains its exact actuals;
-        // query only otherwise dormant selected bodies as admission roots.
-        // Retained code and available defaults introduce no independent roots.
-        for binding in &bindings {
-            if selected_requirements
-                .binary_search(&binding.boundary)
-                .is_ok()
-                && invoked_machines.binary_search(&binding.machine).is_err()
-            {
-                reached.extend(
-                    accepted
-                        .boundary_calls_reached(
-                            binding.machine,
-                            &bindings,
-                            Some(target.target_name()),
-                        )
-                        .map_err(|error| vec![error])?,
-                );
-            }
-        }
-        reached.extend(selected_requirements.iter().copied());
-        reached.sort_unstable();
-        reached.dedup();
-        let inputs = match &execution_inputs {
-            Some((previous, inputs)) if *previous == reached => inputs.clone(),
-            _ => {
-                let mut timings = source.timings.clone();
-                let inputs = crate::terminal::prepare_provider_execution_inputs(
-                    &source.terminal_publication,
-                    &source.sources,
-                    &source.computed_build_config.config.native_bindings,
-                    target,
-                    &reached,
-                    &mut crate::observations::PsiStageTimings::new(&mut timings),
-                )?;
-                execution_inputs = Some((reached.clone(), inputs.clone()));
-                inputs
-            }
-        };
-        let realization =
-            realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
-                accepted.module(),
-                target.target_name(),
-                &reached,
-                inputs,
-            ))
-            .map_err(|error| match &error {
-                TargetSupplyRealizationError::MissingSupplies { target, boundaries } => {
-                    let mut labels = declared.iter().collect::<Vec<_>>();
-                    labels.sort_unstable_by_key(|row| row.boundary);
-                    boundaries.iter().map(|boundary| {
-                        let message = match labels.binary_search_by_key(boundary, |row| row.boundary) {
-                            Ok(label_position) => format!(
-                                "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
-                                labels[label_position].name,
-                            ),
-                            Err(_) => format!(
-                                "reached boundary {} has no normalized chosen provider or exact native leaf on target `{target}`",
-                                boundary.get(),
-                            ),
-                        };
-                        Diagnostic::error(message)
-                    })
-                    .collect()
-                },
-                _ => vec![Diagnostic::error(error.diagnostic(accepted.module()))],
-            })?;
-        let next = selected_boundary_implementations(accepted.module(), &realization)?;
-        if next == bindings {
-            let realization = realization
-                .resolve_installation_reach(
-                    accepted.module(),
-                    &accepted.installation_reach_requirements(),
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            return SelectedExecution::from_realization(profile, realization);
-        }
-        if bindings
-            .iter()
-            .any(|previous| next.binary_search(previous).is_err())
-        {
-            return Err(vec![Diagnostic::error(
-                "provider demand changed an already selected exact boundary body",
-            )]);
-        }
-        bindings = next;
-    }
+    let closed = accepted.close_logical_provider_reach(
+        target.target_name(),
+        entry,
+        &selected_requirements,
+    )?;
+    let reached = closed.requirements();
+    let mut timings = source.timings.clone();
+    let inputs = crate::terminal::prepare_provider_execution_inputs(
+        &source.terminal_publication,
+        &source.sources,
+        &source.computed_build_config.config.native_bindings,
+        target,
+        reached,
+        &mut crate::observations::PsiStageTimings::new(&mut timings),
+    )?;
+    native_program_planning::plan_target_execution(
+        accepted.module(), target, closed.selection(), closed.bindings(), inputs,
+    ).map_err(|error| match error {
+            NativeProgramPlanningError::Supply(TargetSupplyRealizationError::MissingSupplies { target, boundaries }) => {
+                let mut labels = declared.iter().collect::<Vec<_>>();
+                labels.sort_unstable_by_key(|row| row.boundary);
+                boundaries.iter().map(|boundary| {
+                    let message = match labels.binary_search_by_key(boundary, |row| row.boundary) {
+                        Ok(label_position) => format!(
+                            "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
+                            labels[label_position].name,
+                        ),
+                        Err(_) => format!(
+                            "reached boundary {} has no normalized chosen provider or exact native leaf on target `{target}`",
+                            boundary.get(),
+                        ),
+                    };
+                    Diagnostic::error(message)
+                })
+                .collect()
+            },
+            NativeProgramPlanningError::Supply(error) => vec![Diagnostic::error(error.diagnostic(accepted.module()))],
+            NativeProgramPlanningError::Admission(diagnostics) => diagnostics,
+        })
 }
 
 pub(crate) struct SelectedCompileOutcome {

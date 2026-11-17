@@ -9,18 +9,22 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../../native-vocabulary" }
+declaration-contracts = { path = "../../../../../psi/compilation/representations/declaration-contracts" }
+application-identity = { path = "../../../../../psi/compilation/representations/application-identity" }
+numeric-literals = { path = "../../../../../psi/compilation/representations/numeric-literals" }
+source-text = { path = "../../../../../psi/foundation/source-text" }
 abstract-operations = { path = ".." }
 target-operations = { path = "../../target-operations" }
 effects = { path = "../../../backend/plans/effects" }
 installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
-provider-admission = { path = "../../../realization/provider-admission" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+provider-admission = { path = "../../../verification/provider-admission" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 arena = { path = "../../../../../psi/foundation/arena" }
 compiler-storage = { path = "../../../../../psi/foundation/compiler-storage" }
-language-core = { path = "../../../../../psi/foundation/language-core" }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
-source = { path = "../../../../../psi/foundation/source" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+symbols = { path = "../../../../../psi/compilation/representations/declaration-identity" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
@@ -31,10 +35,9 @@ terminal-semantics = { path = "../../../../../psi/compilation/representations/te
 program-entry-plan = { path = "../../../backend/plans/program-entry-plan" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 boundary-applications = { path = "../../../backend/artifacts/boundary-applications" }
-provider-selection = { path = "../../../realization/provider-selection" }
-function-identity = { path = "../../../../foundation/function-identity" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+provider-correspondence = { path = "../../../verification/provider-correspondence" }
+function-identity = { path = "../../function-identity" }
+optimization-core = { path = "../../optimization-contracts" }
 component-description = { path = "../../../backend/artifacts/component-description" }
 task-plans = { path = "../../../backend/runtime/task-plans" }
-language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
-numerics = { path = "../../../../../psi/foundation/numerics" }
+numerics = { path = "../../../../../psi/compilation/representations/scalar-values" }

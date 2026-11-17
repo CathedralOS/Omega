@@ -4,7 +4,7 @@
 
 use super::BuildMachineFilesystemScope;
 use super::build_value::{BuildValueAdmission, is_build_machine};
-use build_time_evaluation::{
+use source_compiler::evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
 };
 use diagnostics::Diagnostic;
@@ -31,9 +31,9 @@ impl SelectedBuildMachine {
 }
 
 pub fn select_build_machine(
-    typed: &typed_trees::TypedTrees,
-    build_source_id: Option<source::SourceId>,
-) -> Result<Option<&typed_trees::machine::Machine>, Vec<Diagnostic>> {
+    typed: &source_compiler::source_state::TypedTrees,
+    build_source_id: Option<source_text::SourceId>,
+) -> Result<Option<&source_compiler::source_state::machine::Machine>, Vec<Diagnostic>> {
     let mut build_machines = typed
         .machines()
         .iter()

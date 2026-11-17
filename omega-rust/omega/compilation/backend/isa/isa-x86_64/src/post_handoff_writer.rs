@@ -304,9 +304,7 @@ mod tests {
         generated_post_handoff_writer_clobbers, generated_post_handoff_writer_width,
         post_handoff_writer_context_byte_len,
     };
-    use layout_plans::{
-        EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
-    };
+    use layout_plans::{EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
     use post_handoff_writer_plan::{
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
     };

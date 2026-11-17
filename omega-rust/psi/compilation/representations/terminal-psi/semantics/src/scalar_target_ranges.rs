@@ -1,6 +1,7 @@
 //! Ground arithmetic that can be checked once the selected scalar values exist.
 
-use numerics::{bignum::BigInt, integer_bounds::IntegerBoundStep};
+use numerics::{integer_bounds::IntegerBoundStep};
+use bignum::{BigInt};
 use semantic_vocabulary::{
     IntegerValue, ObligationId, ScalarConditionRole, ScalarTerm, StructuralTypeId, ValueId,
 };

@@ -6,14 +6,14 @@
 // a facet data definition belongs to the compiler's build prelude.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
 
 const BUILD_MACHINE: &str = "build";
 
 pub(crate) fn is_build_machine(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    build_source_id: Option<source::SourceId>,
+    machine: &source_compiler::source_state::machine::Machine,
+    build_source_id: Option<source_text::SourceId>,
 ) -> bool {
     if machine.name.as_str() != BUILD_MACHINE {
         return false;
@@ -35,23 +35,23 @@ pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) ->
 
 fn named_data_symbol(
     typed: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: source_compiler::source_state::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     match typed.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        source_compiler::source_state::types::TypeReferenceNode::Reference { referee, .. } => {
             named_data_symbol(typed, *referee)
         }
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        source_compiler::source_state::types::TypeReferenceNode::Constrained { base_type, .. } => {
             named_data_symbol(typed, *base_type)
         }
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        source_compiler::source_state::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
         _ => None,
     }
 }
 
 pub(super) fn build_machine_declares_identifier_field(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &source_compiler::source_state::machine::Machine,
 ) -> bool {
     typed
         .machine_states(machine)
@@ -64,7 +64,7 @@ pub(super) fn build_machine_declares_identifier_field(
         .any(|member| {
             matches!(
                 member,
-                typed_trees::data::DataMember::Field(field)
+                source_compiler::source_state::data::DataMember::Field(field)
                     if field.name.as_str() == "identifier"
             )
         })

@@ -4,7 +4,7 @@ operator and boundary occurrence roster from an optimized abstract operation
 plan and Terminal boundary-application coverage.
 */
 
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use verified_optimization_input::publication::EmissionProgramFacts;
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
@@ -38,7 +38,7 @@ struct D29ReferenceCoordinate {
 }
 
 pub(crate) fn derive_validated_optimization_scope(
-    final_plan: &AbstractOperationPlan,
+    final_plan: &EmissionProgramFacts,
     terminal: TerminalPsiIdentity,
     validation: OptimizedAbstractPlanProjectionIdentity,
     final_unit: OptimizationUnitIdentity,
@@ -70,7 +70,7 @@ pub(crate) fn derive_validated_optimization_scope(
 
 fn derive_optimized_scope(
     authority: ValidatedProjectionCoordinates,
-    final_plan: &AbstractOperationPlan,
+    final_plan: &EmissionProgramFacts,
     d29_references: &[D29ReferenceCoordinate],
     boundary_application_coverage_identity: [u8; 32],
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
@@ -96,8 +96,8 @@ fn derive_optimized_scope(
     let mut final_operations = Vec::new();
     let mut surviving_d29 = vec![false; d29_operations.len()];
     for function in &final_plan.functions {
-        for operation in function.operations() {
-            let Some(psi_operation) = operation.psi_operation() else {
+        for operation in function.source_occurrences.iter() {
+            let Some(psi_operation) = operation.operation else {
                 continue;
             };
             final_operations.push((function.machine, psi_operation));
@@ -117,8 +117,8 @@ fn derive_optimized_scope(
     let mut operator_occurrences = Vec::new();
     let mut boundary_occurrences = Vec::new();
     for function in &final_plan.functions {
-        for (operation_ordinal, operation) in function.operations().enumerate() {
-            if let Some(psi_operation) = operation.psi_operation()
+        for (operation_ordinal, operation) in function.source_occurrences.iter().enumerate() {
+            if let Some(psi_operation) = operation.operation
                 && d29_operations.binary_search(&psi_operation).is_ok()
             {
                 let identity = optimized_operator_occurrence_identity(
@@ -135,17 +135,7 @@ fn derive_optimized_scope(
                     identity,
                 ));
             }
-            let invocation = match operation {
-                AbstractOperation::BoundaryCall {
-                    boundary,
-                    psi_operation,
-                    ..
-                } => Some((*boundary, InvocationSite::Operation(*psi_operation))),
-                AbstractOperation::ExternalCompletion {
-                    boundary, psi_edge, ..
-                } => Some((*boundary, InvocationSite::ExternalCompletion(*psi_edge))),
-                _ => None,
-            };
+            let invocation = operation.boundary;
             if let Some((boundary, site)) = invocation {
                 let identity = optimized_boundary_occurrence_identity(
                     authority,
@@ -273,17 +263,12 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 #[cfg(test)]
 mod tests {
     use super::{
-        AbstractOperation, AbstractOperationPlan, D29ReferenceCoordinate,
-        ValidatedProjectionCoordinates, derive_optimized_scope,
+        D29ReferenceCoordinate, ValidatedProjectionCoordinates, derive_optimized_scope,
     };
-    use abstract_operations::{
-        AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractResult,
-    };
+    use verified_optimization_input::publication::{EmissionProgramFacts, EmissionFunctionFacts, EmissionOperationProvenance};
+    use abstract_operations::AbstractFunctionResult;
     use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
-    use semantic_vocabulary::{
-        BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-        OperationId, ScalarType, ValueId,
-    };
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, InvocationSite};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     fn terminal(marker: u8) -> TerminalPsiIdentity {
@@ -307,59 +292,21 @@ mod tests {
         OperationId::new(value).expect("nonzero operation")
     }
 
-    fn final_plan(terminal: TerminalPsiIdentity) -> AbstractOperationPlan {
+    fn final_plan(terminal: TerminalPsiIdentity) -> EmissionProgramFacts {
         let machine = MachineId::new(1).unwrap();
-        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
-        AbstractOperationPlan {
+        EmissionProgramFacts {
             psi: terminal,
             entry: machine,
-            identities: Default::default(),
-            structural_types: Vec::new().into(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            dynamic_dispatch: Default::default(),
-            callables: Default::default(),
-            functions: vec![AbstractFunction {
-                machine,
-                attachment: None,
-                entry: BlockId::new(2).unwrap(),
-                parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: AbstractFunctionResult::Unit,
-                entry_claims: Vec::new(),
-                block_entry_claims: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                blocks: vec![AbstractBlock {
-                    block: BlockId::new(2).unwrap(),
-                    parameters: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    operations: vec![
-                        AbstractOperation::IntegerConstant {
-                            psi_operation: operation(10),
-                            result: ValueId::new(20).unwrap(),
-                            scalar_type,
-                            value: IntegerValue::Signed(7),
-                        },
-                        AbstractOperation::BoundaryCall {
-                            psi_operation: operation(11),
-                            result: abstract_operations::AbstractBoundaryResult::Scalar(
-                                AbstractResult {
-                                    value: ValueId::new(21).unwrap(),
-                                    scalar_type,
-                                },
-                            ),
-                            boundary: BoundaryMachineId::new(30).unwrap(),
-                            arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                            completion_claim_sources: Vec::new(),
-                            completion_receipts: Vec::new(),
-                        },
-                        AbstractOperation::ReturnUnit {
-                            psi_edge: EdgeId::new(40).unwrap(),
-                            cleanup_actions: Vec::new(),
-                        },
-                    ],
-                }],
+            functions: vec![EmissionFunctionFacts {
+                machine, attachment: None, parameters: Vec::new(), structural_parameters: Vec::new(),
+                result: AbstractFunctionResult::Unit, entry_claims: Vec::new(),
+                source_occurrences: vec![
+                    EmissionOperationProvenance { operation: Some(operation(10)), boundary: None },
+                    EmissionOperationProvenance { operation: Some(operation(11)), boundary: Some((BoundaryMachineId::new(30).unwrap(), InvocationSite::Operation(operation(11)))) },
+                    EmissionOperationProvenance { operation: None, boundary: None },
+                ],
+                requires_graph_storage_replay: false, descriptors: Vec::new(), primitive_locals: Vec::new(),
+                scalar_call_results: Vec::new(), ram_obligations: Vec::new(),
             }],
         }
     }
@@ -443,8 +390,8 @@ mod tests {
     fn optimized_projection_rejects_duplicate_operations_in_one_machine() {
         let psi = terminal(1);
         let mut plan = final_plan(psi);
-        let duplicate = plan.functions[0].blocks[0].operations[0].clone();
-        plan.functions[0].blocks[0].operations.push(duplicate);
+        let duplicate = plan.functions[0].source_occurrences[0].clone();
+        plan.functions[0].source_occurrences.push(duplicate);
         assert_eq!(
             derive_optimized_scope(authority(psi), &plan, &[], [7; 32]).unwrap_err(),
             "optimized physical scope contains duplicate final operation identities",
@@ -457,12 +404,7 @@ mod tests {
         let mut plan = final_plan(psi);
         let mut second = plan.functions[0].clone();
         second.machine = MachineId::new(2).unwrap();
-        let AbstractOperation::IntegerConstant { psi_operation, .. } =
-            &mut second.blocks[0].operations[0]
-        else {
-            panic!("constant fixture");
-        };
-        *psi_operation = operation(12);
+        second.source_occurrences[0].operation = Some(operation(12));
         plan.functions.push(second);
         let references = [D29ReferenceCoordinate {
             terminal: psi,

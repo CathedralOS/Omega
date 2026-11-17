@@ -5,13 +5,17 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-extents = { path = "../../../psi/foundation/extents" }
-access-plans = { path = "../../../psi/foundation/access-plans" }
+access-vocabulary = { path = "../../../psi/compilation/representations/access-vocabulary" }
+storage-access = { path = "../../../psi/runtime/storage-access" }
+extent-contracts = { path = "../../../psi/compilation/representations/extent-contracts" }
+bignum = { path = "../../../psi/foundation/bignum" }
+extents = { path = "../../../psi/runtime/extents" }
+access-admission = { path = "../../../psi/compilation/access-admission" }
 native-provider-runtime = { path = "../native-provider-runtime" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
-numerics = { path = "../../../psi/foundation/numerics" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+numerics = { path = "../../../psi/compilation/representations/scalar-values" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
 target = { path = "../../compilation/backend/target" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
@@ -22,11 +26,11 @@ terminal-interpreter = { path = "../../../psi/interpreter" }
 target-operations = { path = "../../compilation/representations/target-operations" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-provider-admission = { path = "../../compilation/realization/provider-admission" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
 
 [dev-dependencies]
-language-core = { path = "../../../psi/foundation/language-core" }
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
-source = { path = "../../../psi/foundation/source" }
+application-identity = { path = "../../../psi/compilation/representations/application-identity" }
+language-core = { path = "../../../psi/compilation/representations/source-vocabulary" }
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 orchestration = { path = "../../build-system/orchestration" }
-platform-custody = { path = "../../foundation/platform-custody" }
+platform-custody = { path = "../../host-support/platform-custody" }

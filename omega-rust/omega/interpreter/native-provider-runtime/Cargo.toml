@@ -5,7 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-bounded-process = { path = "../../foundation/bounded-process" }
+wire = { path = "../../../psi/foundation/wire" }
+bounded-process = { path = "../../host-support/bounded-process" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 target = { path = "../../compilation/backend/target" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
@@ -24,5 +25,8 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [dev-dependencies]
-machine-emission = { path = "../../compilation/backend/machine-emission" }
+physical-planning = { path = "../../compilation/pipeline/01_physical-program-planning" }
+native-encoding = { path = "../../compilation/pipeline/03_native-encoding", features = ["test-support"] }
+image-fixtures = { path = "../../../test-support/image-fixtures" }
+function-layout = { path = "../../compilation/pipeline/04_native-layout/function-layout" }
 image-emission = { path = "../../compilation/backend/images/image-emission" }

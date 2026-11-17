@@ -1863,7 +1863,7 @@ pub(crate) mod dynamic_file_envelope {
         }
 
         fn overwrite_u64(bytes: &mut [u8], offset: usize, value: u64) {
-            optimization_core::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
+            ::wire::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
         }
 
         #[test]
@@ -1965,7 +1965,7 @@ pub(crate) mod dynamic_file_envelope {
             assert_rejected_with_custody(identity);
 
             let mut target = candidate(TargetProfile::LinuxX64);
-            optimization_core::codec_bytes::patch_encoded(
+            ::wire::codec_bytes::patch_encoded(
                 &mut target.contents.header_prefix_bytes,
                 18,
                 EM_AARCH64.to_le_bytes(),
@@ -2487,6 +2487,7 @@ pub(crate) mod resolved_procedure_linkage {
             let mut local_image = FinalImage {
                 target: image.target,
                 memory: image.memory.clone(),
+                import_program: image.import_program.clone(),
                 symbol_table: image.symbol_table.clone(),
                 relocation_table,
                 executable_regions: Vec::new(),

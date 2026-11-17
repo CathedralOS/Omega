@@ -12,7 +12,7 @@ const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 fn service_surface_owner() -> String {
     std::path::Path::new(CRATE_ROOT)
-        .join("../../../../../psi/foundation/language-semantics")
+        .join("../../../../../psi/compilation/representations/declaration-contracts")
         .to_string_lossy()
         .into_owned()
 }

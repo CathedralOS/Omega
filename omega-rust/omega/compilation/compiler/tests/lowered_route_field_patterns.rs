@@ -3,8 +3,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees_to_terminal_psi::{Compilation, elaborate};
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -29,7 +29,7 @@ fn judge_frontier(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdic
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
             supplies: &[],
@@ -195,7 +195,7 @@ fn a_projected_comparison_selects_declared_equality() {
         .unwrap_or_else(|errors| panic!("{errors:?}"));
     let operator = unbuilt_frontier::program_machine(&frontier.typed, "pattern_key_equal").unwrap();
     let selected = frontier.typed.expression_table.iter_expressions().any(|(_, node)|
-        matches!(node, typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol==operator));
+        matches!(node, source_compiler::source_state::expression::ExpressionNode::Call(call) if call.target_symbol==operator));
     assert!(
         selected,
         "projected equality must select the declared operator: {:?}",
@@ -205,9 +205,9 @@ fn a_projected_comparison_selects_declared_equality() {
             .iter_expressions()
             .filter(|(_, node)| matches!(
                 node,
-                typed_trees::expression::ExpressionNode::Binary(_)
-                    | typed_trees::expression::ExpressionNode::Member(_)
-                    | typed_trees::expression::ExpressionNode::SavedSubject(_)
+                source_compiler::source_state::expression::ExpressionNode::Binary(_)
+                    | source_compiler::source_state::expression::ExpressionNode::Member(_)
+                    | source_compiler::source_state::expression::ExpressionNode::SavedSubject(_)
             ))
             .collect::<Vec<_>>()
     );

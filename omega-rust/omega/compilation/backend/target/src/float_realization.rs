@@ -71,28 +71,22 @@ pub enum CanonicalFloatRealization {
 
 pub use language_core::float_operations::CANONICAL_FLOAT_OPERATIONS;
 
-/// Finds the canonical `Owner::operation` spelling inside a requirement
-/// identity. Identities arrive as `operator::F32::negate(named(name(f32)))..`
-/// for named operations and as escaped `named-callable(path(nominal\\(..\\,
-/// path\\(Float::less\\)..` for spelled operator families, so the name is
-/// matched as a whole path token: the longest canonical name whose
-/// neighbouring characters are not identifier characters.
-pub fn canonical_float_operation_name(requirement: &str) -> Option<&'static str> {
-    let identifier = |c: char| c.is_ascii_alphanumeric() || c == '_';
-    CANONICAL_FLOAT_OPERATIONS
-        .iter()
-        .copied()
-        .filter(|canonical| {
-            requirement.match_indices(canonical).any(|(start, _)| {
-                let before = requirement[..start].chars().next_back();
-                let after = requirement[start + canonical.len()..].chars().next();
-                before.is_none_or(|c| !identifier(c)) && after.is_none_or(|c| !identifier(c))
-            })
-        })
-        .max_by_key(|canonical| canonical.len())
-}
+pub use language_core::float_operations::canonical_float_operation_name;
 
 impl TargetProfile {
+    /// An immutable capability observation for source closure, without ABI data.
+    pub fn numeric_source_capabilities(self) -> language_core::float_operations::NumericTargetCapabilities {
+        language_core::float_operations::NumericTargetCapabilities {
+            target: self.target_name(),
+            operations: CANONICAL_FLOAT_OPERATIONS.iter().filter_map(|operation| {
+                self.canonical_float_realization(operation).map(|realization| (*operation, match realization {
+                    CanonicalFloatRealization::CatalogIntrinsic { .. } => Ok(()),
+                    CanonicalFloatRealization::Unsupported { constraint } => Err(constraint),
+                }))
+            }).collect(),
+        }
+    }
+
     /// The realization this target declares for a canonical float operation,
     /// or `None` when `requirement` names no canonical operation.
     pub fn canonical_float_realization(

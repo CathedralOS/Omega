@@ -36,8 +36,9 @@ x86 flags observation (`capture_host_x86_flags`). The domain modules cover:
 - `host_numeric.rs`: C `abs`, `lldiv`, `strtol`, and macOS
   `CGAffineTransformMake` leaves.
 - `network_address.rs` and `windows_provider.rs`: IPv4 classful
-  `inet_makeaddr`/`inet_lnaof` evaluation and the companion `omega_host.dll` PE
-  image for Windows x64.
+  `inet_makeaddr`/`inet_lnaof` host evaluation and its Windows library coordinate.
+  The physical compiler plans the companion exports; image construction owns
+  their DLL container.
 - `static_interrupts.rs`: x86-64 static-interrupt token offsets and arrival
   frame geometry.
 */
@@ -66,10 +67,7 @@ pub use host_numeric::{
 pub use network_address::HostInternetAddress;
 pub use scalar_reference::{ScalarReferenceLayout, ScalarStorageCodec};
 pub use target::{CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE};
-pub use windows_provider::{
-    WINDOWS_INTERNET_PROVIDER_LIBRARY, image_imports_windows_internet_provider,
-    windows_internet_provider_dll,
-};
+pub use windows_provider::WINDOWS_INTERNET_PROVIDER_LIBRARY;
 
 use target::NativeTarget;
 

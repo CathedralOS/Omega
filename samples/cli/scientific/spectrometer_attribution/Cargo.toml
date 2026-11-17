@@ -13,22 +13,20 @@ orchestration = { path = "../../../../omega-rust/omega/build-system/orchestratio
 terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
 products = { path = "../../../../omega-rust/omega/compilation/products" }
 review-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
-optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }
+optimization-core = { path = "../../../../omega-rust/omega/compilation/representations/optimization-contracts" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation" }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 source-acquisition = { path = "../../../../omega-rust/omega/packages/source-acquisition" }
-build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/build-time-evaluation" }
-provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }
-semantic-vocabulary = { path = "../../../../omega-rust/psi/foundation/semantic-vocabulary" }
-source-files-to-tokens = { path = "../../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens" }
+source-compiler = { path = "../../../../omega-rust/psi/compilation/source-compiler", features = ["test-support"] }
+native-program-planning = { path = "../../../../omega-rust/omega/compilation/pipeline/00_native-program-planning" }
+semantic-vocabulary = { path = "../../../../omega-rust/psi/compilation/representations/semantic-vocabulary" }
 syntax-trees = { path = "../../../../omega-rust/psi/compilation/representations/syntax-trees" }
-tokens-to-syntax-trees = { path = "../../../../omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 diagnostics = { path = "../../../../omega-rust/psi/foundation/diagnostics" }
 target = { path = "../../../../omega-rust/omega/compilation/backend/target" }
 terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter" }
 terminal-psi = { path = "../../../../omega-rust/psi/compilation/representations/terminal-psi" }
 image-emission = { path = "../../../../omega-rust/omega/compilation/backend/images/image-emission" }
 effects = { path = "../../../../omega-rust/omega/compilation/backend/plans/effects" }
-symbols = { path = "../../../../omega-rust/psi/foundation/symbols" }
+symbols = { path = "../../../../omega-rust/psi/compilation/representations/declaration-identity" }
 mimalloc = { version = "0.1", default-features = false }

@@ -5,9 +5,9 @@
 // bound to the exact toolchain prelude `Optimizations` data declaration on the
 // toolchain `Build` struct.
 
-use build_time_evaluation::is_exact_toolchain_build_prelude_data;
+use source_compiler::evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OptimizationBuildVocabulary {
@@ -43,7 +43,7 @@ pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary
         .data_members(build)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
+            source_compiler::source_state::data::DataMember::Field(field)
                 if field.name.as_str() == "optimizations" =>
             {
                 Some(field)

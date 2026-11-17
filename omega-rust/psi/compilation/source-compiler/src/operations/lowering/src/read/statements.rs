@@ -1,0 +1,585 @@
+/*
+The statement family of the reader: local bindings, locals declared without
+an initializer, and assignment. An assignment to a name rebinds its slot (a
+scalar value, or the fresh root of a whole record value); an assignment to a
+member path is a store into that exact field of a mutable local's record; an
+assignment to a scalar local declared without an initializer is a store into
+its home. A `mut` formal that holds its own value is assigned and stored
+into as a `mut` local is; any other formal that holds its own value is
+immutable. A formal passed by `&mut` is stored into in place: a scalar
+referent like a home, a field of a record referent like a field of a mutable
+local.
+*/
+
+use semantic_vocabulary::MachineId;
+use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
+use crate::source_state::expression::ExpressionNode;
+use crate::source_state::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
+
+use super::authority::Access;
+use super::references::reference_access_violation;
+use super::{Program, Slot};
+use crate::lowering::body::{ExpressionKind, Statement, ValueType};
+use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+
+impl Program<'_> {
+    pub(super) fn call_statement_at(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: StatementHandle,
+    ) -> Checked<crate::lowering::body::Expression> {
+        let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("call occurrence does not name a call statement"),
+            ));
+        };
+        if call.runtime_call.is_none() {
+            self.bound_target(id, call.target_symbol)?;
+        }
+        let source = self.authored_node(
+            id,
+            crate::source_state::SourceNode::Statement(handle),
+            call.source_span,
+        )?;
+        self.call_statement(id, slots, call, source)
+    }
+
+    pub(super) fn assignment(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        assignment: &TableAssignment,
+    ) -> Checked<Statement> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
+        let typing = || {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("assigned value type"),
+            )
+        };
+        let assigned = |program: &Self, value: &crate::lowering::Expression, place: ValueType| {
+            program.mistyped(
+                id,
+                value.source,
+                super::rejections::Destination::Assigned,
+                Some(place),
+                value.result,
+                "assigned value type",
+            )
+        };
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
+        if let ExpressionNode::Atomic(atomic) = self.node(id, assignment.value)? {
+            return self.atomic_store(id, slots, assignment.target, atomic, source);
+        }
+        let write_refusal = |slot: &Slot, unsupported| {
+            // A borrowed formal's slot names its referent directly, so the
+            // path has no explicit descriptor crossing to check its access.
+            match (slot.erased, slot.borrowed) {
+                (false, Some(language_core::ReferenceAccess::Shared)) => {
+                    reference_access_violation(
+                        id,
+                        source,
+                        StructuralAccess::MutableBorrow,
+                        StructuralAccess::SharedBorrow,
+                    )
+                }
+                (false, None) => reject(
+                    id,
+                    source,
+                    "writing to an immutable owned binding requires `mut`",
+                ),
+                _ => unserved(unsupported),
+            }
+        };
+        match self.node(id, assignment.target)? {
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                if let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)? {
+                    let descriptor = crate::lowering::Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(slots[slot].value_type),
+                        source,
+                    };
+                    let destination = crate::lowering::Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Referent(Box::new(descriptor)),
+                        result: Some(referent),
+                        source,
+                    };
+                    self.reference_place_access(
+                        id,
+                        slots,
+                        &destination,
+                        language_core::ReferenceAccess::Mutable,
+                    )?;
+                    self.authorized(id, referent, Access::Replace)?;
+                    let value = self.expression(id, slots, assignment.value, Some(referent))?;
+                    if !self.agrees(value.result, Some(referent)) {
+                        return Err(assigned(self, &value, referent));
+                    }
+                    return Ok(Statement::Store {
+                        destination,
+                        value,
+                        source,
+                    });
+                }
+                if !slots[slot].assignable {
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "assignment to an immutable binding",
+                    ));
+                }
+                // A slice formal carries a view rather than a borrowed
+                // value's storage. Keep whole-view assignment at its existing
+                // refusal; replacing its descriptor is not this operation.
+                if slots[slot].borrowed.is_some()
+                    && !slots[slot].homed
+                    && !self
+                        .signatures
+                        .get(id)
+                        .and_then(|signature| signature.borrowed(slot))
+                        .is_some_and(|borrowed| {
+                            borrowed.referent == crate::lowering::body::BorrowedReferent::Value
+                        })
+                {
+                    return Err(unserved("whole assignment through a reference"));
+                }
+                let value_type = slots[slot].value_type;
+                // The value's type first: a value that is not the place's
+                // type is wrong whoever may write the place.
+                let value = self.expression(id, slots, assignment.value, Some(value_type))?;
+                if !self.agrees(value.result, Some(value_type)) {
+                    return Err(assigned(self, &value, value_type));
+                }
+                self.authorized(id, value_type, Access::Replace)?;
+                // A record local, a homed scalar and a borrowed formal all
+                // name storage that loans may still observe. Replace there
+                // through the same captured-place store as a field
+                // (structural_access.md: "Root, field, and indexed
+                // destinations do not change construction semantics"), so
+                // the checker sees the write. Only an unhomed scalar takes a
+                // new SSA binding.
+                let stored = slots[slot].homed
+                    || slots[slot].borrowed.is_some()
+                    || matches!(value_type, ValueType::Record(..));
+                Ok(if stored {
+                    Statement::Store {
+                        destination: crate::lowering::Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Slot(slot),
+                            result: Some(value_type),
+                            source,
+                        },
+                        value,
+                        source,
+                    }
+                } else {
+                    Statement::Bind { slot, value }
+                })
+            }
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                // A destination names existing local storage. Retain its
+                // expression intact after checking the root's authority;
+                // lowering captures its selectors before the replacement.
+                //
+                // A field that holds a reference is the descriptor's place:
+                // assigning to it replaces the reference, where naming it as
+                // a value would observe its referent (`expressions::observed`).
+                // lifetimes.md, "Carried-loan transport": "Assignment
+                // evaluates the replacement while old loans remain active,
+                // ends the overwritten field's carried loans, then installs
+                // the replacement's exact loans."
+                let place = self.place(id, slots, assignment.target, None, Access::Replace)?;
+                let Some(stored) = place.result else {
+                    return Err(typing());
+                };
+                // A byte assignment writes through the view, not over its
+                // descriptor. Keep the read expression out of the place walk.
+                let storage = if let ExpressionKind::ByteElement { base, .. } = &place.kind {
+                    let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
+                        return Err(typing());
+                    };
+                    use crate::lowering::StorageShape::ByteSequence;
+                    use terminal_psi::{ByteSequenceCarrier::BorrowedView, StructuralAccess};
+
+                    let writable = match self.data_type(id, record)?.shape {
+                        ByteSequence(BorrowedView {
+                            access: Some(StructuralAccess::MutableBorrow),
+                        }) => true,
+                        // An incoming direct view draws permission from its formal.
+                        ByteSequence(BorrowedView { access: None }) => matches!(
+                            base.kind,
+                            ExpressionKind::Slot(slot)
+                                if slots[slot].borrowed == Some(language_core::ReferenceAccess::Mutable)
+                        ),
+                        _ => false,
+                    };
+                    if !writable {
+                        return Err(unserved("store through a byte view without mutable access"));
+                    }
+                    self.authorized(id, value_type, Access::Write)?;
+                    base.as_ref()
+                } else {
+                    &place
+                };
+                let byte_store = matches!(place.kind, ExpressionKind::ByteElement { .. });
+                let root = super::storage_path::walk(
+                    storage,
+                    |_| Err(unserved("store into a value that is not a local")),
+                    // The captured path retains a payload's exact case and
+                    // field. Storage checking proves that case at the store;
+                    // ancestry itself grants no membership or write authority.
+                    |_, _| Ok(()),
+                )?;
+                let ExpressionKind::Slot(slot) = root.kind else {
+                    return Err(unserved("store into a value that is not a local"));
+                };
+                let crossed = self.reference_place_access(
+                    id,
+                    slots,
+                    storage,
+                    language_core::ReferenceAccess::Mutable,
+                )?;
+                if !crossed && !byte_store && !slots[slot].assignable {
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "store into an immutable binding",
+                    ));
+                }
+                if byte_store
+                    && slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
+                {
+                    return Err(unserved("store through shared descriptor storage"));
+                }
+                self.written_through(id, storage)?;
+                let value = self.expression(id, slots, assignment.value, Some(stored))?;
+                if !self.agrees(value.result, Some(stored)) {
+                    return Err(assigned(self, &value, stored));
+                }
+                self.authorized(id, stored, Access::Replace)?;
+                Ok(Statement::Store {
+                    destination: place,
+                    value,
+                    source,
+                })
+            }
+            ExpressionNode::MachineValue(_)
+            | ExpressionNode::TypeExpression(_)
+            | ExpressionNode::Match(_)
+            | ExpressionNode::SavedSubject(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Atomic(_)
+            | ExpressionNode::Binary(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Call(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::Range(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::ZeroValue(_) => Err(unserved("assignment to a projected place")),
+        }
+    }
+
+    pub(super) fn local(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &TableLocalData,
+    ) -> Checked<(Slot, Statement)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        match local.role {
+            language_core::LocalBindingRole::Value
+            | language_core::LocalBindingRole::DispatchSubject => {}
+            language_core::LocalBindingRole::AtomicObservedResult => {
+                return unserved("atomic observed result");
+            }
+            // A pattern's marker binds no value: the body driver reads it
+            // with `record_pattern` and never as a local.
+            language_core::LocalBindingRole::RecordPattern => {
+                return unserved("record pattern binding");
+            }
+            language_core::LocalBindingRole::ArmPattern => return unserved("arm pattern binding"),
+            language_core::LocalBindingRole::DispatchObservation => {
+                return unserved("dispatch observation");
+            }
+        }
+        if !local.symbol.is_valid() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("local without a symbol"),
+            ));
+        }
+        if local.reflected_query_origin.is_some() {
+            return unserved("reflected query");
+        }
+        // A selector must keep the value captured before later operands run.
+        // Resolution emits an immutable relevant binding. The ordinary
+        // binder below evaluates it once and keeps its complete carrier,
+        // including any supported backing.
+        if local.is_operand_capture {
+            if local.role != language_core::LocalBindingRole::Value
+                || local.is_mutable
+                || local.relevance != language_core::BindingRelevance::Relevant
+            {
+                return unserved("operand capture without its immutable value binding");
+            }
+            if !self
+                .typed
+                .expression_table
+                .expression_is_valid(local.initial_value)
+                || !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(local.type_reference)
+            {
+                return unserved("operand capture without its retained initializer and type");
+            }
+        }
+        // Dispatch subjects and saved operands may retain an incoming
+        // reference. Capture its storage binding, never the referent value.
+        if (local.is_operand_capture
+            || local.role == language_core::LocalBindingRole::DispatchSubject)
+            && local.type_reference.is_valid()
+            && let crate::source_state::types::TypeReferenceNode::Reference {
+                referee, access, ..
+            } = self
+                .typed
+                .type_reference_table
+                .type_reference(local.type_reference)
+            && self.view_type(id, local.type_reference)?.is_none()
+        {
+            if local.is_mutable || local.relevance != language_core::BindingRelevance::Relevant {
+                return unserved("reference capture without an immutable relevant binding");
+            }
+            // The binding's type is read as a local's annotation is
+            // (`local_type`): an elided lifetime there is a region variable
+            // the captured reference decides, and the capture keeps that
+            // reference's exact type.
+            let declared = self.local_type(id, *referee)?;
+            let value = self.expression(id, slots, local.initial_value, Some(declared))?;
+            let ExpressionKind::Slot(original) = value.kind else {
+                return unserved("reference capture without an existing reference binding");
+            };
+            let value_type = slots[original].value_type;
+            if slots[original].borrowed != Some(*access)
+                || !self.same_type(Some(value_type), declared)
+            {
+                return unserved("reference capture without matching storage and access");
+            }
+            return Ok((
+                Slot {
+                    symbol: local.symbol,
+                    value_type,
+                    assignable: slots[original].assignable,
+                    homed: slots[original].homed,
+                    erased: false,
+                    borrowed: Some(*access),
+                    borrowed_regions: slots[original].borrowed_regions,
+                },
+                Statement::CaptureReference {
+                    slot: slots.len(),
+                    original,
+                },
+            ));
+        }
+        if local.relevance != language_core::BindingRelevance::Relevant {
+            return self.erased_local(id, slots, local);
+        }
+        if !local.initial_value.is_valid() {
+            // `let x: T;` constructs the declared type's zero value. Lowering
+            // records that actual initializer, and the checker proves its
+            // default-domain obligations before observation. This is not an
+            // assumed zero for genuinely uninitialized storage.
+            if !local.type_reference.is_valid() {
+                return unserved("uninitialized local without a declared type");
+            }
+            let value_type = self.local_type(id, local.type_reference)?;
+            let source = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(local.symbol)
+                .map_or(
+                    SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                    SourceOrigin::of,
+                );
+            self.zero_established(id, value_type, source)?;
+            let home = match value_type {
+                ValueType::Rigid(_) => return unserved("local of a rigid type"),
+                // Its home would be declared with the identity of a
+                // primitive type the lowered form has no row for.
+                ValueType::Scalar(_, qualification) if !qualification.is_none() => {
+                    return unserved("uninitialized local of a qualified type");
+                }
+                ValueType::Record(_, _, _) => None,
+                ValueType::Scalar(..) => Some(
+                    self.typed
+                        .normalized_type_identity_text(local.type_reference),
+                )
+                .filter(|identity| !identity.is_empty())
+                .map(Some)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("local type without an identity"),
+                    )
+                })?,
+            };
+            let slot = Slot {
+                symbol: local.symbol,
+                value_type,
+                assignable: local.is_mutable,
+                homed: value_type.scalar().is_some(),
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::lowering::body::Regions::NONE,
+            };
+            return Ok((
+                slot,
+                Statement::Declare {
+                    slot: slots.len(),
+                    home,
+                    source,
+                },
+            ));
+        }
+        // Only an authored annotation constrains the supplied value. An
+        // inferred binding derives its complete type from the initializer,
+        // including regions substituted through an actual parent value.
+        let declared = if local.type_reference.is_valid() && !local.type_is_inferred {
+            Some(self.local_type(id, local.type_reference)?)
+        } else {
+            None
+        };
+        let mut value = if local.type_is_inferred {
+            self.inferred_initializer(id, slots, local.initial_value, local.type_reference)?
+        } else {
+            self.expression(id, slots, local.initial_value, declared)?
+        };
+        if !local.is_operand_capture {
+            crate::lowering::operational::boundary(&mut value);
+        }
+        let Some(value_type) = value.result else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local bound to a Unit call"),
+            ));
+        };
+        // `let r = reference;` with no declared type: whether the local is
+        // a copy of the referent or the reference itself, the typed trees
+        // do not say here, and a reference local belongs to a later slice.
+        if declared.is_none()
+            && let ExpressionKind::Slot(named) = value.kind
+            && slots[named].borrowed.is_some()
+        {
+            return unserved("local bound to a reference without a declared type");
+        }
+        // domains.md, "Literals and expected types": "An expected type
+        // selects the carrier in which an anonymous literal lands. It never
+        // inserts a domain cast", and "An annotated `let` is no exception".
+        // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
+        // Wrapping local, which only a cast does.
+        if let Some(declared) = declared
+            && !self.agrees(Some(value_type), Some(declared))
+        {
+            return Err(self.mistyped(
+                id,
+                value.source,
+                super::rejections::Destination::Local,
+                Some(declared),
+                Some(value_type),
+                "local initializer type",
+            ));
+        }
+        // A bottom initializer produces no value, but the declared local
+        // keeps its annotation for source checking after the call. Keep
+        // existing inferred regions when the ordinary carriers already agree.
+        let value_type = declared
+            .filter(|declared| declared.erased() != value_type.erased())
+            .unwrap_or(value_type);
+        let slot = Slot {
+            symbol: local.symbol,
+            value_type,
+            assignable: local.is_mutable,
+            homed: false,
+            erased: false,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        };
+        Ok((
+            slot,
+            Statement::Bind {
+                slot: slots.len(),
+                value,
+            },
+        ))
+    }
+
+    /// `let x [erased]: T = term;`. The initializer is the term the binding
+    /// names (contracts.md, "Explicit erased bindings": "Construction
+    /// supplies the erased term"); nothing is evaluated.
+    fn erased_local(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &TableLocalData,
+    ) -> Checked<(Slot, Statement)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        if !local.initial_value.is_valid() {
+            return unserved("erased local without an initializer");
+        }
+        let declared = if local.type_reference.is_valid() {
+            Some(self.local_type(id, local.type_reference)?)
+        } else {
+            None
+        };
+        if declared.is_some_and(|declared| declared.scalar().is_none()) {
+            return unserved("erased local of a data type");
+        }
+        let term = self.erased_term(
+            id,
+            slots,
+            local.initial_value,
+            declared.and_then(ValueType::scalar),
+        )?;
+        let Some(value_type) = term.result else {
+            return unserved("erased local of a data type");
+        };
+        if declared.is_some_and(|declared| declared != value_type) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer type"),
+            ));
+        }
+        let slot = Slot {
+            symbol: local.symbol,
+            value_type,
+            assignable: false,
+            homed: false,
+            erased: true,
+            borrowed: None,
+            borrowed_regions: crate::lowering::body::Regions::NONE,
+        };
+        Ok((
+            slot,
+            Statement::Witness {
+                slot: slots.len(),
+                term,
+            },
+        ))
+    }
+}

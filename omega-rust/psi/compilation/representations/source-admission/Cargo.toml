@@ -1,0 +1,13 @@
+[package]
+name = "source-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../declaration-contracts" }
+arena = { path = "../../../foundation/arena" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }
+source-text = { path = "../../../foundation/source-text" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+symbols = { path = "../declaration-identity" }

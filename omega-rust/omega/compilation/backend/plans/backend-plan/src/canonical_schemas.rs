@@ -4,7 +4,7 @@
 
 use effects::provider_plan::{ServiceMethod, ServiceSchema, ServiceSurface};
 use language_core::sealed_intrinsics::HostedOperation;
-use language_semantics::service_surface::ServiceReceiverApplication;
+use declaration_contracts::service_surface::ServiceReceiverApplication;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{CheckedBoundaryExecution, TerminalModule};
 
@@ -146,7 +146,7 @@ fn requirement_schema(
         requirement_owner: owner.into(),
         requirement_identity,
         parameter_count: boundary.parameter_order.len(),
-        declared_type_signature: language_semantics::service_surface::declared_type_signature(
+        declared_type_signature: declaration_contracts::service_surface::declared_type_signature(
             declaration
                 .source
                 .parameter_types

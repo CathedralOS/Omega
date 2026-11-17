@@ -2913,11 +2913,11 @@ pub(crate) mod program {
             if let Some(account) = account
                 && !matches!(
                     account.measurement(),
-                    evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
+                    evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi { .. }
                 )
             {
                 return Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Storage(
-                evaluation_accounting::EvaluationAccountingError::UnsupportedMeasurementIdentity,
+                evaluation_contracts::EvaluationAccountingError::UnsupportedMeasurementIdentity,
             )));
             }
             self.program

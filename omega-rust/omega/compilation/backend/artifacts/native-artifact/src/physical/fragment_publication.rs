@@ -1,35 +1,45 @@
 /*
 We bind fragment-published object custody to a validated optimized physical
 evidence scope, retaining the relocation-free object plan, placed text section,
-and current physical instruction/contract columns so derivation can rejoin unresolved
+and current call provenance/transport records so derivation can rejoin unresolved
 import fields and instruction spans directly.
 */
 
 use std::sync::Arc;
 
 use image_emission::ObjectArtifact;
-use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
 
 #[derive(Debug, Clone)]
 pub(super) struct FragmentPublicationBinding {
-    source: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+    publication: object_file::ObjectPublication,
     identity: [u8; 32],
+    call_origins: Arc<machine_code::call_origins::PhysicalCallOrigins>,
+    foreign_call_plans: Arc<machine_code::foreign_call_plans::PhysicalForeignCallPlans>,
 }
 
 impl FragmentPublicationBinding {
     pub(super) fn validate_object(&self, object: &ObjectArtifact) -> Result<(), &'static str> {
-        if object
-            .retained_fragment_source()
-            .map(|source| source.custody())
-            != Some(self.source.custody())
+        if object.publication().custody() != self.publication.custody()
+            || object.call_origins() != &self.call_origins
+            || object.foreign_call_plans() != &self.foreign_call_plans
         {
             return Err(
                 "fragment publication object differs from its independently admitted bytes or evidence",
             );
         }
         Ok(())
+    }
+
+    pub(super) fn foreign_call_plans(
+        &self,
+    ) -> &machine_code::foreign_call_plans::PhysicalForeignCallPlans {
+        &self.foreign_call_plans
+    }
+
+    pub(super) fn call_origins(&self) -> &machine_code::call_origins::PhysicalCallOrigins {
+        &self.call_origins
     }
 
     pub(super) const fn identity(&self) -> &[u8; 32] {
@@ -40,8 +50,13 @@ impl FragmentPublicationBinding {
         &self,
         object: &ObjectArtifact,
     ) -> Result<(), &'static str> {
-        let reconstructed = image_emission::derive_normalized_foreign_call_custody(&self.source)
-            .map_err(|_| "fragment publication foreign call custody failed source replay")?;
+        let reconstructed = self
+            .foreign_call_plans
+            .calls
+            .iter()
+            .map(|plan| image_emission::place_foreign_call(plan, self.text_section()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| "fragment publication foreign call custody failed physical span checks")?;
         if reconstructed != object.foreign_calls() {
             return Err("native physical evidence foreign calls differ from fragment projection");
         }
@@ -49,28 +64,20 @@ impl FragmentPublicationBinding {
     }
 
     pub(super) fn relocation_free_object(&self) -> &object_file::RelocationFreeObjectPlan {
-        self.source.object()
+        self.publication.object()
     }
 
     pub(super) fn text_section(&self) -> &machine_code::RelocationFreeTextSectionPlacement {
-        self.source.source().text_section()
-    }
-
-    pub(super) fn physical_program(
-        &self,
-    ) -> &post_allocation_machine::PostAllocationMachineProgram {
-        self.source
-            .source()
-            .source()
-            .source()
-            .source()
-            .physical_program()
+        self.publication.text()
     }
 }
 
 impl PartialEq for FragmentPublicationBinding {
     fn eq(&self, other: &Self) -> bool {
-        self.identity == other.identity && self.source.custody() == other.source.custody()
+        self.identity == other.identity
+            && self.publication.custody() == other.publication.custody()
+            && self.call_origins == other.call_origins
+            && self.foreign_call_plans == other.foreign_call_plans
     }
 }
 
@@ -81,11 +88,17 @@ pub(crate) fn derive_scope(
     coverage_identity: [u8; 32],
     object: &ObjectArtifact,
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
-    let source = object
-        .retained_fragment_source()
-        .ok_or("physical publication requires retained fragment source")?;
-    let facts = source.emission_facts();
-    let final_plan = facts.abstract_program.as_ref();
+    let publication = object.publication();
+    if object.call_origins().psi != publication.text().psi
+        || object.foreign_call_plans().psi != publication.text().psi
+        || object.call_origins().target != publication.text().target
+        || object.foreign_call_plans().target != publication.text().target
+        || object.call_origins().physical_identity != object.foreign_call_plans().physical_identity
+    {
+        return Err("physical call plans are detached from the published program and target");
+    }
+    let facts = object.emission_facts();
+    let final_plan = &facts.program;
     let terminal = facts.projection.terminal;
     let validation = facts.projection.identity;
     let final_unit = facts.projection.final_unit;
@@ -101,13 +114,15 @@ pub(crate) fn derive_scope(
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.native-artifact.fragment-publication-binding.sha256.v1\0",
     );
-    digest.raw(&source.custody().manifest().bytes());
-    digest.raw(&source.custody().source_text_section_manifest().bytes());
-    digest.raw(&source.custody().object().bytes());
-    digest.raw(&source.custody().object_container().bytes());
+    digest.raw(&publication.custody().manifest().bytes());
+    digest.raw(&publication.custody().source_text_section_manifest().bytes());
+    digest.raw(&publication.custody().object().bytes());
+    digest.raw(&publication.custody().object_container().bytes());
     let publication = FragmentPublicationBinding {
-        source: Arc::clone(source),
+        publication: publication.clone(),
         identity: digest.finish(),
+        call_origins: Arc::clone(object.call_origins()),
+        foreign_call_plans: Arc::clone(object.foreign_call_plans()),
     };
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0",

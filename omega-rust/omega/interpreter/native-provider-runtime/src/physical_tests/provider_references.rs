@@ -7,11 +7,9 @@ use crate::{
     NativeResultStorage, wire::Packet,
 };
 use calling_conventions::{
-    CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use machine_emission::native_foreign_bridge::{
-    NativeForeignBridgeRequest, emit_native_foreign_bridge,
-};
+use native_encoding::test_support::emit_native_foreign_bridge;
 use std::path::{Path, PathBuf};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -152,11 +150,9 @@ impl Fixture {
             scalar_parameters: vec![None; parameters.len()],
         })
         .unwrap();
-        image_emission::emit_native_foreign_adapter(
-            bridge,
-            normalize_foreign_locator(candidate, profile).unwrap(),
-            [37; 32],
-        )
+        let locator = normalize_foreign_locator(candidate, profile).unwrap();
+        let imports = image_fixtures::encode_locator_import(&locator);
+        image_emission::emit_native_foreign_adapter(bridge, locator, [37; 32], imports)
         .unwrap()
     }
 

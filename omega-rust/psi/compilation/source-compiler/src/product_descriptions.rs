@@ -24,13 +24,13 @@ visible machines of one name are refused as ambiguous here; neither is
 preferred for fitting the slot.
 */
 
-use language_semantics::declaration_selection::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-};
+use crate::declaration_selection::DescribedProductEntry;
+use crate::declaration_selection::DescribedProductProvider;
+use crate::declaration_selection::DescribedProductSchema;
 use semantic_vocabulary::ProgramEntrySourceCatalog;
-use source::SourceSpan;
+use source_text::SourceSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
+use crate::source_state::TypedTrees;
 
 /// Where a path is read from, and what it may name there.
 struct ProductScope<'path> {
@@ -154,7 +154,7 @@ pub(crate) fn describe_schema(
             .map(|definition| (definition.symbol, definition.is_public)),
     )?;
     Ok(DescribedProductSchema {
-        declaration: symbols::RetainedDeclaration::capture(&program.symbols, selected)
+        declaration: crate::source_symbols::retain_declaration(&program.symbols, selected)
             .map_err(str::to_owned)?,
         canonical_path: program.symbols.display_path(selected, "::"),
     })
@@ -178,7 +178,7 @@ pub(crate) fn describe_provider(
             .map(|implementation| (implementation.symbol, implementation.is_public)),
     )?;
     Ok(DescribedProductProvider {
-        declaration: symbols::RetainedDeclaration::capture(&program.symbols, selected)
+        declaration: crate::source_symbols::retain_declaration(&program.symbols, selected)
             .map_err(str::to_owned)?,
         canonical_path: program.symbols.display_path(selected, "::"),
     })
@@ -224,7 +224,7 @@ pub(crate) fn describe_entry(
         .machine(selected)
         .ok_or("product entry lost its machine declaration")?;
     Ok(DescribedProductEntry {
-        declaration: symbols::RetainedDeclaration::capture(&program.symbols, selected)
+        declaration: crate::source_symbols::retain_declaration(&program.symbols, selected)
             .map_err(str::to_owned)?,
         machine_name: machine.name.as_str().to_owned(),
         slot: slot.to_owned(),
@@ -237,9 +237,9 @@ pub(crate) fn describe_parameter(
     selecting: SourceSpan,
     path: &[u8],
 ) -> Result<semantic_vocabulary::ParameterDescription, String> {
-    let declarations = typed_trees::product_operand::product_candidates(
+    let declarations = crate::source_state::product_operand::product_candidates(
         program,
-        language_semantics::declaration_selection::ProductOperandRole::Formal,
+        crate::declaration_selection::ProductOperandRole::Formal,
     );
     let selected = select_declaration(
         program,
@@ -251,8 +251,8 @@ pub(crate) fn describe_parameter(
         declarations.into_iter(),
     )?;
     let author =
-        typed_trees::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
-    typed_trees::reflection::construction::product_parameter_description_identity(
+        crate::source_state::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    crate::source_state::reflection::construction::product_parameter_description_identity(
         program,
         selected,
         author,
@@ -267,9 +267,9 @@ pub(crate) fn describe_field(
     selecting: SourceSpan,
     path: &[u8],
 ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
-    let declarations = typed_trees::product_operand::product_candidates(
+    let declarations = crate::source_state::product_operand::product_candidates(
         program,
-        language_semantics::declaration_selection::ProductOperandRole::Field,
+        crate::declaration_selection::ProductOperandRole::Field,
     );
     let selected = select_declaration(
         program,
@@ -281,8 +281,8 @@ pub(crate) fn describe_field(
         declarations.into_iter(),
     )?;
     let author =
-        typed_trees::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
-    typed_trees::reflection::construction::product_field_description_identity(
+        crate::source_state::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    crate::source_state::reflection::construction::product_field_description_identity(
         program,
         selected,
         author,

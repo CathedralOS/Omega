@@ -22,13 +22,13 @@ mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::{EvaluatedBuildSettings, PrivilegedServicesGrants};
+pub use configuration::{EvaluatedBuildSettings, PrivilegedServicesGrants, X86DeploymentClaim};
 pub(super) use vocabulary::is_build_machine;
 
 use super::BuildMachineFilesystemScope;
-use build_time_evaluation::BuildTimeValue;
+use source_compiler::evaluation::BuildTimeValue;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildValueAdmission {
@@ -40,7 +40,7 @@ impl BuildValueAdmission {
     pub fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
         let optimization = optimization::BuildOptimizationAdmission::admit(typed)?;
         let has_toolchain_build_activation =
-            build_time_evaluation::admit_toolchain_build_activation(typed)?;
+            source_compiler::evaluation::admit_toolchain_build_activation(typed)?;
         Ok(Self {
             optimization,
             has_toolchain_build_activation,
@@ -50,7 +50,7 @@ impl BuildValueAdmission {
     pub fn initial_value(
         &self,
         typed: &TypedTrees,
-        machine: &typed_trees::machine::Machine,
+        machine: &source_compiler::source_state::machine::Machine,
         filesystem_scope: &BuildMachineFilesystemScope,
     ) -> BuildTimeValue {
         initial::initial_value(self, typed, machine, filesystem_scope)
@@ -62,7 +62,7 @@ impl BuildValueAdmission {
     ) -> Result<
         (
             EvaluatedBuildSettings,
-            optimization_core::OptimizationReportRequest,
+            optimization_requests::OptimizationReportRequest,
         ),
         String,
     > {

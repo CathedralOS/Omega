@@ -12,7 +12,7 @@ pub(crate) mod component_object {
     use image::{
         FinalImage, FinalImageInput, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
-    use machine_emission::native_entry_bridge::NativeEntryBridge;
+    use native_encoding::native_entry_bridge::NativeEntryBridge;
     use object_file::{RelocationKind, SymbolKind};
 
     pub struct ComponentFunctionImage {
@@ -54,6 +54,7 @@ pub(crate) mod component_object {
         let entry_effects = transport.effects;
         let mut image = image::build_final_image(FinalImageInput {
             target: body.target(),
+            import_program: &body.imports,
             object: body.object(),
             relocations: body.relocations(),
             text_bytes: body.text_bytes(),
@@ -79,7 +80,7 @@ pub(crate) mod component_object {
                         "entry bridge belongs to a different ordinary body ABI",
                     ));
                 }
-                machine_emission::native_entry_bridge::validate_native_entry_bridge(bridge)
+                native_verification::bridges::validate_native_entry_bridge(bridge)
                     .map_err(|error| invalid(&error.to_string()))?;
                 let offset = image
                     .memory
@@ -131,7 +132,7 @@ pub(crate) mod component_object {
                 section_offset: offset,
                 byte_count: size,
                 symbol: export.name.clone(),
-                footprint: Some(bridge.generated().effects.footprint().clone()),
+                footprint: Some(bridge.adapter_effects().footprint().clone()),
                 entry_effects: Some(entry_effects.clone()),
             });
         } else {
@@ -158,7 +159,7 @@ pub(crate) mod component_object {
 
 pub(crate) mod component_shared_image {
     use diagnostics::Diagnostic;
-    use machine_emission::native_entry_bridge::NativeEntryBridge;
+    use native_encoding::native_entry_bridge::NativeEntryBridge;
 
     #[derive(Debug)]
     pub enum ComponentSharedContainer {
@@ -192,6 +193,7 @@ pub(crate) mod component_shared_image {
     }
 
     pub struct ComponentSharedImage {
+        companions: Vec<crate::NativeCompanionImage>,
         body: crate::ObjectArtifact,
         entry_bridge: Option<NativeEntryBridge>,
         image: ComponentSharedContainer,
@@ -199,6 +201,10 @@ pub(crate) mod component_shared_image {
     }
 
     impl ComponentSharedImage {
+        pub fn companion_images(&self) -> &[crate::NativeCompanionImage] {
+            &self.companions
+        }
+
         pub const fn body(&self) -> &crate::ObjectArtifact {
             &self.body
         }
@@ -216,14 +222,15 @@ pub(crate) mod component_shared_image {
             let mut demand = crate::derive_stack_demand(&self.body, self.body.entry())
                 .map_err(|error| Diagnostic::error(format!("component stack demand: {error:?}")))?;
             if let Some(bridge) = &self.entry_bridge {
-                demand.stack_alignment = demand
-                    .stack_alignment
+                let alignment = demand
+                    .stack_alignment()
                     .max(u32::from(bridge.request().inbound.call.stack_alignment))
                     .max(u32::from(bridge.request().internal.stack_alignment));
-                demand.ceiling_bytes = demand
-                    .ceiling_bytes
-                    .checked_add(u64::from(bridge.frame_bytes()))
-                    .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
+                demand = demand
+                    .with_entry_cost(
+                        u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias()),
+                        alignment,
+                    )
                     .ok_or_else(|| Diagnostic::error("component entry stack demand overflows"))?;
             }
             Ok(demand)
@@ -265,6 +272,7 @@ pub(crate) mod component_shared_image {
         });
         match emitted {
             Ok(image) => Ok(ComponentSharedImage {
+                companions: crate::companion_images::emit(&body),
                 body,
                 entry_bridge,
                 image,
@@ -404,24 +412,12 @@ pub(crate) mod component_shared_image {
                 .final_text_bytes()
                 .get(symbol.offset..end)
                 .ok_or_else(|| Diagnostic::error("component entry byte span is stale"))?;
-            let call = Some(
-                u32::try_from(bridge.call_field_offset())
-                    .map_err(|_| Diagnostic::error("component entry call exceeds u32"))?,
-            );
-            let replay = match image.target.architecture {
-                target::Architecture::X86_64 => {
-                    isa_x86_64::decode_x86_64_generated_entry(bytes, call)
-                }
-                target::Architecture::Aarch64 => {
-                    isa_aarch64::decode_aarch64_generated_entry(bytes, call)
-                }
-            }
-            .map_err(Diagnostic::error)?;
-            if replay != *bridge.generated()
-                || region.footprint.as_ref() != Some(replay.effects.footprint())
-            {
+            bridge
+                .validate_published_code(bytes)
+                .map_err(|reason| Diagnostic::error(reason.to_string()))?;
+            if region.footprint.as_ref() != Some(bridge.adapter_effects().footprint()) {
                 return Err(Diagnostic::error(
-                    "component entry instructions or effects fail final target replay",
+                    "component entry effects differ from its physical plan",
                 ));
             }
         }
@@ -435,7 +431,6 @@ pub(crate) mod private_object_composition {
     use std::sync::Arc;
 
     use crate::object::function_fragments::refuse_symbol_collision;
-    use crate::object::function_fragments::validation::validate_function_fragment_object_artifact;
     use crate::{
         FunctionFragmentObjectArtifactError as Error, ObjectArtifact,
         ObjectCompilerPrivateFunction, PrivateFunctionObject, PrivateObjectSymbolBinding,
@@ -490,7 +485,7 @@ pub(crate) mod private_object_composition {
                 || private.identity.callback_thunk_placement_index().is_none()
                 || private.body.target != linked.target
                 || private.body.profile != linked.profile
-                || private.body.hosted_receiver.is_some()
+                || private.body.hosted_entry.is_some()
                 || private.body.physical_entry.is_some()
                 || private.body.composition_source.is_some()
                 || !private.body.private_functions.is_empty()
@@ -503,6 +498,22 @@ pub(crate) mod private_object_composition {
             private_symbol(&mut linked.object, private.identity)?;
         }
         for private in private_objects {
+            linked
+                .imports
+                .join(&private.body.imports)
+                .map_err(Error::Mismatch)?;
+            if let Some(code) = &private.body.windows_internet {
+                if linked
+                    .windows_internet
+                    .as_ref()
+                    .is_some_and(|root| root != code)
+                {
+                    return Err(Error::Mismatch(
+                        "private bodies disagree on Windows helper code",
+                    ));
+                }
+                linked.windows_internet = Some(code.clone());
+            }
             append_body(&mut linked, private)?;
         }
         require_definitions(&linked.object)?;
@@ -890,22 +901,11 @@ pub(crate) mod private_object_composition {
         let Some(source) = &artifact.composition_source else {
             return Ok(());
         };
-        validate_function_fragment_object_artifact(
-            source
-                .fragment_replay
-                .as_ref()
-                .ok_or(Error::Mismatch("composition root lacks fragment custody"))?,
-            source,
-        )?;
+        crate::function_fragments::validate_available_object(source)?;
         let origins = crate::entries::private_entry_origin::EntryOrigins::new(artifact)?;
         let mut inputs = Vec::with_capacity(artifact.private_functions.len());
         for private in &artifact.private_functions {
-            let replay = private
-                .body
-                .fragment_replay
-                .as_ref()
-                .ok_or(Error::Mismatch("private object lacks fragment custody"))?;
-            validate_function_fragment_object_artifact(replay, &private.body)?;
+            crate::function_fragments::validate_available_object(&private.body)?;
             origins.verify(private)?;
             crate::entries::callable_entry_transport::validate_entry_transport(private)?;
             inputs.push(PrivateFunctionObject {
@@ -919,7 +919,7 @@ pub(crate) mod private_object_composition {
         }
         let expected = compose_private_function_objects(source.as_ref().clone(), &inputs)?;
         let mut actual = artifact.clone();
-        actual.hosted_receiver = None;
+        actual.hosted_entry = None;
         actual.physical_entry = source.physical_entry.clone();
         if actual != expected {
             return Err(Error::Mismatch(

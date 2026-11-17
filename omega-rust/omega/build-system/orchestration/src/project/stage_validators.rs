@@ -29,7 +29,7 @@ use diagnostics::Diagnostic;
 pub enum StageValidator {
     /// Rejoins each target's retained target operations to the optimized
     /// abstract operations they were lowered from
-    /// (`native_preparation::verify_target_operation_plan_with_closed_module`).
+    /// (`native_program_planning::replay::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
     /// Compare fixed-frame machine output with its original allocation,
     /// encoding and baseline layout inputs.

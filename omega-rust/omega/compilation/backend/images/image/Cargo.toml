@@ -9,15 +9,19 @@ name = "image"
 path = "src/lib.rs"
 
 [dependencies]
-optimization-core = { path = "../../../../foundation/optimization-core" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+machine-code = { path = "../../../representations/machine-code" }
+wire = { path = "../../../../../psi/foundation/wire" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 calling-conventions = { path = "../../calling-conventions" }
-function-identity = { path = "../../../../foundation/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-object-file = { path = "../../object-file" }
+object-file = { path = "../../../pipeline/05_object-construction" }
 target = { path = "../../target" }
 
 [dev-dependencies]
-optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+mutation-matrix = { path = "../../../../../test-support/mutation-matrix", features = ["test-support"] }
+optimization-core = { path = "../../../representations/optimization-contracts" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

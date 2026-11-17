@@ -5,12 +5,12 @@
 // occurrence's fresh invocation observations while preserving dependency
 // native-binding evaluations and completed source requirements.
 
-use build_time_evaluation::WireCompatibilityDemand;
+use source_compiler::evaluation::WireCompatibilityDemand;
 use effects::AuthoredBehaviorExclusion;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
-use provider_planning::ProviderSelection;
-use provider_planning::program_entry::RootBinding;
-use typed_trees::opaque_representations::OpaqueRepresentationSelection;
+use source_compiler::provider_choice_inputs::ProviderSelection;
+use declaration_contracts::selection::RootBinding;
+use source_compiler::source_state::opaque_representations::OpaqueRepresentationSelection;
 
 #[derive(Clone)]
 pub struct EvaluatedBuild {
@@ -21,7 +21,7 @@ pub struct EvaluatedBuild {
         Option<package_compilation::PackageSourceConsumptionCommitment>,
     pub constants: BuildConstants,
     /// Costs of this Build context, not materialization evidence for Product.
-    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
 }
 
 /// What the Build admission's constants owe a Product frontier typed after
@@ -39,18 +39,18 @@ pub struct BuildConstants {
     pub read: Vec<source_compiler::ConstantRead>,
 }
 
-pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
+pub use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildConfig {
     pub settings: EvaluatedBuildSettings,
-    pub grants: Vec<trust_model::AuthoredRootGrant>,
+    pub grants: Vec<effects::provider_grants::AuthoredRootGrant>,
     pub provider_selections: Vec<ProviderSelection>,
     pub default_provider_selections: Vec<ProviderSelection>,
-    pub native_bindings: Vec<provider_planning::native_bindings::NativeBuildSupply>,
+    pub native_bindings: Vec<provider_choices::NativeBuildSupply>,
     pub native_binding_evaluation:
-        Option<std::sync::Arc<provider_planning::native_bindings::NativeBuildEvaluation>>,
-    pub assumed_bindings: Vec<build_time_evaluation::assumed_bindings::AssumedBindingContract>,
+        Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
+    pub assumed_bindings: Vec<source_compiler::evaluation::assumed_bindings::AssumedBindingContract>,
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
     pub root_bindings: Vec<RootBinding>,
@@ -58,7 +58,7 @@ pub struct BuildConfig {
     pub service_audits: Vec<ServiceAuditRegistration>,
     // Registered test groups (wiki/spec/build/testing.md). They select test
     // roots beside the application; they never become application roots.
-    pub test_groups: Vec<build_time_evaluation::test_groups::TestGroupRegistration>,
+    pub test_groups: Vec<source_compiler::evaluation::test_groups::TestGroupRegistration>,
 }
 
 pub struct ProviderDeployment {
@@ -128,18 +128,18 @@ pub struct ComputedBuildConfig {
     /// Settings and observation digests cannot reconstruct its checked contracts.
     pub accepted_build: Option<std::sync::Arc<source_compiler::AcceptedTerminalSource>>,
     pub config: BuildConfig,
-    pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
+    pub root_binding_requests: Vec<source_compiler::declaration_selection::ExecutedRootBinding>,
     pub declared_product_selections:
-        Vec<std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>>,
+        Vec<std::sync::Arc<source_compiler::declaration_selection::ProductDeclarationRequest>>,
     pub product_selection_requests:
-        Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
-    pub native_formations: Vec<language_semantics::declaration_selection::NativeBindingFormation>,
+        Vec<source_compiler::declaration_selection::ExecutedProductSelection>,
+    pub native_formations: Vec<source_compiler::declaration_selection::NativeBindingFormation>,
     pub native_binding_requests:
-        Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
+        Vec<source_compiler::declaration_selection::ExecutedNativeBinding>,
     pub behavior_exclusion_requests:
-        Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
+        Vec<source_compiler::declaration_selection::ExecutedEnumExclusion>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
-    pub optimization_report_request: optimization_core::OptimizationReportRequest,
+    pub optimization_report_request: optimization_requests::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
@@ -348,7 +348,7 @@ impl ComputedBuildConfig {
                 .provider_selections
                 .iter()
                 .filter(|selection| {
-                    selection.composition_mode == provider_planning::CompositionMode::Independent
+                    selection.composition_mode == native_program_planning::CompositionMode::Independent
                 })
                 .map(|selection| IndependentComponentSelection {
                     selection: selection.clone(),
@@ -360,7 +360,7 @@ impl ComputedBuildConfig {
 
     pub fn selected_machine_identity(
         &self,
-        typed: &typed_trees::TypedTrees,
+        typed: &source_compiler::source_state::TypedTrees,
     ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
         self.selected_build_machine_symbol
             .map(|selected| {

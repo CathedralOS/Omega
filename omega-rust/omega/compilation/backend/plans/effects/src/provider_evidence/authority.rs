@@ -87,13 +87,13 @@ pub enum CompilerIntrinsicExecutionIdentity {
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,
-        format: numerics::literals::FloatFormat,
+        format: numeric_literals::FloatFormat,
     },
     PrimitiveIntegerComparison {
         operation: CompilerPrimitiveIntegerComparisonOperation,
         integer_type: CompilerNumericType,
     },
-    NamedFloatNegation(numerics::literals::FloatFormat),
+    NamedFloatNegation(numeric_literals::FloatFormat),
     NamedFloatConversion {
         source: CompilerNumericType,
         target: CompilerNumericType,
@@ -108,11 +108,11 @@ pub enum CompilerAccessorScalarOperation {
     Write,
 }
 
-impl From<language_semantics::numeric_intrinsics::NumericIntrinsic>
+impl From<declaration_contracts::numeric_intrinsics::NumericIntrinsic>
     for CompilerIntrinsicExecutionIdentity
 {
-    fn from(meaning: language_semantics::numeric_intrinsics::NumericIntrinsic) -> Self {
-        use language_semantics::numeric_intrinsics::NumericIntrinsic as Meaning;
+    fn from(meaning: declaration_contracts::numeric_intrinsics::NumericIntrinsic) -> Self {
+        use declaration_contracts::numeric_intrinsics::NumericIntrinsic as Meaning;
         match meaning {
             Meaning::Builtin { function, .. } => Self::BuiltinFunction(function),
             Meaning::FloatBinary { operation, format } => {
@@ -581,10 +581,10 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
 
 pub use semantic_vocabulary::TerminalAuthorityClass;
 
-const fn float_format_tag(format: numerics::literals::FloatFormat) -> u8 {
+const fn float_format_tag(format: numeric_literals::FloatFormat) -> u8 {
     match format {
-        numerics::literals::FloatFormat::F32 => 0,
-        numerics::literals::FloatFormat::F64 => 1,
+        numeric_literals::FloatFormat::F32 => 0,
+        numeric_literals::FloatFormat::F64 => 1,
     }
 }
 
@@ -597,12 +597,11 @@ const fn arithmetic_domain_tag(domain: numerics::arithmetic::ArithmeticDomain) -
     }
 }
 
-pub use language_semantics::numeric_intrinsics::{
-    NumericType as CompilerNumericType,
-    PrimitiveFloatBinaryOperation as CompilerPrimitiveFloatBinaryOperation,
-    PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation,
-    primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
-};
+pub use declaration_contracts::numeric_intrinsics::NumericType as CompilerNumericType;
+pub use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation as CompilerPrimitiveFloatBinaryOperation;
+pub use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation;
+pub use declaration_contracts::numeric_intrinsics::primitive_float_operation_tag;
+pub use declaration_contracts::numeric_intrinsics::primitive_integer_comparison_operation_tag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PortableFilesystemAuthorityFacet {

@@ -36,7 +36,7 @@ thunks, rebase/bind streams, load commands, and loader replay verifiers;
 `MH_DYLIB` export tries and component emission.
 */
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 
 use diagnostics::Diagnostic;
 use image::{
@@ -437,6 +437,7 @@ mod tests {
                 library: String::new(),
             },
         });
+        image_fixtures::encode_imports(&mut image);
         image
             .relocation_table
             .relocations
@@ -515,6 +516,7 @@ mod tests {
                     library: String::new(),
                 },
             });
+            image_fixtures::encode_imports(&mut image);
             image
                 .relocation_table
                 .relocations

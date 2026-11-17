@@ -1,5 +1,6 @@
 //! Measure the compiler's complete loaded-source to syntax operation.
-use source::{LoadedSource, LoadedSources, SourceId};
+use source_admission::{LoadedSource, LoadedSources};
+use source_text::SourceId;
 use source_compiler::{SourceInput, UnmeasuredProduction};
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
@@ -40,7 +41,7 @@ fn measure() -> Result<(), String> {
         })
         .collect();
     let mut fingerprint = std::collections::hash_map::DefaultHasher::new();
-    let mut syntax = syntax_trees::SyntaxTrees::default();
+    let mut syntax = source_compiler::SourceSyntax::default();
     let parsed = SourceInput(sources.clone())
         .append(&mut syntax, &mut UnmeasuredProduction)
         .map_err(|error| format!("{error:?}"))?;
@@ -52,7 +53,7 @@ fn measure() -> Result<(), String> {
     let start = Instant::now();
     let mut roots = 0usize;
     for _ in 0..black_box(repeats) {
-        let mut syntax = syntax_trees::SyntaxTrees::default();
+        let mut syntax = source_compiler::SourceSyntax::default();
         let parsed = SourceInput(sources.clone())
             .append(&mut syntax, &mut UnmeasuredProduction)
             .map_err(|error| format!("{error:?}"))?;

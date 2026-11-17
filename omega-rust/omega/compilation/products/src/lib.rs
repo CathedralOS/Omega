@@ -37,6 +37,10 @@ pub use verified_optimization_input::{
 };
 
 mod checked_compilation;
+mod published_compilation;
+mod published_program;
+pub use published_program::{PublishedProgram, ExecutablePackageInputs};
+pub use published_compilation::PublishedCompilation;
 mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
@@ -44,18 +48,12 @@ mod evaluated_build;
 mod independent_component;
 mod package_build;
 mod prepared_build;
-pub use typed_trees::ProductSourceIdentity;
+pub use source_compiler::source_state::ProductSourceIdentity;
 mod prepared_source;
-mod program_entry;
 mod provider_instances;
 pub use provider_instances::SelectedProviderSource;
 pub mod publication;
-mod terminal_publication;
 mod test_products;
-pub use terminal_publication::{
-    ProductRoster, ProductTerminalPublication, SourceCallingContext, SourceCallingInputs,
-    SourceNormalizationInputs, SourceProgramEntryInput,
-};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
@@ -94,7 +92,7 @@ pub use native_artifact::{
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
-pub use optimization_core::OptimizationRollbackReceipt;
+pub use optimization_requests::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{
@@ -102,8 +100,8 @@ pub use prepared_build::{
     SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    BuildStage, DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
-    SourcePreparation, TypedCompilationFrontier,
+    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
+ TypedCompilationFrontier,
 };
 pub use provider_admission::provider_admission::TerminalCompilerBuiltinProposal;
 pub use terminal_installation::PrivateEntryRamInitialization;
@@ -115,4 +113,4 @@ pub use verified_optimization_input::{
 };
 
 // The actual invocation records retained by source and failure reports.
-pub use build_time_evaluation::SourceCompletionAccounting;
+pub use source_compiler::evaluation::SourceCompletionAccounting;

@@ -928,7 +928,7 @@ pub(crate) fn describe_decoded_component_facts(
     })
 }
 
-use optimization_core::cursor::{Cursor, Truncated};
+use ::wire::cursor::{Cursor, Truncated};
 
 type Reader<'a> = Cursor<'a>;
 

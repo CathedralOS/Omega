@@ -6,6 +6,13 @@ version.workspace = true
 
 
 [dependencies]
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
+optimization-requests = { path = "../../compilation/products/optimization-requests" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-admission = { path = "../../../psi/compilation/representations/source-admission" }
+source-text = { path = "../../../psi/foundation/source-text" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+artifact-evaluation = { path = "../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 terminal-interpreter = { path = "../../../psi/interpreter" }
@@ -14,36 +21,29 @@ terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 source-compiler = { path = "../../../psi/compilation/source-compiler" }
-evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
-filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
-artifacts = { path = "../../foundation/artifacts" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+artifacts = { path = "../../compilation/products/measurements" }
 products = { path = "../../compilation/products" }
 arena = { path = "../../../psi/foundation/arena" }
-language-core = { path = "../../../psi/foundation/language-core" }
+language-core = { path = "../../../psi/compilation/representations/source-vocabulary" }
 build-output = { path = "../../packages/build-output" }
 effects = { path = "../../compilation/backend/plans/effects" }
-optimization-core = { path = "../../foundation/optimization-core" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }
-provider-planning = { path = "../../compilation/realization/provider-planning" }
-provider-admission = { path = "../../compilation/realization/provider-admission" }
+native-program-planning = { path = "../../compilation/pipeline/00_native-program-planning" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 target = { path = "../../compilation/backend/target" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
-trust-model = { path = "../../compilation/realization/trust-model" }
-build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
-layout-plans = { path = "../../../psi/foundation/layout-plans" }
-source = { path = "../../../psi/foundation/source" }
-symbols = { path = "../../../psi/foundation/symbols" }
-typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+layout-plans = { path = "../../../psi/compilation/representations/storage-layout" }
+symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
 build-declarations = { path = "../../packages/build-declarations" }
 
 [dev-dependencies]
 tokens = { path = "../../../psi/compilation/representations/tokens" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+
+source-compiler = { path = "../../../psi/compilation/source-compiler", features = ["test-support"] }

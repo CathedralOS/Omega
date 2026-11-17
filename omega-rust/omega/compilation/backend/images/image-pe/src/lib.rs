@@ -38,6 +38,9 @@ subsystem word (`console`, `gui`, or `efi_application`) is passed as a
 parameter so all PE32+ targets share this exact container pipeline.
 */
 
+mod windows_provider;
+pub use windows_provider::emit_windows_internet_provider;
+
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalImage,
@@ -448,6 +451,7 @@ mod tests {
                                 library: "KERNEL32.dll".into(),
                             },
                         });
+                        image_fixtures::encode_imports(&mut image);
                         names.push(b".rdata\0\0");
                     }
                     if has_data {

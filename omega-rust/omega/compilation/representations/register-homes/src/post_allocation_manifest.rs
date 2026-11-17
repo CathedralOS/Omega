@@ -12,10 +12,8 @@ that wire encoding, identity hashing, and diagnostic text never drift apart.
 
 use std::fmt::Write;
 
-use optimization_core::{
-    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity, hex,
-};
+use optimization_core::{PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity};
+use wire::digest_encoder::hex;
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,

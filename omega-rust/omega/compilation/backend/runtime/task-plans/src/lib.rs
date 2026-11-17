@@ -35,7 +35,7 @@ WCSU composition and unresolved-call tracking, and `identities.rs` defines the
 non-zero report coordinates and 32-byte commitment wrappers.
 */
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 mod activation;
 mod identities;
 mod source_guards;
@@ -61,7 +61,7 @@ pub use stack_composition::{
 
 use identities::commitment_digest;
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use semantic_vocabulary::Fnv1a as Fingerprint;
+use wire::fnv1a::Fnv1a as Fingerprint;
 use stack_composition::WcsuStackPlanProjection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

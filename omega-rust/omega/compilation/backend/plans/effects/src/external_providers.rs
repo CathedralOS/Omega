@@ -138,7 +138,7 @@ pub fn matches_external_selection(
             .target
             .as_ref()
             .is_none_or(|target| *target == plan.target)
-        && candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
+        && candidate.binding == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
         && identities.text(candidate.realization.callable) == Some(machine)
         && candidate.realization_package == plan.origin_package_identity
         && match &candidate.provider {
@@ -151,7 +151,7 @@ pub fn matches_external_selection(
 }
 
 pub fn reconcile_numeric_meaning(
-    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    meaning: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
     selected: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<(), &'static str> {
     use CompilerIntrinsicExecutionIdentity as Execution;
@@ -184,7 +184,7 @@ pub fn canonical_external_execution(
         return Err("native intrinsic declaration belongs to another target".into());
     }
     if (declaration.sealed_intrinsic.is_some() || declaration.numeric_intrinsic.is_some())
-        && declaration.binding != language_semantics::ExternalBindingIdentity::CompilerIntrinsic
+        && declaration.binding != declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
     {
         return Err("canonical intrinsic meaning has another native binding mechanism".into());
     }
@@ -256,7 +256,7 @@ pub fn selected_sealed_native_provider<'a>(
     };
     let mut rows = providers.iter().filter(|candidate| {
         candidate.sealed_intrinsic.is_some()
-            && candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
+            && candidate.binding == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
             && identities.text(candidate.realization.callable) == Some(machine.as_str())
             && (identities.text(candidate.requirement.identity())
                 == Some(required_or_realized_declaration)

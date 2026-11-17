@@ -15,7 +15,7 @@ pub fn verify_retained_fixed_frame(
     }
     let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
         diagnostics::Diagnostic::error(
-            "fixed-frame audit requires retained current artifact custody",
+            "fixed-frame audit requires retained originals (ReplayUnavailable)",
         )
     })?;
     let current = replay.0.source().source().source().source();
@@ -54,7 +54,7 @@ pub fn verify_retained_selected_optimization(
     }
     let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
         diagnostics::Diagnostic::error(
-            "selected-instruction rewrite audit requires retained pipeline input",
+            "selected-instruction rewrite audit requires retained originals (ReplayUnavailable)",
         )
     })?;
     let ran = replay
@@ -75,7 +75,7 @@ pub fn verify_retained_target_operations(
         verify_retained_target_operations(&private.body)?;
     }
     let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
-        diagnostics::Diagnostic::error("target-operation audit requires retained pipeline input")
+        diagnostics::Diagnostic::error("target-operation audit requires retained target operations")
     })?;
     let original = retained_target(replay, "target-operation")?;
     let current = original.target();
@@ -93,9 +93,9 @@ pub fn verify_retained_target_operations(
         .lowering_facts()
         .callable_invocation_roots(target)
         .map_err(diagnostics::Diagnostic::error)?;
-    native_preparation::verify_execution_plan(
+    native_program_planning::replay::verify_execution_plan(
         current.execution_plan(),
-        native_preparation::ExecutionPlanReplayInputs {
+        native_program_planning::replay::ExecutionPlanReplayInputs {
             target,
             abstract_plan: optimized.plan(),
             unit: optimized.unit(),
@@ -108,7 +108,7 @@ pub fn verify_retained_target_operations(
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     let expected =
-        abstract_operations_to_target_operations::capture_runtime_borrowed_storage_layouts(
+        native_program_planning::replay::capture_runtime_borrowed_storage_layouts(
             optimized,
             current.lowering_facts(),
             current.target(),

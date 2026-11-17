@@ -406,6 +406,15 @@ fn instruction(bytes: &[u8], offset: usize) -> Result<(usize, Effects, Control),
                 .get(cursor)
                 .ok_or("truncated generated x86 extended opcode")?;
             cursor += 1;
+            if (0xc8..=0xcf).contains(&second) {
+                if legacy.is_some() {
+                    return Err("unsupported generated x86 byte-swap width".into());
+                }
+                let register = (second & 7) | ((rex & 1) << 3);
+                effects.read(register, false);
+                effects.write(register, false);
+                return Ok((cursor, effects, control));
+            }
             let modrm = *bytes
                 .get(cursor)
                 .ok_or("truncated generated x86 extended ModRM")?;
@@ -555,6 +564,24 @@ pub fn decode_x86_64_generated_entry(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_swap_decodes_without_modrm_or_flags() {
+        for (bytes, register) in [
+            (&[0x0f, 0xc8][..], Register::X86Rax),
+            (&[0x49, 0x0f, 0xc9][..], Register::X86R9),
+        ] {
+            let (size, effects, control) = instruction(bytes, 0).unwrap();
+            assert_eq!(size, bytes.len());
+            assert_eq!(control, Control::FallThrough);
+            let effects = effects.finish();
+            assert_eq!(effects.registers_read().as_slice(), &[register]);
+            assert_eq!(effects.registers().as_slice(), &[register]);
+            assert!(!effects.machine_state().contains_all(MachineStateSet::new([State::Flags])));
+        }
+        assert!(instruction(&[0x66, 0x0f, 0xc8], 0).is_err());
+        assert!(instruction(&[0x0f], 0).is_err());
+    }
 
     #[test]
     fn control_register_observation_is_use_without_a_preservation_write() {

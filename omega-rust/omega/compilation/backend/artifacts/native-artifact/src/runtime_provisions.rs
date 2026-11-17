@@ -1,310 +1,35 @@
-/*
-We capture source-free runtime provisions (`TerminalRuntimeHostProvisions`,
-`TerminalCallableRuntimeProvisions`, and `TerminalRuntimeProvisions`) from
-admitted native compilation inputs before image emission consumes them. We bind
-host boundary settlements to their original requirement identities, calling
-applications, and fixed-frame foreign adapter images (`emit_native_foreign_adapter`),
-and we validate component product rosters and adjacent publication receipts
-against root object imports.
-*/
-
-use backend_plan::TerminalTargetProviderProposal;
-use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
-use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
+//! Runtime plans with their published component products and receipts.
 use std::sync::Arc;
 use target::NormalizedImportLocator;
-use terminal_installation::AdmittedScalarApplications;
-use terminal_installation::CheckedPrivateEntryRamRecipe;
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
-use verified_optimization_input::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
+use terminal_installation::{AdmittedScalarApplications, CheckedPrivateEntryRamRecipe};
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use terminal_psi::TerminalPsiIdentity;
+use backend_plan::TerminalTargetProviderProposal;
 
-fn scalar_parameters(
-    declaration: &BoundaryMachineDeclaration,
-    application: &BoundaryCallingApplication,
-) -> Result<Vec<Option<ScalarType>>, String> {
-    if !declaration.has_valid_parameter_order() {
-        return Err("foreign frame scalar transport has no complete semantic formal order".into());
-    }
-    let formals = declaration
-        .parameter_positions(BoundaryParameterKind::Scalar)
-        .zip(&declaration.scalar_parameters)
-        .collect::<Vec<_>>();
-    let rows = application
-        .signature
-        .native_parameters
-        .span(application.signature.native_parameter_rows)
-        .ok_or("foreign frame scalar transport has stale native telescope storage")?;
-    let count = application.plan.plan().call.parameters.len();
-    if rows.len() != count {
-        return Err("foreign frame scalar transport has an incomplete native telescope".into());
-    }
-    let mut result = vec![None; count];
-    let mut native_seen = vec![false; count];
-    let mut scalar_seen = vec![false; formals.len()];
-    for row in rows {
-        let ordinal = usize::try_from(row.native_ordinal)
-            .map_err(|_| "foreign frame native ordinal overflows")?;
-        let seen = native_seen
-            .get_mut(ordinal)
-            .ok_or("foreign frame native ordinal is outside its calling plan")?;
-        if std::mem::replace(seen, true) {
-            return Err("foreign frame native ordinal is repeated".into());
-        }
-        let BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } = row.origin else {
-            continue;
-        };
-        let formal = usize::try_from(formal_ordinal)
-            .map_err(|_| "foreign frame semantic ordinal overflows")?;
-        if formal >= declaration.parameter_order.len() {
-            return Err("foreign frame semantic ordinal is outside its declaration".into());
-        }
-        if let Some((index, (_, scalar))) = formals
-            .iter()
-            .enumerate()
-            .find(|(_, (position, _))| *position == formal)
-        {
-            if std::mem::replace(&mut scalar_seen[index], true) {
-                return Err("foreign frame scalar formal has repeated native transport".into());
-            }
-            result[ordinal] = Some(**scalar);
-        }
-    }
-    if scalar_seen.contains(&false) {
-        return Err("foreign frame lost a scalar formal's native transport".into());
-    }
-    Ok(result)
-}
-
-fn emit_native_adapter(
-    declaration: &BoundaryMachineDeclaration,
-    application: &BoundaryCallingApplication,
-    locator: &target::NormalizedForeignLocator,
-) -> Result<Arc<image_emission::NativeForeignAdapterImage>, String> {
-    let scalar_parameters = scalar_parameters(declaration, application)?;
-    let bridge = machine_emission::native_foreign_bridge::emit_native_foreign_bridge(
-        machine_emission::native_foreign_bridge::NativeForeignBridgeRequest {
-            target: application.target,
-            foreign: application.plan.clone(),
-            scalar_parameters,
-        },
-    )
-    .map_err(|reason| format!("foreign runtime adapter physical transport: {reason:?}"))?;
-    image_emission::emit_native_foreign_adapter(bridge, locator.clone(), application.commitment)
-        .map(Arc::new)
-        .map_err(|error| error.diagnostic.to_string())
-}
-
-fn capture_scalar_applications(
-    input: AdmittedRuntimeInput<'_>,
-    identity: TerminalPsiIdentity,
-    target: target::TargetProfile,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
-) -> Result<Option<AdmittedScalarApplications>, &'static str> {
-    if input.identity() != identity
-        || input.target_context().is_none_or(|selected| {
-            selected.terminal_psi() != identity || selected.target() != target.target_name()
-        })
-    {
-        return Err("runtime capture names another native artifact or target");
-    }
-    let Some(completed) = input.scalar_applications() else {
-        return Ok(None);
-    };
-    if completed.terminal() != identity
-        || completed
-            .primary()
-            .targets()
-            .map(|selected| selected.target())
-            != Some(target.target_name())
-        || installation
-            .is_some_and(|installed| !installed.is_subset_of(completed.primary().providers()))
-    {
-        return Err("runtime scalar capture differs from the emitted provider installation");
-    }
-    Ok(Some(completed.clone()))
-}
+pub use native_runtime_provisions::TerminalRuntimeHostProvision;
+pub type TerminalRuntimeHostProvisions<A = Arc<image_emission::NativeForeignAdapterImage>> =
+    native_runtime_provisions::TerminalRuntimeHostProvisions<A>;
+pub type TerminalCallableRuntimeProvisions<A = Arc<image_emission::NativeForeignAdapterImage>> =
+    native_runtime_provisions::TerminalCallableRuntimeProvisions<A>;
 
 #[derive(Debug, Clone)]
-pub struct TerminalRuntimeHostProvision {
-    pub boundary: BoundaryMachineId,
-    pub realization: target_operations::BoundarySettlementRealization,
+pub struct TerminalRuntimeProvisions<A = Arc<image_emission::NativeForeignAdapterImage>> {
+    plan: native_runtime_provisions::NativeRuntimePlan<A>,
+    components: Vec<Arc<crate::NativeComponentProduct>>,
+    component_publications: Vec<crate::NativeComponentPublicationReceipt>,
 }
 
-#[derive(Debug, Clone)]
-struct RuntimeHostRequirement {
-    boundary: BoundaryMachineId,
-    boundary_identity: String,
-    selected_requirement_identity: String,
-    source_contract: [u8; 32],
-    binding: target_operations::NormalizedForeignCallBinding,
-    calling_application: Option<calling_conventions::BoundaryCallingApplication>,
-    native_adapter: Option<Result<Arc<image_emission::NativeForeignAdapterImage>, String>>,
-}
+impl<A> TerminalRuntimeProvisions<A> {
+    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
+        self.plan.scalar_applications()
+    }
 
-/// Native receipts and calling applications already supplied to admission.
-/// Runtime capture rejoins them to the same canonical boundary before keeping
-/// an adapter; no nominal provider report is invented for a Build binding.
-#[derive(Clone, Copy)]
-pub struct NativeBindingRuntimeInputs<'a> {
-    pub bindings: &'a provider_admission::provider_admission::RetainedNativeBindings,
-    pub calling: &'a [BoundaryCallingApplication],
-}
+    pub fn private_entry_ram(&self) -> &[CheckedPrivateEntryRamRecipe] {
+        self.plan.private_entry_ram()
+    }
 
-#[derive(Debug, Clone)]
-pub struct TerminalRuntimeHostProvisions {
-    selection_identities: terminal_psi::TerminalIdentityTable,
-    installation: Option<terminal_installation::AdmittedProviderSelections>,
-    host: Vec<TerminalRuntimeHostProvision>,
-    host_requirements: Vec<RuntimeHostRequirement>,
-    borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
-}
-
-impl TerminalRuntimeHostProvisions {
-    pub fn capture_native_admission(
-        installation: Option<&terminal_installation::AdmittedProviderSelections>,
-        host: Vec<TerminalRuntimeHostProvision>,
-        input: AdmittedRuntimeInput<'_>,
-        selected: &effects::SelectedProviderPlanFacts,
-        external_bindings: &[calling_conventions::ExternalBindingRow],
-        native: NativeBindingRuntimeInputs<'_>,
-    ) -> Result<Self, String> {
-        let module = input.module();
-        let boundaries = input.boundary_machines();
-        let identities = &module.identities;
-        let mut host_requirements = Vec::new();
-        for provision in &host {
-            let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
-                &provision.realization
-            else {
-                continue;
-            };
-            let mut matching = boundaries
-                .iter()
-                .filter(|boundary| boundary.id == provision.boundary);
-            let boundary = matching
-                .next()
-                .ok_or("runtime host provision lost its exact boundary declaration")?;
-            if matching.next().is_some() {
-                return Err("runtime host provision repeats its boundary declaration".into());
-            }
-            let abi = module.calling_abi_identity(provision.boundary)?;
-            let mut native_rows = native
-                .bindings
-                .rows
-                .iter()
-                .filter(|row| row.boundary == boundary.id);
-            let native_row = native_rows.next();
-            if native_rows.next().is_some() {
-                return Err("runtime host provision has competing native bindings".into());
-            }
-            let calling_application = if let Some(row) = native_row {
-                let profile = input
-                    .target_context()
-                    .ok_or("runtime native binding has no selected target")?;
-                let profile = target::TargetProfile::from_canonical_target_name(profile.target())
-                    .map_err(|error| error.to_string())?;
-                let mut applications = native
-                    .calling
-                    .iter()
-                    .filter(|application| application.abi == abi);
-                let application = applications
-                    .next()
-                    .filter(|_| applications.next().is_none())
-                    .ok_or("runtime native binding lost its unique calling application")?;
-                let execution =
-                    provider_admission::provider_admission::validate_native_binding_execution(
-                        row,
-                        &native.bindings.identities,
-                        module,
-                        profile,
-                        application,
-                    )?;
-                if !binding.matches_execution(
-                    target_operations::ExternalExecutionBinding::NativeBinding(execution),
-                ) {
-                    return Err(
-                        "runtime native binding changed its admitted execution receipt".into(),
-                    );
-                }
-                Some(application.clone())
-            } else {
-                let requirement = binding
-                    .requirement_identity(selected.identities())
-                    .ok_or("runtime foreign calling application lost its selected requirement")?;
-                if !selected.selected_row_matches_requirement(
-                    identities.text(boundary.identity).unwrap_or_default(),
-                    requirement,
-                    binding.provider_plan_report_identity(),
-                ) {
-                    return Err(
-                        "runtime host provision lost its exact selected requirement row".into(),
-                    );
-                }
-                let mut rows = external_bindings.iter().filter(|row| {
-                    selected.selected_row_matches_requirement(
-                        &row.requirement_identity,
-                        requirement,
-                        binding.provider_plan_report_identity(),
-                    )
-                });
-                let row = rows.next();
-                if rows.next().is_some() {
-                    return Err("runtime foreign calling application is ambiguous".into());
-                }
-                row.and_then(|row| row.calling_application(&abi)).cloned()
-            };
-            if let Some(application) = &calling_application {
-                if Some(application.target) != binding.native_target()
-                    || application.plan.plan() != &binding.boundary_entry_plan
-                    || application.commitment == [0; 32]
-                    || application.recomputed_commitment()? != application.commitment
-                {
-                    return Err(
-                        "runtime foreign calling application differs from its admitted row".into(),
-                    );
-                }
-            } else if binding.foreign_import_locator().is_some() {
-                return Err(
-                    "runtime foreign import lost its complete admitted calling application".into(),
-                );
-            }
-            let native_adapter = binding.foreign_import_locator().map(|locator| {
-                let application = calling_application.as_ref().ok_or_else(|| {
-                    "foreign runtime adapter has no retained complete calling application"
-                        .to_owned()
-                })?;
-                emit_native_adapter(boundary, application, locator)
-            });
-            host_requirements.push(RuntimeHostRequirement {
-                boundary: boundary.id,
-                boundary_identity: identities
-                    .text(boundary.identity)
-                    .ok_or("runtime host provision lost its canonical requirement identity")?
-                    .to_owned(),
-                selected_requirement_identity: module
-                    .boundary_machine(boundary.id)
-                    .and_then(|boundary| boundary.declaration.as_ref())
-                    .and_then(|declaration| identities.text(declaration.source.callable))
-                    .ok_or("runtime host provision lost its declared requirement identity")?
-                    .to_owned(),
-                source_contract: boundary
-                    .declaration
-                    .as_ref()
-                    .ok_or("runtime host provision lost its checked contract")?
-                    .source
-                    .contract,
-                binding: binding.clone(),
-                calling_application,
-                native_adapter,
-            });
-        }
-        Ok(Self {
-            selection_identities: selected.identities().clone(),
-            installation: installation.cloned(),
-            host,
-            host_requirements,
-            borrowed_storage_layouts: Default::default(),
-        })
+    pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions<A> {
+        self.plan.host_provisions()
     }
 
     pub fn matches_host_requirement(
@@ -313,148 +38,73 @@ impl TerminalRuntimeHostProvisions {
         binding: &target_operations::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
-        let mut matching = self
-            .host_requirements
-            .iter()
-            .filter(|row| row.boundary == declaration.id);
-        matching.next().is_some_and(|row| {
-            identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
-                && declaration
-                    .declaration
-                    .as_ref()
-                    .and_then(|declaration| identities.text(declaration.source.callable))
-                    == Some(row.selected_requirement_identity.as_str())
-                && declaration
-                    .declaration
-                    .as_ref()
-                    .map(|declaration| declaration.source.contract)
-                    == Some(row.source_contract)
-                && &row.binding == binding
-        }) && matching.next().is_none()
+        self.plan.matches_host_requirement(declaration, binding, identities)
     }
 
     pub fn host_calling_application(
         &self,
         boundary: BoundaryMachineId,
     ) -> Option<&calling_conventions::BoundaryCallingApplication> {
-        self.host_requirements
-            .iter()
-            .find(|row| row.boundary == boundary)?
-            .calling_application
-            .as_ref()
+        self.plan.host_calling_application(boundary)
     }
 
-    pub fn host_native_foreign_adapter(
-        &self,
-        boundary: BoundaryMachineId,
-    ) -> Option<Result<&image_emission::NativeForeignAdapterImage, &str>> {
-        self.host_requirements
-            .iter()
-            .find(|row| row.boundary == boundary)?
-            .native_adapter
-            .as_ref()
-            .map(|adapter| adapter.as_ref().map(Arc::as_ref).map_err(String::as_str))
+    pub const fn identity(&self) -> TerminalPsiIdentity {
+        self.plan.identity()
+    }
+
+    pub fn target_provider_proposals(&self) -> &[TerminalTargetProviderProposal] {
+        self.plan.target_provider_proposals()
+    }
+
+    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
+        self.plan.borrowed_storage_layouts()
+    }
+
+    pub const fn entry(&self) -> MachineId {
+        self.plan.entry()
+    }
+
+    pub const fn source_signature_identity(&self) -> [u8; 32] {
+        self.plan.source_signature_identity()
+    }
+
+    pub const fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
+        self.plan.target_slot()
+    }
+
+    pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        self.plan.selection_identities()
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
-        self.installation.as_ref()
+        self.plan.installation()
     }
-    pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.selection_identities
-    }
+
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
-        &self.host
+        self.plan.host()
     }
-    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-        &self.borrowed_storage_layouts
-    }
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.borrowed_storage_layouts = layouts;
-        self
-    }
-}
 
-#[derive(Debug, Clone)]
-pub struct TerminalCallableRuntimeProvisions {
-    identity: TerminalPsiIdentity,
-    entry: MachineId,
-    target: target::TargetProfile,
-    host: TerminalRuntimeHostProvisions,
-    scalar_applications: Option<AdmittedScalarApplications>,
-}
-
-impl TerminalCallableRuntimeProvisions {
-    pub fn capture_native_admission(
-        artifact: terminal_codec::TerminalArtifactView<'_>,
-        input: AdmittedRuntimeInput<'_>,
-        entry: MachineId,
-        target: target::TargetProfile,
-        host: TerminalRuntimeHostProvisions,
-    ) -> Result<Self, &'static str> {
-        if artifact.module().machine(entry).is_none()
-            || input.entry() != entry
-            || host
-                .installation()
-                .is_some_and(|selection| selection.terminal_psi() != artifact.identity())
-        {
-            return Err("callable runtime provisions name another artifact or absent entry");
+    pub fn from_plan(plan: native_runtime_provisions::NativeRuntimePlan<A>) -> Self {
+        Self { plan, components: Vec::new(), component_publications: Vec::new() }
+    }
+    pub fn map_adapters<B>(self, transform: impl FnMut(A) -> Result<B, String>) -> TerminalRuntimeProvisions<B> {
+        TerminalRuntimeProvisions {
+            plan: self.plan.map_adapters(transform),
+            components: self.components,
+            component_publications: self.component_publications,
         }
-        let scalar_applications =
-            capture_scalar_applications(input, artifact.identity(), target, host.installation())?;
-        Ok(Self {
-            identity: artifact.identity(),
-            entry,
-            target,
-            host,
-            scalar_applications,
-        })
     }
-    pub const fn identity(&self) -> TerminalPsiIdentity {
-        self.identity
-    }
-    pub const fn entry(&self) -> MachineId {
-        self.entry
-    }
-    pub const fn target(&self) -> target::TargetProfile {
-        self.target
-    }
-    pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
-        &self.host
-    }
-
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.host = self.host.with_borrowed_storage_layouts(layouts);
+    pub fn with_private_entry_ram(mut self, recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>) -> Self {
+        self.plan = self.plan.with_private_entry_ram(recipes);
         self
     }
-
-    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
-        self.scalar_applications.as_ref()
+    pub fn with_target_provider_proposals(mut self, proposals: Vec<backend_plan::TerminalTargetProviderProposal>) -> Self {
+        self.plan = self.plan.with_target_provider_proposals(proposals);
+        self
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct TerminalRuntimeProvisions {
-    identity: TerminalPsiIdentity,
-    entry: MachineId,
-    source_signature_identity: [u8; 32],
-    target_slot: target::ProgramEntrySlotDeclaration,
-    target_provider_proposals: Vec<TerminalTargetProviderProposal>,
-    host_provisions: TerminalRuntimeHostProvisions,
-    private_entry_ram: Vec<CheckedPrivateEntryRamRecipe>,
-    components: Vec<Arc<crate::NativeComponentProduct>>,
-    component_publications: Vec<crate::NativeComponentPublicationReceipt>,
-    scalar_applications: Option<AdmittedScalarApplications>,
-}
-
-impl TerminalRuntimeProvisions {
-    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
-        self.scalar_applications.as_ref()
+    pub fn with_borrowed_storage_layouts(mut self, layouts: runtime_abi::NativeBorrowedStorageLayouts) -> Self {
+        self.plan = self.plan.with_borrowed_storage_layouts(layouts);
+        self
     }
 
     pub fn record_component_publications(
@@ -543,8 +193,8 @@ impl TerminalRuntimeProvisions {
         &self,
         object: &image_emission::ObjectArtifact,
     ) -> Result<(), &'static str> {
-        if installation_evidence::ObjectEvidence::psi(object) != self.identity
-            || object.target() != self.target_slot.owner.native_target()
+        if installation_evidence::ObjectEvidence::psi(object) != self.plan.identity()
+            || object.target() != self.plan.target_slot().owner.native_target()
         {
             return Err("component runtime provisions name another actual root artifact or target");
         }
@@ -610,7 +260,7 @@ impl TerminalRuntimeProvisions {
             expected += 1;
             let mut matches = components.iter().filter(|component| {
                 component.selection().receiver()
-                    == &terminal_codec::TerminalExecutionIdentity::portable(self.identity)
+                    == &terminal_codec::TerminalExecutionIdentity::portable(self.plan.identity())
                     && component.selection().receiving_boundary() == provision.boundary
                     && component.selection().provider() == *provider
                     && component.selection().candidate() == *candidate
@@ -632,137 +282,5 @@ impl TerminalRuntimeProvisions {
             return Err("component runtime roster contains an unconsumed or duplicated image");
         }
         Ok(())
-    }
-    pub fn private_entry_ram(&self) -> &[CheckedPrivateEntryRamRecipe] {
-        &self.private_entry_ram
-    }
-    pub fn with_private_entry_ram(mut self, recipes: Vec<CheckedPrivateEntryRamRecipe>) -> Self {
-        self.private_entry_ram = recipes;
-        self
-    }
-
-    pub fn capture_native_admission(
-        program_entry: NativeProgramEntrySettlement<'_>,
-        input: AdmittedRuntimeInput<'_>,
-        installation: Option<&terminal_installation::AdmittedProviderSelections>,
-        host: Vec<TerminalRuntimeHostProvision>,
-        selected: &effects::SelectedProviderPlanFacts,
-        external_bindings: &[calling_conventions::ExternalBindingRow],
-        native: NativeBindingRuntimeInputs<'_>,
-    ) -> Result<Self, String> {
-        let checked = program_entry
-            .checked_entry
-            .ok_or("runtime provisions have no checked semantic entry")?;
-        let target_slot = program_entry.source().target_slot();
-        let native_entry = program_entry
-            .physical_adapter()
-            .map_or(checked.terminal_entry(), |adapter| adapter.machine());
-        if input.entry() != native_entry
-            || checked.source_signature_identity() != program_entry.source().identity().bytes()
-            || program_entry
-                .physical_adapter()
-                .is_some_and(|adapter| adapter.terminal() != checked.terminal_psi_identity())
-        {
-            return Err("runtime provisions name another admitted entry".into());
-        }
-        let scalar_applications = capture_scalar_applications(
-            input,
-            checked.terminal_psi_identity(),
-            target_slot.owner,
-            installation,
-        )?;
-        let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
-            installation,
-            host,
-            input,
-            selected,
-            external_bindings,
-            native,
-        )?;
-        Ok(Self {
-            private_entry_ram: Vec::new(),
-            components: Vec::new(),
-            component_publications: Vec::new(),
-            scalar_applications,
-            identity: checked.terminal_psi_identity(),
-            entry: checked.terminal_entry(),
-            source_signature_identity: checked.source_signature_identity(),
-            target_slot,
-            target_provider_proposals: Vec::new(),
-            host_provisions,
-        })
-    }
-
-    pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
-        &self.host_provisions
-    }
-
-    pub fn matches_host_requirement(
-        &self,
-        declaration: &terminal_psi::BoundaryMachineDeclaration,
-        binding: &target_operations::NormalizedForeignCallBinding,
-        identities: &terminal_psi::TerminalIdentityTable,
-    ) -> bool {
-        self.host_provisions
-            .matches_host_requirement(declaration, binding, identities)
-    }
-
-    pub fn host_calling_application(
-        &self,
-        boundary: BoundaryMachineId,
-    ) -> Option<&calling_conventions::BoundaryCallingApplication> {
-        self.host_provisions.host_calling_application(boundary)
-    }
-
-    pub const fn identity(&self) -> TerminalPsiIdentity {
-        self.identity
-    }
-
-    pub fn with_target_provider_proposals(
-        mut self,
-        proposals: Vec<TerminalTargetProviderProposal>,
-    ) -> Self {
-        self.target_provider_proposals = proposals;
-        self
-    }
-
-    pub fn target_provider_proposals(&self) -> &[TerminalTargetProviderProposal] {
-        &self.target_provider_proposals
-    }
-
-    pub fn with_borrowed_storage_layouts(
-        mut self,
-        layouts: runtime_abi::NativeBorrowedStorageLayouts,
-    ) -> Self {
-        self.host_provisions.borrowed_storage_layouts = layouts;
-        self
-    }
-
-    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-        self.host_provisions.borrowed_storage_layouts()
-    }
-
-    pub const fn entry(&self) -> MachineId {
-        self.entry
-    }
-
-    pub const fn source_signature_identity(&self) -> [u8; 32] {
-        self.source_signature_identity
-    }
-
-    pub const fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
-        self.target_slot
-    }
-
-    pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        self.host_provisions.selection_identities()
-    }
-
-    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
-        self.host_provisions.installation()
-    }
-
-    pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
-        self.host_provisions.host()
     }
 }

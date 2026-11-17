@@ -35,9 +35,8 @@ traces bind to the exact logical work schedule under which they were evaluated.
 
 use std::collections::BTreeMap;
 
-use evaluation_accounting::{
-    EvaluationAccountingError, EvaluationInvocationAccount, EvaluationMeasurementIdentity,
-};
+use evaluation_accounting::{EvaluationInvocationAccount};
+use evaluation_contracts::{EvaluationAccountingError, EvaluationMeasurementIdentity};
 use semantic_vocabulary::{EdgeId, OperationId};
 use terminal_psi::{Operation, OperationKind, Terminator};
 

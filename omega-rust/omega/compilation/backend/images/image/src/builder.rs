@@ -150,6 +150,7 @@ use target::NativeTarget;
 
 pub struct FinalImageInput<'a> {
     pub target: NativeTarget,
+    pub import_program: &'a machine_code::import_code::EncodedImportProgram,
     pub object: &'a ObjectPlan,
     pub relocations: &'a RelocationPlan,
     pub text_bytes: &'a [u8],
@@ -178,6 +179,7 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         input.relocations.record_count(),
     );
 
+    image.import_program = input.import_program.clone();
     copies::copy_object_symbols(&mut image, input.object);
     copies::copy_object_executable_regions(&mut image, input.object);
     copies::copy_object_data_regions(&mut image);

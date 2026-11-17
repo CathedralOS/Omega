@@ -63,11 +63,16 @@ evidence_digest!(
     from: #[doc(hidden)] pub
 );
 
-pub use language_semantics::service_surface::{
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceReceiverApplication, ServiceResultClaim, ServiceSurface,
-};
+pub use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
+pub use declaration_contracts::service_surface::ServiceEntryClaim;
+pub use declaration_contracts::service_surface::ServiceMethod;
+pub use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
+pub use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
+pub use declaration_contracts::service_surface::ServiceProgressPremise;
+pub use declaration_contracts::service_surface::ServiceProgressSubject;
+pub use declaration_contracts::service_surface::ServiceReceiverApplication;
+pub use declaration_contracts::service_surface::ServiceResultClaim;
+pub use declaration_contracts::service_surface::ServiceSurface;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceSchema {
@@ -378,8 +383,8 @@ mod tests {
             parameter_index: 0,
             carrier_identity: enter.parameter_type_identities[0],
             domain: "Permitted".into(),
-            predicate_presence: language_semantics::DomainPredicatePresence::Present,
-            effective_carry: language_semantics::CarryPolicy::PERMISSIVE,
+            predicate_presence: declaration_contracts::DomainPredicatePresence::Present,
+            effective_carry: declaration_contracts::CarryPolicy::PERMISSIVE,
             authority_flow: ServiceEntryAuthorityFlow::Accepts,
         });
         enter.completion = semantic_vocabulary::BoundaryCompletion::External(
@@ -389,7 +394,7 @@ mod tests {
         enter.result_type_identity = result;
         enter.result_claims.push(ServiceResultClaim {
             domain: "Returned".into(),
-            effective_carry: language_semantics::CarryPolicy::STRICT,
+            effective_carry: declaration_contracts::CarryPolicy::STRICT,
         });
         enter.service_reach.push("Svc".into());
         enter.synchronous_invocations.push("before_return".into());

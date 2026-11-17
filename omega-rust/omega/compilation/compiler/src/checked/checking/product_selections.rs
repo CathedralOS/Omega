@@ -36,7 +36,7 @@ pub(super) fn admit(
                     "native Build selection lost its completed evaluation",
                 )]
             })?;
-        native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+        native_bindings.push(provider_choices::NativeBuildSupply {
             selection,
             evaluation,
         });
@@ -55,7 +55,7 @@ pub(super) fn admit(
                     "native dependency effect lost its completed evaluation",
                 )]
             })?;
-            native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+            native_bindings.push(provider_choices::NativeBuildSupply {
                 selection,
                 evaluation,
             });

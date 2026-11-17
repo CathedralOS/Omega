@@ -13,7 +13,7 @@
 mod unbuilt_frontier;
 
 use terminal_check_tables::Checked;
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use source_compiler::checking::{RouteVerdict, judge};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -22,7 +22,7 @@ fn verdict(name: &str, source: &str) -> Checked<RouteVerdict> {
     let frontier = unbuilt_frontier::staged_frontier(name, source);
     let entry = unbuilt_frontier::program_machine(&frontier.typed, "main")
         .expect("the program's main declaration");
-    judge(typed_trees_to_terminal_psi::elaborate_closure(
+    judge(source_compiler::lowering::elaborate_closure(
         &frontier.typed,
         entry,
     ))

@@ -8,20 +8,21 @@
     provider requests, root grants, declarations, and behavior exclusions.
 */
 
+use crate::evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use crate::{PsiCompilationObserver, PsiCompilationStage};
-use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod activation {
     use super::{PreCheckEvaluation, SourceCompilationRequest};
-    use build_time_evaluation::BuildTimeSelectionAuthority;
+    use crate::evaluation::BuildTimeSelectionAuthority;
+    use crate::source_inputs::SourceMap;
+    use crate::source_symbols::SourceScopedTopLevelBinding;
+    use crate::typing::SeededTypingBase;
     use diagnostics::Diagnostic;
-    use source::{SourceId, SourceMap, SourceSpan, Span};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::collections::HashSet;
     use std::sync::Arc;
-    use symbol_resolved_trees_to_typed_trees::SeededTypingBase;
-    use symbols::SourceScopedTopLevelBinding;
     use syntax_trees::SyntaxTrees;
 
     #[derive(Clone)]
@@ -31,7 +32,7 @@ mod activation {
         pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         pub build_helper_identity: std::borrow::Cow<'static, str>,
         pub recorded_authority:
-            Option<typed_trees::declaration_authority::RecordedDeclarationAuthority>,
+            Option<crate::source_state::declaration_authority::RecordedDeclarationAuthority>,
     }
 
     impl SourceContext {
@@ -95,7 +96,7 @@ mod activation {
                 }
                 let old_has_authority = self.recorded_authority.as_ref().map_or(
                     self.authority.is_some(),
-                    typed_trees::declaration_authority::RecordedDeclarationAuthority::has_authority,
+                    crate::source_state::declaration_authority::RecordedDeclarationAuthority::has_authority,
                 );
                 if old_has_authority != current.authority.is_some() {
                     return Err(SourceReuseMiss::DeclarationAuthority);
@@ -142,12 +143,12 @@ mod activation {
         pub fn remove_retained_syntax(
             &self,
             syntax: &mut SyntaxTrees,
-            source_items: &[(SourceId, Vec<syntax_trees::item::ItemHandle>)],
+            source_items: &[(SourceId, crate::SourceItems)],
         ) {
             let retained = source_items
                 .iter()
                 .filter(|(source, _)| self.sources.source_is_selected(*source))
-                .flat_map(|(_, items)| items.iter().copied())
+                .flat_map(|(_, items)| items.handles.iter().copied())
                 .collect::<HashSet<_>>();
             syntax.roots.items.retain(|item| !retained.contains(item));
             let items = &syntax.tables.items;
@@ -217,20 +218,21 @@ mod activation {
                 context.bindings.clone(),
             )?;
             if typing.typed().machines().iter().any(|machine| {
-                machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred
+                machine.body_status == crate::source_state::machine::MachineBodyStatus::Deferred
             }) {
                 return Err(vec![Diagnostic::error(
                     "selected retained source still has a deferred authored body",
                 )]);
             }
-            let references = typed_trees::references::collect_program_references(typing.typed());
+            let references =
+                crate::source_state::references::collect_program_references(typing.typed());
             let selections = typing
                 .typed()
                 .authored_declaration_selections()
                 .iter()
                 .filter(|selection| typing.typed().checks_authored_selection(selection))
                 .filter_map(|selection| match selection.target() {
-                    typed_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                    crate::source_state::AuthoredDeclarationSelectionTarget::Resolved(target) => {
                         Some(target.selected_symbol())
                     }
                     _ => None,
@@ -350,7 +352,7 @@ mod authored_completion {
     impl AuthoredCompletions {
         pub(super) fn rejoin_current_authority(
             &self,
-            authority: Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
+            authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
         ) -> Result<Self, String> {
             let stored = self
                 .entries
@@ -380,20 +382,21 @@ mod authored_completion {
 use authored_completion::AuthoredCompletions;
 mod product_policy {
     use super::SourceContinuation;
+    use crate::declaration_selection::CapturedNativeIntent;
+    use crate::declaration_selection::ExecutedEnumExclusion;
+    use crate::declaration_selection::ExecutedNativeBinding;
+    use crate::declaration_selection::ExecutedProductSelection;
+    use crate::declaration_selection::ProductDeclarationRequest;
+    use crate::evaluation::native_bindings::{CapturedNativeDeclaration, NativeBindingSelection};
+    use crate::evaluation::product_declarations::AdmittedProductDeclarations;
+    use crate::evaluation::provider_declarations::ProviderSelection;
     use crate::source_checking::ProductRepresentationInput;
-    use build_time_evaluation::native_bindings::{
-        CapturedNativeDeclaration, NativeBindingSelection,
-    };
-    use build_time_evaluation::product_declarations::AdmittedProductDeclarations;
-    use build_time_evaluation::provider_declarations::ProviderSelection;
+    use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
+    use declaration_contracts::selection::AuthoredBehaviorExclusion;
+    use declaration_contracts::selection::AuthoredRootGrant;
     use diagnostics::Diagnostic;
-    use language_semantics::declaration_selection::{
-        AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeIntent, ExecutedEnumExclusion,
-        ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationRequest,
-    };
     use std::sync::Arc;
     use symbols::SymbolHandle;
-    use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
     pub struct ProductPolicyRequest<'request> {
         pub activation: Option<SymbolHandle>,
@@ -416,7 +419,7 @@ mod product_policy {
         pub fn capture_package_native_bindings(
             &mut self,
             package: semantic_vocabulary::PackageKeyIdentity,
-            formations: &[language_semantics::declaration_selection::NativeBindingFormation],
+            formations: &[crate::declaration_selection::NativeBindingFormation],
             executed: &[ExecutedNativeBinding],
         ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
         {
@@ -425,7 +428,7 @@ mod product_policy {
             }
             let source = Arc::clone(&self.input);
             let lookups =
-                typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
+                crate::source_state::product_operand::ProductSourceLookups::new(source.typing.typed());
             for formation in formations {
                 let author = lookups
                     .authors
@@ -436,7 +439,7 @@ mod product_policy {
                         "native formation lost its exact requirement operand",
                     )]);
                 };
-                typed_trees_to_typed_trees::prepare_product_requirement_operand(
+                crate::preparation::prepare_product_requirement_operand(
                     Arc::make_mut(&mut self.input).typing.typed_mut(),
                     &lookups,
                     operand,
@@ -444,7 +447,7 @@ mod product_policy {
                     None,
                 )?;
             }
-            build_time_evaluation::native_bindings::capture_package_intents(
+            crate::evaluation::native_bindings::capture_package_intents(
                 self.typed(),
                 package,
                 formations,
@@ -463,7 +466,7 @@ mod product_policy {
                 retained: &[],
             }
             .require_none_requested()?;
-            use language_semantics::declaration_selection::BuildOperation;
+            use crate::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
                     request.operation,
@@ -498,14 +501,14 @@ mod product_policy {
             if native_formations.peek().is_some() {
                 let source = Arc::clone(&self.input);
                 let lookups =
-                    typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
+                    crate::source_state::product_operand::ProductSourceLookups::new(source.typing.typed());
                 for (request, author) in native_formations {
                     let [operand] = request.operands.as_ref() else {
                         return Err(vec![Diagnostic::error(
                             "native binding lost its exact requirement operand",
                         )]);
                     };
-                    typed_trees_to_typed_trees::prepare_product_requirement_operand(
+                    crate::preparation::prepare_product_requirement_operand(
                         Arc::make_mut(&mut self.input).typing.typed_mut(),
                         &lookups,
                         operand,
@@ -516,27 +519,27 @@ mod product_policy {
             }
             let typed = self.typed();
             let representations = Vec::new();
-            let native_bindings = build_time_evaluation::native_bindings::collect(
+            let native_bindings = crate::evaluation::native_bindings::collect(
                 typed,
                 request.activation,
                 request.declared,
                 request.native_bindings,
                 &formations,
             )?;
-            let grants = build_time_evaluation::product_policy::collect_product_root_grants(
+            let grants = crate::evaluation::product_policy::collect_product_root_grants(
                 typed,
                 request.activation,
                 request.declared,
                 request.executed,
             )?;
-            let declarations = build_time_evaluation::product_declarations::admit(
+            let declarations = crate::evaluation::product_declarations::admit(
                 typed,
                 request.activation,
                 request.declared,
                 request.executed,
                 &declaration_formations,
             )?;
-            let exclusions = build_time_evaluation::product_policy::collect_behavior_exclusions(
+            let exclusions = crate::evaluation::product_policy::collect_behavior_exclusions(
                 typed,
                 request.activation,
                 request.declared,
@@ -558,7 +561,7 @@ mod product_policy {
             declarations: &[CapturedNativeDeclaration],
             intents: &[CapturedNativeIntent],
         ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-            build_time_evaluation::native_bindings::collect_captured(
+            crate::evaluation::native_bindings::collect_captured(
                 Arc::make_mut(&mut self.input).typing.typed_mut(),
                 declarations,
                 intents,
@@ -568,17 +571,17 @@ mod product_policy {
 }
 mod provider_requests {
     use super::SourceContinuation;
-    use build_time_evaluation::provider_declarations::{
+    use crate::declaration_selection::BuildOperation;
+    use crate::declaration_selection::ExecutedProductSelection;
+    use crate::declaration_selection::ProductDeclarationRequest;
+    use crate::declaration_selection::product_operands::ProductStaticEnvironment;
+    use crate::evaluation::provider_declarations::{
         ProviderPlanningContext, ProviderSelection, collect_product_provider_selections,
     };
+    use crate::source_state::product_operand::ProductApplicationDemand;
     use diagnostics::Diagnostic;
-    use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
-    use language_semantics::declaration_selection::{
-        BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
-    };
     use std::sync::Arc;
     use symbols::SymbolHandle;
-    use typed_trees::product_operand::ProductApplicationDemand;
 
     impl SourceContinuation {
         pub(super) fn admit_product_provider_requests(
@@ -598,8 +601,9 @@ mod provider_requests {
                 // Applying an operand mutates the consuming program, not the source
                 // declarations and lexical authors that authorized this batch.
                 let source = Arc::clone(&self.input);
-                let lookups =
-                    typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
+                let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
+                    source.typing.typed(),
+                );
                 for (request, author) in formations
                     .iter()
                     .filter(|(request, _)| has_provider_application(request))
@@ -634,7 +638,10 @@ mod provider_requests {
                 }
             }
             collect_product_provider_selections(
-                ProviderPlanningContext::new(self.typed(), source::DependencyScope::Product),
+                ProviderPlanningContext::new(
+                    self.typed(),
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                ),
                 activation,
                 declared,
                 executed,
@@ -657,13 +664,13 @@ mod provider_requests {
             // One source roster serves this policy batch. The span narrows the
             // join; the complete request still proves lexical author custody.
             let occurrences =
-                typed_trees::product_operand::collect_product_selection_occurrences(typed);
+                crate::source_state::product_operand::collect_product_selection_occurrences(typed);
             formation_authors(typed, &declared, &occurrences)
         }
 
         fn prepare_provider_request(
             &mut self,
-            source: &typed_trees::product_operand::ProductSourceLookups<'_>,
+            source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
             request: &ProductDeclarationRequest,
             author: SymbolHandle,
             static_environment: Option<&ProductStaticEnvironment>,
@@ -676,7 +683,7 @@ mod provider_requests {
                     .ok_or_else(|| {
                         vec![Diagnostic::error("provider recipe lost its operand role")]
                     })?;
-                typed_trees_to_typed_trees::prepare_product_operand_application(
+                crate::preparation::prepare_product_operand_application(
                     Arc::make_mut(&mut self.input).typing.typed_mut(),
                     source,
                     operand,
@@ -691,11 +698,11 @@ mod provider_requests {
     }
 
     fn formation_authors(
-        typed: &typed_trees::TypedTrees,
+        typed: &crate::source_state::TypedTrees,
         declared: &[&Arc<ProductDeclarationRequest>],
-        occurrences: &[typed_trees::product_operand::ProductSelectionOccurrence],
+        occurrences: &[crate::source_state::product_operand::ProductSelectionOccurrence],
     ) -> Result<Vec<(Arc<ProductDeclarationRequest>, SymbolHandle)>, Vec<Diagnostic>> {
-        let source_key = |span: source::SourceSpan| {
+        let source_key = |span: source_text::SourceSpan| {
             let span = typed.symbols.rejoin_product_occurrence(span);
             (span.source_id.0, span.span.start, span.span.end)
         };
@@ -749,12 +756,12 @@ mod provider_requests {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use language_semantics::declaration_selection::ProductDeclarationOperand;
-        use typed_trees::product_operand::ProductSelectionOccurrence;
+        use crate::declaration_selection::ProductDeclarationOperand;
+        use crate::source_state::product_operand::ProductSelectionOccurrence;
 
         #[test]
         fn formation_authors_keep_complete_requests_and_lexical_owners() {
-            let mut builder = symbols::SymbolTableBuilder::new();
+            let mut builder = crate::source_symbols::SymbolTableBuilder::new();
             let root = builder.insert_root(
                 symbols::SymbolKind::Root,
                 symbols::SymbolNameRef::Static("root"),
@@ -768,11 +775,14 @@ mod provider_requests {
                     )
                 }),
             );
-            let typed = typed_trees::TypedTrees {
+            let typed = crate::source_state::TypedTrees {
                 symbols: builder.finish(),
                 ..Default::default()
             };
-            let span = source::SourceSpan::new(source::SourceId(0), source::Span::new(4, 9));
+            let span = source_text::SourceSpan::new(
+                source_text::SourceId(0),
+                source_text::Span::new(4, 9),
+            );
             let request = Arc::new(ProductDeclarationRequest {
                 operation: BuildOperation::ServiceAudit,
                 source_span: span,
@@ -787,7 +797,7 @@ mod provider_requests {
                 request,
                 machine,
                 state: SymbolHandle::invalid(),
-                expression: typed_trees::expression::ExpressionHandle::invalid(),
+                expression: crate::source_state::expression::ExpressionHandle::invalid(),
             };
             let mut other = request.as_ref().clone();
             other.operands[0].path = "Other".into();
@@ -816,7 +826,7 @@ mod provider_requests {
 pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage {
     use super::{SourceCompletionInput, SourceContext, SourceContinuation};
-    use build_time_evaluation::BuildTimeSelectionAuthority;
+    use crate::evaluation::BuildTimeSelectionAuthority;
     use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
     use std::sync::Arc;
 
@@ -830,7 +840,7 @@ mod storage {
                 let recorded = match &self.recorded_authority {
                     Some(recorded) => recorded,
                     None => {
-                        captured = typed_trees::declaration_authority::RecordedDeclarationAuthority::capture(
+                        captured = crate::source_state::declaration_authority::RecordedDeclarationAuthority::capture(
                             self.authority.as_deref(),
                         )
                         .map_err(|reason| output.error(reason))?;
@@ -894,13 +904,15 @@ mod storage {
 
 #[derive(Clone)]
 pub struct SourceCompilationRequest {
-    pub syntax: syntax_trees::SyntaxTrees,
-    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
-    pub root_sources: Vec<source::SourceId>,
+    pub syntax: crate::SourceSyntax,
+    pub source_items: Vec<(source_text::SourceId, crate::SourceItems)>,
+    pub root_sources: Vec<source_text::SourceId>,
     pub frontends: SourceFrontends,
     pub build_helper_identity: &'static str,
-    pub sources: Arc<source::SourceMap>,
-    pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub build_sources: std::collections::HashSet<source_text::SourceId>,
+    pub build_stage: Option<(source_text::SourceId, usize)>,
+    pub sources: Arc<crate::source_inputs::SourceMap>,
+    pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 }
 
@@ -912,42 +924,37 @@ pub struct SourceContinuation {
 
 #[derive(Clone, compiler_storage::Record)]
 struct SourceCompletionInput {
-    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    typing: crate::typing::SeededTypingBase,
+    pending_bodies: crate::resolution::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
-}
-
-pub struct BuildSourceInput<'source> {
-    pub typed: &'source mut typed_trees::TypedTrees,
-    pub pre_checks: &'source mut Vec<PreCheckEvaluation>,
 }
 
 #[derive(Clone, compiler_storage::Record)]
 pub struct CompletedSource {
     declaration_syntax: Arc<syntax_trees::SyntaxTrees>,
-    accounting: build_time_evaluation::SourceCompletionAccounting,
-    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    accounting: crate::evaluation::SourceCompletionAccounting,
+    typing: crate::typing::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
 
 pub struct SourceExtensionRequest {
-    pub units: Vec<syntax_trees::SyntaxTrees>,
-    pub sources: Arc<source::SourceMap>,
-    pub first_source: source::SourceId,
+    pub units: source_admission::LoadedSources,
+    pub sources: Arc<crate::source_inputs::SourceMap>,
+    pub first_source: source_text::SourceId,
     pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
 pub struct PreparedSource {
-    pub accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub typed: typed_trees::TypedTrees,
+    pub accounting: crate::evaluation::SourceCompletionAccounting,
+    pub typed: crate::source_state::TypedTrees,
 }
 
 impl PreparedSource {
     pub fn admit_root_bindings(
         &self,
-        executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
-    ) -> Result<Vec<language_semantics::declaration_selection::RootBinding>, Vec<Diagnostic>> {
+        executed: &[crate::declaration_selection::ExecutedRootBinding],
+    ) -> Result<Vec<declaration_contracts::selection::RootBinding>, Vec<Diagnostic>> {
         crate::root_bindings::collect_root_bindings(&self.typed, executed)
     }
 }
@@ -956,9 +963,28 @@ impl SourceCompilationRequest {
     pub fn prepare(
         mut self,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<SourceContinuation, Vec<Diagnostic>> {
+    ) -> Result<
+        (
+            SourceContinuation,
+            declaration_contracts::build_stage::BuildStage,
+        ),
+        Vec<Diagnostic>,
+    > {
+        crate::target_helpers::select_build_helpers(
+            &mut self.syntax.trees,
+            self.build_helper_identity,
+            &self.build_sources,
+        );
+        // Only the requested Build stage is resolved and checked. A Product
+        // request keeps the entry whole because it does not execute it.
+        let build_stage = match self.build_stage {
+            Some((source, stage)) => {
+                crate::build_stages::select_build_stage(&mut self.syntax.trees, source, stage)?
+            }
+            None => declaration_contracts::build_stage::BuildStage::WHOLE,
+        };
         let context = SourceContext {
-            declaration_syntax: Arc::new(self.syntax.clone()),
+            declaration_syntax: Arc::new(self.syntax.trees.clone()),
             bindings: self.top_level_bindings.clone(),
             authority: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
@@ -966,7 +992,7 @@ impl SourceCompilationRequest {
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
         if let Some(activation) = &activation {
-            activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
+            activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
         }
         // Check the predecessor while its owner can still be borrowed. Report
         // any refusal after checking the successor to preserve diagnostic order.
@@ -984,10 +1010,10 @@ impl SourceCompilationRequest {
             .as_mut()
             .map(|typing| typing.resolved_base_for_extension())
             .transpose()?;
-        let evaluated = build_time_evaluation::evaluate_pre_resolution(
-            build_time_evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: self.syntax,
-                source_context: build_time_evaluation::BuildTimeSources {
+        let evaluated = crate::evaluation::evaluate_pre_resolution(
+            crate::evaluation::BuildTimeEvaluationRequest {
+                syntax_trees: self.syntax.trees,
+                source_context: crate::evaluation::BuildTimeSources {
                     sources: Some(Arc::clone(&self.sources)),
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
@@ -998,63 +1024,59 @@ impl SourceCompilationRequest {
             },
         )?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let (mut typing, mut pending_bodies) = if let (
-            Some(typing),
-            Some(base),
-            Some(base_declarations),
-        ) =
-            (retained, resolved_base, retained_declaration_syntax)
-        {
-            let extension = observer.record_result(PsiCompilationStage::Resolution, || {
-                syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
-                    syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                        base,
-                        base_declarations,
-                        syntax,
-                        sources: self.sources,
-                        top_level_bindings: self.top_level_bindings,
-                    },
-                )
-            })?;
-            observer.record_result(PsiCompilationStage::Typing, || {
-                let (source, frontier) = extension.rebase_for_typed_continuation(
-                    typing.typed().authored_declaration_selections(),
-                )?;
-                Ok::<_, Vec<Diagnostic>>((typing.append_resolved(source)?, frontier))
-            })?
-        } else {
-            let mut frontier = {
-                observer.record_result(PsiCompilationStage::Resolution, || {
-                    syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-                        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+        let (mut typing, mut pending_bodies) =
+            if let (Some(typing), Some(base), Some(base_declarations)) =
+                (retained, resolved_base, retained_declaration_syntax)
+            {
+                let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+                    crate::resolution::resolve_deferred_extension(
+                        crate::resolution::ExtensionRequest {
+                            base,
+                            base_declarations,
+                            syntax,
+                            sources: self.sources,
+                            top_level_bindings: self.top_level_bindings,
+                        },
+                    )
+                })?;
+                observer.record_result(PsiCompilationStage::Typing, || {
+                    let (source, frontier) = extension.rebase_for_typed_continuation(
+                        typing.typed().authored_declaration_selections(),
+                    )?;
+                    Ok::<_, Vec<Diagnostic>>((typing.append_resolved(source)?, frontier))
+                })?
+            } else {
+                let mut frontier = {
+                    observer.record_result(PsiCompilationStage::Resolution, || {
+                        crate::resolution::resolve_deferred(crate::resolution::ResolutionRequest {
                             syntax,
                             sources: Some(self.sources),
                             top_level_bindings: self.top_level_bindings,
                             retained_base: None,
-                        },
-                    )
-                })?
-            };
-            loop {
-                let selected = build_bodies(&frontier);
-                if selected.is_empty() {
-                    break;
+                        })
+                    })?
+                };
+                loop {
+                    let selected = build_bodies(&frontier);
+                    if selected.is_empty() {
+                        break;
+                    }
+                    frontier = observer
+                        .record_result(PsiCompilationStage::Resolution, || {
+                            frontier.complete_machine_bodies(&selected)
+                        })?
+                        .into_resolved_frontier();
                 }
-                frontier = observer
-                    .record_result(PsiCompilationStage::Resolution, || {
-                        frontier.complete_machine_bodies(&selected)
-                    })?
-                    .into_resolved_frontier();
-            }
-            let typing = {
-                observer.record_result(PsiCompilationStage::Typing, || {
-                        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+                let typing = {
+                    observer.record_result(PsiCompilationStage::Typing, || {
+                        crate::typing::lower_symbol_resolved_trees_to_seeded_base(
                             frontier.shared_trees(),
-                        ).map_err(|diagnostic| vec![diagnostic])
+                        )
+                        .map_err(|diagnostic| vec![diagnostic])
                     })?
+                };
+                (typing, frontier)
             };
-            (typing, frontier)
-        };
         loop {
             let build_bodies = build_bodies(&pending_bodies);
             if build_bodies.is_empty() {
@@ -1083,26 +1105,23 @@ impl SourceCompilationRequest {
             context,
         });
         self.frontends.retain(Arc::clone(&input))?;
-        Ok(SourceContinuation {
-            input,
-            completions: Default::default(),
-        })
+        Ok((
+            SourceContinuation {
+                input,
+                completions: Default::default(),
+            },
+            build_stage,
+        ))
     }
 }
 
 impl SourceContinuation {
     fn complete_selected(
         input: Arc<SourceCompletionInput>,
-        sources: Arc<source::SourceMap>,
-        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+        sources: Arc<crate::source_inputs::SourceMap>,
+        bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<
-        (
-            symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-            Vec<PreCheckEvaluation>,
-        ),
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<(crate::typing::SeededTypingBase, Vec<PreCheckEvaluation>), Vec<Diagnostic>> {
         let mut typing = input.typing.clone();
         let pending_bodies = input
             .pending_bodies
@@ -1138,10 +1157,48 @@ impl SourceContinuation {
         Ok((typing, input.pending_pre_checks.clone()))
     }
 
+    /// Rejoin a Build query's authored locations to this admitted declaration
+    /// frontier. Source correspondence is resolved by the owner of both states.
+    pub fn rejoin_product_query_origin(
+        &self,
+        authored: &Self,
+        occurrence: source_text::SourceSpan,
+        selecting: Option<source_text::SourceSpan>,
+    ) -> Result<(source_text::SourceSpan, Option<source_text::SourceSpan>), String> {
+        let author = authored
+            .typed()
+            .symbols
+            .source_file(occurrence)
+            .ok_or("Product query lost its authored source occurrence")?;
+        let source_map = self
+            .typed()
+            .symbols
+            .source_map()
+            .ok_or("Product query has no source custody")?;
+        let selected = source_map
+            .rejoined_source_id(author)
+            .ok_or("Product query author lost its admitted source correspondence")?;
+        let occurrence = source_text::SourceSpan::new(selected, occurrence.span);
+        let selecting = selecting
+            .map(|span| {
+                let author = authored
+                    .typed()
+                    .symbols
+                    .source_file(span)
+                    .ok_or("declaration query lost its selecting source")?;
+                let selected = source_map
+                    .rejoined_source_id(author)
+                    .ok_or("declaration query lost its selecting source correspondence")?;
+                Ok::<_, String>(source_text::SourceSpan::new(selected, span.span))
+            })
+            .transpose()?;
+        Ok((occurrence, selecting))
+    }
+
     pub fn describe_parameter(
         &self,
-        occurrence: source::SourceSpan,
-        selecting: source::SourceSpan,
+        occurrence: source_text::SourceSpan,
+        selecting: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<semantic_vocabulary::ParameterDescription, String> {
         crate::product_descriptions::describe_parameter(self.typed(), occurrence, selecting, path)
@@ -1149,8 +1206,8 @@ impl SourceContinuation {
 
     pub fn describe_field(
         &self,
-        occurrence: source::SourceSpan,
-        selecting: source::SourceSpan,
+        occurrence: source_text::SourceSpan,
+        selecting: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
         crate::product_descriptions::describe_field(self.typed(), occurrence, selecting, path)
@@ -1158,27 +1215,27 @@ impl SourceContinuation {
 
     pub fn describe_schema(
         &self,
-        occurrence: source::SourceSpan,
+        occurrence: source_text::SourceSpan,
         path: &[u8],
-    ) -> Result<language_semantics::declaration_selection::DescribedProductSchema, String> {
+    ) -> Result<crate::declaration_selection::DescribedProductSchema, String> {
         crate::product_descriptions::describe_schema(self.typed(), occurrence, path)
     }
 
     pub fn describe_provider(
         &self,
-        occurrence: source::SourceSpan,
+        occurrence: source_text::SourceSpan,
         path: &[u8],
-    ) -> Result<language_semantics::declaration_selection::DescribedProductProvider, String> {
+    ) -> Result<crate::declaration_selection::DescribedProductProvider, String> {
         crate::product_descriptions::describe_provider(self.typed(), occurrence, path)
     }
 
     pub fn describe_entry(
         &self,
-        occurrence: source::SourceSpan,
+        occurrence: source_text::SourceSpan,
         path: &[u8],
         slot: &[u8],
         slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
-    ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
+    ) -> Result<crate::declaration_selection::DescribedProductEntry, String> {
         crate::product_descriptions::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
@@ -1186,7 +1243,7 @@ impl SourceContinuation {
         self.input.same_completion_input(&other.input)
     }
 
-    pub fn typed(&self) -> &typed_trees::TypedTrees {
+    pub fn typed(&self) -> &crate::source_state::TypedTrees {
         self.input.typing.typed()
     }
 
@@ -1197,35 +1254,27 @@ impl SourceContinuation {
     ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
         let refuse = |reason| vec![Diagnostic::error(reason)];
         let declaration =
-            symbols::RetainedDeclaration::capture(&previous.typed().symbols, selected)
+            crate::source_symbols::retain_declaration(&previous.typed().symbols, selected)
                 .map_err(refuse)?;
-        declaration
-            .rejoin(
-                &self.typed().symbols,
-                self.typed().machines().iter().map(|machine| machine.symbol),
-            )
-            .map_err(refuse)
+        crate::source_symbols::rejoin_declaration(
+            &declaration,
+            &self.typed().symbols,
+            self.typed().machines().iter().map(|machine| machine.symbol),
+        )
+        .map_err(refuse)
     }
 
     pub fn rejoin_product_provider_selection(
         &mut self,
-        selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
-        candidates: &mut symbols::SourceSpanCandidates,
-    ) -> Result<build_time_evaluation::provider_declarations::ProviderSelection, Diagnostic> {
+        selection: &crate::evaluation::provider_declarations::RetainedProviderSelection,
+        candidates: &mut crate::source_symbols::SourceSpanCandidates,
+    ) -> Result<crate::evaluation::provider_declarations::ProviderSelection, Diagnostic> {
         selection.rejoin(
             Arc::make_mut(&mut self.input).typing.typed_mut(),
-            source::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Product,
             &[],
             candidates,
         )
-    }
-
-    pub fn build_input(&mut self) -> BuildSourceInput<'_> {
-        let input = Arc::make_mut(&mut self.input);
-        BuildSourceInput {
-            typed: input.typing.typed_mut(),
-            pre_checks: &mut input.pending_pre_checks,
-        }
     }
 
     pub fn materialize_authored_bodies(
@@ -1272,7 +1321,7 @@ impl SourceContinuation {
         (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
         drop(pending_bodies);
         let mut deferred = Vec::new();
-        let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+        let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
             let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
             accounting.append(recorded.accounting);
@@ -1294,12 +1343,12 @@ impl SourceContinuation {
 // Resolution retains pending syntax; typing receives only the completed trees.
 // The driver joins their exact checkpoints before either stage resumes.
 fn type_completed_bodies(
-    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    completed: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
+    typing: crate::typing::SeededTypingBase,
+    completed: crate::resolution::ResolvedBodyCompletion,
 ) -> Result<
     (
-        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        crate::typing::SeededTypingBase,
+        crate::resolution::DeferredResolvedFrontier,
     ),
     Vec<Diagnostic>,
 > {
@@ -1317,13 +1366,13 @@ fn type_completed_bodies(
 }
 
 fn complete_authored_bodies(
-    mut typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    mut pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    mut typing: crate::typing::SeededTypingBase,
+    mut pending_bodies: crate::resolution::DeferredResolvedFrontier,
     observer: &mut impl PsiCompilationObserver,
 ) -> Result<
     (
-        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        crate::typing::SeededTypingBase,
+        crate::resolution::DeferredResolvedFrontier,
     ),
     Vec<Diagnostic>,
 > {
@@ -1348,7 +1397,7 @@ fn complete_authored_bodies(
 }
 
 impl CompletedSource {
-    pub fn authored_program(&self) -> &typed_trees::TypedTrees {
+    pub fn authored_program(&self) -> &crate::source_state::TypedTrees {
         self.typing.typed()
     }
 
@@ -1364,31 +1413,31 @@ impl CompletedSource {
         extension: SourceExtensionRequest,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
+        // Parse admitted generated bytes before touching the retained typed
+        // frontier, preserving the extension's original error precedence.
+        let units = crate::source_parsing::SourceInput(extension.units).into_units(observer)?;
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
-        let (syntax, pre_checks) =
-            build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
-                extension.units,
-                extension.first_source,
-                build_time_evaluation::BuildTimeSources {
-                    sources: Some(Arc::clone(&extension.sources)),
-                    source_scoped_top_level_bindings: &[],
-                    selection_authority: Some(extension.selection_authority),
-                    predecessor: Some(self.typing.clone()),
-                    declaration_syntax: Some(&self.declaration_syntax),
-                    retained_declaration_syntax: None,
-                },
-            )?;
+        let (syntax, pre_checks) = crate::evaluation::PreResolutionEvaluation::evaluate_extension(
+            units,
+            extension.first_source,
+            crate::evaluation::BuildTimeSources {
+                sources: Some(Arc::clone(&extension.sources)),
+                source_scoped_top_level_bindings: &[],
+                selection_authority: Some(extension.selection_authority),
+                predecessor: Some(self.typing.clone()),
+                declaration_syntax: Some(&self.declaration_syntax),
+                retained_declaration_syntax: None,
+            },
+        )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
-            syntax_trees_to_symbol_resolved_trees::resolve_extension(
-                syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                    base: resolved_base,
-                    base_declarations: Arc::clone(&self.declaration_syntax),
-                    syntax,
-                    sources: extension.sources,
-                    top_level_bindings: Vec::new(),
-                },
-            )
+            crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
+                base: resolved_base,
+                base_declarations: Arc::clone(&self.declaration_syntax),
+                syntax,
+                sources: extension.sources,
+                top_level_bindings: Vec::new(),
+            })
         })?;
         let mut typed = observer
             .record_result(PsiCompilationStage::Typing, || {
@@ -1469,7 +1518,7 @@ impl SourceFrontends {
 }
 
 fn build_bodies(
-    frontier: &syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    frontier: &crate::resolution::DeferredResolvedFrontier,
 ) -> Vec<symbols::SymbolHandle> {
     frontier
         .pending_machines()
@@ -1480,8 +1529,9 @@ fn build_bodies(
                 .symbol_provenance_source_span(*symbol)
                 .and_then(|span| frontier.trees().symbols.source_file(span))
                 .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        || file.dependency_scope == source::DependencyScope::Build
+                    file.origin == source_admission::SourceOrigin::Toolchain
+                        || file.dependency_scope
+                            == declaration_contracts::source_identity::DependencyScope::Build
                 })
         })
         .collect()
@@ -1494,11 +1544,11 @@ mod resolution_handoff_tests {
     fn deferred(
         text: &str,
     ) -> (
-        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-        Arc<source::SourceMap>,
+        crate::typing::SeededTypingBase,
+        crate::resolution::DeferredResolvedFrontier,
+        Arc<crate::source_inputs::SourceMap>,
     ) {
-        let mut sources = source::SourceMap::default();
+        let mut sources = crate::source_inputs::SourceMap::default();
         let id = sources
             .add("completion/main.omg".into(), text.to_owned())
             .source_id;
@@ -1508,8 +1558,8 @@ mod resolution_handoff_tests {
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let frontier =
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            crate::resolution::pre_resolution::resolve_deferred_numeric_probe(
+                crate::resolution::ResolutionRequest {
                     syntax,
                     sources: Some(Arc::clone(&sources)),
                     top_level_bindings: Vec::new(),
@@ -1518,10 +1568,8 @@ mod resolution_handoff_tests {
             )
             .unwrap();
         let typing =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-                frontier.shared_trees(),
-            )
-            .unwrap();
+            crate::typing::lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+                .unwrap();
         (typing, frontier, sources)
     }
 
@@ -1560,7 +1608,7 @@ mod resolution_handoff_tests {
 
     #[test]
     fn nonempty_selected_completion_retains_prior_refusal_rows() {
-        use typed_trees::deferred_refusals::DeferredRequest;
+        use crate::source_state::deferred_refusals::DeferredRequest;
 
         let (mut typing, frontier, sources) = deferred(
             "machine length() -> u64 { 4 } \
@@ -1637,7 +1685,7 @@ mod resolution_handoff_tests {
 
     #[test]
     fn completed_body_work_is_recorded_before_retained_source_activation() {
-        use typed_trees::deferred_refusals::DeferredRequest;
+        use crate::source_state::deferred_refusals::DeferredRequest;
 
         let text = "machine length() -> u64 { 4 }\n\
                     machine helper() { let bytes: [u8; length()]; }\n";
@@ -1648,10 +1696,10 @@ mod resolution_handoff_tests {
             .unwrap();
         let syntax =
             crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let (_, pending) = build_time_evaluation::evaluate_pre_resolution(
-            build_time_evaluation::BuildTimeEvaluationRequest {
+        let (_, pending) = crate::evaluation::evaluate_pre_resolution(
+            crate::evaluation::BuildTimeEvaluationRequest {
                 syntax_trees: syntax,
-                source_context: build_time_evaluation::BuildTimeSources {
+                source_context: crate::evaluation::BuildTimeSources {
                     sources: Some(Arc::clone(&sources)),
                     ..Default::default()
                 },
@@ -1686,9 +1734,9 @@ mod resolution_handoff_tests {
                 .any(|row| row.request == DeferredRequest::ArrayExtentEvaluation)
         );
         let unserved = typing.typed().deferred_refusal(helper).unwrap().request;
-        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        let (program, _) = crate::preparation::prepare_typed_trees(
             typing.typed().clone(),
-            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+            &crate::preparation::PreparationRequest::settled(),
         )
         .unwrap();
         let refused = crate::AcceptedTerminalSource::judge(
@@ -1699,7 +1747,7 @@ mod resolution_handoff_tests {
                 declaration_metadata: &[],
                 entries: &[helper],
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

@@ -425,7 +425,7 @@ pub(crate) mod placement {
         pub policy_identity: TerminalIdentityIndex,
         pub policy_plan_machine_identity: TerminalIdentityIndex,
         pub schema_identity: TerminalIdentityIndex,
-        pub placement: access_plans::ValidatedPlacement,
+        pub placement: access_admission::ValidatedPlacement,
         pub fields: Vec<TerminalAccessFieldPlan>,
     }
 
@@ -441,7 +441,7 @@ pub(crate) mod placement {
         pub policy_identity: TerminalIdentityIndex,
         pub policy_plan_machine_identity: TerminalIdentityIndex,
         pub schema_identity: TerminalIdentityIndex,
-        pub placement: access_plans::ValidatedPlacement,
+        pub placement: access_admission::ValidatedPlacement,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -644,7 +644,7 @@ pub(crate) mod placement {
         pub schema: semantic_vocabulary::StructuralTypeId,
         pub carrier: semantic_vocabulary::StructuralTypeId,
         pub source_byte_length: u64,
-        pub required_base: access_plans::BaseCongruence,
+        pub required_base: access_admission::BaseCongruence,
         pub fields: Vec<AccessRamFieldCorrespondence>,
     }
 
@@ -663,7 +663,7 @@ pub(crate) mod placement {
         pub byte_offset: u64,
         pub transfer_width_bits: u16,
         pub placement_byte_extent: u64,
-        pub observation: access_plans::ObservationModel,
+        pub observation: access_vocabulary::ObservationModel,
     }
 }
 pub(crate) mod suspension {
@@ -673,7 +673,7 @@ pub(crate) mod suspension {
         terminal_module::TerminalIdentityTable,
     };
     use arena::{Arena, Handle, HandleSpan};
-    use language_semantics::CarryPolicy;
+    use declaration_contracts::CarryPolicy;
     use semantic_vocabulary::{
         BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
         OperationId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
@@ -1175,14 +1175,14 @@ pub(crate) mod suspension {
         policy: CarryPolicy,
     ) {
         hash.byte(u8::from(
-            policy.suspension == language_semantics::CarrySuspension::Allowed,
+            policy.suspension == declaration_contracts::CarrySuspension::Allowed,
         ));
-        hash.byte(u8::from(policy.cpu == language_semantics::CarryCpu::Any));
+        hash.byte(u8::from(policy.cpu == declaration_contracts::CarryCpu::Any));
         hash.byte(u8::from(
-            policy.host_thread == language_semantics::CarryHostThread::Any,
+            policy.host_thread == declaration_contracts::CarryHostThread::Any,
         ));
         hash.byte(u8::from(
-            policy.address == language_semantics::CarryAddress::Movable,
+            policy.address == declaration_contracts::CarryAddress::Movable,
         ));
     }
 

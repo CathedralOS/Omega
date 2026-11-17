@@ -305,8 +305,8 @@ pub(crate) fn derive_normalized_foreign_child(
                 .as_ref()
                 .ok_or("normalized foreign D41 child lost its structural result placement")?;
             let retained_types = publication
-                .and_then(|binding| binding.physical_program().function(occurrence.machine()))
-                .and_then(|function| function.structural.as_ref())
+                .and_then(|binding| binding.call_origins().function(occurrence.machine()))
+                .and_then(|function| function.structural_types.as_ref())
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
             if home.operation_result() != source_operation.map(|operation| (operation, result))
                 || result.structural_type != declared.structural_type
@@ -314,11 +314,9 @@ pub(crate) fn derive_normalized_foreign_child(
                 || result.qualifications != declared.qualifications
                 || result.projected_qualifications != declared.projected_qualifications
                 || !retained_types
-                    .structural_types
                     .iter()
                     .any(|item| item.id == result.structural_type)
                 || retained_types
-                    .structural_types
                     .iter()
                     .any(|item| !module.structural_types.iter().any(|source| source == item))
                 || placement.shape.byte_size != shape.byte_size
@@ -1374,50 +1372,31 @@ impl CoveredInvocationIntervals {
 pub(super) mod floating_control {
     use crate::physical::fragment_publication::FragmentPublicationBinding;
     use image_emission::ObjectForeignCall;
-    use image_emission::fragment_instruction_span;
-    use machine_code::PlacedFunctionFragment;
-    use selected_instructions::calls::normalized_foreign::return_transport;
-    use selected_instructions::calls::normalized_foreign::return_transport::resolve;
-    use selected_instructions::{
-        LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
-    };
+    use selected_instructions::SelectedNormalizedForeignCall;
     use target::Architecture;
 
     pub(in crate::physical::derivation) fn rejoin(
         pass: crate::physical::PhysicalEvidencePass,
         publication: &FragmentPublicationBinding,
-        function: &SelectedFunction,
-        block: &SelectedBlock,
-        fragment: &PlacedFunctionFragment,
         record: &SelectedNormalizedForeignCall,
         foreign: &ObjectForeignCall,
     ) -> bool {
-        check(
-            pass,
-            publication,
-            function,
-            block,
-            fragment,
-            record,
-            foreign,
-        ) == Some(())
+        check(pass, publication, record, foreign) == Some(())
     }
 
     fn check(
         pass: crate::physical::PhysicalEvidencePass,
         publication: &FragmentPublicationBinding,
-        function: &SelectedFunction,
-        block: &SelectedBlock,
-        fragment: &PlacedFunctionFragment,
         record: &SelectedNormalizedForeignCall,
         foreign: &ObjectForeignCall,
     ) -> Option<()> {
-        if record.invocation_site.operation().is_none() {
+        if !record.call.binding.requires_floating_control_preservation()
+            || record.invocation_site.operation().is_none()
+        {
             return (foreign.x86_floating_control.is_none()
                 && foreign.aarch64_floating_control.is_none())
             .then_some(());
         }
-        let operation = record.invocation_site.operation()?;
         let section = publication.text_section();
         let (target, displacement, save_offset, save_count, restore_offset, restore_count) =
             match section.target.architecture {
@@ -1451,43 +1430,6 @@ pub(super) mod floating_control {
                 }
             };
         if target != section.target || !displacement.is_multiple_of(8) {
-            return None;
-        }
-        let slot = LocalStorageSlotId::Boundary { operation };
-        let mut homes = function
-            .local_storage_slots
-            .iter()
-            .filter(|home| home.id == slot);
-        let home = homes.next()?;
-        if homes.next().is_some() || home.byte_size != 8 || home.alignment != 8 {
-            return None;
-        }
-
-        let transport = resolve(function, block, record)?;
-        let call_position = transport.call_position;
-        let restore_position = transport.restore_position?;
-        let restore = block.instructions.get(restore_position)?;
-        let save_position =
-            return_transport::save_position(function, block, record, call_position)?;
-        let save = &block.instructions[save_position];
-        let matches_span = |instruction, offset, count| {
-            fragment_instruction_span(fragment, instruction).is_some_and(|(start, size)| {
-                usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
-            })
-        };
-        let (call_start, call_size) = fragment_instruction_span(fragment, record.instruction)?;
-        let transported_end = block.instructions[call_position + 1..restore_position]
-            .iter()
-            .try_fold(call_start.checked_add(call_size)?, |end, copy| {
-                let (offset, count) = fragment_instruction_span(fragment, copy.id)?;
-                (offset == end).then_some(())?;
-                offset.checked_add(count)
-            })?;
-        if !matches_span(save.id, save_offset, save_count)
-            || !matches_span(restore.id, restore_offset, restore_count)
-            || u64::try_from(save_offset.checked_add(save_count)?).ok()? > call_start
-            || u64::try_from(restore_offset).ok()? != transported_end
-        {
             return None;
         }
         let saved_bytes = section

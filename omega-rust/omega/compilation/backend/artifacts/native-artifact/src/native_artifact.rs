@@ -176,6 +176,7 @@ impl RequestedNativeArtifact {
         selected: &effects::SelectedProviderPlanFacts,
         providers: AdmittedNativeProviders<'_>,
         boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
+        physical_originals: crate::NativePhysicalOriginals,
     ) -> Result<Self, Vec<Diagnostic>> {
         let native_bindings = providers.native_bindings().clone();
         let native_calling = providers.native_calling().to_vec();
@@ -213,6 +214,7 @@ impl RequestedNativeArtifact {
             terminal_authority_closure_review,
             boundary_application_coverage,
             physical_evidence_scope,
+            physical_originals,
         })
     }
 
@@ -265,6 +267,7 @@ fn with_emitted_image<Image, EmittedImage>(
         terminal_authority_closure_review: parts.terminal_authority_closure_review,
         boundary_application_coverage: parts.boundary_application_coverage,
         physical_evidence_scope: parts.physical_evidence_scope,
+        physical_originals: parts.physical_originals,
     }
 }
 
@@ -294,6 +297,7 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
+    pub physical_originals: crate::NativePhysicalOriginals,
     pub physical_evidence: Option<NativePhysicalEvidence>,
 }
 
@@ -315,6 +319,7 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
+    pub physical_originals: crate::NativePhysicalOriginals,
 }
 
 impl<Image> NativeArtifactEmissionParts<Image> {
@@ -349,6 +354,7 @@ impl<Image> NativeArtifactEmissionParts<Image> {
                 terminal_authority_closure_review: self.terminal_authority_closure_review,
                 boundary_application_coverage: self.boundary_application_coverage,
                 physical_evidence_scope: self.physical_evidence_scope,
+                physical_originals: self.physical_originals,
                 physical_evidence,
             },
             physical_evidence_gap,
@@ -503,6 +509,7 @@ impl<Image> NativeArtifactParts<Image> {
             &self.native_bindings,
             &self.native_calling,
             self.boundary_application_coverage.as_ref(),
+            &self.physical_originals,
         )
     }
 }
@@ -533,6 +540,7 @@ impl NativeArtifact {
             &parts.native_bindings,
             &parts.native_calling,
             parts.boundary_application_coverage.as_ref(),
+            &parts.physical_originals,
         )
     }
 

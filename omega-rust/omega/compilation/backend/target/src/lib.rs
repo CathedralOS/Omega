@@ -26,8 +26,8 @@ loader and import coordinates with length-framed compatibility fingerprints
 from `compatibility_fingerprint.rs`.
 */
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 
 pub mod compatibility_fingerprint;
 mod component_locator;

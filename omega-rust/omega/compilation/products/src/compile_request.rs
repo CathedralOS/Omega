@@ -20,7 +20,7 @@ permission policy).
 */
 
 use diagnostics::Diagnostic;
-use optimization_core::OptimizationRollback;
+use optimization_requests::OptimizationRollback;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageCompilationSourceInputs,

@@ -14,7 +14,7 @@
 
 use crate::BuildMachineFilesystemScope;
 use crate::PackageCompilationInputs;
-use build_time_evaluation::BuildMachineFilesystemSponsor;
+use source_compiler::evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,7 +25,7 @@ pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&crate::AnonymousSourceCapture>,
-    required_sources: &source::SourceMap,
+    required_sources: &source_compiler::source_inputs::SourceMap,
     build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -100,7 +100,7 @@ pub fn prepare_filesystem_scope(
                 ));
                 match BuildMachineFilesystemSponsor::create_private(
                     &root,
-                    build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+                    source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
                 ) {
                     Ok(sponsor) => break sponsor,
                     Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -154,8 +154,8 @@ pub fn prepare_filesystem_scope(
                         })?;
                     let mut required_members = Vec::new();
                     let authored_members = required_sources.selected_files().filter(|file| {
-                        file.origin == source::SourceOrigin::User
-                            && file.resolution_stratum == source::SourceResolutionStratum::Base
+                        file.origin == source_admission::SourceOrigin::User
+                            && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
                             && file.package_root == source_root
                     });
                     for path in std::iter::once(root_path)

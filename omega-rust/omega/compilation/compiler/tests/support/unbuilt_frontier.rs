@@ -100,7 +100,7 @@ pub fn staged_frontier(name: &str, source: &str) -> Box<compiler::TypedFrontier>
 /// typed trees hold every bundled library beside the program, and a library
 /// may declare a machine of the same name.
 pub fn program_machine(
-    typed: &typed_trees::TypedTrees,
+    typed: &source_compiler::source_state::TypedTrees,
     name: &str,
 ) -> Option<symbols::SymbolHandle> {
     typed
@@ -112,7 +112,7 @@ pub fn program_machine(
                     .symbols
                     .symbol_source_span(declared.symbol)
                     .and_then(|span| typed.symbols.source_file(span))
-                    .is_some_and(|file| file.origin == source::SourceOrigin::User)
+                    .is_some_and(|file| file.origin == source_admission::SourceOrigin::User)
         })
         .map(|declared| declared.symbol)
 }
