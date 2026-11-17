@@ -18,8 +18,8 @@ DETOUR_REPAIRS = {
         'Source preparation evaluates required invocations inside stage 01. Its result carries the computed values and receipts.'),
     'policy': (88, ['accepted', 'native-planning-policies'],
         'Stage 01 settles source choices. Stage 03 computes calling policies from the carried choices and accepted policy code.'),
-    'handlers': (86, ['physical-planning-generated', 'binding-summarize', 'binding-bind'],
-        'Stage 04 builds handler bodies with the rest of the program. Stage 05 measures their resource needs and binds them before encoding.'),
+    'handlers': (459, ['native-planning-select', 'physical-planning-generated', 'binding-summarize', 'binding-bind'],
+        'Open 03–05 handler handoff. Selection needs the entry checks and the pairs of dedicated stacks that must stay disjoint. Binding could fill in sizes and alignment if the instructions, registers and frames stay fixed.'),
     'emission': (85, ['native-planning-target', 'encoding-bodies'],
         'From target lowering onward, each form carries the facts its successor needs. Encoding can consume physical code and those facts directly.'),
     'callbacks': (89, ['native-planning-closure', 'object-stage-container'],
@@ -31,6 +31,45 @@ DETOUR_REPAIRS = {
     'runtime-layout': (92, [],
         'Runtime provisions would consume explicit storage-layout records. The plan leaves the producing stage open. Psi-only execution must still work.'),
 }
+
+
+# Source observations describe the current compiler. The proposed stage order
+# and the feasibility of filling numeric operands at 05 remain separate claims.
+def annotate_handler_handoff(nodes):
+    code='https://github.com/CathedralOS/Omega/blob/9b57170606b57bb43d9faef50253a23317c0df82/omega-rust/omega/compilation/'
+    selection=code+'pipeline/03_target-operations-to-selected-instructions/src/selection_interrupts.rs'
+    object_code=code+'backend/images/image-emission/src/object_artifact.rs'
+    requirement=code+'backend/runtime/installation-evidence/src/lib.rs'
+    annotations={
+        'native-planning-select': (
+            ['Fix gate, protocol and stack mode.',
+             'Select capacity and alignment checks.',
+             'For each simultaneous dedicated pair,',
+             'check distinct slots and disjoint ranges.'],
+            'Selection needs the retained entries, their gate and entry protocols, which stacks they use, and which dedicated handlers can be active together. These facts determine which checks and branches to emit. Can 03 establish the complete pair list before measuring any body?',
+            [('Entry and stack guards',selection+'#L1602-L1678'),('Pair guards',selection+'#L972-L1080')]),
+        'physical-planning-generated': (
+            ['Plan handler and entry-bridge bodies.',
+             'Establish frames and register use.'],
+            'Physical planning must include handlers and their entry bridges. Their frames, call costs and effects supply the later stack calculation. Binding must preserve these choices.',
+            [('Body and bridge costs',object_code+'#L1524-L1555')]),
+        'binding-summarize': (
+            ['Add body, bridge and call-stack costs.',
+             'Include nesting and stack alignment.'],
+            'Compute finite requirements from the physical bodies, including their callees. Combine costs for permitted arrival histories. Today that same walk also records simultaneous pairs, which selection already consumes.',
+            [('Stack demand and pair roster',object_code+'#L1042-L1067'),('Required byte count',requirement+'#L147-L161')]),
+        'binding-bind': (
+            ['Bind size and alignment only if guards,',
+             'register use and frames stay fixed.'],
+            'Candidates for late binding are the finite required byte count and alignment for an already selected check. Its guard, branch structure and operand constraints must already exist. If the value needs a new instruction sequence, register, helper or larger frame, this split is still unsolved.',
+            [('Alignment and capacity operands',selection+'#L1230-L1243')]),
+    }
+    for key,(notes,gate,evidence) in annotations.items():
+        node=nodes[key]
+        # Keep the current-stage reference last for the stage layout.
+        node['notes'][1:1]=['Open · 03–05 handler handoff',*notes]
+        node['gate']=gate
+        node['evidence']=evidence
 
 
 def proposed_model():
@@ -89,6 +128,7 @@ def proposed_model():
     nodes,phases=unfold(nodes,PLAN_REVISION)
     spine=[n['id'] for n in nodes]
     by_id={n['id']:n for n in nodes}
+    annotate_handler_handoff(by_id)
     edges=[dict(id=f'proposed-{a}-{b}',start=a,end=b,label='',kind='data',main=True,source=by_id[b]['source'])
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
