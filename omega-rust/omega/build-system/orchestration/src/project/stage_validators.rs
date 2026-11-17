@@ -1,7 +1,11 @@
 /*
 
-Independent stage validators requested with `--validator <ExactName>` or
+Stage-output checks requested with `--validator <ExactName>` or
 `--every-validator` (wiki/spec/build/command_line.md#independent-stage-validators).
+
+Most registered checks independently validate correspondence. Rewrite replay
+instead re-executes its producer and checks determinism and record custody;
+the report must retain that weaker scope even when the replay passes.
 
 Default compilation never runs these: the stages do not re-verify their own
 output. A request adds checking work inside one compilation and reports a row
@@ -20,7 +24,7 @@ an inapplicable validator is never reported as passed.
 use crate::{BuildError, NativeDestination, ProjectProduct};
 use diagnostics::Diagnostic;
 
-/// One registered independent stage validator.
+/// One registered stage-output check, with its reported scope.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StageValidator {
     /// Rejoins each target's retained target operations to the optimized
@@ -31,7 +35,8 @@ pub enum StageValidator {
     /// encoding and baseline layout inputs.
     FixedFrameCorrespondence,
     /// Rebuild each selected-instruction rewrite run (Omega 04) step by step
-    /// and require the allocated program's record to name exactly that run.
+    /// with the producer and require the allocated program's record to name
+    /// exactly that run. This checks determinism, not rewrite correctness.
     SelectedInstructionRewriteReplay,
 }
 
@@ -56,7 +61,7 @@ impl StageValidator {
         match self {
             Self::TargetOperationCorrespondence => "target operations",
             Self::FixedFrameCorrespondence => "fixed-frame machine code",
-            Self::SelectedInstructionRewriteReplay => "selected-instruction rewrites",
+            Self::SelectedInstructionRewriteReplay => "selected-instruction rewrite determinism",
         }
     }
 
@@ -299,7 +304,16 @@ impl std::fmt::Display for StageValidationRow {
             self.validator.stage()
         )?;
         match &self.result {
-            StageValidationResult::Passed => write!(formatter, "passed"),
+            StageValidationResult::Passed => {
+                write!(formatter, "passed")?;
+                if self.validator == StageValidator::SelectedInstructionRewriteReplay {
+                    write!(
+                        formatter,
+                        " (producer repeatability only; independent rewrite validation not performed)"
+                    )?;
+                }
+                Ok(())
+            }
             StageValidationResult::Failed(reason) => write!(formatter, "failed: {reason}"),
             StageValidationResult::Inapplicable(reason) => {
                 write!(formatter, "inapplicable: {reason}")
@@ -322,6 +336,21 @@ mod tests {
 
     fn host() -> target::TargetProfile {
         target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap()
+    }
+
+    #[test]
+    fn rewrite_replay_reports_its_determinism_scope_when_it_passes() {
+        let request =
+            StageValidatorRequest::from_exact_names(["SelectedInstructionRewriteReplay"], false)
+                .unwrap();
+        let rows = request
+            .run_with(&native(), host(), |_| StageValidationResult::Passed)
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].to_string(),
+            "stage validator SelectedInstructionRewriteReplay (target linux_x86_64, stage selected-instruction rewrite determinism): passed (producer repeatability only; independent rewrite validation not performed)"
+        );
     }
 
     #[test]
