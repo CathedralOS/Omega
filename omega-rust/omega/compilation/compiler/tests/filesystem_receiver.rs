@@ -182,7 +182,7 @@ use omega_language_std::WindowsFilesystemHost;
 machine main() reaches FilesystemContentRead + FilesystemContentWrite {
     let mut bytes: [u8; 5];
     let read: i64 = block WindowsFilesystemHost::read_file(1, &mut bytes[..], 5);
-    let written: i64 = block WindowsFilesystemHost::write_file(1, bytes[..]);
+    let written: i64 = block WindowsFilesystemHost::write_file(1, &bytes[..]);
 }
 "#,
     )
