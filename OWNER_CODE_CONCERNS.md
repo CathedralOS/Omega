@@ -197,13 +197,6 @@ framework or a list of unimplemented features.
 - Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md, and correct the comment.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
-### Legalization replaces its failure causes with a bare custody error
-- Category: Verifying costs more than writing
-- Where: [scalar graph](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L1084) and four sibling `legalization_*.rs` files in `native-preparation`
-- Saw: 39 calls to `map_err(|_| LegalizationError::custody())` drop the underlying error. The result records the Rust call site and nothing about which argument, storage or result failed.
-- Cost: Each new legalization refusal needs a diagnostic build to find its cause. Keep the cause in the error; this changes no accepted program.
-- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
-
 ### Changing storage analysis rebuilds the native compiler
 - Category: Verifying costs more than writing
 - Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)
