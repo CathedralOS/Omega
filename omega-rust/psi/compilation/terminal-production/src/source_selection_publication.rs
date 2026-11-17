@@ -1930,15 +1930,17 @@ machine entry() -> u32 crashes none {{
             if scope == source::DependencyScope::Build {
                 build_source = Some(id);
             }
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
                     )
                 }
                 Some(syntax) => {
-                    tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
                 }
             }
         }
