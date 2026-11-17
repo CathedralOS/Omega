@@ -49,7 +49,7 @@ def main():
     jobs = int(sys.argv[sys.argv.index("--jobs") + 1]) if "--jobs" in sys.argv else 3
     both = "--both" in sys.argv
     mutants = sorted(
-        os.path.join(dp) for dp, dn, fn in os.walk(root) if "mutation.json" in fn
+        os.path.join(dp) for dp, dn, fn in os.walk(root, followlinks=True) if "mutation.json" in fn
     )
     import random
     random.Random(0).shuffle(mutants)

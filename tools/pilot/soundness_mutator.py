@@ -23,6 +23,9 @@ SCALARS = {
 }
 
 
+SWAPS = os.environ.get("PILOT_SWAPS", "1") == "1"
+
+
 def strip_comments(text):
     return re.sub(r"//[^\n]*", "", text)
 
@@ -208,15 +211,16 @@ def scope_at(text, machine, stmt_start, stmts):
     scope = []
     for name, ptype in machine["params"]:
         if ptype.startswith("&mut "):
-            scope.append((name, ptype[5:].strip()))
+            scope.append((name, re.sub(r"\s+in\s+.*$", "", ptype[5:].strip()), None))
         elif ptype.startswith("&"):
             continue
     for s, e in stmts:
         if s >= stmt_start:
             break
-        lm = re.match(r"let\s+mut\s+(\w+)\s*:\s*([^=;]+?)\s*(=|;)", text[s:e])
+        lm = re.match(r"let\s+(mut\s+)?(\w+)\s*:\s*([^=;]+?)\s*(=|;)", text[s:e])
         if lm:
-            scope.append((lm.group(1), lm.group(2).strip()))
+            vtype = re.sub(r"\s+in\s+.*$", "", lm.group(3).strip())
+            scope.append((lm.group(2), vtype, None if lm.group(1) else s))
     return scope
 
 
@@ -251,16 +255,16 @@ def mutate(text, rng, budget):
             calls_req = any(re.search(rf"\b{re.escape(c)}\s*\(", stmt) for c in callees_with_req)
             weight = 3 if calls_req else (2 if re.match(r"(transition|match|let .*= *match)", stmt) else 1)
             scope = scope_at(clean, machine, s, stmts)
-            for var, vtype in scope:
+            for var, vtype, promote in scope:
                 bare = re.sub(r"<.*", "", vtype)
                 mentions = re.search(rf"\b{re.escape(var)}\b", stmt) is not None
                 w = weight * (3 if mentions else 1)
                 for path, st in scalar_paths(datas, bare, ""):
-                    candidates.append((w, "store", s, var, path, st, bare))
-                    candidates.append((w, "poke", s, var, path, st, bare))
+                    candidates.append((w, "store", s, var, path, st, bare, promote))
+                    candidates.append((w, "poke", s, var, path, st, bare, promote))
                     if path and bare in datas and not datas[bare]["generic"]:
-                        candidates.append((w, "carrier", s, var, path, st, bare))
-            if idx + 1 < len(stmts):
+                        candidates.append((w, "carrier", s, var, path, st, bare, promote))
+            if idx + 1 < len(stmts) and SWAPS:
                 candidates.append((weight, "swap", idx, machine, stmts))
             if re.search(r"\[\s*\d+\s*\]", stmt):
                 candidates.append((weight * 2, "runtime_index", s, e))
@@ -286,7 +290,7 @@ def mutate(text, rng, budget):
         kind = cand[1]
         scalars, carriers = set(), set()
         if kind in ("store", "poke", "carrier"):
-            _, _, s, var, path, st, bare = cand
+            _, _, s, var, path, st, bare, promote = cand
             value = rng.choice(literal_values(st, clean))
             if kind == "store":
                 snippet = f"{var}{path} = {value};"
@@ -302,7 +306,9 @@ def mutate(text, rng, budget):
                     f"(&mut pilot_carrier{n}, {value});"
                 )
             new = clean[:s] + snippet + "\n    " + clean[s:]
-            desc = f"{kind} {snippet}"
+            if promote is not None:
+                new = new[:promote] + re.sub(r"^let\s+", "let mut ", new[promote:], count=1)
+            desc = f"{kind} {snippet}" + (" (let made mutable)" if promote is not None else "")
         elif kind == "swap":
             _, _, idx, machine, stmts = cand
             (a0, a1), (b0, b1) = stmts[idx], stmts[idx + 1]

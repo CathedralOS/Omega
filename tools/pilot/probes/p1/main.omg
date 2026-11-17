@@ -1,0 +1,10 @@
+data Cell { before: u64; value: u64; after: u64; }
+data Carrier<'storage> { cell: &'storage mut Cell; }
+machine update<'s>(carrier: Carrier<'s>, incoming: u64) { carrier.cell.value = incoming; }
+machine need(value: u64) requires value == 5 { }
+machine entry() {
+    let mut cell: Cell = Cell { before: 11, value: 5, after: 17 };
+    let carrier: Carrier = Carrier { cell: &mut cell };
+    update(carrier, 73);
+    need(cell.value);
+}

@@ -1,0 +1,10 @@
+data Cell { before: u64; value: u64; after: u64; }
+machine update(cell: &mut Cell, incoming: u64) { cell.value = incoming; }
+machine forward<'s>(r: &'s mut Cell) { update(r, 73); }
+machine need(value: u64) requires value == 5 { }
+machine entry() {
+    let mut cell: Cell = Cell { before: 11, value: 5, after: 17 };
+    let r: &mut Cell = &mut cell;
+    forward(r);
+    need(cell.value);
+}

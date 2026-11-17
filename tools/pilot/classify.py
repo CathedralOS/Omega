@@ -7,7 +7,8 @@ def cls(r):
         m = re.search(r"cause: (\w+)", o)
         return "FAULT:" + (m.group(1) if m else "?")
     if r["exit"] == "timeout": return "timeout"
-    return "ran"
+    if re.search(r"Psi (exit|crash)", o): return "ran"
+    return "refused"
 for path in sys.argv[1:]:
     rows = [json.loads(l) for l in open(path)]
     c = collections.Counter(cls(r) for r in rows)

@@ -1,0 +1,9 @@
+data Carrier<'storage> { cell: &'storage mut u64; }
+machine update<'s>(carrier: &mut Carrier<'s>, incoming: u64) { carrier.cell = incoming; }
+machine need(value: u64) requires value == 5 { }
+machine entry() {
+    let mut cell: u64 = 5;
+    let mut carrier: Carrier = Carrier { cell: &mut cell };
+    update(&mut carrier, 73);
+    need(cell);
+}
