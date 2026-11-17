@@ -562,13 +562,13 @@
     "nodes": {},
     "edges": {
       "A->B": {
-        "label": "admit and activate on demand"
+        "label": "carry admitted inputs"
       },
       "B->C": {
         "label": "seal accepted result"
       },
       "C->D": {
-        "label": "supply closed logical selections"
+        "label": "carry Psi, catalog and requests"
       },
       "D->E": {
         "label": "carry retained bodies and recipes"
@@ -589,7 +589,7 @@
         "label": "supply completed objects and entry plans"
       },
       "J->K": {
-        "label": "write completed product"
+        "label": "carry product and output request"
       }
     }
   },

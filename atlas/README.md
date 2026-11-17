@@ -167,7 +167,7 @@ The [interactive architecture page](pages/architecture.html) has one connected
 SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
 remembers each view's camera; pan, zoom, Find, selection and the minimap serve
 both. The proposed graph cites its recorded migration plan, uses its named
-phases without inventing stage numbers, and exposes unresolved contracts on
+stages numbered 00–10, and exposes unresolved contracts on
 selection. It remains a proposal, separate from the compiler snapshot.
 
 In Current, one source compiler and one Psi interpreter serve all their callers.

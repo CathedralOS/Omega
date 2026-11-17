@@ -148,7 +148,8 @@ This is one coordinated cutover, planned before compiler implementation. Its
 must establish source/provider separation, demanded-body preservation and stable
 resource binding. The [execution plan](../../plans/foundation-and-backend.md#9-one-integrated-execution-plan)
 orders internal work and retirement conditions; it is not a rollout of separately
-adopted architectures. Exact stage numbers remain open. The
+adopted architectures. The proposed 00–10 numbering states the intended order;
+it does not renumber the observed code. The
 [owner rulings](../../rulings.md) govern the destination.
 
 ## Size is evidence, ownership is a judgment
