@@ -11,12 +11,12 @@ pub(crate) fn parse_trait_default_machine_body<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<(HandleSpan<StatementHandle>, Input<'tokens, 'source>), ParseError> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut body = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut body = arena::HandleSpan::empty();
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (statements, rest) = parse_statement_handles(syntax_trees, input)?;
-        body.push_span(statements);
+        body.extend_contiguous(statements);
         input = rest;
     }
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((body.finish(), input))
+    Ok((body, input))
 }

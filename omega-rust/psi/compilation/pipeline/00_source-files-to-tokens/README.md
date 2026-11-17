@@ -11,7 +11,7 @@ Follow the two substantial spelling domains under `literals/`:
 - [quoted_bytes.rs](literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
 
 The [source-compilation coordinator](../../source-compiler/src/lib.rs) owns file
-loading before this stage receives text. [Token vocabulary](../../representations/tokens/src/token_kind.rs)
+loading before this stage receives text. [Token vocabulary](../../representations/tokens/lexemes/kinds.rs)
 owns the shared keyword and punctuation definitions. Ordinary tokens borrow the
 source; quoted literals use the token stream's byte buffer. Whitespace and
 comments retain exact spans, including LF after a line comment.

@@ -2,7 +2,6 @@ use crate::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::expressions::postfix::try_parse_static_symbol_application;
 use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;
-use crate::syntax_storage::tables::{exprs, items, type_refs_of};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::types::references::parse_domain_argument_handles;
 use crate::types::references::parse_named_type_reference;
@@ -75,10 +74,12 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
         let subject_path = HandleSpan::from_parts(
-            exprs(syntax_trees).append_identifier_path_member(Identifier::generated("self")),
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(Identifier::generated("self")),
             1,
         );
-        let parent_path = items(syntax_trees).insert_identifier_path_members(
+        let parent_path = syntax_trees.items.insert_identifier_path_members(
             target_identifier.iter().cloned().chain(
                 name_segments[..name_segments.len() - 1]
                     .iter()
@@ -150,7 +151,9 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_proof_fact(ProofFact::Membership(membership));
-            items(syntax_trees).set_proof_fact_source_span(handle, parent_span);
+            syntax_trees
+                .items
+                .set_proof_fact_source_span(handle, parent_span);
             handle
         });
         let ((predicate_presence, authored_facts, requires_token_count), input) =
@@ -279,7 +282,7 @@ fn parse_domain_alias<'tokens, 'source>(
 
     loop {
         let (domain, rest) = parse_path_handle_span(input, |member| {
-            items(syntax_trees).append_identifier_path_member(member)
+            syntax_trees.items.append_identifier_path_member(member)
         })?;
         constituents.push(domain);
         if !rest.at_punctuation(PunctuationKind::Ampersand) {
@@ -294,7 +297,7 @@ fn parse_domain_alias<'tokens, 'source>(
 }
 
 fn type_reference_target_label(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
-    match type_refs_of(syntax_trees).type_reference(handle) {
+    match syntax_trees.type_references.type_reference(handle) {
         TypeReferenceNode::Slice { element_type } => {
             format!(
                 "[{}]",

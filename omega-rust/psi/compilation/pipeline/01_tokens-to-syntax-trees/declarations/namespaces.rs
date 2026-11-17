@@ -33,8 +33,8 @@ fn parse_dot_or_colon_path<'tokens, 'source>(
     mut append_member: impl FnMut(Identifier) -> arena::Handle<Identifier>,
 ) -> ParseResult<'tokens, 'source, arena::HandleSpan<Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
-    let mut path = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
-    path.push(append_member(first));
+    let mut path = arena::HandleSpan::empty();
+    path.push_contiguous(append_member(first));
 
     loop {
         if rest.at_punctuation(PunctuationKind::Dot) {
@@ -46,11 +46,11 @@ fn parse_dot_or_colon_path<'tokens, 'source>(
         }
 
         let (member, next) = rest.take_identifier()?;
-        path.push(append_member(member));
+        path.push_contiguous(append_member(member));
         rest = next;
     }
 
-    Ok((path.finish(), rest))
+    Ok((path, rest))
 }
 
 pub(crate) fn take_optional_semicolon<'tokens, 'source>(
