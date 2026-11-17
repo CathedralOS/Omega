@@ -136,7 +136,14 @@ impl Program<'_> {
                     "Calling requirement lost its prepared source contract application",
                 )
             })?;
-        let (signature, _) = self.boundary_signature(context, source)?;
+        let (signature, _) = self
+            .boundary_signature(context, source)
+            .map_err(|mut refusal| {
+                let name = typed.symbols.display_path(source.symbol, "::");
+                let name = name.chars().take(256).collect::<String>();
+                refusal.detail = format!("Calling header `{name}`: {}", refusal.detail);
+                refusal
+            })?;
         self.admitted_declarations.include(owner.symbol);
         Ok(signature)
     }
