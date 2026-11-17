@@ -161,8 +161,10 @@ templates and build entrypoints have been removed.
 
 The [interactive architecture page](pages/architecture.html) shows the compiler
 diagram. Build, source checking and provider selection lead to
-native and interpreter routes. Red paths expose repeated source work, retained
-earlier data and late code generation. Select boxes for stages and evidence.
+native and interpreter routes. Red paths expose retained earlier data and late
+code generation. Source evaluation and provider-policy evaluation are separate;
+provider closure repeats policy-input preparation using accepted code.
+Select boxes for stages and evidence.
 Support sits outside execution. SVG works without JavaScript.
 
 Open the canvas for every relationship. Color identifies ownership;
@@ -180,7 +182,13 @@ changes only local asset loading and the historical navigation strip. Its old
 claims and estimates are not refreshed observations; `artifacts/pipeline-map/map.md`
 owns the corrected current account.
 
-The model and static SVG fallback live in `artifacts/whole_map.py`; DPR-aware Canvas2D drawing, camera and selection
+The relationship model and SVG fallback live in `artifacts/whole_map.py`.
+`artifacts/overview.py` gives each overview arrow named endpoints and pinned
+source evidence. Extra inputs terminate at the consuming operation. Repeated
+boxes identify the same artifact or owner in a separate route. Inspect every
+arrow from the disclosure below the diagram. These are source traces of the
+recorded compiler snapshot, not observed execution or a current-main audit.
+DPR-aware Canvas2D drawing, camera and selection
 behavior live in `artifacts/architecture.js`, with styles in
 `artifacts/architecture.css`. These use the categorical tokens documented in
 [the design kit](design/README.md). The current canvas does not claim that the
@@ -206,6 +214,7 @@ publication is requested. Check the interaction paths against the running
 preview with:
 
 ```bash
+python3 -m unittest atlas.artifacts.test_overview
 python3 atlas/artifacts/check_architecture.py --base-url http://127.0.0.1:8765/artifacts/out/
 python3 atlas/artifacts/check_interactions.py --base-url http://127.0.0.1:8765/artifacts/out/
 ```

@@ -34,7 +34,7 @@ def main():
                 assert page.locator('.overview-node[data-layer="source"]').first.is_visible()
                 assert page.locator('.overview-node.native').first.is_visible()
                 assert page.locator('.overview-node[data-layer="runtime"]').first.is_visible()
-                assert page.locator('.arch-reading dt').count()==48
+                assert page.locator('.arch-reading dt').count()==len(json.loads(page.locator('#architecture-model').text_content())['nodes'])
                 assert not page.locator('.arch-canvas').is_visible()
                 page.locator('.overview-node[data-layer="source"]').first.click()
                 assert 'Psi 06' in page.locator('#layer-source dl').inner_text()
@@ -79,7 +79,7 @@ def main():
         page.locator('.arch-full-map > summary').click()
         assert page.locator('.arch-svg').is_visible()
         assert not page.locator('.arch-canvas').is_visible()
-        page.locator('.arch-outline summary').click();assert page.locator('.arch-outline dt').count()==48
+        page.locator('.arch-outline summary').click();assert page.locator('.arch-outline dt').count()==len(json.loads(page.locator('#architecture-model').text_content())['nodes'])
         assert page.evaluate('document.documentElement.scrollWidth')<=401
         context.close()
         context=browser.new_context(viewport={'width':1440,'height':1000},reduced_motion='reduce')
