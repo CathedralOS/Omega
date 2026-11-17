@@ -1,187 +1,171 @@
-# Open questions
+# Decisions for the complete migration plan
 
-The owner has ruled that foundation contains primitives and compilation becomes
-one linear pipeline. The choices below apply that direction to code that does
-not yet fit it. **Every recommendation is judgment, not an adopted ruling.**
-This review changes the plan only. The six decisions in [rulings.md](rulings.md)
-remain unchanged.
+The [migration plan](plans/foundation-and-backend.md) now specifies **one
+coordinated change set and one cutover**, after the architecture is resolved.
+The task remains plan first; no compiler implementation is authorized by this
+page. Internal work packages can run in dependency order or in parallel, but
+are not separate migration rollouts. The six [owner rulings](rulings.md) remain
+unchanged.
 
-Source links pin `3f9ce43f0c9d179048911d18faa91ba93f60176d`.
-[The plan](plans/foundation-and-backend.md) gives move dependencies and deletion
-conditions; the [Omega map](subsystems/omega.md) traces the present route.
+All recommendations below are **judgment**. Source links describe compiler
+snapshot `3f9ce43f0c9d179048911d18faa91ba93f60176d`; the plan separately identifies
+known later changes. “Unverified” means a concrete design obligation must close
+before implementation, not that the old behavior may be dropped.
 
-## Q-G. Realization is early provider closure and later admission work
+## Q-A. Where does shared host support belong?
 
-Terminal Psi states which outside operations a program requires. Realization
-chooses and checks their providers for a particular target. In the bundled
-library, [Build selects][console-build] `LinuxX86Console` for `Console` on
-`linux_x86_64` and binds `LinuxX86ConsoleIo::write` to system call 1. That is a
-source-backed example of a binding, not a report that a sample ran.
+**Recommendation:** a narrow host-support owner outside compilation. Package
+resolvers, runtimes, CLI and tools may use generic process/filesystem mechanisms;
+CLI-only observations stay with CLI, and products owns publication. Update the
+runtime dependency rule explicitly with these consumers. Placing a compiler
+coordinator or source lookup behind a generic host interface is not allowed.
 
-| Crate | Rust lines | Responsibility |
-| --- | ---: | --- |
-| `provider-planning` | 7,231 | Chooses supply for reached requirements and obtains calling-policy plans from prepared execution inputs. |
-| `provider-admission` | 26,491 | Checks selected plans, entry and installation evidence; issues admitted records and later binds measured installation facts. |
-| `provider-selection` | 1,874 | Joins chosen instances, exact bodies and boundary applications to Terminal declarations. |
-| `trust-model` | 708 | Reconstructs obligations from declarations, root grants and provider evidence. |
-| `selected-dispatch` | 105 | Retains a realization for the matching target. Both `settle` and public `from_realization` construct `SelectedExecution`. [Source][selected] |
+**Planning obligation:** classify the `bounded-process`, `platform-custody` and
+filesystem-authority exports by real consumer and operation. The
+[graph](evidence/data/graph.json) proves shared declarations, not runtime calls.
+The exact packages/names follow that classification; they are not already
+ratified by the owner.
 
-Counts include all tracked Rust files and tests; see [counts.json](evidence/data/counts.json).
-The five crates total 36,409 lines. Their folder does not identify one temporal
-stage:
+## Q-B. Which Build/source information may cross the boundary?
 
-- [Provider closure][closure-loop] repeatedly discovers requirements reachable
-  through selected exact bodies, prepares policy inputs when that set changes,
-  realizes supply and joins selected bodies. It stops when bindings stabilize
-  and refuses changes to prior choices. Merely retained library code does not
-  create a root.
-- [Preparation][provider-inputs] still receives checked source custody and
-  accepted publication, as well as Build supplies and target. Calling-policy
-  execution uses a retained program and the [Build evaluator][policy-evaluator].
-  A proposed source-free settlement input must supply that program and its
-  authority; “Terminal Psi + target” is an incomplete account today.
-- [Native admission][admission] runs during O00. Some producer work is also
-  inside the [native proposal representation][proposal]. Moving the realization
-  folder alone would leave that work outside the proposed stage.
-- [Installation binding][bound] is later. The root pauses after O02; the
-  coordinator emits handler bodies, derives their stack requirements from
-  emitted objects, then binds the requirements before root O03. [Source][handlers]
-  Cyclic installer/handler resource dependencies are refused.
+**Recommendation:** immutable semantic facts and narrow provenance, never live
+source custody or a mutable Build result. Source settlement receives admitted
+bytes, scope/consent and neutral Build selections. It publishes exact chosen
+identities, prepared facts and accepted code. Later native phases cannot acquire
+source, activate a body or rejoin a symbol table.
 
-**Options:** keep realization as an external producer; add only an early
-numbered stage; or expose early closure/admission and later binding as separate
-transitions, with a representation change for handler dependencies.
+[RetainedDeclaration includes SourceFile][retained-declaration], whose
+[contents include text and scope][source-file]; its [rejoin operation][retained-rejoin]
+is not an identity-only leaf. `terminal-psi/vocabulary` must distinguish
+stable definitions/carriers from producers and checks. Access/layout construction
+and semantic encoding do not become primitives because they are pure.
 
-**Recommendation:** the third option. Give early closure an admitted input
-bundle and carry its selected program and plans. Give binding the current
-program's installation demands and measurements when they exist. A numbered
-binding stage placed between today's O02 and O03 documents the current order
-but does not eliminate child compilation while the root is paused.
+**Unverified:** complete the per-field projection and provider-policy input
+inventory. An opaque callback or retained Arc to a source owner fails the
+contract even if its public type is small.
 
-**Unverified design work:** inventory numeric installation consumers in O03,
-carry symbolic demands and a complete reachable-body roster far enough to
-compute frame/stack facts, and bind before the first numeric encoding use. If
-selection requires a measurement-dependent choice, that choice needs a later
-owner. This contract must preserve existing cycle refusals. The plan must not
-claim global linearity until this route is worked through.
+## Q-C. What replaces the current source/evaluation interleaving?
 
-## Q-A. Who owns the shared process runner?
+**Recommendation:** one explicit source-settlement transition owns the current
+Psi 00–06 dependency closure. Source acquisition/admission remains before it;
+canonical sealing and native work remain after it. Inside settlement, lazily
+lex/parse activated units, resolve/type selected bodies, prepare applications,
+lower/check the required program or evaluation closure, execute accepted
+invocations, and discharge pending dependencies. Preserve the one lowered-form
+checker and independent certificate admission.
 
-`bounded-process` serves package resolvers, the native-provider runtime, CLI
-and developer tools. These are host operations, not compiler stages. The
-[dependency graph](evidence/data/graph.json) establishes the shared users;
-the [boundary checker][boundary] restricts the runtime's permitted owners.
-Putting the runner under packages would require changing that rule.
+This deliberately changes stage granularity. [Source continuation already
+alternates resolution and typing][source-loop], and [evaluation preparation][source-job]
+requires later source operations. Wrapping the old stage API calls in a new
+coordinator is not the replacement. Eagerly parsing every available file would
+also change the demand/error contract.
 
-**Options:** interpreter ownership; package ownership with a runtime exception;
-or a narrow shared host-support owner outside compilation.
+The executor receives immutable accepted code and a sealed invocation admission
+binding caller, arguments, target/supplies, permitted observations and account.
+It returns values/status and receipts. It receives no mutable syntax, source
+consent object or source lookup callback. Source-job construction and
+[retained-product preparation][product-preparation] move into settlement.
+The [existing dependency][source-dependency] prevents simply reversing the
+facade call without replacing both interfaces.
 
-**Recommendation:** the shared host-support owner. Move CLI-only observation
-code into CLI, keep the reusable process mechanism together, and explicitly
-permit that leaf for its runtime and package users. Its scope must not expand
-to source semantics, Build evaluation or compiler coordination. The path name
-and precise dependency rule remain a proposed design choice.
+**Unverified:** specify activation/extension order, dependency-cycle behavior,
+charging/reuse and stable accepted answers. Distinct private operations stay
+named and testable; source settlement must not absorb package acquisition,
+native compilation or publication as an all-purpose stage.
 
-## Q-B. Can native consumers read Build and source inputs?
+## Q-D. Which definitions may later representations share?
 
-Current source preparation has substantial inputs: `ComputedBuildConfig`
-[retains accepted Build source and executed selections][budget-custody], and
-[provider-policy preparation][provider-inputs] receives checked source custody.
-By contrast, the native request is assembled with [completed scalar values and
-selected inputs][native-request], and the [native facade][compile] consumes a
-retained Terminal artifact. These are distinct boundaries.
+**Recommendation:** share explicit acyclic identity/vocabulary leaves and
+unchanged declarations by content identity; carry computed facts in the current
+form. A later phase may not use an earlier executable graph as a database.
+Re-export chains and renamed wrappers do not establish this distinction.
 
-**Options:** permit whole `build-requests` and `source-files` packages on the
-Terminal/native side; or split and carry only the semantic facts and provenance
-those consumers need.
+The declaration-selection ledger [already passes through typed trees][ledger-transfer].
+Its definition's old location is not a missing handoff. In contrast,
+[EmissionFacts retains an earlier abstract program][emission-facts]. Inventory
+its actual consumers and replace those reads with justified current fields.
 
-**Recommendation:** split and carry. A composition mode, target layout fact or
-consumed-source identity may belong in a leaf vocabulary, while captured files,
-resolvers and executed Build job state stay with their source-side owner. Copy
-or share immutable records by their meaning; do not retain a whole earlier
-program merely because a later operation needs one field. The exact field
-inventory and source-free calling-policy input are still required work.
+**Unverified:** finish the producer/consumer field map and constructor-authority
+model, including runtime provision and independent verifier inputs. No driver
+or earlier-stage callback belongs in a program representation.
 
-## Q-C. Who sequences source preparation and Build-time evaluation?
+## Q-F. Where does all executable code become complete?
 
-`source-compiler` already [depends on `build-time-evaluation`][source-deps].
-The evaluator has production [P04 preparation calls][evaluation-jobs] and
-[retained product preparation][evaluation-retained]. Its manifest also names
-P02 and P03, but observed P02/P03 lowering calls are test-only; production
-[stores a P03 `SeededTypingBase`][seeded-type]. A manifest edge or a type import
-is not evidence of a production stage invocation.
+**Recommendation:** physical planning represents every ordinary and generated
+body; common encoding produces all executable fragments before layout, object
+and image construction. Image work is placement/relocation/container production,
+not a second instruction/frame generator. This replaces the old proposal to
+move entry/foreign/hosted/writer generators wholesale into an O14 stage.
 
-**Options:** recognize multiple source sequencers, or separate source
-coordination from execution and give continuation one owner.
+[Entry bridges currently obtain effects from completed body objects][entry-input]
+and then choose [scratch/frame/encoding details][bridge-encoding]. O08 also
+[re-encodes callback materializations][callback-encoding]. Their replacement
+needs explicit recipes, carried body effects, complete encoding alternatives and
+fixups. Preserve body-first relaxation and later frame placement using already
+encoded frame fragments.
 
-**Recommendation:** one source sequencer prepares checked evaluation entries,
-runs an artifact-only execution service, then resumes with the results. Move
-production stage calls out of the evaluator before attempting a dependency
-inversion. Simply making the evaluator call `source-compiler` would form a
-cycle. The source-preparation job graph and interpreter execution are different
-responsibilities; their interfaces need to expose that distinction.
+**Unverified:** prove the generated-body and fixup contracts for both ISAs and all
+formats. A late value may choose only a carried encoding alternative; it may not
+create a body, change allocation or increase its own resource requirement.
+Exported post-handoff helpers need real caller evidence before assigning a
+production phase.
 
-## Q-D. May later forms name earlier types?
+## Q-G. How do provider closure, retained bodies and installations fit?
 
-A leaf identity definition can be shared without retaining the old program.
-The current native vocabulary already uses that distinction. Conversely,
-[`EmissionFacts`][emission-facts] retains the optimized abstract program and
-passes it around O03–O09 to emission. A chain of re-exports would not change
-that access.
+**Recommendation:** logical provider/body discovery closes inside source
+settlement from admitted Psi-neutral Build selection records. Omega then admits
+physical ABI plans over those fixed selections and already accepted code. It
+cannot select a new source body when a target check fails.
 
-**Options:** require every definition to be re-exported by its predecessor; or
-allow explicit vocabulary leaves while each stage reads only its declared
-current program and carried facts.
+The [observed provider loop][closure-loop] grows demand through selected exact
+bodies; [policy preparation still has source custody][policy-input]. Splitting
+those responsibilities while preserving choices is a required proof, not a
+simple folder move. Calling-policy code needed later must already be accepted.
 
-**Recommendation:** allow leaves and forbid hidden earlier-program access.
-Document which fields each producer establishes and which later consumer needs
-them. Sharing unchanged structural declarations may be appropriate; retaining
-an earlier executable graph to recover missing facts needs repair. Do not infer
-a data-flow defect merely from a foundation-owned type: the declaration-selection
-ledger is already [stored in typed trees][composition].
+Keep available, demanded and retained body sets distinct. Native planning closes
+the references surviving relevant optimization over the accepted code catalog;
+unused availability must not demand target support. The [current callback walk][callback-demand]
+uses emitted object references, so an early conservative roster is not enough.
+The plan absorbs demand-changing native planning operations into one owner and
+requires proof that encoding/layout cannot discover more bodies.
 
-## Q-F. What do layout and frame insertion need from encoders?
+Physical planning also includes entries/adapters/handlers and their effects.
+Binding uses a complete resource summary: [transitive body demand, bridge
+storage, call bias, alignment and fault premises][stack]. The current root waits
+for handler objects before selection; a frame-size-only replacement cannot
+preserve that contract. [O03's numeric guard consumer][guard] must instead read
+a symbolic requirement until a proved stable binding point.
 
-O07 encodes instructions; O08/O09 select branch forms and resolve displacement,
-and frame application can stretch branches again. O08 also [re-encodes private
-callback materializations][callback-encoder] to compare their canonical bytes.
-Moving every ISA function into O07 would leave later stages calling a previous
-stage.
+**Unverified:** close the logical/ABI selection split, retained-body closure,
+generated-body effect model and numeric-binding stability. If a bound changes
+register constraints, helper reach or its own stack demand, revise the phase
+contract before implementation. Do not hide recursive handler compilation in a
+new binding stage.
 
-**Options:** carry encoding alternatives and fixup descriptions; retain a small
-shared encoding library as an explicit exception; or combine layout and frame
-work with encoding.
+## What resolves these questions
 
-**Recommendation:** first prove a carried encoding contract. It needs byte
-alternatives, signed ranges, alignment, target-relative bases and bitfield
-geometry, as well as callback/image-address fixups and frame-induced changes.
-Later stages can then choose and patch without rediscovering target encoding
-rules. Preserve the independent verifier's ability to reject changed bytes.
-
-**Unverified:** whether this complete descriptor set can replace every current
-post-O07 ISA call without changing refusal behavior. The present reason for
-separate frame application—relaxing exact body displacements before adding
-frames—must survive. Moving encoders before that proof creates a new forbidden
-edge rather than completing the migration.
+The [planning gates](plans/foundation-and-backend.md#8-planning-completion-gates-before-implementation)
+require concrete fields/APIs, actual producer/consumer inventories and an
+ordering argument. Once those gates close, the [integrated execution plan](plans/foundation-and-backend.md#9-one-integrated-execution-plan)
+implements all replacements and retires the old routes together. These pages do
+not announce that feasibility, implementation or compiler validation has already
+been completed.
 
 
-[admission]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L44
-[bound]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60
-[boundary]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/boundary.rs#L1
-[budget-custody]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/evaluated_build.rs#L133
-[callback-encoder]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676
+[bridge-encoding]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/machine-emission/src/native_entry_bridge.rs#L701
+[callback-demand]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L182
+[callback-encoding]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676
 [closure-loop]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260
-[compile]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/compile.rs#L14
-[composition]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1457
-[console-build]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/build.omg#L677
 [emission-facts]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L261
-[evaluation-jobs]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L633
-[evaluation-retained]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/product/retained_provider_selections.rs#L120
-[handlers]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L78
-[native-request]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L100
-[policy-evaluator]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L45
-[proposal]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/native_proposal.rs#L240
-[provider-inputs]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14
-[seeded-type]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L303
-[selected]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs#L14
-[source-deps]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/Cargo.toml#L16
+[entry-input]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1251
+[guard]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_interrupts.rs#L1145
+[ledger-transfer]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1622
+[policy-input]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14
+[product-preparation]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/product/retained_provider_selections.rs#L120
+[retained-declaration]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/src/retained_declaration.rs#L67
+[retained-rejoin]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/src/retained_declaration.rs#L106
+[source-dependency]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/Cargo.toml#L16
+[source-file]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/source/src/lib.rs#L144
+[source-job]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616
+[source-loop]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L1091
+[stack]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1499
