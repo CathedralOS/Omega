@@ -162,6 +162,19 @@ impl TerminalExecution<'_> {
         result: &terminal_psi::StructuralOperationResult,
         supply: crate::boundary::effects::results::TerminalReferenceResult,
     ) -> Result<(), TerminalInterpretError> {
+        // Resident completion currently establishes one plain referent. A
+        // materialized outer tree cannot grant its nested descriptors a new
+        // live-storage contract. Reject the whole offer before publishing rows.
+        let mut nested: Vec<_> = supply.references.iter().map(|(_, child)| child).collect();
+        while let Some(child) = nested.pop() {
+            if matches!(
+                child.referent,
+                crate::TerminalReferencePayload::Resident { .. }
+            ) {
+                return Err(malformed());
+            }
+            nested.extend(child.references.iter().map(|(_, child)| child));
+        }
         if !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)

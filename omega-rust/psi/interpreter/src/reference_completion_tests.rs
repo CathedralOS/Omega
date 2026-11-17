@@ -685,3 +685,78 @@ fn resident_rows_release_backing_after_the_last_reborrow_retires() {
         );
     }
 }
+
+#[test]
+fn nested_resident_backing_cannot_bypass_the_outer_completion_contract() {
+    let field = StructuralFieldId::new(1).unwrap();
+    let (mut execution, boundary, result) = setup(
+        vec![
+            ty(1, StructuralTypeShape::PrimitiveScalar(scalar())),
+            ty(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(1).unwrap(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+            ty(
+                3,
+                StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
+                        inline_carrier: None,
+                        id: field,
+                        identity: TerminalIdentityIndex(1),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(
+                            StructuralTypeId::new(2).unwrap(),
+                        ),
+                        storage: None,
+                    }],
+                    storage: StructuralRecordStorage::Packed,
+                },
+            ),
+        ],
+        3,
+    );
+    let supplied = TerminalReferenceResult {
+        referent: TerminalReferencePayload::Zeroed,
+        references: vec![(
+            vec![Path::Field(field)],
+            resident(
+                1,
+                vec![(
+                    vec![],
+                    word(scalar(), 37),
+                    scalar(),
+                    backing(word(scalar(), 37)),
+                )],
+            ),
+        )],
+    };
+    let mut materialized = supplied.clone();
+    let TerminalReferencePayload::Resident { aggregate, .. } =
+        &materialized.references[0].1.referent
+    else {
+        unreachable!()
+    };
+    materialized.references[0].1.referent = TerminalReferencePayload::Aggregate(aggregate.clone());
+    // The root reference's existing materialized route itself is supported.
+    execution
+        .preflight_boundary_result(&boundary, &OperationResult::Structural(result.clone()))
+        .unwrap();
+    let accepted = commit(&mut execution, &boundary, &result, supplied);
+    if accepted.is_ok() {
+        assert!(execution.structural_values.contains_key(&result.place));
+        assert_eq!(execution.structural_primitive_storage.len(), 1);
+        assert!(!execution.reference_referents.is_empty());
+    }
+    assert!(
+        accepted.is_err(),
+        "nested Resident was accepted and published under the outer materialized contract"
+    );
+    assert!(!execution.structural_values.contains_key(&result.place));
+    assert_eq!(execution.structural_primitive_storage.len(), 0);
+    assert!(execution.reference_referents.is_empty());
+    commit(&mut execution, &boundary, &result, materialized).unwrap();
+}
