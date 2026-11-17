@@ -6101,6 +6101,290 @@ pub(crate) mod storage_addresses {
     mod tests {
         use super::*;
 
+        use crate::boundary::structural_inputs::byte_arrays::storage::{
+            ArrayStorage, StructuralByteArrayStorage,
+        };
+        use crate::boundary::values::TerminalStructuralValue;
+        use crate::engine::calls::frames::tests::empty_program;
+        use crate::storage::byte_sequences::binding::ByteSequenceBinding;
+        use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+        use crate::storage::byte_sequences::{ByteSequenceView, OriginalByteArrayWindow};
+        use semantic_vocabulary::{IntegerSign, IntegerType, StructuralTypeId};
+        use std::sync::Arc;
+        use terminal_psi::{
+            ArrayExtent, ByteSequenceCarrier, StructuralAccess, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityIndex,
+        };
+
+        fn execution() -> TerminalExecution<'static> {
+            let declaration = |id, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                id: StructuralTypeId::new(id).unwrap(),
+                identity: TerminalIdentityIndex(id as u32),
+                shape,
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            };
+            let mut program = empty_program();
+            Arc::get_mut(&mut program)
+                .unwrap()
+                .fixture_module_mut()
+                .structural_types
+                .extend([
+                    declaration(
+                        1,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                        )),
+                    ),
+                    declaration(
+                        2,
+                        StructuralTypeShape::FixedArray {
+                            element: StructuralTypeId::new(1).unwrap(),
+                            length: ArrayExtent::Literal(4),
+                        },
+                    ),
+                    declaration(
+                        3,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::MutableBorrow),
+                        }),
+                    ),
+                ]);
+            TerminalExecution::start_with_program(
+                program,
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap()
+        }
+
+        fn array(execution: &mut TerminalExecution<'_>, identity: u64) -> ArrayStorage {
+            let referent = StructuralRuntimePlace {
+                opaque_identity: identity,
+                path: Vec::new(),
+            };
+            let bytes =
+                ByteSequenceView::new(ByteSequenceStorage::copy(&[1, 2, 3, 4], None).unwrap());
+            execution
+                .structural_byte_storage
+                .insert(
+                    referent.clone(),
+                    StructuralByteArrayStorage::new(StructuralTypeId::new(2).unwrap(), bytes, None),
+                )
+                .unwrap();
+            ArrayStorage::from(referent)
+        }
+
+        fn shared(execution: &TerminalExecution<'_>, array: &ArrayStorage) -> ByteSequenceView {
+            execution
+                .stored_byte_array_snapshot(array, 0, 4)
+                .unwrap()
+                .with_original_array(OriginalByteArrayWindow {
+                    array: array.clone(),
+                    array_type: StructuralTypeId::new(2).unwrap(),
+                    offset: 0,
+                    length: 4,
+                })
+        }
+
+        #[test]
+        fn shared_array_views_and_nested_subslices_expose_the_original_element() {
+            let mut execution = execution();
+            let original = array(&mut execution, 17);
+            let view = shared(&execution, &original);
+            let nested = view.subslice(1, 4).unwrap().subslice(1, 2).unwrap();
+            let original_address = execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                    array: original.clone(),
+                    index: 2,
+                })
+                .unwrap();
+            assert_eq!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: view.clone(),
+                        index: 2
+                    })
+                    .unwrap(),
+                original_address
+            );
+            assert_eq!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: nested,
+                        index: 0
+                    })
+                    .unwrap(),
+                original_address
+            );
+            assert_ne!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                        array: original.clone(),
+                        index: 1
+                    })
+                    .unwrap(),
+                original_address
+            );
+            let other = array(&mut execution, 18);
+            assert_ne!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: shared(&execution, &other),
+                        index: 2
+                    })
+                    .unwrap(),
+                original_address
+            );
+            let snapshot = view.owned_snapshot();
+            let snapshot_address = execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                    bytes: snapshot.clone(),
+                    index: 2,
+                })
+                .unwrap();
+            assert_ne!(snapshot_address, original_address);
+            assert_eq!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: snapshot,
+                        index: 2
+                    })
+                    .unwrap(),
+                snapshot_address
+            );
+            let independent =
+                ByteSequenceView::new(ByteSequenceStorage::copy(&[1, 2, 3, 4], None).unwrap());
+            assert_ne!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: independent,
+                        index: 2
+                    })
+                    .unwrap(),
+                snapshot_address
+            );
+        }
+
+        #[test]
+        fn shared_reborrow_of_a_mutable_array_window_preserves_its_element_address() {
+            let mut execution = execution();
+            let original = array(&mut execution, 19);
+            let mut referent =
+                TerminalStructuralValue::minted(19, StructuralTypeId::new(3).unwrap(), Vec::new());
+            referent
+                .path
+                .push(StructuralPathSegment::FixedRange { start: 1, end: 4 });
+            let binding = ByteSequenceBinding::MutableArray {
+                array: original.clone(),
+                array_type: StructuralTypeId::new(2).unwrap(),
+                offset: 1,
+                length: 3,
+                referent: referent.clone(),
+                descriptor_home: None,
+            };
+            let shared = execution
+                .reborrow_byte_sequence_binding(&binding, &referent, StructuralAccess::SharedBorrow)
+                .unwrap();
+            let bytes = shared.immutable().unwrap().subslice(1, 2).unwrap();
+            let expected = execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                    array: original,
+                    index: 2,
+                })
+                .unwrap();
+            assert_eq!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 0 })
+                    .unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn shared_frame_array_view_exposes_the_same_runtime_occurrence() {
+            use crate::storage::scalar_array::PackedScalarArrayValue;
+            use semantic_vocabulary::PlaceId;
+            let mut execution = execution();
+            let mut arrays = Vec::new();
+            for id in [1, 2] {
+                let place = PlaceId::new(id).unwrap();
+                let structural_type = StructuralTypeId::new(2).unwrap();
+                execution
+                    .scalar_array_values
+                    .publish(
+                        place,
+                        PackedScalarArrayValue::from_bytes(structural_type, &[1, 2, 3, 4], None)
+                            .unwrap()
+                            .snapshot()
+                            .unwrap(),
+                    )
+                    .unwrap();
+                arrays.push(ArrayStorage {
+                    referent: StructuralRuntimePlace {
+                        opaque_identity: 17,
+                        path: Vec::new(),
+                    },
+                    home: ArrayStorageHome::Frame {
+                        depth: 0,
+                        place,
+                        structural_type,
+                    },
+                });
+            }
+            let bytes = shared(&execution, &arrays[0]).subslice(1, 4).unwrap();
+            let view_address = execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 1 })
+                .unwrap();
+            let expected = execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                    array: arrays[0].clone(),
+                    index: 2,
+                })
+                .unwrap();
+            assert_eq!(view_address, expected);
+            let other = shared(&execution, &arrays[1]);
+            assert_ne!(
+                execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
+                        bytes: other,
+                        index: 2,
+                    })
+                    .unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn captured_array_addresses_refuse_invalid_view_and_backing_windows() {
+            let mut execution = execution();
+            let original = array(&mut execution, 20);
+            for (offset, length, index) in [(0, 4, 4), (0, 1, 1), (3, 3, 1), (usize::MAX, 2, 1)] {
+                let bytes =
+                    shared(&execution, &original).with_original_array(OriginalByteArrayWindow {
+                        array: original.clone(),
+                        array_type: StructuralTypeId::new(2).unwrap(),
+                        offset,
+                        length,
+                    });
+                assert!(
+                    execution
+                        .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index })
+                        .is_err(),
+                    "invalid window {offset}/{length} at {index}"
+                );
+            }
+        }
+
         #[test]
         fn field_and_array_coordinates_do_not_collide() {
             let field = encode(0, 7, &[(3, 1)]).unwrap();
