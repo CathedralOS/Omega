@@ -76,8 +76,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         changed,
         &mut accounting,
     )
-    .err()
-    .expect("native demand cannot reuse another provider selection");
+    .expect_err("native demand cannot reuse another provider selection");
     assert!(error.contains("retained provider proposal"), "{error}");
     let report = orchestration::complete_product(output)
         .unwrap_or_else(|error| panic!("{fixture} native completion: {error:?}"))
@@ -102,10 +101,15 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         clock: None,
     })
     .expect("Psi executes the completed application");
+    // The authored entry returns unit, which the CLI's native/Psi comparison
+    // maps to exit 0. It does not invoke an external exit operation.
     assert!(
-        matches!(observed.status,
-        terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(ref completion)
-            if completion.return_code == 0),
+        matches!(
+            observed.status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
         "Psi outcome: {:?}",
         observed.status
     );
