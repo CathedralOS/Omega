@@ -72,6 +72,14 @@ fn membership_and_payload_free_equality_are_tag_tests() {
             "machine is_a(k: Kind) -> bool { k == Kind::A }",
         ),
         (
+            "payload_free_variables",
+            "machine same(left: Kind, right: Kind) -> bool { left == right }",
+        ),
+        (
+            "payload_free_variables_unequal",
+            "machine different(left: Kind, right: Kind) -> bool { left != right }",
+        ),
+        (
             "payload_free_match_operand",
             "machine is_a(flag: bool) -> bool {\n\
                  (match flag { true -> Kind::A, false -> Kind::B }) == Kind::A\n\

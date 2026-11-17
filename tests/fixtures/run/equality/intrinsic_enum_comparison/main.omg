@@ -1,0 +1,39 @@
+// Expected exit: 0. Equality observes both values once, in source order.
+data Signal [copy] {
+    case Ready;
+    case Waiting;
+    case Done;
+    case Unused;
+}
+data Context [copy] { signal: Signal; calls: u32; }
+data Message [copy] { case Empty; case Number(value: i32); }
+MessageEquality satisfies Equatable<Message> {
+    machine equals(left: &Message, right: &Message) -> bool { false }
+}
+machine same(left: Signal, right: Signal) -> bool { left == right }
+machine different(left: Signal, right: Signal) -> bool { left != right }
+machine borrowed(left: &Signal, right: &Signal) -> bool { left == right }
+machine marked(context: &mut Context, next: Signal) -> Signal {
+    context.calls = context.calls +% 1u32;
+    context.signal = next;
+    next
+}
+machine main() crashes Trap {
+    let ready: Signal = Signal::Ready;
+    let waiting: Signal = Signal::Waiting;
+    let mut context: Context = Context { signal: ready, calls: 0u32 };
+    let snapshot: bool = context.signal == marked(&mut context, waiting);
+    let ordered: bool = marked(&mut context, ready) != marked(&mut context, Signal::Done);
+    let computed: bool = (match true { true -> ready, false -> waiting }) == ready;
+    let message: Message = Message::Number { value: 17 };
+    let selected: bool = message == message;
+    transition same(ready, ready) && same(waiting, waiting)
+        && different(ready, waiting) && different(waiting, Signal::Done)
+        && borrowed(&ready, &ready) && computed && snapshot == false && ordered
+        && context.signal == Signal::Done && context.calls == 3u32 && selected == false {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
