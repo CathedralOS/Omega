@@ -766,10 +766,19 @@ fn publish_parents(
                         &DescriptorLocation::whole(result.place),
                     );
                     if lifetime.live.contains(&at) {
-                        return Err(unavailable(
+                        let mut refused = refuse(
                             machine.id,
-                            "reference formation overlaps another activation of itself",
-                        ));
+                            Construct::Operation(operation.id),
+                            Unserved::Call(
+                                "reference formation overlaps another activation of itself",
+                            ),
+                        );
+                        refused.source_span = elaboration
+                            .sources
+                            .get(machine.id)
+                            .and_then(|source| source.operations.get(operation.id))
+                            .and_then(|origin| origin.span());
+                        return Err(refused);
                     }
                     parents.push((*identity, lifetime));
                 }

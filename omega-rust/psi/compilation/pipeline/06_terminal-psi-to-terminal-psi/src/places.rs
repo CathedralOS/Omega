@@ -868,6 +868,10 @@ pub(crate) struct Storage<'a> {
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     defaults: terminal_semantics::structural_qualifications::DefaultRequirements<'a>,
+    default_operations: IdTable<
+        OperationId,
+        Vec<terminal_semantics::structural_qualifications::DefaultRequirement>,
+    >,
 }
 
 impl<'a> Storage<'a> {
@@ -900,6 +904,53 @@ impl<'a> Storage<'a> {
             .sum::<usize>()
             + 1;
         let contents = initial_contents(machine, tables, graph.operation_count())?;
+        let defaults = terminal_semantics::structural_qualifications::DefaultRequirements::new(
+            &module.structural_types,
+            &module.structural_domains,
+            lowered,
+        )
+        .map_err(|error| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                error.detail,
+            )
+        })?;
+        let mut default_operations = IdTable::default();
+        for _ in 0..graph.operation_count() {
+            default_operations.push(Vec::new());
+        }
+        for block in &lowered.blocks {
+            for (before, operation) in block.operations.iter().enumerate() {
+                let before = u32::try_from(before).map_err(|_| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine,
+                        Construct::Operation(operation.id),
+                        "default restoration position exceeds the descriptor graph",
+                    )
+                })?;
+                let required = defaults
+                    .operation(operation, (block.id, before), references)
+                    .map_err(|error| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            machine,
+                            Construct::Operation(operation.id),
+                            error.detail,
+                        )
+                    })?;
+                *default_operations.get_mut(operation.id).ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine,
+                        Construct::Operation(operation.id),
+                        "default restoration has no operation row",
+                    )
+                })? = required;
+            }
+        }
         let mut storage = Self {
             machine,
             lowered,
@@ -914,19 +965,8 @@ impl<'a> Storage<'a> {
             cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             domains,
-            defaults: terminal_semantics::structural_qualifications::DefaultRequirements::new(
-                &module.structural_types,
-                &module.structural_domains,
-                lowered,
-            )
-            .map_err(|error| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    machine,
-                    Construct::Machine,
-                    error.detail,
-                )
-            })?,
+            defaults,
+            default_operations,
         };
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
@@ -1122,17 +1162,7 @@ impl<'a> Storage<'a> {
         let kind = &self
             .operation(operation, Construct::Operation(operation))?
             .kind;
-        Ok(matches!(
-            kind,
-            OperationKind::StructuralScalarFieldStore { .. }
-                | OperationKind::WriteOnlyPrimitiveStore { .. }
-                | OperationKind::StoreStructuralField { .. }
-                | OperationKind::StructuralByteViewFieldStore { .. }
-        ) || (is_call(kind)
-            && kind
-                .structural_arguments()
-                .iter()
-                .any(|argument| exclusive(argument.access))))
+        Ok(terminal_semantics::structural_qualifications::operation_writes_default_storage(kind))
     }
 
     pub(crate) fn zero_establishment(&self, operation: OperationId) -> Checked<bool> {
@@ -1200,9 +1230,11 @@ impl<'a> Storage<'a> {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
                 let owed = self
-                    .defaults
-                    .operation(operation)
-                    .map_err(|error| self.foreign(concerns, error.detail))?
+                    .default_operations
+                    .get(operation.id)
+                    .ok_or_else(|| {
+                        self.foreign(concerns, "default restoration has no operation row")
+                    })?
                     .len();
                 // ponytail: one scan of the obligation table per operation;
                 // a per-operation column if machines grow.
@@ -1519,11 +1551,10 @@ impl<'a> Storage<'a> {
         clause: u32,
         concerns: Construct,
     ) -> Checked<Owner> {
-        let found = self.operation(operation, concerns)?;
         let requirements = self
-            .defaults
-            .operation(found)
-            .map_err(|error| self.foreign(concerns, error.detail))?;
+            .default_operations
+            .get(operation)
+            .ok_or_else(|| self.foreign(concerns, "default restoration has no operation row"))?;
         let requirement = usize::try_from(clause)
             .ok()
             .and_then(|position| requirements.get(position))
@@ -1626,6 +1657,7 @@ impl<'a> Storage<'a> {
     /// substitution; a clause it cannot follow is not known to be kept.
     pub(crate) fn untouched(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         operation: OperationId,
         owner: &Owner,
         concerns: Construct,
@@ -1655,8 +1687,23 @@ impl<'a> Storage<'a> {
             Err(crate::Unbound::Unsupported(_)) => return Ok(false),
             Err(crate::Unbound::Refused(refused)) => return Err(refused),
         }
-        Ok(names
+        // Compare the same captured storage versions. A descriptor-relative
+        // write can change a clause on its original lender even though their
+        // declared root IDs differ.
+        let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+        let before = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "a write has no capture point"))?;
+        let stored = stored
+            .iter()
+            .map(|place| self.backing(references, place, block, before, concerns))
+            .collect::<Checked<Vec<_>>>()?;
+        let names = names
             .found
+            .iter()
+            .map(|place| self.backing(references, place, block, before, concerns))
+            .collect::<Checked<Vec<_>>>()?;
+        Ok(names
             .iter()
             .all(|named| stored.iter().all(|stored| !overlap(named, stored))))
     }
@@ -7086,14 +7133,6 @@ fn is_call(kind: &OperationKind) -> bool {
     kind.module_invocation().is_some()
         || kind.callable_invocation().is_some()
         || matches!(kind, OperationKind::BoundaryCall { .. })
-}
-
-/// A loan through which the callee may write.
-fn exclusive(access: StructuralAccess) -> bool {
-    matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    )
 }
 
 #[cfg(test)]

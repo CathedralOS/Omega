@@ -159,8 +159,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 @media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 
-/* Keep the authored map's typography, fills and square geometry. D3 moves
-   one SVG scene; ELK's coordinates never choose colors or proof status. */
+/* Both compiler views share a camera and the Atlas design tokens. */
 .architecture { grid-column:1/-1; min-width:0; border:1px solid var(--rule); background:var(--surface); }
 .arch-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 24px; padding:12px 16px; }
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
@@ -177,8 +176,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-views button { min-width:104px; border-radius:0; }
 .connected-views button + button { border-left:0; }
 .connected-views button[aria-pressed="true"] { color:var(--ground); background:var(--ink); border-color:var(--ink); }
-.proposed-scene .overview-node rect,.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
-.proposed-scene .overview-node.native rect { stroke:var(--ink-muted); }
+.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
 .connected-open-contract { border-left:2px solid var(--ink-muted); padding-left:8px; }
 .proposed-contracts { margin-top:16px; }
 .proposed-contracts > summary { padding:12px 0; font:var(--type-subheading); }
@@ -227,8 +225,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-layer dd { margin:0 0 24px; max-width:68ch; }
 .architecture-notes { margin-top:16px; padding:16px; border-top:1px solid var(--rule); }
 .architecture-notes > summary { font:var(--type-subheading); }
-.architecture.is-expanded { position:fixed; inset:0; z-index:10; width:100%; height:100dvh; overflow:auto; background:var(--surface); }
-.architecture.is-expanded .connected-viewport { height:calc(100dvh - 210px); }
+.architecture.is-expanded { position:fixed; inset:0; z-index:10; width:100%; height:100dvh; display:flex; flex-direction:column; overflow:hidden; background:var(--surface); }
 .architecture :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
 .overview-page .page { grid-template-columns:minmax(0,1fr); gap:8px; padding-top:12px; }
 .overview-page .top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding-bottom:0; border:0; }
@@ -254,14 +251,9 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
-.overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
-.proposed-scene .overview-node .stage-title { font:500 17px var(--font-serif); }
+.overview-node .overview-step-note { font:400 15px var(--font-serif); fill:var(--ink-muted); }
 .proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
-.proposed-scene .overview-node rect { stroke-width:1; stroke-dasharray:none; }
-.proposed-scene .overview-node.owner rect { fill:var(--ink); stroke:var(--ink); }
-.proposed-scene .overview-node.owner text { fill:var(--ground); }
 #compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
-#compiler-overview[data-view="proposed"][data-whole="true"] .connected-minimap { display:none; }
 @media(min-width:800px){
   #compiler-overview[data-view="proposed"] .connected-views,
   #compiler-overview[data-view="proposed"] .connected-tools { display:inline-flex; vertical-align:middle; margin:0 12px 6px 0; padding:0; }
@@ -271,10 +263,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
   #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
   #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
-  #compiler-overview[data-view="proposed"] [data-legend="proposed"] { display:none; }
-  .architecture.is-expanded #compiler-overview[data-view="proposed"] .connected-viewport { height:calc(100dvh - 170px); min-height:300px; }
 }
-.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
@@ -297,7 +286,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-layer-label { fill: var(--ink-muted); font: 500 16px var(--font-serif); }
 .overview-layer-note { fill: var(--ink-muted); font: 400 16px var(--font-serif); }
 .overview-firewall { fill: none; stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 5; }
-#overview-arrow path { fill: var(--ink-muted); }
+#overview-arrow path { fill: var(--ink); }
 #overview-return path { fill: var(--trap); }
 #overview-check path { fill: var(--checked); }
 .legend-psi::before,.legend-native::before { content: ''; display: inline-block; width: 20px; height: 10px; margin-right: var(--space-2); border: 2px solid var(--ink-muted); }
@@ -306,51 +295,171 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
 
-/* Keep the stage outline beside the route as the reader follows an arrow. */
-.stage-index[hidden],.stage-context[hidden] { display:none; }
-.stage-index,.stage-context { background:var(--surface); padding:16px; }
-.stage-index h3,.stage-context h3 { margin:0 0 12px; font:var(--type-subheading); }
-.stage-index button { display:flex; align-items:baseline; width:100%; gap:10px; border:0;
-  border-left:2px solid transparent; background:transparent; text-align:left; padding:6px 8px;
-  color:var(--ink-muted); font:var(--type-reading-small); }
-.stage-index button span,.stage-output-label { font:12px/1.5 var(--font-mono); }
-.stage-index button[aria-current="step"] { border-color:var(--family-psi); background:var(--ground); color:var(--ink); }
-.stage-index button:hover { background:var(--ground); }
-.stage-context { display:none; }
-.stage-context p { font:var(--type-reading-small); }
-.stage-result { display:block; font:var(--type-subheading); }
-.stage-output-label { color:var(--ink-muted); margin-top:24px; }
-.stage-context a { font:var(--type-reading-small); }
-#compiler-overview[data-view="proposed"] .connected-workspace { display:grid; grid-template-columns:208px minmax(0,1fr); }
-#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--ground); }
-.proposed-scene .connected-group rect { fill:var(--surface); stroke:var(--rule); stroke-dasharray:none; }
-.connected-enhanced[data-view="proposed"] .arch-overview-svg { background:transparent; }
-.proposed-scene .overview-node .stage-title { font:450 17px var(--font-reading); }
-.proposed-scene .overview-node.owner .stage-title { font:500 22px var(--font-serif); }
-.proposed-scene .overview-node .overview-step-note { font:400 14px var(--font-reading); }
-.proposed-scene .overview-node[data-role="artifact"] rect { fill:var(--ground); stroke:var(--ink-muted); }
-.proposed-scene .overview-node[data-role="artifact"] text { fill:var(--ink); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="source"] rect { fill:var(--family-psi-surface); stroke:var(--family-psi); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="source"] text { fill:var(--family-psi); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="native"] rect { fill:var(--family-native-surface); stroke:var(--family-native); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="native"] text { fill:var(--family-native); }
-#compiler-overview[data-view="proposed"] .connected-minimap { display:none; }
-@media(min-width:1100px){
-  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:210px minmax(0,1fr) 250px; }
-  .stage-context:not([hidden]) { display:block; border-left:1px solid var(--rule); }
-  #compiler-overview[data-view="proposed"] .connected-detail { inset:0 0 0 auto; width:250px; max-width:none; max-height:100%; box-sizing:border-box; border:0; border-left:1px solid var(--rule); }
-}
-@media(max-width:700px){
-  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:minmax(0,1fr); }
-  .stage-index { display:flex; align-items:center; gap:4px; padding:4px; overflow-x:auto; border-bottom:1px solid var(--rule); }
-  .stage-index h3 { display:none; }
-  .stage-index button { flex:none; width:auto; white-space:nowrap; }
-}
+/* The diagram owns the workspace. Stage navigation lives with the camera controls. */
+.overview-page .page { max-width:none; }
+.connected-tools .stage-picker[hidden] { display:none; }
+.connected-tools .stage-picker select { width:184px; font:var(--type-reading-small); }
+.connected-enhanced .connected-viewport,#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--surface); }
+.connected-enhanced .arch-overview-svg { background:transparent; }
+.proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
+.proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
+.proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
+.proposed-scene .overview-node .handoff-status { fill:var(--ink); font:500 15px var(--font-serif); letter-spacing:.04em; text-transform:uppercase; }
+.proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 20px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 17px var(--font-serif); }
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
+.proposed-scene .overview-node.check .stage-title { fill:var(--checked); }
+.proposed-scene .overview-node.native rect { fill:var(--ink); }
+.proposed-scene .overview-node.native .stage-title { fill:var(--ground); }
+.proposed-scene .overview-node.is-traced rect { stroke:var(--ink); stroke-width:3; stroke-dasharray:none; }
+.proposed-scene .overview-node.check.is-traced rect { stroke:var(--checked); }
+.trace-explanation .repair-stops { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; }
+.trace-explanation .repair-stops button { padding:2px 0; border:0; background:transparent; color:var(--ink); font:var(--type-reading-small); text-decoration:underline; }
+#compiler-overview[data-view="proposed"] .trace-explanation { border-color:var(--ink-muted); }
 @media(prefers-reduced-motion:no-preference){
-  .overview-node,.overview-edge,.stage-index button { transition:opacity 140ms ease,background-color 140ms ease; }
+  .overview-node,.overview-edge { transition:opacity 140ms ease; }
 }
 
 .label-guide { stroke:var(--rule); stroke-width:1; pointer-events:none; }
+
+.connected-enhanced:not(.has-trace):not(:has(.trace-explanation:not([hidden]))) [data-camera="clear"] { display:none; }
+.connected-views { align-self:start; }
+.architecture.is-expanded .arch-header { padding:6px 12px; }
+.architecture.is-expanded .arch-header h2 { font:var(--type-subheading); }
+.architecture.is-expanded #compiler-overview .connected-views,
+.architecture.is-expanded #compiler-overview .connected-tools { margin:0; padding:0; }
+.architecture.is-expanded #compiler-overview .connected-workspace { width:100%; min-height:0; }
+.architecture.is-expanded #compiler-overview .connected-viewport { height:100%; min-height:0; max-height:none; }
+.architecture.is-expanded #compiler-overview { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:6px; padding:6px; min-height:0; flex:1; }
+.architecture.is-expanded #compiler-overview .connected-views { grid-area:1/1; }
+.architecture.is-expanded #compiler-overview .connected-tools { grid-area:1/2; }
+.architecture.is-expanded #compiler-overview .connected-workspace { grid-area:2/1/3/-1; align-self:stretch; }
+.architecture.is-expanded #compiler-overview > :is(.connected-intro,.arch-overview-legend,.connected-help,details) { display:none; }
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview { grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); }
+  .architecture.is-expanded #compiler-overview .connected-tools { grid-area:2/1; }
+  .architecture.is-expanded #compiler-overview .connected-workspace { grid-area:3/1; }
+}
+
+/* Shape and line pattern still distinguish the three routes in monochrome. */
+.connected-tools .trace-picker[hidden],.trace-explanation[hidden] { display:none; }
+.connected-tools .trace-picker select { width:170px; font:var(--type-reading-small); }
+.trace-explanation { margin:3px 0 8px; max-width:none; padding:7px 12px; border-left:3px solid var(--trap); background:var(--ground); font:var(--type-reading-small); }
+.key-main::before,.key-service::before,.key-detour::before { content:''; width:22px; display:inline-block; margin-right:6px; border-top:3px solid var(--ink); vertical-align:middle; }
+.key-service::before { border-top:2px dotted var(--ink-muted); }
+.key-detour::before { border-top:2px dashed var(--trap); }
+#overview-service path { fill:var(--ink-muted); }
+/* The original pipeline plate uses outlined portable forms, ivory native
+   forms, coral reach-arounds and a teal checker verdict. */
+.connected-scene:not(.proposed-scene) .connected-group rect { fill:none; stroke:none; }
+.connected-group .connected-phase {
+  fill:var(--ink-muted); font:500 14px var(--font-serif); letter-spacing:.06em; text-transform:uppercase;
+}
+.connected-start { fill:var(--ink-muted); font:500 12px var(--font-serif); letter-spacing:.06em; }
+.connected-scene .overview-node .current-title { fill:var(--ink); font:500 20px var(--font-serif); }
+.connected-scene .overview-node .node-body { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.8; }
+.connected-scene .overview-node.owner .node-body { fill:var(--ground); stroke:var(--rule); stroke-width:1.5; }
+.connected-scene .overview-node.native .node-body { fill:var(--ink); stroke:var(--ink); }
+.connected-scene .overview-node.native .current-title { fill:var(--ground); }
+.connected-scene .overview-node.accepted .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene .operation-port { fill:transparent; }
+.connected-scene .overview-node.operation { pointer-events:bounding-box; }
+.connected-scene .overview-node.operation .current-title { font:400 18px var(--font-serif); }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .current-title { text-decoration:underline; }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .operation-port { fill:var(--ink); }
+.connected-scene:not(.proposed-scene) .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.8; }
+.connected-scene .overview-node.check .current-title { fill:var(--checked); }
+.connected-scene .overview-node.attention .current-title,
+.connected-scene .overview-node[data-endpoint="installations"] .current-title { fill:var(--trap); }
+.connected-scene .overview-node:is(.attention,[data-endpoint="installations"]):not([data-role="transform"]) .node-body { stroke:var(--trap); stroke-dasharray:6 4; }
+.connected-scene .overview-node:is(:hover,:focus-visible,.is-selected) .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--ink-muted); stroke-width:1.6; stroke-dasharray:2 4; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:2.2; stroke-dasharray:6 4; }
+.connected-scene .overview-edge .wire-caption { font:400 16px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
+.connected-scene .overview-edge.detour .wire-caption { fill:var(--trap); }
+.has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
+#compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
+#compiler-overview[data-view="current"] .connected-viewport { height:clamp(520px,75dvh,1000px); }
+.architecture.is-expanded #compiler-overview[data-view="current"] .connected-viewport { height:100%; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto minmax(0,1fr); }
+.architecture.is-expanded #compiler-overview .trace-explanation { grid-area:2/1/3/-1; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-area:3/1/4/-1; }
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto auto minmax(0,1fr); }
+  .architecture.is-expanded #compiler-overview .trace-explanation { grid-row:3; }
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-row:4; }
+}
+
+
+/* Keep navigation at the edge of the sheet and inspection close to the map. */
+.architecture { color:var(--ink); --fine-rule:color-mix(in srgb,var(--rule) 54%,var(--surface)); }
+.arch-header,.architecture.is-expanded .arch-header { padding:12px 20px; gap:8px 18px; border-bottom:1px solid var(--fine-rule); }
+.arch-header .map-heading { display:flex; align-items:center; gap:12px; }
+.arch-header .map-heading h2,.architecture.is-expanded .arch-header h2 {
+  font:400 clamp(26px,2.6vw,38px)/1.1 var(--font-serif); letter-spacing:-.035em;
+}
+.arch-badge { padding-left:14px; border-left:1px solid var(--fine-rule); font:11px/1.45 var(--font-mono); }
+.arch-header .map-plan { color:var(--ink); font:500 15px var(--font-serif); text-decoration:none; border-bottom:1px solid var(--rule); padding:4px 0; }
+.map-plan span { padding-left:6px; }
+.architecture .arch-reading { padding:12px; }
+.architecture .connected-tools { flex:1; gap:8px 14px; }
+.architecture .connected-views { width:fit-content; align-self:center; padding:3px; gap:2px; border:1px solid var(--fine-rule); border-radius:0; background:var(--ground); }
+.architecture .connected-views button { min-width:78px; border:0; border-radius:0; padding:6px 12px; font:500 14px/18px var(--font-serif); color:var(--ink-muted); background:transparent; box-shadow:none; }
+.architecture .connected-views button[aria-pressed="true"] { background:var(--ink); color:var(--surface); }
+.architecture .connected-tools label { font:500 14px/18px var(--font-serif); color:var(--ink-muted); }
+.architecture .connected-tools select { font:400 15px var(--font-serif); height:33px; border:1px solid var(--rule); border-radius:0; padding:4px 8px; }
+.connected-tools .component-picker { margin-left:auto; }
+.connected-workspace { border-color:var(--fine-rule); border-radius:0; overflow:hidden; }
+
+.map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; padding:7px 12px; border-top:1px solid var(--fine-rule); background:var(--surface); }
+.map-footer .arch-overview-legend { display:flex; align-items:center; margin:0; gap:6px 14px; font:13px/18px var(--font-serif); }
+.map-footer [hidden] { display:none!important; }
+.camera-tools { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-left:auto; }
+.architecture .camera-tools button,.architecture [data-camera="clear"],.architecture .connected-detail-close { border:1px solid transparent; border-radius:0; padding:4px 7px; min-width:28px; color:var(--ink); background:transparent; box-shadow:none; font:500 14px/18px var(--font-serif); }
+.architecture .camera-tools button:hover,.architecture [data-camera="clear"]:hover,.architecture .connected-detail-close:hover { background:var(--ground); border-color:var(--fine-rule); }
+.camera-tools .connected-scale { display:inline-block; font:12px/18px var(--font-mono); width:42px; }
+.architecture .camera-tools [data-camera="in"],.architecture .camera-tools [data-camera="out"] { font-size:18px; }
+.architecture .camera-tools [data-camera="start"],.architecture .camera-tools [data-camera="fit"] { border-right:1px solid var(--fine-rule); border-radius:0; padding-right:12px; margin-right:3px; }
+.architecture.is-expanded #compiler-overview { gap:8px 14px; padding:10px 12px 12px; }
+.architecture.is-expanded #compiler-overview .connected-views { padding:3px; }
+.architecture.is-expanded #compiler-overview .connected-workspace { display:flex; flex-direction:column; }
+.architecture.is-expanded #compiler-overview .connected-viewport { flex:1; height:0; }
+.connected-detail,.connected-minimap { border-radius:0; border-color:var(--fine-rule); box-shadow:0 3px 14px color-mix(in srgb,var(--ink) 10%,transparent); }
+.connected-workspace .connected-minimap { bottom:54px; }
+.connected-workspace .connected-minimap[hidden] { display:none; }
+.connected-detail { max-height:calc(100% - 76px); }
+.architecture .trace-explanation { margin:0; padding:8px 12px; font:var(--type-reading-small); }
+@media(min-width:800px){
+  .connected-enhanced[data-view="current"] { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px; }
+  .connected-enhanced[data-view="current"] > * { grid-column:1/-1; }
+  .connected-enhanced[data-view="current"] > .connected-views { grid-area:2/1; }
+  .connected-enhanced[data-view="current"] > .connected-tools { grid-area:2/2; }
+  .connected-enhanced[data-view="current"] > .connected-intro { grid-area:1/1/2/-1; }
+}
+@media(max-width:700px){
+  .arch-header,.architecture.is-expanded .arch-header { padding:8px 12px; }
+  .arch-badge { border:0; padding:0; font-size:10px; }
+  .architecture .connected-tools { gap:6px 10px; }
+  .architecture .connected-tools label { width:auto; flex:1 1 140px; min-width:0; }
+  .architecture .connected-tools select { width:0; min-width:0; }
+  .map-footer { padding:4px 6px; gap:1px; justify-content:center; }
+  .map-footer .arch-overview-legend { gap:8px; font-size:10px; line-height:15px; }
+  .camera-tools { margin-inline:auto; }
+  .connected-workspace .connected-minimap { bottom:64px; }
+}
+
+.arch-header .map-heading-text { display:grid; gap:3px; }
+.arch-header .atlas-mark { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid var(--rule); border-radius:0; color:var(--ink); text-decoration:none; font:400 29px/1 var(--font-serif); }
+.arch-header .atlas-mark:hover { background:var(--ground); }
+.arch-header .arch-badge { padding:0; border:0; }
+.wire-origin { fill:var(--surface); stroke:var(--trap); stroke-width:2; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:500; }
+@media(max-width:700px){ .arch-header .atlas-mark { width:32px; height:35px; font-size:23px; } }
+
+@media(max-width:700px){
+  #compiler-overview[data-view="proposed"] .connected-minimap { width:72px; bottom:84px; }
+  #compiler-overview[data-view="proposed"] .connected-minimap svg { height:74px; }
+}
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
@@ -470,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Compiler repair plan</h1>
       <p class="lede">The observed architecture problems, their proposed repairs, and the contracts the replacement must preserve.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas"><code>b6cbb698bcbc</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -575,9 +684,9 @@ commands and artifact contracts must still work after the Rust compiler cutover.
 </tr>
 </tbody>
 </table></div>
-<p><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/graph.json">graph</a>,
-<a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/usage_be.json">backend usage</a>
-are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
+<p><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/graph.json">graph</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/usage_be.json">backend usage</a>
+are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
 <code>src_rs_lines</code> is a path scope, not production-only code. The backend has 221,538
 lines under <code>src/</code>. Dependencies are declarations: 1,318 normal, 1 build and
 160 dev. Neither a Cargo edge nor a text reference proves a production call.
@@ -2231,7 +2340,7 @@ piecemeal migration.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -2384,31 +2493,25 @@ piecemeal migration.</p></main>
   const cameras=new Map();
   const detail=root.querySelector('.connected-detail');
   const scale=root.querySelector('.connected-scale');
+  const traceSelect=root.querySelector('.trace-picker select');
+  const traceNote=root.querySelector('.trace-explanation');
   const jump=root.querySelector('.connected-jump');
   const mini=root.querySelector('.connected-minimap svg');
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
-  const stageIndex=root.querySelector('.stage-index');
-  const stageButtons=[...stageIndex.querySelectorAll('[data-stage]')];
-  const stageContext=root.querySelector('.stage-context');
-  let activeStage=null,flight=0;
+  const stagePicker=root.querySelector('.stage-picker');
+  const stageSelect=stagePicker.querySelector('select');
+  let flight=0;
   function trackStage(transform){
     if(view!=='proposed')return;
     const top=(Math.min(80,viewport.clientHeight/5)-transform.y)/transform.k;
-    const group=model.groups.find(g=>top<=g.y+g.height)||model.groups.at(-1);
-    if(activeStage===group.id)return;
-    activeStage=group.id;
-    const phase=model.phases.find(([id])=>id===group.id);
-    const owner=nodes.get(phase[1]),output=nodes.get(phase[2]);
-    for(const b of stageButtons){
-      if(b.dataset.stage===owner.id)b.setAttribute('aria-current','step');
-      else b.removeAttribute('aria-current');
-    }
-    stageContext.querySelector('h3').textContent=owner.title;
-    stageContext.querySelector('.stage-result').textContent=output.title;
-    stageContext.querySelector('p').textContent=output.description;
-    stageContext.querySelector('a').href=output.source;
+    const center=(viewport.clientWidth/2-transform.x)/transform.k;
+    const groups=model.groups;
+    const closest=groups.reduce((a,b)=>Math.abs(center-a.x-a.width/2)<=Math.abs(center-b.x-b.width/2)?a:b);
+    const column=groups.filter(group=>group.x===closest.x);
+    const stage=column.find(group=>top<=group.y+group.height)||column[column.length-1];
+    stageSelect.selectedIndex=groups.indexOf(stage);
   }
   let miniWindow;
   function drawMinimap(){
@@ -2421,12 +2524,14 @@ piecemeal migration.</p></main>
   root.classList.add('connected-enhanced');
   svg.setAttribute('role','group');
   root.querySelector('.connected-tools').hidden=false;
+  root.querySelector('.camera-tools').hidden=false;
   root.querySelector('.connected-views').hidden=false;
   root.querySelector('.connected-minimap').hidden=false;
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   const camera=zoom().scaleExtent([0.02,2.5]).extent(()=>[[0,0],[viewport.clientWidth,viewport.clientHeight]])
-    .filter(event=>!event.button && (event.type==='wheel' ? view!=='proposed'||event.ctrlKey : event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
+    .clickDistance(3)
+    .on('start',event=>{if(event.sourceEvent)stopFlight();})
     .on('zoom',event=>{
       current=event.transform;trackStage(current);scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
@@ -2440,11 +2545,12 @@ piecemeal migration.</p></main>
   function move(x,y,k){select(svg).call(camera.transform,zoomIdentity.translate(x,y).scale(k));}
   function stopFlight(){cancelAnimationFrame(flight);}
   function stagePosition(node){
-    const k=Math.min(1.05,(viewport.clientWidth-12)/model.width);
-    return {x:(viewport.clientWidth-model.width*k)/2,y:node ? 22-node.y*k : 8,k};
+    const target=node||model.nodes[0];
+    return {x:Math.max(12,(viewport.clientWidth-target.width)/2)-target.x,
+            y:node?22-target.y:0,k:1};
   }
   function visitStage(id){
-    clear();stopFlight();
+    stopFlight();
     const from=current,to=stagePosition(nodes.get(id));
     const draw=t=>move(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,from.k+(to.k-from.k)*t);
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){draw(1);return;}
@@ -2456,19 +2562,9 @@ piecemeal migration.</p></main>
     }
     flight=requestAnimationFrame(step);
   }
-  for(const b of stageButtons)b.addEventListener('click',()=>visitStage(b.dataset.stage));
-  viewport.addEventListener('pointerdown',stopFlight);
-  viewport.addEventListener('wheel',event=>{
-    stopFlight();
-    if(view!=='proposed'||event.ctrlKey)return;
-    const factor=event.deltaMode===1?16:event.deltaMode===2?viewport.clientHeight:1;
-    const floor=Math.min(8,viewport.clientHeight-24-model.height*current.k);
-    const y=Math.max(floor,Math.min(8,current.y-event.deltaY*factor));
-    if(y===current.y)return;
-    event.preventDefault();move(current.x,y,current.k);
-  },{passive:false});
+  stageSelect.addEventListener('change',()=>{clear();visitStage(stageSelect.value);});
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
-    const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
+    const k=Math.min(1.2,(viewport.clientWidth-20)/bounds.width,(viewport.clientHeight-20)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
   }
   function focusNode(n){const k=Math.max(0.75,Math.min(1,current.k));move(viewport.clientWidth/2-(n.x+n.width/2)*k,viewport.clientHeight/2-(n.y+n.height/2)*k,k);}
@@ -2483,9 +2579,59 @@ piecemeal migration.</p></main>
   }
   function link(text,href,parent){const a=document.createElement('a');a.textContent=text;a.href=href;parent.append(a);return a;}
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
-  function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function clear(){traceNote.hidden=true;traceSelect.value='';selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function traceDetour(id,frame=true){
+    stopFlight();clear();
+    const trace=models.current.traces.find(t=>t.id===id);
+    if(!trace)return;
+    traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
+    if(view==='proposed'){
+      const repair=model.repairs[id];
+      traceNote.replaceChildren(repair.description+' ');
+      link('Repair plan',repair.source,traceNote);
+      if(repair.stops.length){
+        const stops=document.createElement('span');
+        stops.className='repair-stops';traceNote.append(stops);
+        for(const key of repair.stops){
+          scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+          button(nodes.get(key).title,()=>visitStage(key),stops);
+        }
+        const first=model.spine.indexOf(repair.stops[0]),last=model.spine.indexOf(repair.stops.at(-1));
+        for(const edge of model.edges.slice(first,last)){
+          scene.querySelector(`[data-edge="${edge.id}"]`).classList.add('is-traced');
+        }
+        if(frame){
+          const t=stagePosition(nodes.get(repair.stops[0]));move(t.x,t.y,t.k);
+        }
+      }else root.classList.remove('has-trace');
+      traceNote.hidden=false;
+      return;
+    }
+    const points=[];
+    for(const edgeId of trace.edges){
+      const e=edges.get(edgeId);
+      scene.querySelector(`[data-edge="${e.id}"]`).classList.add('is-traced');
+      for(const key of [e.start,e.end]){
+        scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+        const n=nodes.get(key);points.push(n,{x:n.x+n.width,y:n.y+n.height});
+      }
+      for(const section of e.sections)points.push(...section.points);
+    }
+    traceNote.replaceChildren(trace.description+' ');
+    link('Repair plan','foundation-backend-plan.html#start-with-the-extra-arrows',traceNote);
+    for(const [i,edgeId] of trace.edges.entries()){
+      traceNote.append(' · ');link(trace.edges.length===1?'Source':'Source '+(i+1),edges.get(edgeId).source,traceNote);
+    }
+    traceNote.hidden=false;
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    if(frame)fit({x:x-24,y:y-32,width:Math.max(...points.map(p=>p.x))-x+48,height:Math.max(...points.map(p=>p.y))-y+64});
+  }
+  traceSelect.addEventListener('change',()=>traceDetour(traceSelect.value));
   function inspect(id,isEdge=false,trigger=null){
-    stopFlight();clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
+    const comparing=traceSelect.value;
+    stopFlight();clear();
+    if(comparing)traceDetour(comparing,false);
+    selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
     root.dataset.selection=id;root.classList.add('has-trace');
     const chosen=isEdge?edges.get(id):nodes.get(id);
@@ -2495,11 +2641,16 @@ piecemeal migration.</p></main>
     for(const nodeId of activeNodes)root.querySelector(`[data-endpoint="${nodeId}"]`)?.classList.add('is-traced');
     root.querySelector(isEdge?`[data-edge="${id}"]`:`[data-endpoint="${id}"]`)?.classList.add('is-selected');
     detail.replaceChildren();detail.hidden=false;
-    button('Close ×',()=>{clear();selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
+    button('Close ×',()=>{traceDetour(comparing,false);selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
       if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.evidence){
+        const sources=document.createElement('p');sources.textContent='Current compiler';
+        for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
+        detail.append(sources);
+      }
       link(view==='proposed'?'Read proposal':'Read subsystem',`${chosen.page}.html${chosen.anchor?'#'+chosen.anchor:''}`,detail);detail.append(' · ');
     }
     link(view==='proposed'?'Recorded plan':'Pinned source',chosen.source,detail);
@@ -2524,8 +2675,8 @@ piecemeal migration.</p></main>
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
-    stageIndex.hidden=stageContext.hidden=view!=='proposed';
-    const help=view==='proposed'?'Scroll to follow the pipeline · pinch or use + and − to zoom · select an arrow to inspect its handoff.':'Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
+    stagePicker.hidden=view!=='proposed';
+    const help='Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
     root.querySelector('.connected-help').textContent=help;
     viewport.setAttribute('aria-label',help+' Arrow keys pan. F fits all.');
     root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
@@ -2535,20 +2686,34 @@ piecemeal migration.</p></main>
     root.querySelector('.arch-arrow-evidence').hidden=view!=='current';
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
-    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Proposed architecture':'Whole compiler';
+    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
     svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
+  }
+  function comparisonTrace(){
+    if(traceSelect.value || view!=='current' || !selected)return traceSelect.value;
+    if(selected.isEdge)return edges.get(selected.id).detour||'';
+    const related=model.traces.filter(trace=>trace.edges.some(id=>{
+      const edge=edges.get(id);
+      return edge.start===selected.id || edge.end===selected.id;
+    }));
+    return related.length===1?related[0].id:'';
   }
   function switchView(next){
     if(next===view)return;
-    stopFlight();activeStage=null;
-    cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
+    stopFlight();
+    const trace=comparisonTrace();
+    cameras.set(view+':'+trace,{transform:current,width:viewport.clientWidth});
+    clear();view=next;model=models[view];
     nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
     const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;
     jump.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose a component…';jump.append(placeholder);
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
-    const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
+    const saved=cameras.get(view+':'+trace);
+    if(saved){
+      const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);
+    }else start();
+    if(trace)traceDetour(trace,!saved);
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
@@ -2557,12 +2722,12 @@ piecemeal migration.</p></main>
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
     stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
-    if(action==='fit')fit();
+    if(action==='fit'){clear();fit();}
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
     if(action==='expand'){
-      const fitted=view==='proposed' && root.dataset.whole==='true';
+      const fitted=root.dataset.whole==='true';
       expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
       control.textContent=expanded?'Collapse':'Expand';
       if(fitted)fit();
@@ -2595,9 +2760,20 @@ piecemeal migration.</p></main>
       const t=stagePosition(null);move(t.x,t.y,t.k);
       return;
     }
-    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+    const first=nodes.get(model.spine[0]);
+    move(Math.min(0,(viewport.clientWidth-first.width)/2-first.x),0,1);
   }
   start();
+  if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
+  function openHandlerHandoff(){
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
+    if(!expanded)root.querySelector('[data-camera="expand"]').click();
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
+  }
+  window.addEventListener('hashchange',openHandlerHandoff);
+  openHandlerHandoff();
   if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>

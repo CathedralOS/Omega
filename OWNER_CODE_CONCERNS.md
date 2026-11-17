@@ -101,18 +101,18 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
-- Category: The documents disagree
-- Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
-- Saw: machine_state_evidence.md says "Final-artifact validation is mandatory". pipeline.md says a compile "does not revalidate, replay or rebuild output the same compile just produced", and optimizations.md repeats it. Every ordinary native build calls `validate_terminal_image`, which re-checks import and relocation counts, region inventories and literal-pool bytes, and decodes x86 and AArch64 address fields from the final bytes to compare them with the object plan, without any `--validator` flag.
-- Cost: Agents can cite one rule to delete this work and another to extend it, and every native build pays for it. Decide whether final-artifact validation is an exception to verification placement; then move the checks behind `--validator` or write the exception into pipeline.md and optimizations.md.
+### Native emission and publication still require the final-image recheck
+- Category: Re-deriving
+- Where: [image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs), [native artifact identity](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/identity.rs), [publication](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/publication.rs), [settled rule](wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
+- Saw: Direct executable emission and dynamic ELF emission call `validate_terminal_image` on the bytes just produced. Publication requires validation evidence, and the native artifact identity incorporates validation digests.
+- Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
 
-### `Build.freestanding` is one untargeted mutable flag that two spec pages forbid and a third relies on
-- Category: The documents disagree
-- Where: [Build declaration](omega-rust/omega/packages/build-declarations/src/prelude.rs#L269), [settings field](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs#L22), [assembly authority](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L243), [configuration.md](wiki/spec/build/configuration.md#L53), [uefi_entry.md](wiki/spec/build/uefi_entry.md#L3), [permissions.md](wiki/spec/build/permissions.md#L233)
-- Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too.
-- Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md.
+### A build-wide flag admits machine control for every output
+- Category: A verdict with nothing behind it
+- Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
+- Saw: Source checking derives machine ownership from `Build.freestanding` for all bound targets. The interrupt-mask intrinsics, core helper and physical classifier still report `MachineControl`.
+- Cost: Firmware selection can admit machine control in a hosted sibling, and a mask-only package already appears to have broad machine reach. Retire the field, check each selected output's provider authority, and carry `InterruptControl` through direct instructions, helpers, package review and physical classification. Exercise a mixed firmware/hosted build and a package update that adds a page-table write.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler

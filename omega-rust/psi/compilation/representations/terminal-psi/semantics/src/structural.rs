@@ -2382,6 +2382,24 @@ pub(crate) mod primitive_place {
         }
     }
 
+    /// Classify the actual memory operand, including a separately retained
+    /// field selector. Knowing its scalar carrier supplies no access or bounds.
+    pub fn primitive_operation_projection_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        projection: terminal_psi::OperationProjection<'_>,
+    ) -> Option<ScalarType> {
+        let Some(field) = projection.field else {
+            return primitive_projection_type(declarations, root, projection.path);
+        };
+        let field =
+            crate::projected_field_declaration(declarations.clone(), root, projection.path, field)?;
+        let mut path = Vec::with_capacity(projection.path.len() + 1);
+        path.extend_from_slice(projection.path);
+        path.push(StructuralPathSegment::Field(field.identity));
+        primitive_projection_type(declarations, root, &path)
+    }
+
     pub fn primitive_projection_type<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,

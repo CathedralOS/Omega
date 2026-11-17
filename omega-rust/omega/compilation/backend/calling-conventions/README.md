@@ -61,9 +61,9 @@ The tagged reference shape existing does not prove every structural producer
 uses it. Current native limits belong beside the
 [lowerer](../../pipeline/02_abstract-operations-to-target-operations/README.md).
 
-Final state-footprint certificates are a separate realization check; a
-passing plan evaluator says nothing about their
-[production status](../images/image/src/lib.rs).
+Plan evaluation establishes the permitted machine-state use. The backend must
+honor that ceiling when selecting and emitting instructions, including generated
+entry and exit code. See [machine-state realization](../../../../../wiki/spec/build/machine_state_evidence.md).
 
 ## Cross-check against clang
 

@@ -98,8 +98,9 @@ request; a dependency's separate activation cannot enlarge its consumer's set.
 The operation only widens the subjects. It neither prepares/executes the
 dependency immediately nor recursively launches a compilation inside Build.
 Ordinary preparation and checking satisfy the request before successful
-completion. A registration identifies what to check, not a certificate that
-the package has passed, and grants no provider, filesystem or trust authority.
+completion. A registration identifies which package to check. Its existence
+records no validation result and grants no provider, filesystem or trust
+authority.
 
 Repeated requests are idempotent for the same resolved immutable dependency
 instance and checking context, not merely the same alias, path or source

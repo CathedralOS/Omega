@@ -129,7 +129,10 @@ pub(crate) fn run<'tokens, 'source>(
     let descent = match goal {
         Goal::Expression(context) => Descent::Expression(context),
         Goal::ConstInteger => Descent::ConstInteger,
-        Goal::Postfix(context) => Descent::Postfix(context),
+        Goal::Postfix(context) => Descent::Postfix(PostfixContext {
+            expression: context,
+            stage: SuffixStage::AfterPrefixes,
+        }),
         Goal::DestructureFields => Descent::DestructureFields,
     };
     let mut step = Step::Descend(descent, input);
@@ -164,6 +167,20 @@ pub(crate) fn run_expression<'tokens, 'source>(
     }
 }
 
+// Fields, indexes and calls form the operand before its prefixes. Casts
+// apply afterward, so a cast changes a formed reference's displayed domains.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SuffixStage {
+    BeforePrefixes,
+    AfterPrefixes,
+}
+
+#[derive(Clone, Copy)]
+struct PostfixContext {
+    expression: ExpressionContext,
+    stage: SuffixStage,
+}
+
 #[derive(Clone, Copy)]
 enum Descent {
     /// `parse_expression_handle_in`: one nesting level, then the logical chain.
@@ -173,7 +190,7 @@ enum Descent {
     Membership(ExpressionContext),
     Arithmetic(ExpressionContext),
     Unary(ExpressionContext),
-    Postfix(ExpressionContext),
+    Postfix(PostfixContext),
     DestructureFields,
 }
 
@@ -225,10 +242,12 @@ enum Frame<'tokens, 'source> {
     /// to the finished postfix operand innermost first.
     Unary {
         base: usize,
+        context: ExpressionContext,
+        source_start: SourceSpan,
     },
     /// Postfix calls, indexes, members and casts after a primary operand.
     Suffixes {
-        context: ExpressionContext,
+        context: PostfixContext,
         source_start: SourceSpan,
     },
     Arguments(Box<ArgumentsFrame>),
@@ -252,7 +271,7 @@ struct IndexSite {
     source_start: SourceSpan,
     collection: ExpressionHandle,
     operator_span: SourceSpan,
-    context: ExpressionContext,
+    context: PostfixContext,
 }
 
 struct ArgumentsFrame {
@@ -267,7 +286,7 @@ enum ArgumentsPurpose {
     Call {
         callee: ExpressionHandle,
         machine_arguments: Box<[StaticMachineArgument]>,
-        context: ExpressionContext,
+        context: PostfixContext,
     },
     /// `Requirement<...>::operation(...)` written as a primary operand.
     AppliedRequirement {
@@ -281,7 +300,7 @@ struct LoadOrderingFrame<'tokens, 'source> {
     source_start: SourceSpan,
     receiver: ExpressionHandle,
     after_open: Input<'tokens, 'source>,
-    context: ExpressionContext,
+    context: PostfixContext,
 }
 
 struct ArrayLiteralFrame<'tokens, 'source> {
@@ -374,27 +393,45 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 Ok(Step::Descend(Descent::Unary(context), input))
             }
             Descent::Unary(context) => {
+                let prefix_start = input;
                 let Some((first, mut input)) = take_unary_prefix(input, context)? else {
-                    return Ok(Step::Descend(Descent::Postfix(context), input));
+                    return Ok(Step::Descend(
+                        Descent::Postfix(PostfixContext {
+                            expression: context,
+                            stage: SuffixStage::AfterPrefixes,
+                        }),
+                        input,
+                    ));
                 };
+                let source_start = prefix_start.current_source_span();
                 let base = self.prefixes.len();
                 self.prefixes.push(first);
                 while let Some((prefix, rest)) = take_unary_prefix(input, context)? {
                     self.prefixes.push(prefix);
                     input = rest;
                 }
-                self.frames.push(Frame::Unary { base });
-                Ok(Step::Descend(Descent::Postfix(context), input))
+                self.frames.push(Frame::Unary {
+                    base,
+                    context,
+                    source_start,
+                });
+                Ok(Step::Descend(
+                    Descent::Postfix(PostfixContext {
+                        expression: context,
+                        stage: SuffixStage::BeforePrefixes,
+                    }),
+                    input,
+                ))
             }
             Descent::Postfix(context) => {
                 let Some(first) = input.tokens.first() else {
-                    return self.primary(syntax_trees, input, context);
+                    return self.primary(syntax_trees, input, context.expression);
                 };
                 self.frames.push(Frame::Suffixes {
                     context,
                     source_start: input.source_span(first),
                 });
-                self.primary(syntax_trees, input, context)
+                self.primary(syntax_trees, input, context.expression)
             }
             Descent::DestructureFields => {
                 let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -435,13 +472,26 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let (expression, rest) = extend_membership(syntax_trees, value, input, context)?;
                 Ok(Step::Value(expression, rest))
             }
-            Frame::Unary { base } => {
+            Frame::Unary {
+                base,
+                context,
+                source_start,
+            } => {
                 let mut expression = value;
                 while self.prefixes.len() > base {
                     let prefix = self.prefixes.pop().expect("prefix above its base");
                     expression = apply_unary_prefix(syntax_trees, expression, prefix)?;
                 }
-                Ok(Step::Value(expression, input))
+                self.suffixes(
+                    syntax_trees,
+                    PostfixContext {
+                        expression: context,
+                        stage: SuffixStage::AfterPrefixes,
+                    },
+                    expression,
+                    input,
+                    source_start,
+                )
             }
             Frame::Suffixes {
                 context,
@@ -657,7 +707,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
     fn suffixes(
         &mut self,
         syntax_trees: &mut SyntaxTrees,
-        context: ExpressionContext,
+        context: PostfixContext,
         mut expression: ExpressionHandle,
         mut input: Input<'tokens, 'source>,
         source_start: SourceSpan,
@@ -670,7 +720,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 return self.begin_arguments(
                     syntax_trees,
-                    context,
+                    context.expression,
                     ArgumentsPurpose::Call {
                         callee: expression,
                         machine_arguments,
@@ -685,7 +735,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let after_open = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 return self.begin_arguments(
                     syntax_trees,
-                    context,
+                    context.expression,
                     ArgumentsPurpose::Call {
                         callee: expression,
                         machine_arguments: Box::default(),
@@ -719,7 +769,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     );
                 }
                 self.frames.push(Frame::IndexStart(site));
-                return Ok(Step::Descend(Descent::Expression(context.value()), input));
+                return Ok(Step::Descend(
+                    Descent::Expression(context.expression.value()),
+                    input,
+                ));
             }
 
             if input.at_punctuation(PunctuationKind::Dot) {
@@ -748,7 +801,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 }
             }
 
-            if input.at_keyword(KeywordKind::As) {
+            // Accesses form the operand before its prefixes. A cast then
+            // applies to that completed operand, including a formed borrow.
+            if context.stage == SuffixStage::AfterPrefixes && input.at_keyword(KeywordKind::As) {
                 (expression, input) = parse_cast_suffix(syntax_trees, expression, input)?;
                 continue;
             }
@@ -791,7 +846,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             end_inclusive,
         });
         Ok(Step::Descend(
-            Descent::Expression(site.context.value()),
+            Descent::Expression(site.context.expression.value()),
             input,
         ))
     }

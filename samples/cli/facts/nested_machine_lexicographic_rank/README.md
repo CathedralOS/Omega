@@ -74,8 +74,8 @@ judgment, including self-calls; struct-literal and subtract-spelling recognizers
 supply no alternative proof. A local tuple query records a pending component
 obligation, never a termination proof; only complete component admission can
 discharge it. Internal state cycles cannot acquire a proof from this deferral.
-Same-shaped participants share this exact view;
-the open syntax question for differently shaped mutual participants is unrelated.
+The participants in this sample share the same lexicographic view. For the
+general rule, see [joint ranking](../../../../wiki/spec/language/termination.md#mutual-ranking-source-contract).
 
 Terminal production: admission and executable plans each own ordered component
 spans. Scalar root roles retain component ordinals, each cyclic header has the

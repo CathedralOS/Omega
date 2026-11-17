@@ -168,8 +168,10 @@ Full source-to-executable correspondence requires separate justification.
 
 `FixedFrameCorrespondence` compares current fixed-frame output with its original
 allocation, instruction encoding and baseline layout. The request retains those
-inputs for that audit; default compilation does not. Current-artifact byte,
-frame, exit and machine-state checks remain required without the originals.
+inputs for that audit. Default compilation enforces instruction encoding, frame,
+exit and machine-state constraints during realization. Independent checks of the final executable
+image belong to [backend tests](machine_state_evidence.md#final-artifact-validation-placement)
+outside the build's validator registry.
 
 `SelectedInstructionRewriteReplay` rebuilds each selected-instruction rewrite
 run step by step with the producer from that run's own input and requires

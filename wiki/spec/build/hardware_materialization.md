@@ -74,11 +74,11 @@ This decision adds no termination promise to executable validation. The logical
 
 ## Bootstrap safety
 
-A post-firmware writer's software-fault-free certificate combines mapped/pinned/
-writable destination and stack facts, WCSU provisioning, checked offsets and
-fragment tiling, admitted CPU support, bounded work, and no suspension, blocking,
-allocation, dynamic dispatch, or unsupported instruction path. Under those
-premises deterministic software faults are excluded. NMI, machine check, and
+Ruling out deterministic software faults in a post-firmware writer requires
+mapped, pinned and writable destination and stack memory, WCSU provisioning,
+checked offsets and fragment tiling, admitted CPU support, and bounded work.
+The writer must also exclude suspension, blocking, allocation, dynamic dispatch
+and unsupported instruction paths. NMI, machine check, and
 physical failure remain explicit boot-envelope assumptions, not proved absence.
 
 ## Checked instructions
@@ -90,5 +90,6 @@ Entry/exit operations such as `iretq` and `sysret` are deriver-only, not ways fo
 source to manufacture control exits. Provider-only checked `lidt` requires
 consumer CPU/table publication authority and accounts for its descriptor read,
 scratch clobber, state change, and reach. The compiler owns that instruction
-contract, not the OS's IDT lifecycle. [Machine-state evidence](machine_state_evidence.md)
-checks the final artifact; prebuilt foreign code uses provider admission.
+contract, not the OS's IDT lifecycle. The backend accounts for the instruction's
+[machine-state effects](machine_state_evidence.md) during realization.
+Prebuilt foreign code uses provider admission.
