@@ -173,11 +173,12 @@ impl Program<'_> {
         let prepared_catalog = match &prepared.catalog {
             Some(catalog) => Arc::clone(catalog),
             None => {
-                let sources = source::source_identity::toolchain_source_identities(
-                    typed.symbols.source_files(),
-                )
-                .map_err(|reason| services::unavailable(context, reason))?;
-                let catalog = Arc::new(PreparedServiceCatalog::prepare(context_source, &sources));
+                let catalog = self
+                    .shared
+                    .calling_catalog(typed, source::DependencyScope::Product)
+                    .as_ref()
+                    .map(Arc::clone)
+                    .map_err(|reason| services::unavailable(context, reason.clone()))?;
                 prepared.catalog = Some(Arc::clone(&catalog));
                 catalog
             }
@@ -215,9 +216,14 @@ impl Program<'_> {
                 ));
             }
             self.served(context, scope.declaration.symbol)?;
-            let declaration = typed
-                .normalized_hermetic_symbol_identity(scope.declaration.symbol)
-                .map_err(|reason| services::unavailable(context, reason))?;
+            // Schema keys are exact nominal owners. A member's semantic
+            // declaration is a different identity and cannot name its trait.
+            let declaration = typed_trees::service_declarations::exact_identity(
+                typed,
+                scope.declaration.symbol,
+                bound_catalog.exact_toolchain_sources(),
+            )
+            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
             let schema = typed_trees::service_declarations::projection::from_typed_application(
                 typed_trees::provider_declarations::ProviderPlanningContext::new(
                     typed,
@@ -462,9 +468,14 @@ impl Program<'_> {
                     "selected entry contract has no canonical full application identity",
                 )
             })?;
-            let declaration = typed
-                .normalized_hermetic_symbol_identity(scope.declaration.symbol)
-                .map_err(|reason| services::unavailable(context, reason))?;
+            // Schema keys are exact nominal owners. A member's semantic
+            // declaration is a different identity and cannot name its trait.
+            let declaration = typed_trees::service_declarations::exact_identity(
+                typed,
+                scope.declaration.symbol,
+                bound_catalog.exact_toolchain_sources(),
+            )
+            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
             if !prepared.requests.iter().any(|request| {
                 request.declaration == declaration
                     && request

@@ -170,7 +170,19 @@ pub fn prepare_provider_execution_inputs(
                 declaration,
                 SelectionPurpose::Product,
             )
-            .map_err(refuse)?;
+            .map_err(|reason| {
+                let purposes = selections
+                    .questions_for(program.artifact().view().into())
+                    .into_iter()
+                    .flat_map(|questions| questions.declarations.iter())
+                    .filter(|(_, row)| row.identity == declaration)
+                    .take(2)
+                    .map(|(_, row)| row.purpose)
+                    .collect::<Vec<_>>();
+                refuse(format!(
+                    "calling policy source for `{declaration}` (application `{owner}`): {reason}; retained declaration purposes {purposes:?}"
+                ))
+            })?;
         for request in &module.calling_policy_requests {
             if request.declaration.as_ref().ok() != Some(&schema_declaration) {
                 continue;

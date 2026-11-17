@@ -121,8 +121,48 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
 
 #[test]
 fn source_boundary_calls_keep_their_actual_input_obligations() {
+    let elaboration = boundary("reaches none", 7).unwrap();
+    let module = &elaboration.module;
+    let [called] = module.boundary_machines.as_slice() else {
+        panic!("the source calls exactly one ordinary requirement");
+    };
+    let service = module
+        .services
+        .iter()
+        .find(|service| Some(service.id) == called.owning_service)
+        .unwrap();
+    let schema = module
+        .service_schema(called.owner.identity(), service.identity)
+        .unwrap();
+    assert_eq!(schema.surface.methods.len(), 1);
+    assert_eq!(
+        module.identities.text(called.identity),
+        Some(
+            schema
+                .surface
+                .identity_text(schema.surface.methods[0].requirement_identity)
+        )
+    );
+    let same = terminal_psi::TerminalServiceSchema::join(
+        std::slice::from_ref(schema),
+        std::slice::from_ref(schema),
+    )
+    .unwrap();
+    assert_eq!(same.as_slice(), std::slice::from_ref(schema));
+    let mut changed = schema.clone();
+    Arc::make_mut(&mut changed.surface).methods[0].name = "other".into();
+    assert!(
+        terminal_psi::TerminalServiceSchema::join(std::slice::from_ref(schema), &[changed])
+            .is_err()
+    );
+    assert!(
+        terminal_psi::TerminalServiceSchema::join(&[schema.clone(), schema.clone()], &[]).is_err()
+    );
+    let mut changed = schema.clone();
+    changed.application = terminal_psi::TerminalIdentityIndex::ABSENT;
+    assert!(terminal_psi::TerminalServiceSchema::join(&[], &[changed]).is_err());
     assert!(matches!(
-        judge(boundary("reaches none", 7)).unwrap(),
+        judge(Ok(elaboration)).unwrap(),
         RouteVerdict::Accepted(_)
     ));
     let verdict = judge(boundary("reaches none", 11)).unwrap();

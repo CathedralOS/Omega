@@ -1364,10 +1364,34 @@ impl<'source> Declarations<'source> {
         if let Some(identity) = self.identities.get(&symbol) {
             return Ok(identity.clone());
         }
-        let identity = self
-            .typed
-            .normalized_hermetic_symbol_identity(symbol)
-            .map_err(refused)?;
+        let identity = if self.typed.trait_definition_by_symbol(symbol).is_some() {
+            // A schema's custody is requested by its nominal owner, just as
+            // retained record owners are. Keep callable/member identities in
+            // their existing semantic domain; a display path cannot bridge
+            // those domains. Toolchain owners commit to the retained file.
+            let file = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| self.typed.symbols.source_file(span))
+                .ok_or_else(|| refused("schema declaration has no retained source"))?;
+            let exact_source = file
+                .origin
+                .is_toolchain()
+                .then(|| source::source_identity::toolchain_source_identity_digest(file))
+                .transpose()
+                .map_err(refused)?
+                .map(|digest| (file.source_id, digest));
+            typed_trees::service_declarations::exact_identity(
+                self.typed,
+                symbol,
+                exact_source.as_slice(),
+            )?
+        } else {
+            self.typed
+                .normalized_hermetic_symbol_identity(symbol)
+                .map_err(refused)?
+        };
         self.identities.insert(symbol, identity.clone())?;
         Ok(identity)
     }
@@ -1840,6 +1864,60 @@ machine entry() reaches Input {}
             .iter()
             .find(|owner| owner.name.as_str() == "Input")
             .unwrap();
+        let [schema] = module.service_schemas.as_slice() else {
+            panic!("the admitted Input service keeps one canonical schema");
+        };
+        let nominal = module.identities.text(schema.declaration).unwrap();
+        let retained = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter(|(_, declaration)| declaration.identity == nominal)
+            .collect::<Vec<_>>();
+        let [(_, retained)] = retained.as_slice() else {
+            panic!("the exact schema owner must retain its original source custody");
+        };
+        assert_eq!(retained.name, "Input");
+        assert_eq!(retained.purpose, SelectionPurpose::Product);
+        assert_eq!(
+            retained.custody,
+            DeclarationCustody::Package(
+                semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()
+            )
+        );
+        assert_ne!(
+            nominal,
+            typed
+                .normalized_hermetic_symbol_identity(owner.symbol)
+                .unwrap()
+        );
+        let produced = source
+            .produce(Default::default(), &mut crate::UnmeasuredProduction)
+            .unwrap();
+        let selections = produced.source_selections().unwrap();
+        assert_eq!(
+            selections
+                .declaration_custody(produced.view(), nominal, SelectionPurpose::Product)
+                .unwrap(),
+            retained.custody
+        );
+        assert!(
+            selections
+                .declaration_custody(produced.view(), nominal, SelectionPurpose::Build)
+                .is_err()
+        );
+        assert!(
+            selections
+                .declaration_custody(
+                    produced.view(),
+                    &typed
+                        .normalized_hermetic_symbol_identity(owner.symbol)
+                        .unwrap(),
+                    SelectionPurpose::Product
+                )
+                .is_err()
+        );
+
         let identities = typed
             .trait_machine_signatures(owner)
             .iter()

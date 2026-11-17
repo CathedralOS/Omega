@@ -311,13 +311,11 @@ impl NormalizedForeignCallBinding {
             return Some(requirement_identity);
         }
         if let NormalizedForeignCallMechanism::Table {
-            requirement_identity,
+            requirement_identity: Some(requirement),
             ..
         } = &self.mechanism
         {
-            if let Some(requirement) = requirement_identity {
-                return Some(requirement);
-            }
+            return Some(requirement);
         }
         match self.mechanism.same_stack_contribution() {
             Some(contribution) => identities.text(contribution.requirement_identity()),

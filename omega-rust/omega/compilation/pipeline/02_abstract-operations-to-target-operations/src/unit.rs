@@ -174,9 +174,7 @@ pub(crate) mod boundary_call {
                         calling_conventions::NativePlace::Parameter(_)
                     )
                 })
-                .map(|callback| {
-                    usize::try_from(callback.application.native_ordinal).map(|ordinal| ordinal)
-                })
+                .map(|callback| usize::try_from(callback.application.native_ordinal))
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
             let semantic_positions = binding
