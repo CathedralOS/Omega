@@ -352,6 +352,29 @@ fn a_payload_read_after_the_subject_is_lent_exclusively_reads_the_subject_again(
     execute_owned_store(&arm_read("s.n + refill(&mut s)"));
 }
 
+/// The callee can change this exact scalar payload, but cannot replace its
+/// containing sum. A reread after handback retains the enclosing case fact.
+#[test]
+fn a_scalar_payload_loan_preserves_the_enclosing_case() {
+    execute_owned_store(
+        r#"
+        data Slot { case Full(n:u32); case Empty; }
+        machine bump(value:&mut u32)->u32 { value=9; 0 }
+        machine last(first:u32, result:u32)->u32 { result }
+        machine read(held:&mut Slot)->u32 { match held {
+            Slot::Full {n}->last(bump(&mut held.n), n)
+            Slot::Empty->0
+        } }
+        machine build_entry() crashes Trap {
+            let mut held:Slot=Slot::Full {n:1};
+            transition read(&mut held)==9 { true->done() _->bad() }
+            machine done() {}
+            machine bad() { crash Trap; }
+        }
+    "#,
+    );
+}
+
 #[test]
 fn a_known_owned_case_payload_replacement_publishes_and_executes() {
     execute_owned_store(&owned_store_source());

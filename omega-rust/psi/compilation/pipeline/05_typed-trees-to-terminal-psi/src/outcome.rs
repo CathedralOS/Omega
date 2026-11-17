@@ -186,6 +186,34 @@ struct Contributed {
     open: bool,
 }
 
+/// One flag per case selected by this body, independent of roster indices.
+/// Sorted keys keep repeated alternatives bounded by this dispatch's size.
+struct CaseProgress(Vec<(usize, bool)>);
+
+impl CaseProgress {
+    fn new(cases: impl Iterator<Item = usize>) -> Self {
+        let mut cases = cases.map(|case| (case, false)).collect::<Vec<_>>();
+        cases.sort_unstable_by_key(|(case, _)| *case);
+        cases.dedup_by_key(|(case, _)| *case);
+        Self(cases)
+    }
+
+    fn position(&self, case: usize) -> usize {
+        self.0
+            .binary_search_by_key(&case, |(case, _)| *case)
+            .expect("an alternative names a case indexed for this dispatch")
+    }
+
+    fn closed(&self, case: usize) -> bool {
+        self.0[self.position(case)].1
+    }
+
+    fn close(&mut self, case: usize) {
+        let position = self.position(case);
+        self.0[position].1 = true;
+    }
+}
+
 struct Walk<'b> {
     signatures: Signatures<'b>,
     callables: &'b crate::callables::CallableNamespace,
@@ -500,20 +528,21 @@ impl<'b> Walk<'b> {
                     if !self.expression(machine, subject)? {
                         return Ok(normal);
                     }
-                    let mut ended_cases = std::collections::BTreeSet::new();
+                    let mut ended_cases =
+                        CaseProgress::new(arms.iter().map(|(selector, _, _)| selector.case));
                     for (selector, target, _) in arms {
-                        if ended_cases.contains(&selector.case) {
+                        if ended_cases.closed(selector.case) {
                             continue;
                         }
                         if let Some(condition) = selector.condition.as_deref()
                             && !self.expression(machine, condition)?
                         {
-                            ended_cases.insert(selector.case);
+                            ended_cases.close(selector.case);
                             continue;
                         }
                         normal |= self.target(machine, target)?;
                         if selector.condition.is_none() {
-                            ended_cases.insert(selector.case);
+                            ended_cases.close(selector.case);
                         }
                     }
                     if let Some((target, _)) = default {
@@ -594,20 +623,18 @@ impl<'b> Walk<'b> {
                     return Ok(false);
                 }
                 let mut completes = false;
-                let mut ended_cases = std::collections::BTreeSet::new();
+                let mut ended_cases =
+                    CaseProgress::new(arms.iter().filter_map(|(selector, _)| selector.case()));
                 let mut reaches_default = true;
                 for (selector, arm) in arms {
-                    if selector
-                        .case()
-                        .is_some_and(|case| ended_cases.contains(&case))
-                    {
+                    if selector.case().is_some_and(|case| ended_cases.closed(case)) {
                         continue;
                     }
                     if let Some(condition) = selector.test()
                         && !self.expression(machine, condition)?
                     {
                         if let Some(case) = selector.case() {
-                            ended_cases.insert(case);
+                            ended_cases.close(case);
                             continue;
                         }
                         reaches_default = false;
@@ -617,7 +644,7 @@ impl<'b> Walk<'b> {
                     if let crate::body::Selector::Case(case) = selector
                         && case.condition.is_none()
                     {
-                        ended_cases.insert(case.case);
+                        ended_cases.close(case.case);
                     }
                 }
                 if let Some(arm) = default

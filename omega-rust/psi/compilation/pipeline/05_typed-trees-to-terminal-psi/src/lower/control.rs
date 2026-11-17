@@ -701,15 +701,17 @@ impl Lowering<'_> {
         mut finish: impl FnMut(&mut Self, &T, SourceOrigin, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         let arms = arms.into_iter().collect::<Vec<_>>();
-        let mut indices = std::collections::BTreeMap::new();
-        let mut cases = Vec::new();
-        let mut groups: Vec<Vec<usize>> = Vec::new();
+        let mut cases = arms
+            .iter()
+            .map(|(selector, _, _)| selector.case)
+            .collect::<Vec<_>>();
+        cases.sort_unstable();
+        cases.dedup();
+        let mut groups = vec![Vec::new(); cases.len()];
         for (position, (selector, _, _)) in arms.iter().enumerate() {
-            let index = *indices.entry(selector.case).or_insert_with(|| {
-                cases.push(selector.case);
-                groups.push(Vec::new());
-                groups.len() - 1
-            });
+            let index = cases
+                .binary_search(&selector.case)
+                .expect("selected case is indexed");
             groups[index].push(position);
         }
         let decided_in = self.current()?;
@@ -721,10 +723,11 @@ impl Lowering<'_> {
             capture
         ));
         let bound = self.slots.clone();
-        let selected = self.selected.clone();
+        let mut selected = self.selected.clone();
         let path = self.path.len();
         let mut ended = None;
         let mut fallback = rest;
+        let mut fallback_selected = selected.clone();
         for (group, (block, chosen)) in groups.iter().zip(blocks) {
             self.enter(block);
             let temporary = chosen.temporary();
@@ -761,6 +764,11 @@ impl Lowering<'_> {
                     self.enter(taken);
                     self.path.push(self.decision(condition, true)?);
                     finish(self, target, arm_source, temporary)?;
+                    if self.current.is_some() {
+                        for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                            retained.retain_invalidation(incoming);
+                        }
+                    }
                     self.path.pop();
                     self.slots.clone_from(&after_guard);
                     self.selected.clone_from(&selected_after_guard);
@@ -772,6 +780,11 @@ impl Lowering<'_> {
                     let block = self.current()?;
                     self.authored_arm(block, preceding, arm_source, preceding_source);
                     finish(self, target, arm_source, temporary)?;
+                    if self.current.is_some() {
+                        for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                            retained.retain_invalidation(incoming);
+                        }
+                    }
                     falls_through = false;
                     break;
                 }
@@ -790,6 +803,9 @@ impl Lowering<'_> {
                 // No payload parameter or ownership transfer crosses this
                 // join: normal guards update the existing homes, and the
                 // captured subject remains the same live storage.
+                for (retained, incoming) in fallback_selected.iter_mut().zip(&self.selected) {
+                    retained.retain_invalidation(incoming);
+                }
                 let (block, _) =
                     fallback.get_or_insert_with(|| (self.block(arm_source), unselected));
                 self.jump(*block, Vec::new(), arm_source)?;
@@ -802,9 +818,15 @@ impl Lowering<'_> {
         if let (Some((target, arm_source)), Some((block, chosen))) = (default, fallback) {
             self.enter(block);
             let temporary = chosen.temporary();
+            self.selected.clone_from(&fallback_selected);
             self.selected.push(chosen);
             self.authored_arm(block, decided_in, arm_source, arm_source);
             finish(self, target, arm_source, temporary)?;
+            if self.current.is_some() {
+                for (retained, incoming) in selected.iter_mut().zip(&self.selected) {
+                    retained.retain_invalidation(incoming);
+                }
+            }
             self.slots.clone_from(&bound);
             self.selected.clone_from(&selected);
             self.path.truncate(path);
@@ -874,8 +896,9 @@ impl Lowering<'_> {
         Ok(Reached::Value(()))
     }
 
-    /// Records the authored arm whose first block is `block`, entered only
-    /// from the decision that ends `decided_in`.
+    /// Records an authored arm's entry and the decision point preceding it.
+    /// A shared wildcard may have several arrivals from that dispatch; the
+    /// checker compares facts before the decision and at the joined entry.
     fn authored_arm(
         &mut self,
         block: BlockId,

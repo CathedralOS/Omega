@@ -936,7 +936,7 @@ impl<'t> Program<'t> {
         let mut default = None;
         let mut result = expected;
         let mut wildcard = None;
-        let mut full_cases = std::collections::BTreeMap::new();
+        let mut full_cases = vec![None; self.data_type(id, record.record())?.cases().len()];
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
@@ -993,10 +993,9 @@ impl<'t> Program<'t> {
             self.label_arm(id, &value, &arm.pattern);
             // Read and type every authored arm before omitting a branch
             // whose earlier unconditional pattern already selects its values.
-            if let Some(earlier) = wildcard.or_else(|| {
-                case.as_ref()
-                    .and_then(|case| full_cases.get(&case.case).copied())
-            }) {
+            if let Some(earlier) =
+                wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
+            {
                 if let Some(names) = self.names.get_mut(id) {
                     names.shadowed_patterns.push((arm.source_span, earlier));
                 }
@@ -1005,7 +1004,7 @@ impl<'t> Program<'t> {
             match case {
                 Some(case) => {
                     if case.condition.is_none() {
-                        full_cases.insert(case.case, arm.source_span);
+                        full_cases[case.case] = Some(arm.source_span);
                     }
                     arms.push((case, value));
                 }

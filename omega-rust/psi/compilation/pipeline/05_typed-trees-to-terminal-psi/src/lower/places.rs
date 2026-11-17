@@ -1322,6 +1322,15 @@ pub(super) struct Chosen {
 }
 
 impl Chosen {
+    /// A join must reload any selected payload whose cached parameters were
+    /// invalidated on an incoming path. Keep disjoint selections unchanged.
+    pub(super) fn retain_invalidation(&mut self, incoming: &Self) {
+        debug_assert_eq!(self.place, incoming.place);
+        if incoming.parameters.is_empty() {
+            self.parameters.clear();
+        }
+    }
+
     /// Fallthrough retains the saved subject's storage and lifetime, without
     /// granting any particular case or carrying a case's payload parameters.
     pub(super) fn without_case(&self) -> Self {

@@ -953,8 +953,9 @@ pub enum Statement {
     /// once, tests alternatives in authored order, and executes only the
     /// selected arm."). Every arm completes the machine, so nothing follows
     /// the statement. `subject` names storage and is not copied. Each arm is
-    /// a case position of the subject's sum, at most once; `default` takes
-    /// every case no arm names. A case with neither is a compile error that
+    /// a case position and its optional field test. Repeated cases retain
+    /// authored order; `default` takes both unnamed tags and failed field
+    /// tests. A case with no complete alternative or fallback is an error that
     /// lowering reports where it builds the terminator.
     Dispatch {
         subject: Expression,

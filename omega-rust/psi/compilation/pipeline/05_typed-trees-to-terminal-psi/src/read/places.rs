@@ -1504,11 +1504,10 @@ impl Program<'_> {
     }
 
     /// The case a destructuring pattern selects in the sum `record`, after
-    /// checking that the pattern is one this slice serves: a case head and
-    /// payload fields that are each bound or waived. patterns.md: "A pattern
-    /// that can fail rejects; a binding introduces no hidden branch, trap,
-    /// fallback or runtime assertion." A binding has no node of its own:
-    /// stage 01 replaces each use of it by the payload member it names. The
+    /// checking its nominal head and exact payload roster. A field may bind,
+    /// waive, or test its projected value. The condition is read separately
+    /// by `case_selector`; a binding has no node of its own because stage 01
+    /// replaces each use of it by the payload member it names. The
     /// pattern must name every payload field unless it ends in `..`;
     /// frozen typed trees retain the roster, not a coverage verdict, so
     /// this reader checks that rule before lowering the binding.

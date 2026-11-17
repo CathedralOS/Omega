@@ -171,10 +171,10 @@ impl Program<'_> {
     /// one follows, the unguarded arm that is the dispatch's `_`. Returns
     /// the dispatch and how many statements it took.
     ///
-    /// Every arm completes the machine, so the dispatch does. An arm with a
-    /// guard of its own, a pattern that tests a field, a second arm for one
-    /// case and a `crash` arm are each refused by name. Coverage is decided
-    /// where lowering builds the terminator from the declaration's cases.
+    /// Every arm completes the machine. Field-value tests and repeated cases
+    /// retain their order for the common decision lowerer; separate guards and
+    /// crash arms remain unavailable. Lowering checks both tag coverage and
+    /// the fallback required when a field test fails.
     pub(super) fn dispatch(
         &mut self,
         id: MachineId,
@@ -189,7 +189,7 @@ impl Program<'_> {
         let mut taken = 0;
         let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let mut wildcard = None;
-        let mut full_cases = std::collections::BTreeMap::new();
+        let mut full_cases = Vec::new();
         for statement in statements {
             let StatementNode::Transition(transition) =
                 self.typed.statement_table.statement(statement)
@@ -217,6 +217,9 @@ impl Program<'_> {
                             source = SourceOrigin::of(transition.source_span);
                             subject = Some(read.clone());
                         }
+                    }
+                    if full_cases.is_empty() {
+                        full_cases.resize(self.data_type(id, record.record())?.cases().len(), None);
                     }
                     let case = self.case_selector(
                         id,
@@ -263,10 +266,9 @@ impl Program<'_> {
             };
             taken += 1;
             let arm_source = SourceOrigin::of(transition.source_span);
-            if let Some(earlier) = wildcard.or_else(|| {
-                case.as_ref()
-                    .and_then(|case| full_cases.get(&case.case).copied())
-            }) {
+            if let Some(earlier) =
+                wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
+            {
                 if let Some(names) = self.names.get_mut(id) {
                     names
                         .shadowed_patterns
@@ -277,7 +279,7 @@ impl Program<'_> {
             match case {
                 Some(case) => {
                     if case.condition.is_none() {
-                        full_cases.insert(case.case, transition.source_span);
+                        full_cases[case.case] = Some(transition.source_span);
                     }
                     arms.push((case, target, arm_source));
                 }

@@ -882,10 +882,10 @@ the slice that serves it:
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
-| a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects` |
+| a case arm with a separate guard or a pattern that binds its case | `transition case arm with a guard`, `transition pattern that binds its case` |
 | `crash` in a case arm | `transition crash in a case arm` (finding 21) |
 | `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
-| a `match` arm with a guard or after the wildcard | `transition case arm with a guard`, `expression match arm after the wildcard` |
+| a `match` arm with a separate guard | `transition case arm with a guard` |
 | `s in S::C` whose right side names no case | `expression case membership` |
 | a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |
 | a clause that names a record formal whole, an `ensures` or crash guard that projects a formal, and any clause that projects `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
@@ -1017,29 +1017,37 @@ must be last. An arm's target is a value, a terminal call (a call whose
 result completes the machine, [state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
 lowered as a call followed by a return) or Unit.
 
-Stage 01 writes dispatch over a sum the same way: a local that holds the
-subject, then one transition per arm guarded by `subject in case`, with every
-use of a payload binding replaced by the payload member of the subject it
-names. The reader takes the run of case arms over one subject, and the
-unguarded arm after them as the wildcard, as one dispatch. Lowering ends the
-block in one `StructuralCase` on the subject local's root, with one edge per
-declared case in declaration order, built from the declaration's case table:
-to the arm that names the case, else to the wildcard arm's block, which the
-uncovered cases share. A declared case with neither is refused there with
-reason `Unestablished`
-([patterns](../../../../../wiki/spec/language/patterns.md): "Every dispatch
-must cover the admitted subject. Missing runtime coverage is a compile
-error, not an implicit trap or fallthrough."). A wildcard after arms that
-name every declared case is accepted and left out: no edge enters it, and
-the checker's advisories warn that it can never run
-([state contracts](../../../../../wiki/spec/language/state_contracts.md#unreachable-branches):
-"This is an advisory diagnostic, not an inherent language error"). Each scalar payload field of
-an arm's case is one parameter of the arm's block
-([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
-"Selected payload fields become scalar parameters on that case's edge before
-cleanup."), and a payload member inside the arm is that parameter. A data
-payload field is no parameter; using it copies it out with a
-`StructuralLeafCopy` whose path is the case and the field.
+Stage 01 writes dispatch over a sum the same way: a local holds the
+subject, and each transition retains its tag and projected field comparisons.
+The reader keeps repeated alternatives for one case in authored order. A
+field-value comparison uses its ordinary selected equality declaration; the
+source-selection question remains attached when stage 02 creates the comparison.
+The selected field's type comes from its exact retained declaration and data
+application, including through the saved subject.
+
+Both `transition` and value-position `match` use one decision lowerer. It emits
+one `StructuralCase` with an edge for each declared tag, then tests only that
+tag's field comparisons in source order. A failed comparison reaches the next
+alternative for that case, or the one shared wildcard block. Untested tags
+also reach that block. A tested field does not cover the complete case: a
+case without an unconditional alternative or a wildcard is refused as
+`Unestablished`, rather than gaining an implicit trap or fallthrough
+([patterns](../../../../../wiki/spec/language/patterns.md)).
+
+An earlier unconditional case alternative or wildcard shadows later matching
+alternatives. The reader still checks those alternatives for well-formedness,
+and source advisories identify the earlier and later patterns
+([state contracts](../../../../../wiki/spec/language/state_contracts.md#unreachable-branches)).
+A redundant wildcard with no incoming path is also advisory.
+
+Scalar payload fields arrive as parameters on the tag edge. They can serve
+reads only until a write or exclusive loan touches their storage. Guard paths
+and normal value arrivals merge those invalidations, so a shared fallback or
+later expression reloads changed payloads. Logical call-write rows use the
+retained storage address when available; a conservative alias bound does not
+turn an exact payload write into a whole-sum replacement. A deliberately
+widened write keeps that conservative bound. The checker separately requires
+the active case at every payload access.
 
 Value-position `match` is the same terminator on the place the subject
 names, with no copy: each arm evaluates its value in its own block and jumps
