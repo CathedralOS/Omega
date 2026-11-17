@@ -795,8 +795,9 @@ impl Program<'_> {
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
-        let read = self.read_term(id, scope, expression, expected)?;
-        self.complete_contract_operator(id, scope, expression, [None, None])?;
+        let mut operands = [None, None];
+        let read = self.read_term(id, scope, expression, expected, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
         Ok(read)
     }
 
@@ -806,6 +807,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
@@ -1081,7 +1083,7 @@ impl Program<'_> {
                 // The shared declaration phase forms this canonical term
                 // before any containing clause becomes proof knowledge.
                 crate::policy::Suffix::Unwritten => {
-                    self.arithmetic_term(id, scope, binary, None, expected)
+                    self.arithmetic_term(id, scope, binary, None, expected, operands)
                 }
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
@@ -1094,7 +1096,7 @@ impl Program<'_> {
                      mathematical arithmetic",
                 )),
                 crate::policy::Suffix::Total(policy) => {
-                    self.arithmetic_term(id, scope, binary, Some(policy), expected)
+                    self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
                 }
             },
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
@@ -1315,6 +1317,7 @@ impl Program<'_> {
         binary: &typed_trees::expression::TableBinaryExpression,
         suffix: Option<Policy>,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let anonymous = (
@@ -1356,6 +1359,10 @@ impl Program<'_> {
             crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
+        // The term has already checked and selected these operand types.
+        // Keep them for source-operator completion instead of treating both
+        // operands as unknown numeric syntax.
+        *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
         Ok((term, selected))
     }
 

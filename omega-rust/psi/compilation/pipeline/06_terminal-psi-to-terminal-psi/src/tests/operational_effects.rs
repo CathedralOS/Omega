@@ -766,3 +766,212 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
         );
     }
 }
+
+#[test]
+fn an_abstract_termination_promise_checks_call_and_tail_premises() {
+    use terminal_check_tables::contracts::{Ceiling, RequirementCeilings};
+    use terminal_psi::{TerminalCallableTermination, TerminalCallableTerminationPremise};
+
+    // Keep real lowered calls and their argument relations. Only the checking
+    // bounds below change: this tests the consumer independently of the source
+    // reader's current refusal to read conditional progress promises.
+    let original = invocation(
+        r#"
+        data Ticket { number: u32; }
+        domain Ticket::Ready established by stamp;
+        machine stamp(ticket: Ticket) -> Ticket in Ready { ticket as +Ready }
+        machine inspect(ticket: &Ticket) -> u32 { ticket.number }
+        machine main(ticket: &Ticket, pending: bool, evidence: &Ticket in Ready) -> u32 {
+            let answer: u32 = inspect(ticket);
+            transition pending {
+                true -> relay(ticket, false, evidence)
+                false -> done()
+            }
+            machine done() -> u32 { 7 }
+        }
+        machine relay(ticket: &Ticket, pending: bool, evidence: &Ticket in Ready) -> u32 {
+            main(ticket, pending, evidence)
+        }
+    "#,
+    )
+    .unwrap();
+    let symbol = |name: &str| {
+        original
+            .names
+            .iter()
+            .find(|(_, names)| names.machine == name)
+            .map(|(id, _)| id)
+            .unwrap()
+    };
+    let main = symbol("main");
+    let inspect = symbol("inspect");
+    let relay = symbol("relay");
+    let done = symbol("done");
+    let domain = original.module.structural_domains[0].id;
+    let mut form = original;
+    form.module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == done)
+        .unwrap()
+        .blocks
+        .clear();
+    form.requirements = vec![done];
+    form.module
+        .callables
+        .machine_envelopes
+        .iter_mut()
+        .for_each(|row| *row = None);
+    form.requirement_ceilings = form.tables.machines.map(|_, _| RequirementCeilings {
+        reaches: Ceiling::Authored(Vec::new()),
+        invokes: Some(Vec::new()),
+        suspension: Some(false),
+        blocking: Some(false),
+        termination: TerminalCallableTermination::Terminates {
+            premises: Vec::new(),
+        },
+    });
+    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
+    for (callee, caller, tail) in [(inspect, main, false), (relay, main, true)] {
+        let mut conditional = form.clone();
+        assert!(
+            conditional
+                .module
+                .machine(callee)
+                .unwrap()
+                .structural_parameters[0]
+                .qualifications
+                .is_empty()
+        );
+        conditional
+            .requirement_ceilings
+            .get_mut(callee)
+            .unwrap()
+            .termination = TerminalCallableTermination::Terminates {
+            premises: vec![TerminalCallableTerminationPremise {
+                parameter: 0,
+                path: Vec::new(),
+                domain,
+            }],
+        };
+        let refused = crate::ceilings::judge(&conditional).unwrap_err();
+        assert_eq!(refused.machine, caller, "{refused:?}");
+        assert_eq!(refused.reason, RefusalReason::Unsupported, "{refused:?}");
+        assert!(
+            refused
+                .detail
+                .contains("callee termination premises need their exact invocation proof"),
+            "{refused:?}"
+        );
+        assert_eq!(
+            matches!(refused.concerns, Construct::Edge(_)),
+            tail,
+            "{refused:?}"
+        );
+    }
+}
+
+#[test]
+fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
+    use terminal_check_tables::compilation::TerminalCompilation;
+
+    fn commitment(text: &str, closed_suspension: bool) -> [u8; 32] {
+        let typed = boundary_calls::typed(text);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap()
+            .symbol;
+        let template = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "relay")
+            .unwrap()
+            .symbol;
+        let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the same source must complete ordinary typed preparation");
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &frozen,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        let TerminalCompilation::Prepared(prepared) = prepared.program else {
+            panic!(
+                "expected prepared template contracts: {:?}",
+                prepared.program
+            );
+        };
+        let closure = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("template contract preparation: {refusal:?}"));
+        let forms = prepared
+            .forms
+            .iter()
+            .find(|form| form.template == template)
+            .unwrap();
+        for form in forms.forms.as_ref().unwrap_or_else(|refusal| {
+            panic!("template form (closed suspension: {closed_suspension}): {refusal:?}")
+        }) {
+            let terminal_psi::TargetMachineCallable::Machine(entry) = form.module.entry.unwrap()
+            else {
+                panic!("a template retains its actual machine entry");
+            };
+            assert_eq!(form.machines.get(entry), Some(&template));
+            assert!(form.module.machine(entry).unwrap().declaration.is_none());
+            assert!(!form.requirements.is_empty());
+            assert_eq!(
+                form.requirement_ceilings.get(entry).unwrap().suspension,
+                closed_suspension.then_some(false)
+            );
+        }
+        let commitments = closure
+            .names
+            .iter()
+            .filter(|(_, names)| names.machine == "relay")
+            .map(|(machine, _)| {
+                closure
+                    .module
+                    .machine(machine)
+                    .unwrap()
+                    .closed_reach_application
+                    .as_ref()
+                    .unwrap()
+                    .template_base_commitment
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(commitments.len(), 2);
+        assert!(commitments.iter().all(|value| *value == commitments[0]));
+        commitments[0]
+    }
+
+    // Reuse the runnable program's original headers. These comparisons test
+    // commitment formation, not acceptance of a changed effect promise: the
+    // ordinary checker must still judge every prepared form independently.
+    let original = include_str!(
+        "../../../../../../../tests/fixtures/run/generics/type_parameter_contract/main.omg"
+    );
+    let original_commitment = commitment(original, false);
+    let changed_guarantee = original.replace("ensures result <= 11", "ensures result <= 12");
+    assert_ne!(changed_guarantee, original);
+    assert_ne!(original_commitment, commitment(&changed_guarantee, false));
+    let closed_suspension = original.replace(
+        "machine relay<T>(item: T, limit: u32) -> u32",
+        "machine relay<T>(item: T, limit: u32) -> u32\nsuspends false",
+    );
+    assert_ne!(closed_suspension, original);
+    assert_ne!(original_commitment, commitment(&closed_suspension, true));
+}

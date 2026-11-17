@@ -165,69 +165,18 @@ impl Program<'_> {
         })
     }
 
-    pub(crate) fn finish_operational_envelopes(
-        &mut self,
-        bodies: &IdTable<MachineId, Body>,
-        components: &crate::components::Components,
-    ) -> Checked<()> {
-        let declaration_policies = self.declaration_policies()?;
-        // An abstract requirement can defer its operational contract to a
-        // later application. The generic witness retains that open Signature;
-        // it cannot publish a complete callable envelope or supply descriptors.
-        // A complete retained requirement policy is already sufficient input to
-        // the fixed point below; it does not need a previously inferred envelope.
-        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
-            self.symbols
-                .get(*id)
-                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
-                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
-                && !self
-                    .declared_envelope_policies
-                    .get(*id)
-                    .and_then(Option::as_ref)
-                    .is_some_and(Policy::is_complete)
-        }) {
-            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
-                return Err(unavailable(
-                    requirement,
-                    "runtime callable needs the abstract requirement's complete operational contract",
-                ));
-            }
-            for (contract, policy) in declaration_policies.iter() {
-                if policy.reach.is_none()
-                    || policy.invokes.is_none()
-                    || policy.suspends.is_none()
-                    || policy.blocks.is_none()
-                {
-                    let caller = self
-                        .declaration_selections
-                        .get(contract)
-                        .and_then(Option::as_ref)
-                        .map_or(requirement, |selected| selected.0);
-                    return Err(unavailable(
-                        caller,
-                        "selected public contract needs completion in its open abstract operational context",
-                    ));
-                }
-            }
-            return Ok(());
-        }
-        let mut policies = IdTable::default();
-        let mut published = IdTable::default();
-        let mut calls = IdTable::default();
-        for (id, symbol) in self.symbols.iter() {
-            let operational = self
-                .signatures
-                .get(id)
-                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
-                .operational;
-            let policy = if let Some(policy) = self
-                .declared_envelope_policies
-                .get(id)
-                .and_then(Option::as_ref)
-            {
-                policy.clone()
-            } else if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
+    fn machine_envelope_policy(
+        &self,
+        id: MachineId,
+        symbol: symbols::SymbolHandle,
+    ) -> Checked<Policy> {
+        let operational = self
+            .signatures
+            .get(id)
+            .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
+            .operational;
+        Ok(
+            if let Some(machine) = self.typed.machine_by_symbol(symbol) {
                 let authored = self
                     .typed
                     .signature_invokes
@@ -256,7 +205,7 @@ impl Program<'_> {
                     }
                 };
                 Policy {
-                    reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
+                    reach: crate::reach::written_ceiling(self.typed, id, symbol)?,
                     invokes: if !authored.is_empty() {
                         Some(invocations(self.typed, id, authored, parameters)?)
                     } else {
@@ -282,7 +231,128 @@ impl Program<'_> {
                     blocks: Some(envelope.blocks),
                     termination: envelope.termination.clone(),
                 }
-            };
+            },
+        )
+    }
+
+    /// Abstract calls keep the same header bounds as ordinary bodies. Prepare
+    /// those bounds once before inference, preserving open and empty axes.
+    pub(crate) fn prepare_envelope_policies(&mut self) -> Checked<()> {
+        for position in 0..self.symbols.len() {
+            let id = MachineId::new(position as u64 + 1).expect("nonzero machine identity");
+            while self.declared_envelope_policies.len() <= position {
+                self.declared_envelope_policies.push(None);
+            }
+            if self
+                .declared_envelope_policies
+                .get(id)
+                .is_some_and(Option::is_none)
+            {
+                let symbol = *self.symbols.get(id).ok_or_else(|| {
+                    unavailable(id, "callable policy lost its source declaration")
+                })?;
+                let policy = self.machine_envelope_policy(id, symbol)?;
+                *self
+                    .declared_envelope_policies
+                    .get_mut(id)
+                    .ok_or_else(|| unavailable(id, "callable policy lost its prepared row"))? =
+                    Some(policy);
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn abstract_requirement_ceilings(
+        &self,
+        services: &crate::reach::ServiceMap,
+    ) -> Checked<IdTable<MachineId, terminal_check_tables::contracts::RequirementCeilings>> {
+        let mut rows = IdTable::default();
+        for (id, _) in self.symbols.iter() {
+            let policy = self
+                .declared_envelope_policies
+                .get(id)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| {
+                    unavailable(id, "abstract callable has no prepared source bounds")
+                })?;
+            rows.push(terminal_check_tables::contracts::RequirementCeilings {
+                reaches: match &policy.reach {
+                    Some(row) => crate::Ceiling::Authored(services.row(id, row)?),
+                    None => crate::Ceiling::Inferred,
+                },
+                invokes: policy
+                    .invokes
+                    .as_ref()
+                    .map(|row| services.invocations(id, row))
+                    .transpose()?,
+                suspension: policy.suspends,
+                blocking: policy.blocks,
+                termination: policy.termination.clone(),
+            });
+        }
+        Ok(rows)
+    }
+
+    pub(crate) fn finish_operational_envelopes(
+        &mut self,
+        bodies: &IdTable<MachineId, Body>,
+        components: &crate::components::Components,
+    ) -> Checked<()> {
+        self.prepare_envelope_policies()?;
+        let declaration_policies = self.declaration_policies()?;
+        // An abstract requirement can defer its operational contract to a
+        // later application. The generic witness retains that open Signature;
+        // it cannot publish a complete callable envelope or supply descriptors.
+        if let Some(requirement) = self
+            .requirements
+            .iter()
+            .copied()
+            .find(|id| {
+                // A complete retained requirement policy is already sufficient
+                // input to the fixed point below; it does not need a previously
+                // inferred envelope.
+                !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+                    && !self
+                        .declared_envelope_policies
+                        .get(*id)
+                        .and_then(Option::as_ref)
+                        .is_some_and(Policy::is_complete)
+            })
+        {
+            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
+                return Err(unavailable(
+                    requirement,
+                    "runtime callable needs the abstract requirement's complete operational contract",
+                ));
+            }
+            for (contract, policy) in declaration_policies.iter() {
+                if policy.reach.is_none()
+                    || policy.invokes.is_none()
+                    || policy.suspends.is_none()
+                    || policy.blocks.is_none()
+                {
+                    let caller = self
+                        .declaration_selections
+                        .get(contract)
+                        .and_then(Option::as_ref)
+                        .map_or(requirement, |selected| selected.0);
+                    return Err(unavailable(
+                        caller,
+                        "selected public contract needs completion in its open abstract operational context",
+                    ));
+                }
+            }
+            return Ok(());
+        }
+        let mut policies = IdTable::default();
+        let mut published = IdTable::default();
+        let mut calls = IdTable::default();
+        for (id, _) in self.symbols.iter() {
+            let policy = self
+                .declared_envelope_policies
+                .get(id)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| unavailable(id, "callable has no prepared source bounds"))?;
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
@@ -949,6 +1019,23 @@ impl Program<'_> {
         }
         for (_, row) in self.declaration_envelopes.iter() {
             source_roots(row, &mut roots);
+        }
+        // A header can name services without supplying an executable body.
+        // Keep its known names in the same service registry; omitted bounds
+        // remain open in the prepared policy and grant no additional effects.
+        for (_, policy) in self.declared_envelope_policies.iter() {
+            let Some(policy) = policy else { continue };
+            roots.extend(policy.reach.iter().flatten().copied());
+            roots.extend(
+                policy
+                    .invokes
+                    .iter()
+                    .flatten()
+                    .filter_map(|target| match target {
+                        Invocation::Service(service) => Some(*service),
+                        Invocation::Parameter(_) => None,
+                    }),
+            );
         }
         for (_, row) in self.boundaries.rows.iter() {
             source_roots(&row.envelope, &mut roots);
