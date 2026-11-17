@@ -39,6 +39,7 @@ struct StaticInvocation<'a> {
     binding: Option<ResolvedAuthoredCallBinding>,
     unsupported: bool,
     runtime_receiver: bool,
+    receiver: Option<SymbolHandle>,
 }
 
 /// The binder receipt authenticates the target; the retained occurrence
@@ -217,7 +218,18 @@ impl<'t> Program<'t> {
     /// type bindings happen to be concrete; calls use the same generic
     /// contracts as a form whose binders remain rigid.
     fn checking_generic_entry(&self, id: MachineId) -> bool {
-        (id.get() == 1 && (self.rigid || self.alternative.is_some()))
+        ((self.rigid || self.alternative.is_some())
+            && (id.get() == 1
+                || self
+                    .symbols
+                    .get(id)
+                    .and_then(|symbol| self.typed.machine_by_symbol(*symbol))
+                    .is_some_and(|machine| {
+                        self.typed
+                            .machine_type_parameters(machine)
+                            .iter()
+                            .any(|parameter| self.generic_binders.contains(&parameter.symbol))
+                    })))
             || self.applied.binary_search_by_key(&id, |row| row.0).is_ok()
     }
 
@@ -1502,6 +1514,7 @@ impl<'t> Program<'t> {
                 operand,
                 operand_owner,
                 value_arguments,
+                None,
             ),
             required_source,
             (arguments, source, None),
@@ -1521,11 +1534,12 @@ impl<'t> Program<'t> {
             typed_trees::expression::StaticMachineArgument,
             SymbolHandle,
             Vec<semantic_vocabulary::ScalarTerm>,
+            Option<terminal_check_tables::program::SelectedStaticRecordOperand>,
         ),
         required_source: &'t typed_trees::signature::StateSignature,
         (arguments, source, expected): (&[ExpressionHandle], SourceOrigin, Option<ValueType>),
     ) -> Checked<Expression> {
-        let (callee, dispatch, operand, operand_owner, value_arguments) = selection;
+        let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let (required, _) = self.requirement_signature(
             id,
@@ -1607,6 +1621,7 @@ impl<'t> Program<'t> {
             source_operand: Some(terminal_check_tables::program::SelectedSourceOperand {
                 identity: operand_identity,
                 supplier: operand_owner,
+                static_record,
             }),
             parameter: dispatch.evidence_parameter,
             declaring_trait: dispatch.declaring_trait,
@@ -1680,12 +1695,29 @@ impl<'t> Program<'t> {
                 Unserved::Call("named call selected another source implementation"),
             ));
         }
-        let operand = operand.into_owned();
+        let mut operand = operand.into_owned();
+        let mut supplier = supplier;
+        let static_record = if let Some((actual, actual_supplier, binding)) =
+            self.selected_record_operand(id, call, &operand)?
+        {
+            operand = actual;
+            supplier = actual_supplier;
+            Some(binding)
+        } else {
+            None
+        };
         let callee = self.machine(body)?;
         self.selected_call(
             id,
             slots,
-            (callee, dispatch, operand, supplier, Vec::new()),
+            (
+                callee,
+                dispatch,
+                operand,
+                supplier,
+                Vec::new(),
+                static_record,
+            ),
             required,
             (arguments, source, expected),
         )
@@ -1709,9 +1741,7 @@ impl<'t> Program<'t> {
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
         rigid: bool,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
-        use semantic_vocabulary::{ScalarTerm, ScalarType};
         use typed_trees::static_applications::StaticMachineBindingValue;
-        use typed_trees::types::PrimitiveType;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
         let bindings = self
             .typed
@@ -1752,56 +1782,74 @@ impl<'t> Program<'t> {
             let StaticMachineBindingValue::Const(reference) = binding.value else {
                 return Err(unserved("value parameter is not bound to a static value"));
             };
-            if rigid
-                && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                    self.typed.type_reference_table.type_reference(reference)
-                && let Some(input) = self.const_scope.iter().find(|input| {
-                    input.symbol == *symbol && input.owner == id && input.scalar_type == scalar_type
-                })
-            {
-                values.push(ScalarTerm::value(input.value, scalar_type));
-                continue;
-            }
-            let primitive = match scalar_type {
-                ScalarType::Integer(carrier) if !carrier.is_address() => {
-                    let fixed = carrier
-                        .bits()
-                        .and_then(|bits| {
-                            numerics::integer_carrier::FixedInteger::new(
-                                carrier.sign(),
-                                u64::from(bits),
-                            )
-                        })
-                        .ok_or_else(|| {
-                            unserved("static value has an unresolved integer carrier")
-                        })?;
-                    PrimitiveType::Integer(fixed)
-                }
-                ScalarType::Boolean => PrimitiveType::Bool,
-                _ => {
-                    return Err(unserved(
-                        "value parameter has an unsupported scalar carrier",
-                    ));
-                }
-            };
-            let operand = self
-                .typed
-                .static_operand_from_type_reference(reference)
-                .map_err(unserved)?;
-            let value = self
-                .typed
-                .prepare_callable_scalar_argument(primitive, &operand)
-                .map_err(unserved)?;
-            values.push(match value {
-                ExpressionNode::Integer(literal) => {
-                    let (value, scalar_type) = self.literal(id, &literal, Some(scalar_type))?;
-                    ScalarTerm::Integer { scalar_type, value }
-                }
-                ExpressionNode::Boolean(value) => ScalarTerm::Boolean(value),
-                _ => return Err(unserved("static value did not retain its scalar meaning")),
-            });
+            values.push(self.bound_scalar_value(id, scalar_type, reference, rigid)?);
         }
         Ok(values)
+    }
+
+    /// One canonical scalar Const leaf, shared by scalar-only and mixed schema applications.
+    pub(super) fn bound_scalar_value(
+        &self,
+        id: MachineId,
+        scalar_type: semantic_vocabulary::ScalarType,
+        reference: typed_trees::types::TypeReferenceHandle,
+        rigid: bool,
+    ) -> Checked<semantic_vocabulary::ScalarTerm> {
+        use semantic_vocabulary::{ScalarTerm, ScalarType};
+        use typed_trees::types::PrimitiveType;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        if !self
+            .typed
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return Err(unserved("static value lost its retained type reference"));
+        }
+        if rigid
+            && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(reference)
+            && let Some(input) = self.const_scope.iter().find(|input| {
+                input.symbol == *symbol && input.owner == id && input.scalar_type == scalar_type
+            })
+        {
+            return Ok(ScalarTerm::value(input.value, scalar_type));
+        }
+        let primitive = match scalar_type {
+            ScalarType::Integer(carrier) if !carrier.is_address() => {
+                let fixed = carrier
+                    .bits()
+                    .and_then(|bits| {
+                        numerics::integer_carrier::FixedInteger::new(
+                            carrier.sign(),
+                            u64::from(bits),
+                        )
+                    })
+                    .ok_or_else(|| unserved("static value has an unresolved integer carrier"))?;
+                PrimitiveType::Integer(fixed)
+            }
+            ScalarType::Boolean => PrimitiveType::Bool,
+            _ => {
+                return Err(unserved(
+                    "value parameter has an unsupported scalar carrier",
+                ));
+            }
+        };
+        let operand = self
+            .typed
+            .static_operand_from_type_reference(reference)
+            .map_err(unserved)?;
+        let value = self
+            .typed
+            .prepare_callable_scalar_argument(primitive, &operand)
+            .map_err(unserved)?;
+        Ok(match value {
+            ExpressionNode::Integer(literal) => {
+                let (value, scalar_type) = self.literal(id, &literal, Some(scalar_type))?;
+                ScalarTerm::Integer { scalar_type, value }
+            }
+            ExpressionNode::Boolean(value) => ScalarTerm::Boolean(value),
+            _ => return Err(unserved("static value did not retain its scalar meaning")),
+        })
     }
 
     /// The canonical values a call binds the requirement's parameters to.
@@ -1943,7 +1991,6 @@ impl<'t> Program<'t> {
         call: &StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        use semantic_vocabulary::ScalarTerm;
         let target = self.call_target_symbol(id, call.target)?;
         let Some(machine) = self.typed.machine_by_symbol(target) else {
             return Ok(None);
@@ -1967,26 +2014,32 @@ impl<'t> Program<'t> {
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let binders = parameters
-            .iter()
-            .map(|parameter| {
-                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
-                else {
-                    unreachable!()
-                };
-                Ok((parameter.symbol, self.scalar_type(id, type_reference)?))
-            })
-            .collect::<Checked<Vec<_>>>()?;
-        let values = self.static_value_arguments(
+        let callee = self.const_application(target)?;
+        let values =
+            self.const_call_values(id, target, call.application, call.authored_arguments)?;
+        let operands = self.const_operands(id, slots, &values, source)?;
+        self.call_of_values(
             id,
-            &binders,
-            target,
-            call.application,
-            call.authored_arguments,
-            true,
-        )?;
+            slots,
+            (callee.into(), None),
+            call.arguments,
+            source,
+            None,
+            &operands,
+        )
+        .map(Some)
+    }
+
+    fn const_operands(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        values: &[semantic_vocabulary::ScalarTerm],
+        source: SourceOrigin,
+    ) -> Checked<Vec<Expression>> {
+        use semantic_vocabulary::ScalarTerm;
         let mut operands = Vec::with_capacity(values.len());
-        for value in &values {
+        for value in values {
             let scalar_type = value.scalar_type();
             let kind = match value {
                 ScalarTerm::Value { id: value, .. } => {
@@ -2034,17 +2087,7 @@ impl<'t> Program<'t> {
                 source,
             });
         }
-        let callee = self.const_application(target)?;
-        self.call_of_values(
-            id,
-            slots,
-            (callee.into(), None),
-            call.arguments,
-            source,
-            None,
-            &operands,
-        )
-        .map(Some)
+        Ok(operands)
     }
 
     /// A generic check form calls the callee's contract at the entry's exact
@@ -2158,8 +2201,20 @@ impl<'t> Program<'t> {
                     || !call.receiver.is_empty()
             }
         };
+        let receiver = match call {
+            StaticArgumentCall::Expression(_, call) => self
+                .typed
+                .expression_table
+                .name_path_node(call.receiver)
+                .map(|path| path.symbol),
+            StaticArgumentCall::Statement(call) => call
+                .receiver_symbol
+                .is_valid()
+                .then_some(call.receiver_symbol),
+        };
         StaticInvocation {
             target,
+            receiver,
             application,
             authored_arguments,
             arguments,
@@ -2177,6 +2232,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         target: SymbolHandle,
+        receiver: Option<SymbolHandle>,
         arguments: &[ExpressionHandle],
         selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
         source: SourceOrigin,
@@ -2196,6 +2252,7 @@ impl<'t> Program<'t> {
                 binding: None,
                 unsupported: false,
                 runtime_receiver: false,
+                receiver,
             },
             source,
         )
@@ -2217,33 +2274,46 @@ impl<'t> Program<'t> {
             binding,
             unsupported,
             runtime_receiver: _,
+            receiver,
         } = invocation;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
-        let requirement = match self.typed.evidence_requirement_declaration(target) {
-            Ok(Some(requirement)) => requirement,
-            Ok(None) => {
-                let Some(typed_trees::data::MachineParameterContractView::Structural(requirement)) =
-                    self.typed.retained_static_machine_contract(target)
-                else {
-                    return Ok(None);
-                };
-                let owner = self
-                    .symbols
-                    .get(id)
-                    .and_then(|owner| self.typed.machine_by_symbol(*owner));
-                if owner.and_then(|owner| self.typed.machine_parameter_signature_in(owner, target))
-                    != Some(requirement)
-                {
+        let record = if let Some(receiver) = receiver {
+            self.record_requirement_signature(id, receiver, target)?
+                .map(|(position, signature)| (receiver, position, signature))
+        } else {
+            None
+        };
+        let requirement = if let Some((_, _, signature)) = &record {
+            signature
+        } else {
+            match self.typed.evidence_requirement_declaration(target) {
+                Ok(Some(requirement)) => requirement,
+                Ok(None) => {
+                    let Some(typed_trees::data::MachineParameterContractView::Structural(
+                        requirement,
+                    )) = self.typed.retained_static_machine_contract(target)
+                    else {
+                        return Ok(None);
+                    };
+                    let owner = self
+                        .symbols
+                        .get(id)
+                        .and_then(|owner| self.typed.machine_by_symbol(*owner));
+                    if owner
+                        .and_then(|owner| self.typed.machine_parameter_signature_in(owner, target))
+                        != Some(requirement)
+                    {
+                        return Err(unserved(
+                            "static machine parameter outside its declaration scope",
+                        ));
+                    }
+                    requirement
+                }
+                Err(_) => {
                     return Err(unserved(
-                        "static machine parameter outside its declaration scope",
+                        "implementation parameter child with no requirement",
                     ));
                 }
-                requirement
-            }
-            Err(_) => {
-                return Err(unserved(
-                    "implementation parameter child with no requirement",
-                ));
             }
         };
         if unsupported {
@@ -2266,7 +2336,11 @@ impl<'t> Program<'t> {
             authored_arguments,
             false,
         )?;
-        let callee = self.requirement(requirement, &value_arguments)?;
+        let callee = if let Some((receiver, position, _)) = record.as_ref() {
+            self.record_requirement(*receiver, *position, requirement, &value_arguments)?
+        } else {
+            self.requirement(requirement, &value_arguments)?
+        };
         self.call_of(id, slots, (callee.into(), None), arguments, source, None)
             .map(Some)
     }
@@ -2371,18 +2445,49 @@ impl<'t> Program<'t> {
         }
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = match self.inherited_type_arguments(id, target) {
-            Some(arguments) => self.application(id, target, arguments)?,
-            None => self.machine(target)?,
+        let inherited_const = self.checking_generic_entry(id)
+            && self.typed.machine_by_symbol(target).is_some_and(|machine| {
+                let parameters = self.typed.machine_type_parameters(machine);
+                !parameters.is_empty()
+                    && parameters.iter().all(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Const { .. }
+                        ) && self.typed.symbols.get(parameter.symbol).parent != target
+                            && self.generic_binders.contains(&parameter.symbol)
+                    })
+            });
+        let callee = if inherited_const {
+            self.const_application(target)?
+        } else {
+            match self.inherited_type_arguments(id, target) {
+                Some(arguments) => self.application(id, target, arguments)?,
+                None => self.machine(target)?,
+            }
         };
-        self.call_of(
-            id,
-            slots,
-            (callee.into(), None),
-            arguments,
-            source,
-            expected,
-        )
+        if inherited_const {
+            let values =
+                self.const_call_values(id, target, StaticMachineApplicationHandle::invalid(), &[])?;
+            let operands = self.const_operands(id, slots, &values, source)?;
+            self.call_of_values(
+                id,
+                slots,
+                (callee.into(), None),
+                arguments,
+                source,
+                expected,
+                &operands,
+            )
+        } else {
+            self.call_of(
+                id,
+                slots,
+                (callee.into(), None),
+                arguments,
+                source,
+                expected,
+            )
+        }
     }
 
     /// A direct entry into a lexical child carries the caller's own
@@ -3107,6 +3212,7 @@ impl<'t> Program<'t> {
                 let parameters = program.typed.machine_type_parameters(symbol);
                 let Some(position) = parameters
                     .iter()
+                    .filter(|parameter| program.record_parameter(parameter.symbol).is_none())
                     .position(|parameter| parameter.symbol == inputs[position].symbol)
                 else {
                     return false;
@@ -3811,6 +3917,7 @@ impl Touches<'_> {
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Zero
             | ExpressionKind::Boolean(_) => Ok(false),
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)

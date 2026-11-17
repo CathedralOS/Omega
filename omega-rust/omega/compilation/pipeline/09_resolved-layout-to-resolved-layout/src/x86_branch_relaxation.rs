@@ -220,13 +220,47 @@ pub(crate) fn validate_optimized_x86_branch_relaxation(
     artifact: &StagedOptimizedX86BranchRelaxation,
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
     validate_roots(source, physical)?;
-    if artifact.source != source.identity()
-        || artifact.selected != source.selected()
-        || artifact.machine != source.machine()
-        || artifact.pre_layout != source.pre_layout()
-        || artifact.target != source.target()
+    validate_current_x86_branch_relaxation(physical, source.roots(), source.target(), artifact)
+}
+
+pub(crate) fn validate_current_x86_branch_relaxation(
+    physical: &ValidatedPhysicalRegisterModel,
+    source: machine_code::ResolvedLayoutRoots,
+    target: NativeTarget,
+    artifact: &StagedOptimizedX86BranchRelaxation,
+) -> Result<(), OptimizedX86BranchRelaxationError> {
+    ensure_x86_target(target, physical)?;
+    if artifact.source != source.identity
+        || artifact.selected != source.selected
+        || artifact.machine != source.machine
+        || artifact.pre_layout != source.pre_layout
+        || artifact.target != target
         || artifact.policy != X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1
         || !artifact.usage.within(artifact.budget)
+    {
+        return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
+    }
+    let roots = RevisionRoots {
+        source: source.identity,
+        selected: source.selected,
+        machine: source.machine,
+        pre_layout: source.pre_layout,
+        target,
+    };
+    if artifact.output != artifact.layout.identity()
+        || artifact.output_revision != revision_identity(roots, artifact.functions())
+        || artifact.identity
+            != artifact_identity(
+                roots,
+                artifact.policy,
+                artifact.budget,
+                artifact.usage,
+                artifact.output,
+                artifact.output_revision,
+                &artifact.attempts,
+                &artifact.actions,
+                artifact.functions(),
+            )
     {
         return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }

@@ -1416,6 +1416,16 @@ fn lower_program<'source>(
         signatures.machines.map(|_, signature| RequirementCeilings {
             reaches: signature.reaches.clone(),
             invokes: signature.invokes.clone(),
+            suspension: signature.operational.suspension,
+            blocking: signature.operational.blocking,
+            // The signature reader refuses unsupported progress premises before
+            // lowering. A missing promise remains NoGuarantee, never a body proof.
+            termination: match signature.termination {
+                Termination::Silent => terminal_psi::TerminalCallableTermination::NotGuaranteed,
+                Termination::Promised => terminal_psi::TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
+                },
+            },
         })
     };
     // One source owner fixes the local inference boundary. Result clauses

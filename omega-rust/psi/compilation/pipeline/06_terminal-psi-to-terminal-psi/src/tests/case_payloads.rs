@@ -304,8 +304,52 @@ fn execute_owned_store(source: &str) {
                 terminal_interpreter::TerminalExecutionResult::Unit
             )
         ),
-        "the stored payload must retain seven: {status:?}"
+        "the program must complete without reaching its trap: {status:?}"
     );
+}
+
+/// A match arm reads its payload `s.n` with a call `arm` beside it. The
+/// entry traps unless the arm yields 1, the payload the dispatch saw.
+fn arm_read(arm: &str) -> String {
+    format!(
+        r#"
+data Slot {{ case Full(n: u32); case Empty; }}
+machine peek(held: &mut Slot) -> u32 {{ 0 }}
+machine refill(held: &mut Slot) -> u32 {{
+    held = Slot::Full {{ n: 9 }};
+    0
+}}
+machine build_entry() crashes Trap {{
+    let mut s: Slot = Slot::Full {{ n: 1 }};
+    let got: u32 = match s {{
+        Slot::Full {{ .. }} -> {arm},
+        Slot::Empty -> 0
+    }};
+    transition got == 1 {{
+        true -> done()
+        false -> bad()
+    }}
+    machine done() {{ }}
+    machine bad() {{ crash Trap; }}
+}}
+"#
+    )
+}
+
+/// Inside an arm, `s.n` is the payload the dispatch selected only until a
+/// write or exclusive loan may change `s`. After `refill` replaces `s`, the
+/// arm reads `s` again (structural_access.md: "A read is not equality with
+/// the initializer or a previous read: intervening stores and calls can
+/// change storage"), and nothing establishes the case there. Lowering used
+/// to return the dispatch-time 1 here, in Psi and natively, instead of 9.
+#[test]
+fn a_payload_read_after_the_subject_is_lent_exclusively_reads_the_subject_again() {
+    assert_eq!(verdict(&arm_read("refill(&mut s) + s.n")), NO_CASE);
+    // A helper that writes nothing leaves the case established, so the
+    // fresh read is accepted and still sees 1.
+    execute_owned_store(&arm_read("peek(&mut s) + s.n"));
+    // A read before the loan is the dispatch-time payload.
+    execute_owned_store(&arm_read("s.n + refill(&mut s)"));
 }
 
 #[test]
@@ -392,4 +436,47 @@ fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
     assert!(unestablished.iter().any(|failure| failure.detail == NO_CASE
         && matches!(&failure.site, Some(terminal_check_tables::program::SourceOrigin::Authored(span))
             if start <= span.span.start && span.span.end <= end)));
+}
+
+/// Two copyable sums in an array, and `body` as the body of a machine that
+/// is lent the array and an index `slot` chosen at run time.
+fn shelf(body: &str) -> String {
+    format!(
+        r#"
+data Choice [copy] {{ case Left(value: u32); case Right; }}
+data Shelf [copy] {{ items: [Choice; 2]; }}
+machine pick(shelf: &mut Shelf, slot: u64) -> u32 requires slot < 2 {{
+    {body}
+}}
+machine build_entry() {{
+    let mut shelf: Shelf;
+    let seen: u32 = pick(&mut shelf, 0u64);
+}}
+"#
+    )
+}
+
+/// Storing `Left` into `items[0]` makes its case known only until a store
+/// that may reach `items[0]`. A store to `items[slot]` overlaps every element
+/// of the array (structural_access.md: a store crossing a runtime element
+/// "overlaps every element of that array"), so with `slot == 0` it would
+/// replace `Left` by `Right` before the read of `Left`'s payload. The twins
+/// differ only in the element the second store selects: `items[1]` is a
+/// different fixed element and leaves the case of `items[0]` known.
+fn element_store(element: &str) -> String {
+    shelf(&format!(
+        "shelf.items[0] = Choice::Left {{ value: 3u32 }};
+    shelf.items[{element}] = Choice::Right {{}};
+    shelf.items[0].value"
+    ))
+}
+
+#[test]
+fn a_store_to_another_fixed_element_keeps_the_known_case() {
+    assert_eq!(verdict(&element_store("1")), "accepted");
+}
+
+#[test]
+fn a_store_to_a_runtime_element_retires_the_known_case_of_every_element() {
+    assert_eq!(verdict(&element_store("slot")), NO_CASE);
 }

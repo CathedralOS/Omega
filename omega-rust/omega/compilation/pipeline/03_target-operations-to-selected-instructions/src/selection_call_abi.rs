@@ -753,7 +753,7 @@ pub(crate) mod input_site {
                         LegalizedScalarBlock {
                             id: BlockId::new(index).unwrap(),
                             parameters: Vec::new(),
-                            structural_parameters: Vec::new(),
+                            structural_parameters: std::sync::Arc::from([]),
                             instructions: Vec::new(),
                             terminator: LegalizedScalarTerminator::ReturnCleanup {
                                 returned: LegalizedScalarReturn {

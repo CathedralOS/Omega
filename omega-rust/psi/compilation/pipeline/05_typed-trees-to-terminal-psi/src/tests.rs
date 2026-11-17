@@ -3226,14 +3226,18 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
 }
 
 #[test]
-fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
+fn a_whole_assignment_constructs_its_value_then_replaces_the_same_root() {
     // f(a: u32) -> u32 { let mut p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
+    // A live loan of `p` must see the replacement, so the assignment stores
+    // into the root `p` already names (structural_access.md: "Root, field,
+    // and indexed destinations do not change construction semantics").
     let body = Body {
         slots: vec![u32_type().into(), point()],
         statements: vec![
             bind(1, literal(vec![(0, integer(1)), (1, integer(2))], point())),
-            bind(
+            store(
                 1,
+                &[],
                 literal(
                     vec![
                         (0, member(place(1, point()), 1, u32_type().into())),
@@ -3250,33 +3254,33 @@ fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
         vec![shaped(vec![u32_type().into()], Some(u32_type().into()))],
     );
     let operations = &block(&machine, 1).operations;
-    let (first, second) = (produced(&operations[2]), produced(&operations[4]));
-    assert_ne!(first, second);
-    // The operand `p.y` reads the old root, before the new one exists.
-    let old_y = operations[3].result.scalar().unwrap().id;
+    let (first, value) = (produced(&operations[2]), produced(&operations[4]));
+    assert_ne!(first, value);
+    // The operand `p.y` reads the old contents, before the new value exists.
     assert!(matches!(
         &operations[3].kind,
         OperationKind::PrimitiveScalarRead { source, path }
             if *source == first && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2))]
     ));
-    // The new root's leaves hold exactly the constructed operands.
-    let after = ProgramPoint::AfterOperation(operations[4].id);
-    assert_eq!(
-        written(&tables, projected(&tables, second, &[1])),
-        [(Content::Value(old_y), after)]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, second, &[2])),
-        [(Content::Value(id(1)), after)]
-    );
-    // From the assignment on, the local names the new root.
+    // The constructed value replaces the whole of the existing root.
     assert!(matches!(
         &operations[5].kind,
-        OperationKind::PrimitiveScalarRead { source, path }
-            if *source == second && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
+        OperationKind::StoreStructuralField { destination, path, field: None, value: stored, .. }
+            if *destination == first && path.is_empty() && stored.place == value
     ));
-    // Nothing was written to the old root after its construction.
-    assert_eq!(written(&tables, projected(&tables, first, &[1])).len(), 1);
+    assert_eq!(
+        written(&tables, *tables.roots.get(first).unwrap()).last(),
+        Some(&(
+            Content::Overwritten,
+            ProgramPoint::AfterOperation(operations[5].id)
+        ))
+    );
+    // From the assignment on, the local still names that root.
+    assert!(matches!(
+        &operations[6].kind,
+        OperationKind::PrimitiveScalarRead { source, path }
+            if *source == first && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
+    ));
 }
 
 #[test]

@@ -2496,44 +2496,31 @@ pub(crate) mod pre_allocation {
         }
 
         impl StagedPreAllocationOptimizationRun {
-            pub(crate) fn into_completed(
-                self,
-            ) -> selected_instruction_analyses::CompletedSelectedOptimization<
-                optimization_core::PreAllocationOptimizationCompletionIdentity,
-            > {
-                let ledger = selected_instruction_analyses::SelectedOptimizationLedger {
-                    identity: self.custody.identity,
-                    phase_selections: self.custody.pre_allocation_selections,
-                    source: self.custody.source,
-                    transformations: self
-                        .custody
-                        .iterations
-                        .iter()
-                        .map(|iteration| iteration.transformation().into())
-                        .collect(),
-                };
-                let source = self.source;
-                let (current, liveness, ranges, legality) = match self.steps.into_iter().last() {
-                    Some(step) => (
-                        crate::OwnedSelectedProgram::retain(&step.transformation),
-                        step.liveness,
-                        step.ranges,
-                        step.legality,
-                    ),
-                    None => (
-                        crate::OwnedSelectedProgram::retain(source.selected()),
-                        source.liveness().clone(),
-                        source.ranges().clone(),
-                        source.legality().clone(),
-                    ),
-                };
-                selected_instruction_analyses::CompletedSelectedOptimization {
-                    source,
-                    current,
-                    liveness,
-                    ranges,
-                    legality,
-                    ledger,
+            /// What this run did, as evidence the allocated program carries.
+            pub(crate) fn record(
+                &self,
+            ) -> selected_instruction_analyses::SelectedOptimizationRecord {
+                let applied = self
+                    .custody
+                    .iterations
+                    .iter()
+                    .map(|iteration| iteration.transformation().into())
+                    .collect::<Vec<_>>();
+                let source = self.source.record();
+                selected_instruction_analyses::SelectedOptimizationRecord {
+                    selected_lowering_completion: source.selected_lowering_completion,
+                    pre_allocation_completion: Some(self.custody.identity),
+                    transformations: source.followed_by(&applied),
+                }
+            }
+
+            /// The program the run ended with and the analyses it validated for it.
+            pub(crate) fn rewritten(&self) -> crate::selected_optimization::RewrittenProgram<'_> {
+                crate::selected_optimization::RewrittenProgram {
+                    selected: self.current(),
+                    liveness: self.liveness(),
+                    ranges: self.ranges(),
+                    legality: self.legality(),
                 }
             }
         }

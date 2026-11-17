@@ -269,6 +269,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)

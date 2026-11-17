@@ -11,11 +11,9 @@ path = "src/lib.rs"
 [dependencies]
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../realization/provider-admission" }
-optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 arena = { path = "../../../../psi/foundation/arena" }
 runtime-abi = { path = "../runtime/runtime-abi" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
 register-environment = { path = "../register-environment" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/07_post-allocation-machine-to-selected-form-encoding" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register-homes-to-post-allocation-machine" }
@@ -25,6 +23,7 @@ selected-instructions-to-register-homes = { path = "../../pipeline/05_selected-i
 register-model = { path = "../register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }
@@ -35,11 +34,10 @@ isa-aarch64 = { path = "../isa/isa-aarch64" }
 isa-x86_64 = { path = "../isa/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
-terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

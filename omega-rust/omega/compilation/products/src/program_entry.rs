@@ -157,6 +157,18 @@ fn admit_entry_schema(
         {
             Ok(())
         }
+        // Without an accepted binding, entry contract selection admits only the
+        // package that alone supplies the target's contract source, and only its
+        // root-level schema bearing the target's default name. Admit exactly
+        // that schema here; any other unbound package schema stays refused.
+        (DeclarationCustody::Package(owner), None)
+            if schema.declaration.trait_package_identity == Some(owner)
+                && slot.boundary_schema.is_some_and(|default| {
+                    schema.identity_text(schema.declaration.trait_name) == default
+                }) =>
+        {
+            Ok(())
+        }
         _ => Err(
             "entry schema does not match the consumer's accepted source package and contract"
                 .into(),

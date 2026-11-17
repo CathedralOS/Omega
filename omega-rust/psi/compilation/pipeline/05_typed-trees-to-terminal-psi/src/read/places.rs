@@ -36,7 +36,7 @@ common fields beside cases (`type mixed data`). Stores into a record's fields ar
 `statements`, dispatch over a sum in `transitions`.
 */
 
-use crate::body::Qualification;
+use crate::body::{Qualification, StorageShape};
 use semantic_vocabulary::{
     MachineId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -738,6 +738,29 @@ impl Program<'_> {
         ))
     }
 
+    /// `x == S::C` compares tags only when `S` is a payload-free sum: no
+    /// record fields and no case payloads (data_and_literals.md, "Primitive
+    /// and payload-free-sum equality is intrinsic"; conformances.md,
+    /// "payload-bearing sums require an explicit named conformance"). Psi
+    /// 03 replaces every `==` it can type on any other data with its selected
+    /// `Equatable` call, so one still here was never selected: refuse it
+    /// rather than silently read the tag alone.
+    pub(super) fn require_intrinsic_tag_equality(
+        &self,
+        id: MachineId,
+        record: Opened,
+    ) -> Checked<()> {
+        let source = self.source(id, record.record())?;
+        if source.fields.is_empty() && source.cases.iter().all(|(_, payload)| payload.is_empty()) {
+            return Ok(());
+        }
+        Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Typing("`==` against a case of data with no selected Equatable comparison"),
+        ))
+    }
+
     /// The position of the case `symbol` names among `record`'s cases.
     /// structural_access.md: "Its case identity must belong to the exact
     /// selected sum type; matching case spellings in another type supply no
@@ -1039,7 +1062,24 @@ impl Program<'_> {
         if !member.selection.field_symbol().is_valid() {
             return Err(self.unselected_member(id, slots, member, source));
         }
-        let base = self.place(id, slots, member.receiver, None, access)?;
+        // A read of `items[i].field` copies only the field, so the indexed
+        // element is read as a projection base rather than as a whole value.
+        let base = match self.node(id, member.receiver)? {
+            typed_trees::expression::ExpressionNode::Indexed(indexed) if access == Access::Read => {
+                let element = self.indexed(
+                    id,
+                    slots,
+                    indexed,
+                    member.receiver,
+                    None,
+                    access,
+                    super::arrays::ElementRead::Projected,
+                )?;
+                self.complete_formed_operator(id, member.receiver, &element)?;
+                element
+            }
+            _ => self.place(id, slots, member.receiver, None, access)?,
+        };
         let Some(record) = self.opened_place(id, &base, access)? else {
             return Err(refuse(
                 id,
@@ -1069,9 +1109,9 @@ impl Program<'_> {
         )
     }
 
-    /// `R { a: x, b: y }`: every field of `R` exactly once, operands kept in
-    /// authored order. `S::C { p: x }`, `S::C {}` and `S::C`: every payload
-    /// field of the case exactly once, the same way.
+    /// Read authored record or selected-case fields in their written order.
+    /// A final `..` supplies checked zero values for missing runtime fields;
+    /// without it the literal must supply every runtime field.
     pub(super) fn record_literal(
         &mut self,
         id: MachineId,
@@ -1193,7 +1233,7 @@ impl Program<'_> {
             .collect();
         let authored = self.typed.expression_table.struct_fields(literal.fields);
         let mut seen = vec![false; declared.len()];
-        let mut fields = Vec::with_capacity(authored.len());
+        let mut fields = Vec::with_capacity(declared.len());
         for field in authored {
             if !field.field_symbol.is_valid() {
                 return Err(spelling("record literal field without a symbol"));
@@ -1230,7 +1270,17 @@ impl Program<'_> {
             fields.push((position, operand));
         }
         if seen.contains(&false) {
-            return Err(typing("record literal misses a field"));
+            if !literal.zero_omitted_fields {
+                return Err(typing("record literal misses a field"));
+            }
+            // Authored operands stay in their original evaluation order. Each
+            // missing operand is an ordinary zero value, and the final record
+            // or selected case still owes its complete default domain.
+            for (position, (present, field_type)) in seen.iter().zip(&declared).enumerate() {
+                if !present {
+                    fields.push((position, self.zero_value(id, *field_type, source)?));
+                }
+            }
         }
         Ok(Expression {
             call_context: None,
@@ -1241,6 +1291,90 @@ impl Program<'_> {
             result: Some(result),
             source,
         })
+    }
+
+    /// Construct zero using the existing initialization logic, then check each
+    /// declared qualification as an explicit cast would. Zero bits alone do not
+    /// prove domain membership, issuer permission, or required backing storage.
+    pub(super) fn zero_value(
+        &mut self,
+        id: MachineId,
+        result: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let plain = result
+            .qualified(crate::body::Qualification::NONE)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("zero of a rigid type"),
+                )
+            })?;
+        // Ordinary field construction retains each field's qualification
+        // evidence. An opaque zero operation cannot establish issuer permissions.
+        let kind = match plain {
+            ValueType::Record(record, _, regions) => {
+                let selected = match &self.data_type(id, record)?.shape {
+                    StorageShape::Record(fields) => Some((None, fields.clone())),
+                    StorageShape::Sum(cases) => {
+                        cases.first().map(|case| (Some(0), case.fields.clone()))
+                    }
+                    _ => None,
+                };
+                match selected {
+                    Some((case, declared)) => {
+                        let substitution = self.field_regions(id, record, regions)?;
+                        let mut fields = Vec::with_capacity(declared.len());
+                        for (position, field) in declared.into_iter().enumerate() {
+                            let field_type = self.substitute(field.value_type, &substitution);
+                            fields.push((position, self.zero_value(id, field_type, source)?));
+                        }
+                        match case {
+                            None => ExpressionKind::Record { fields },
+                            Some(case) => ExpressionKind::Case { case, fields },
+                        }
+                    }
+                    None => {
+                        self.zero_established(id, plain, source)?;
+                        ExpressionKind::Zero
+                    }
+                }
+            }
+            _ => {
+                self.zero_established(id, plain, source)?;
+                ExpressionKind::Zero
+            }
+        };
+        let mut operand = Expression {
+            call_context: None,
+            kind,
+            result: Some(plain),
+            source,
+        };
+        let mut qualification = crate::body::Qualification::NONE;
+        for domain in result.qualification().domains.members() {
+            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("zero qualification set is too large"),
+                )
+            })?;
+            let qualified = plain
+                .qualified(qualification)
+                .expect("plain value has a carrier");
+            operand = self.add_domain(id, operand, qualified, domain, source)?;
+        }
+        if operand.result != Some(result) {
+            operand = Expression {
+                call_context: None,
+                kind: ExpressionKind::Requalify(Box::new(operand)),
+                result: Some(result),
+                source,
+            };
+        }
+        Ok(operand)
     }
 
     /// The case an expression names when it stands where a case is
@@ -1301,13 +1435,16 @@ impl Program<'_> {
     }
 
     /// `subject in S::C`: the subject, read once, and the case's position in
-    /// the subject's own sum type.
+    /// the subject's own sum type. `equality` marks `subject == S::C`, which
+    /// is this test only on a sum whose equality is the intrinsic tag
+    /// comparison (`intrinsic_tag_equality`).
     pub(super) fn case_test(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         subject: ExpressionHandle,
         case: SymbolHandle,
+        equality: bool,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
@@ -1318,6 +1455,9 @@ impl Program<'_> {
                 Unserved::Typing("case test of a value that is not a sum"),
             ));
         };
+        if equality {
+            self.require_intrinsic_tag_equality(id, record)?;
+        }
         let case = self.case_position(id, record, case)?;
         Ok(Expression {
             call_context: None,

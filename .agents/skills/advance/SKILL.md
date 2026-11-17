@@ -56,8 +56,9 @@ This skill lists **only** the steps. The shared rules, including the
    error points to; the worker narrows it after tracing.
    A claim lasts two hours from when it was taken or last renewed. Run
    `cargo xtask claims renew` from the worktree after each push (it renews
-   every claim that worktree took; `claims note` also renews). A lapsed claim
-   cannot be renewed: claim again. Keep ownership through checkpoint merges;
+   every claim that worktree took; `claims note` also renews). `renew` also
+   restores a claim that lapsed and reports any live claim now overlapping its
+   paths. Keep ownership through checkpoint merges;
    release the claim when the original acceptance lands, or record an unfinished
    handoff under the law of completion when the session must stop.
 

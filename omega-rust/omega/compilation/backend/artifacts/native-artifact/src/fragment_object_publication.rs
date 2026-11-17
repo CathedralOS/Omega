@@ -37,24 +37,21 @@ impl FragmentObjectProjection {
     }
 
     pub fn entry_call_plan(&self) -> Result<&calling_conventions::CallPlan, Vec<Diagnostic>> {
-        let targeted = self
+        let contracts = &self
             .source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan();
-        targeted
-            .scalar_functions
-            .iter()
-            .find(|function| function.machine == self.object.entry())
+            .physical_program()
+            .contracts;
+        contracts
+            .function_abi(self.object.entry())
             .map(|function| &function.call_plan)
             .ok_or_else(|| {
                 native_artifact_error(
                     "entry transport",
-                    "emitted entry has no retained target function",
+                    "emitted entry has no current calling contract",
                 )
             })
     }
@@ -167,10 +164,13 @@ pub fn publish_fragment_object(
     Ok(PublishedFragmentObject { object })
 }
 
+/// Emit the object for one realized program. `original_target` carries stage
+/// 02's output only when the compile requested a correspondence audit;
+/// emission itself reads the current program and its emission facts.
 pub fn emit_fragment_object(
     emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+    original_target: Option<image_emission::RetainedTargetOperations>,
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
-    let plan = emission.optimized_target().optimized().shared_program();
     let emitted = machine_emission::stage_optimized_function_fragment_emission(emission)
         .map_err(|error| native_artifact_error("function-fragment emission", error))?;
     let applied = machine_emission::stage_function_fragment_frame_application(emitted)
@@ -184,8 +184,7 @@ pub fn emit_fragment_object(
     let object = image_emission::build_function_fragment_object_artifact(
         image_emission::FunctionFragmentObjectArtifactRequest {
             replay: std::sync::Arc::clone(&source),
-            dynamic_dispatch: &plan.dynamic_dispatch,
-            callables: &plan.callables,
+            original_target,
         },
     )
     .map_err(|error| native_artifact_error("fragment object publication", error))?;

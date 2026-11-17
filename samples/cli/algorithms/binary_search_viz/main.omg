@@ -107,7 +107,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     }
     machine emit(main: &mut Main) {
         Console::write_line(main.line);
-        Clock::sleep(250);
+        block Clock::sleep(250);
         transition { _ -> block probe(main) }
     }
 

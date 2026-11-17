@@ -3528,7 +3528,7 @@ pub(crate) mod scalar_graph {
                 Ok(LegalizedScalarBlock {
                     id: targeted.block,
                     parameters,
-                    structural_parameters: targeted.structural_parameters.clone(),
+                    structural_parameters: targeted.structural_parameters.clone().into(),
                     instructions,
                     terminator: crate::legalization_control::project(
                         target.machine,
@@ -3673,7 +3673,7 @@ pub(crate) fn derive_target_function_rosters(
             blocks.push(legalized_operations::LegalizedScalarBlock {
                 id: block.block,
                 parameters,
-                structural_parameters: block.structural_parameters.clone(),
+                structural_parameters: block.structural_parameters.clone().into(),
                 instructions,
                 terminator: crate::legalization_control::project(
                     function.machine,

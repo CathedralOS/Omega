@@ -13,7 +13,7 @@ use image::{
 mod headers {
     use crate::bytes::{write_u16, write_u32, write_u64};
     use crate::constants::{
-        ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
+        ELF_HEADER_SIZE, ELF_MAX_PAGE_SIZE, IMAGE_BASE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
     };
 
     pub(crate) fn write_elf_header(
@@ -94,7 +94,7 @@ mod headers {
         write_u64(bytes, virtual_address);
         write_u64(bytes, file_size);
         write_u64(bytes, memory_size);
-        write_u64(bytes, PAGE_SIZE as u64);
+        write_u64(bytes, ELF_MAX_PAGE_SIZE);
     }
 }
 
@@ -104,7 +104,7 @@ mod layout {
 
 mod sections {
     use crate::constants::{
-        ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
+        ELF_HEADER_SIZE, ELF_MAX_PAGE_SIZE, IMAGE_BASE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
     };
     use crate::static_executable::layout::{align_to, align_to_u64};
     use image::{FinalImage, FinalImageLayout};
@@ -128,12 +128,22 @@ mod sections {
         }
     }
 
+    /// The text lies inside the first load segment, which maps from file
+    /// offset 0, so the loader does not require this alignment; it keeps the
+    /// text start where earlier images placed it.
+    const TEXT_OFFSET_ALIGNMENT: usize = 0x1000;
+
     pub(crate) fn plan_elf_sections(image: &FinalImage) -> ElfSections {
         let text_offset = align_to(
             ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * PROGRAM_HEADER_COUNT,
-            PAGE_SIZE,
+            TEXT_OFFSET_ALIGNMENT,
         );
-        let data_offset = align_to(text_offset + image.memory.text.len(), PAGE_SIZE);
+        // The data segment must start on a page of its own on every kernel
+        // page size the target allows, or its mapping overlaps the text.
+        let data_offset = align_to(
+            text_offset + image.memory.text.len(),
+            ELF_MAX_PAGE_SIZE as usize,
+        );
         let text_address = IMAGE_BASE + text_offset as u64;
         let data_address = IMAGE_BASE + data_offset as u64;
         let bss_address = align_to_u64(
@@ -153,9 +163,6 @@ mod sections {
             data_memory_size,
         }
     }
-
-    #[cfg(test)]
-    mod tests {}
 }
 
 use crate::entry_symbol::elf_entry_address;
@@ -316,5 +323,50 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    /// A kernel with 16 KiB or 64 KiB pages maps each `PT_LOAD` segment in
+    /// whole pages, so both segments must declare and honour 64 KiB alignment
+    /// and the data segment must not share a 64 KiB page with the text.
+    #[test]
+    fn load_segments_start_on_their_own_64_kib_page_for_every_elf_target() {
+        for target in [
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::linux_x64(),
+        ] {
+            let mut image = FinalImage::with_capacity(
+                target,
+                image::FinalImageMemory {
+                    text: vec![0; 0x1800],
+                    data: vec![0; 8],
+                    bss_alignment: 8,
+                    ..Default::default()
+                },
+                Handle::invalid(),
+                0,
+                0,
+                0,
+            );
+            let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: "_start".into(),
+                section: FinalImageSection::Text,
+                offset: 0,
+                size: 4,
+                ..FinalImageSymbol::default()
+            });
+            image.symbol_table.entry_symbol = entry_symbol;
+            let bytes = emit_elf_executable(image).expect("ELF image").bytes;
+            let field = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+            let (text_header, data_header) = (64, 64 + 56);
+            let text_end = field(text_header + 16) + field(text_header + 32);
+            let (data_offset, data_address) = (field(data_header + 8), field(data_header + 16));
+
+            for header in [text_header, data_header] {
+                assert_eq!(field(header + 48), 0x1_0000, "p_align");
+                assert_eq!(field(header + 8) % 0x1_0000, field(header + 16) % 0x1_0000);
+            }
+            assert_eq!(data_offset % 0x1_0000, 0);
+            assert!(data_address >= text_end.next_multiple_of(0x1_0000));
+        }
     }
 }

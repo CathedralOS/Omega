@@ -1,0 +1,36 @@
+data Cell { value: u32; }
+data Pair [copy] { left: u32; right: u32; }
+data Outer { inner: Cell; tag: u32; }
+machine observe(view: &Cell) -> u32 { view.value }
+machine take(cell: Cell) -> u32 { cell.value }
+machine advance(cell: Cell) -> Cell { Cell { value: cell.value / 2u32 } }
+machine again(mut cell: Cell) -> u32 {
+    cell = advance(cell);
+    cell.value
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 7 };
+    let view: &Cell = &cell;
+    let seen: u32 = observe(view);
+    cell = Cell { value: 9 };
+    let moved: Cell = cell;
+    cell = Cell { value: 11 };
+    let taken: u32 = take(moved);
+    let mut pair: Pair = Pair { left: 1, right: 2 };
+    let copy: Pair = pair;
+    pair = Pair { left: copy.right, right: 4 };
+    let mut outer: Outer = Outer { inner: Cell { value: 3 }, tag: 1 };
+    outer = Outer { inner: Cell { value: outer.tag }, tag: 8 };
+    let mut later: Cell;
+    later = Cell { value: 6 };
+    let left: Cell = later;
+    later = Cell { value: 4 };
+    let gone: u32 = take(left);
+    let halved: u32 = again(Cell { value: 10 });
+    transition seen == 7 && taken == 9 && cell.value == 11 && pair.left == 2 && copy.left == 1 && outer.inner.value == 1 && outer.tag == 8 && gone == 6 && later.value == 4 && halved == 5 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1849,6 +1849,212 @@ pub(crate) mod machine_instances {
                 .ok_or(MISSING_EXECUTABLE_TEMPLATE)
         }
 
+        /// A copied child keeps its own callable template, but the enclosing
+        /// application binds the declaration that introduced the retained prefix.
+        pub fn specialization_binding_declaration(
+            &self,
+            receipt: &MachineSpecialization,
+        ) -> Result<SymbolHandle, &'static str> {
+            use crate::data::TypeParameterKind;
+            use crate::static_applications::StaticMachineBindingValue;
+            let live = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+            if !live(receipt.template)
+                || !live(receipt.instance)
+                || !self
+                    .expression_table
+                    .static_machine_application_is_valid(receipt.binding_application)
+            {
+                return Err(
+                    "specialization lost its current template, instance or binding application",
+                );
+            }
+            let source = self.static_machine_application(receipt.binding_application);
+            let declaration = source.binding_declaration;
+            if !live(declaration) || !live(source.lexical_owner) {
+                return Err("specialization binding declaration or supplier is missing or stale");
+            }
+            let template = self
+                .machine_by_symbol(receipt.template)
+                .ok_or("specialization template is not an actual machine declaration")?;
+            let bound = self
+                .machine_by_symbol(declaration)
+                .ok_or("specialization binding declaration is not an actual machine")?;
+            let instance = self
+                .machine_by_symbol(receipt.instance)
+                .ok_or("specialization instance is not an actual machine")?;
+            let mut ancestor = receipt.template;
+            let mut visited = Vec::new();
+            while ancestor != declaration {
+                if !live(ancestor) || visited.contains(&ancestor) {
+                    return Err(
+                        "specialization binding declaration is outside its actual lexical ancestry",
+                    );
+                }
+                visited.push(ancestor);
+                ancestor = self.symbols.get(ancestor).parent;
+            }
+            let prefix = self
+                .data_type_parameters
+                .span(receipt.template_parameters)
+                .ok_or("specialization has a stale retained parameter prefix")?;
+            let source_parameters = self
+                .data_type_parameters
+                .span(template.type_parameters)
+                .ok_or("specialization template has a stale parameter list")?;
+            let remaining = self
+                .data_type_parameters
+                .span(instance.type_parameters)
+                .ok_or("specialization instance has a stale remaining parameter list")?;
+            if source_parameters.len() != prefix.len() + remaining.len()
+                || !source_parameters
+                    .iter()
+                    .take(prefix.len())
+                    .eq(prefix.iter())
+                || !source_parameters
+                    .iter()
+                    .skip(prefix.len())
+                    .zip(remaining)
+                    .all(|(original, copied)| {
+                        live(copied.symbol)
+                            && self.symbols.get(copied.symbol).generated_from == original.symbol
+                            && original.kind == copied.kind
+                            && original.bounds == copied.bounds
+                    })
+            {
+                return Err("specialization changed its retained prefix or remaining binders");
+            }
+            let parameters = self
+                .data_type_parameters
+                .span(bound.type_parameters)
+                .ok_or("specialization binding declaration has a stale parameter list")?;
+            if parameters.len() != prefix.len() {
+                return Err(
+                    "specialization prefix does not cover its complete binding declaration",
+                );
+            }
+            for (original, retained) in parameters.iter().zip(prefix.iter()) {
+                if !live(original.symbol)
+                    || original.symbol != retained.symbol
+                    || original.bounds != retained.bounds
+                {
+                    return Err(
+                        "specialization prefix changed its exact binder identity or bounds",
+                    );
+                }
+                let same = match (&original.kind, &retained.kind) {
+                    (
+                        TypeParameterKind::Const {
+                            type_reference: left,
+                        },
+                        TypeParameterKind::Const {
+                            type_reference: right,
+                        },
+                    )
+                    | (
+                        TypeParameterKind::Value {
+                            type_reference: left,
+                        },
+                        TypeParameterKind::Value {
+                            type_reference: right,
+                        },
+                    ) => self.specialization_carriers_match(
+                        *left,
+                        declaration,
+                        *right,
+                        receipt.template,
+                    )?,
+                    (left, right) => left == right,
+                };
+                if !same {
+                    return Err(
+                        "specialization prefix changed a binder kind, carrier or complete contract",
+                    );
+                }
+            }
+            let parameters = self.machine_callable_parameters(bound);
+            let bindings = self.static_machine_application_bindings(receipt.binding_application);
+            let arguments = self.static_machine_application_arguments(receipt.binding_application);
+            if parameters.len() != bindings.len() || parameters.len() != arguments.len() {
+                return Err("specialization binding declaration has an incomplete argument tuple");
+            }
+            for parameter in &parameters {
+                let mut selected = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let (Some(binding), None) = (selected.next(), selected.next()) else {
+                    return Err(
+                        "specialization binding declaration has no unique retained parameter binding",
+                    );
+                };
+                if !matches!(
+                    (&parameter.kind, &binding.value),
+                    (TypeParameterKind::Type, StaticMachineBindingValue::Type(_))
+                        | (
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                            StaticMachineBindingValue::Const(_)
+                        )
+                        | (
+                            TypeParameterKind::Machine { .. },
+                            StaticMachineBindingValue::Machine(_)
+                        )
+                        | (
+                            TypeParameterKind::Implementation,
+                            StaticMachineBindingValue::Conformance(_)
+                        )
+                ) {
+                    return Err(
+                        "specialization retained binding differs from its declared parameter kind",
+                    );
+                }
+            }
+            Ok(declaration)
+        }
+
+        fn specialization_carriers_match(
+            &self,
+            left: crate::types::TypeReferenceHandle,
+            left_owner: SymbolHandle,
+            right: crate::types::TypeReferenceHandle,
+            right_owner: SymbolHandle,
+        ) -> Result<bool, &'static str> {
+            use crate::type_identity::identity_context::{
+                TypeIdentityContext, TypeIdentityQualification, normalize_type_identity,
+            };
+            use std::cell::Cell;
+            let identity = |reference, owner| {
+                if !self.type_reference_table.contains_type_reference(reference) {
+                    return Err("specialization prefix has a stale carrier reference");
+                }
+                let retained_owner = self.type_reference_table.operand_lifetime_owner(reference);
+                let owner = if retained_owner.is_valid() {
+                    retained_owner
+                } else {
+                    owner
+                };
+                if !self.symbols.symbols().nodes().is_valid(owner) {
+                    return Err("specialization prefix carrier lost its supplying declaration");
+                }
+                let invalid = Cell::new(false);
+                let identity = normalize_type_identity(
+                    self,
+                    reference,
+                    &TypeIdentityContext {
+                        application_owner: owner,
+                        application_argument_owner: owner,
+                        invalid_application: Some(&invalid),
+                        encountered_elided_regions: Some(&invalid),
+                        qualification: TypeIdentityQualification::PackageQualified,
+                        ..Default::default()
+                    },
+                );
+                if invalid.get() {
+                    return Err("specialization prefix carrier has an incomplete scoped identity");
+                }
+                Ok(identity)
+            };
+            Ok(identity(left, left_owner)? == identity(right, right_owner)?)
+        }
+
         /// Read enclosing applications from their exact instance receipts, from
         /// the immediate caller out to the original supplying declaration.
         pub fn enclosing_invocation_frames(
@@ -1871,14 +2077,15 @@ pub(crate) mod machine_instances {
                         if !application.is_valid() {
                             return Err("enclosing specialization lost its binding application");
                         }
+                        let declaration = self.specialization_binding_declaration(receipt)?;
                         let source = self.static_machine_application(application);
                         (
                             application,
-                            receipt.template,
+                            declaration,
                             source.lexical_owner,
                             self.static_application_lifetimes_for_declaration(
                                 application,
-                                receipt.template,
+                                declaration,
                             )?
                             .into_owned(),
                         )
@@ -1918,7 +2125,9 @@ pub(crate) mod machine_instances {
                     }
                 };
                 let source = self.static_machine_application(application);
-                if source.binding_declaration != declaration || !argument_owner.is_valid() {
+                if source.binding_declaration != declaration
+                    || !self.symbols.symbols().nodes().is_valid(argument_owner)
+                {
                     return Err("enclosing invocation changed its declaration or supplier");
                 }
                 frames.push(EnclosingInvocationFrame {

@@ -3448,7 +3448,7 @@ pub(crate) mod record_input {
                         .blocks
                         .iter()
                         .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
+                        .flat_map(|block| block.structural_parameters.iter()),
                 ),
         )
     }
@@ -3570,7 +3570,7 @@ pub(crate) mod record_input {
                     .blocks
                     .iter()
                     .filter(move |block| block.id != source.entry_block)
-                    .flat_map(|block| &block.structural_parameters),
+                    .flat_map(|block| block.structural_parameters.iter()),
             )
             .filter(move |parameter| parameter.place == place)
     }

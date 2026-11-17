@@ -1,4 +1,4 @@
-//! Bind native call demands to the current optimized code values and entries.
+//! Read call demands from the current form's prepared invocation records.
 
 use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use terminal_semantics::callable_values::ReachableCallableInvocations;
@@ -9,10 +9,17 @@ pub(crate) fn prepare_from(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
     entry: semantic_vocabulary::MachineId,
 ) -> Result<&ReachableCallableInvocations, String> {
+    if source.physical_program().function(entry).is_none() {
+        return Err(format!(
+            "entry {} has no current native function",
+            entry.get()
+        ));
+    }
     source
-        .optimized_target()
-        .execution_plan()
-        .callable_invocations_from(entry)
+        .physical_program()
+        .contracts
+        .execution()
+        .and_then(|facts| facts.callable_invocations_from(entry))
         .ok_or_else(|| {
             format!(
                 "entry {} has no exact prepared callable invocation summary",

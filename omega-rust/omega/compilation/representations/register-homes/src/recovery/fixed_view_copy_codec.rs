@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 110), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 115), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -58,7 +58,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // access policies and transparent scalar predicates with their exact identities.
 // Type rows now retain declared multiplicity instead of a copy-permission bit.
 // Reject predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 110;
+pub(super) const VERSION: u32 = 115;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v63\0";
 
@@ -621,6 +621,18 @@ pub(super) fn decode_ordinary_plan(
         runtime_abi::NativeBorrowedStorageLayouts::decode(cursor.take(borrowed_storage_length)?)
             .map_err(FixedViewCopyDecodeError::InvalidBorrowedStorage)?;
     let contracts = super::program_contracts::decode(cursor, borrowed_storage_layouts)?;
+    if let Some(facts) = contracts.execution()
+        && (facts.roots().psi.program_fingerprint != fingerprint
+            || facts.roots().psi.vocabulary_marker != marker
+            || facts.roots().work_schedule != work_schedule
+            || facts.roots().entry != entry)
+    {
+        return Err(FixedViewCopyDecodeError::InvalidExecutionFacts(
+            target_vocabulary::NativeExecutionFactsError::Invalid(
+                "execution facts differ from the current selected header",
+            ),
+        ));
+    }
     let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
         contracts: std::sync::Arc::new(contracts),
@@ -682,6 +694,7 @@ pub(super) fn decode_function(
     let blocks = decode_list(cursor, decode_block)?;
     let mut function = SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            structural_block_parameters: Vec::new(),
             machine,
             attachment,
             provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },

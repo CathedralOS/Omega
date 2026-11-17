@@ -380,7 +380,10 @@ impl Program<'_> {
                 let members = typed.statement_table.name_path_members(path.members).len();
                 let qualified = members == 2
                     && path.head_symbol == path.receiver_symbol
-                    && self.names_requirement(path.symbol, path.receiver_symbol);
+                    && (self.names_requirement(path.symbol, path.receiver_symbol)
+                        || self
+                            .record_requirement_signature(id, path.receiver_symbol, path.symbol)?
+                            .is_some());
                 if !qualified && (members != 1 || path.receiver_symbol.is_valid()) {
                     return Err(refuse(
                         id,
@@ -398,6 +401,9 @@ impl Program<'_> {
                     id,
                     slots,
                     path.symbol,
+                    path.receiver_symbol
+                        .is_valid()
+                        .then_some(path.receiver_symbol),
                     arguments,
                     *authored_call_selection,
                     source,

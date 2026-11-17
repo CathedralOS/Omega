@@ -100,16 +100,18 @@ pub(crate) fn emit_realization_object(
         prepare_installed_callbacks(request, &target, &mut prepared_callbacks, physical_entry)?;
     let installations = pipeline::bound_installations(&target, None, requirements)
         .map_err(|reason| realization_error("installed handler stack", reason))?;
-    let projection =
-        pipeline::emit_target(target, installations, request.observation).map_err(|error| {
-            match error {
-                BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(
-                    request.optimization_selections.selections(),
-                    error,
-                ),
-                BodyEmissionError::Object(diagnostics) => diagnostics,
-            }
-        })?;
+    let projection = pipeline::emit_target(
+        target,
+        installations,
+        request.observation,
+        request.retain_native_stage_inputs,
+    )
+    .map_err(|error| match error {
+        BodyEmissionError::Physical(error) => {
+            selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
+        }
+        BodyEmissionError::Object(diagnostics) => diagnostics,
+    })?;
     let private_functions = lower_callback_thunks(
         request,
         &native_callbacks,

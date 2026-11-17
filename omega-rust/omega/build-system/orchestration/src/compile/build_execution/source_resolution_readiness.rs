@@ -247,6 +247,9 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         }));
                         pending.push(Work::Declare(acquired));
                     } else {
+                        self.acquisitions
+                            .admit_locked_activation(&acquired)
+                            .map_err(Source)?;
                         let request = self.build_request(&acquired, &entry, execution)?;
                         pending.push(Work::Declare(acquired.clone()));
                         pending.push(Work::Build { acquired, request });

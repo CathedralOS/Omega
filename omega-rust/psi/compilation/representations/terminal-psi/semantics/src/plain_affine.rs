@@ -1997,11 +1997,12 @@ impl Analysis<'_> {
             self.operation(&mut state, operation, entering.is_some())
                 .map_err(|error| error.at(site))?;
         }
-        self.position = Some((
+        let at = (
             block.id,
             u32::try_from(block.operations.len())
                 .map_err(|_| Error::malformed("terminal position overflows"))?,
-        ));
+        );
+        self.position = Some(at);
         let site = Site::Edge(
             block
                 .terminator
@@ -2012,6 +2013,16 @@ impl Analysis<'_> {
         if let Some(flow) = &mut self.claim_flow {
             flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
                 .map_err(|error| error.at(site))?;
+        }
+        // A reference dead before a dispatch ends there, not on each case
+        // edge: the dispatch reads the subject storage, which the reference
+        // may have lent, so the loan must be returned before it does. A
+        // terminator that moves storage on keeps its successors' releases.
+        if matches!(
+            block.terminator,
+            Terminator::StructuralCase { .. } | Terminator::EliminateEmpty { .. }
+        ) {
+            self.end_references(&mut state, at, site)?;
         }
         match &block.terminator {
             Terminator::StructuralCase { source, path, .. } => {
@@ -2856,6 +2867,19 @@ impl Analysis<'_> {
                     let path = &mut receiving;
                     if exact && let Some(field) = field {
                         path.push(Segment::Field(*field));
+                    }
+                    // A whole move ends an owned root's home (`vacate`). A
+                    // later whole assignment stores into that same home, so
+                    // it re-establishes it vacant and fills it, exactly as a
+                    // local's `EstablishStructuralLocal` and vacant store do
+                    // (structural_access.md: "Root, field, and indexed
+                    // destinations do not change construction semantics").
+                    if exact
+                        && path.is_empty()
+                        && root.owned
+                        && state.regions[index(destination.get())?].is_none()
+                    {
+                        self.establish(state, *destination, false)?;
                     }
                     if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, path, site)?;

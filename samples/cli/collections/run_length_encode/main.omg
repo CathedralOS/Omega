@@ -33,11 +33,11 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
-    main.data = "AAAABBBCCDDDDDEEEEEE";
+    main.data = "AAAABBBCCDDDDDEEEEEE" as +Utf8;
     main.prev = main.data[0];
-    main.count = 1;
-    main.i = 1;
-    main.runs = 0;
+    main.count = 1 as +Wrapping;
+    main.i = 1 as +Wrapping;
+    main.runs = 0 as +Wrapping;
     transition {
         _ -> block step(main)
     }
@@ -74,7 +74,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         main.runs = main.runs + 1;
         main.prev = main.b;
-        main.count = 1;
+        main.count = 1 as +Wrapping;
         main.i = main.i + 1;
         transition {
             _ -> block step(main)

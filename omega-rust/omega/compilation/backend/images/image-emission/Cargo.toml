@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../../psi/foundation/language-core" }

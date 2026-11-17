@@ -1700,6 +1700,25 @@ mod staging {
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
+    /// Stage live ranges a rewrite already validated for `liveness`' program,
+    /// without computing them again. They must name that program and liveness.
+    pub fn admit_optimized_live_ranges(
+        liveness: StagedOptimizedLiveness,
+        ranges: ValidatedLiveRanges,
+    ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
+        if ranges.receipt().selected() != liveness.selected().identity
+            || ranges.receipt().liveness() != liveness.liveness().receipt().identity()
+        {
+            return Err(OptimizedLiveRangeCustodyError::AnalysisMismatch);
+        }
+        let custody = custody::live_range_custody_receipt(liveness.custody(), ranges.receipt());
+        Ok(StagedOptimizedLiveRanges {
+            liveness,
+            ranges,
+            custody,
+        })
+    }
+
     pub fn stage_optimized_live_ranges(
         liveness: StagedOptimizedLiveness,
     ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
@@ -1721,7 +1740,7 @@ mod staging {
 
     impl StagedOptimizedLiveRanges {
         staged_producer_accessors!(
-            liveness; liveness, selected, register_environment, selections, budget_per_pass
+            liveness; liveness, selected, record, register_environment, selections, budget_per_pass
         );
 
         pub const fn ranges(&self) -> &ValidatedLiveRanges {
@@ -1754,6 +1773,8 @@ mod staging {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum OptimizedLiveRangeCustodyError {
         Analysis(LiveRangeError),
+        /// Admitted live ranges name another program or liveness analysis.
+        AnalysisMismatch,
     }
 
     failed_display!(
@@ -1764,7 +1785,7 @@ mod staging {
 pub use staging::StagedOptimizedLiveRanges;
 pub use staging::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
-    stage_optimized_live_ranges,
+    admit_optimized_live_ranges, stage_optimized_live_ranges,
 };
 
 copy_receipt! {

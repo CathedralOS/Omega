@@ -143,8 +143,8 @@ pub fn stage_optimized_post_allocation_machine_plan(
         &mut machine,
         allocation.selected.plan,
         allocation.effects,
-        allocation.selections,
-        allocation.budget,
+        allocation.publication.selections(),
+        allocation.publication.budget(),
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::Optimization)?;
     let machine = seal_post_allocation_machine_plan(machine)
@@ -157,6 +157,12 @@ pub fn stage_optimized_post_allocation_machine_plan(
         machine: machine.shared_plan(),
         environment: environment.clone(),
         preservation: allocation.preservation.clone(),
+        publication: Arc::clone(allocation.publication),
+        phase: post_allocation_machine::PostAllocationMachinePhaseReceipt::from_parts(
+            optimization.complete_selection(),
+            optimization.phase_selections(),
+            optimization.result(),
+        ),
         functions: allocation.selected.plan.functions.clone(),
         identity: [0; 32],
     };

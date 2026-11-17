@@ -246,6 +246,92 @@ fn trapping_primitives_retain_their_crash_predicate() {
     }
 }
 
+/// A literal shift count has no carrier of its own, so it lands in the
+/// shifted value's carrier (`wiki/spec/language/numeric_values.md`, "Policy
+/// operators": "the other lands to that carrier"). Landing does not discharge
+/// the Exact count law: a count of 32 on a `u32` value is still refused, and a
+/// typed count keeps its own carrier.
+#[test]
+fn a_literal_shift_count_lands_in_the_shifted_carrier() {
+    for (name, expression, expected) in [
+        ("literal_left", "left << 3", "accepted"),
+        ("literal_right", "left >> 31", "accepted"),
+        ("anonymous_tree", "left >> (8 + 8)", "accepted"),
+        ("typed_count", "left << 3u8", "accepted"),
+        ("count_at_width", "left >> 32", "rejected"),
+        ("left_overflow", "(left + 1) << 31", "rejected"),
+    ] {
+        let source = format!(
+            "machine spare(left: u32) -> u32 requires left <= 10 {{ {expression} }}\n\
+             machine main() {{ }}"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
+/// A `&&` guard lowers to a join. Its facts reach the taken edge only through
+/// the join's inferred predicate. A local read after a call that wrote the
+/// field (`let mid = main.pout` after `fill(main, v)`) is defined as the
+/// field's contents after that call, which the predicate cannot name. The
+/// read itself dominates the join, so the guard is stated over it. A guard
+/// that is too weak, or a `||`, still leaves the requirement unproved.
+/// state_contracts.md, "Private entry inference": a helper that omits
+/// `requires` may rely on what every arrival establishes. In a call cycle
+/// each member's copy of the cycle reads `main.i` once per block, and the
+/// guard in `mark` is stated over an earlier, equal read. The arrival at
+/// `bump` still passes the guard's bound, so its write keeps the data clause.
+#[test]
+fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
+    for (name, bound, expected) in [
+        ("guarded_bump", "31", "accepted"),
+        ("bump_past_the_clause", "32", "rejected"),
+    ] {
+        let source = format!(
+            "data Main requires self.i >= 0 && self.i <= 31 {{ i: i32; }}\n\
+             machine cycle(main: &mut Main) {{\n\
+                 main.i = 0;\n\
+                 transition {{ _ -> block head(main) }}\n\
+                 machine head(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < 31 {{ true -> block mark(main) _ -> block done(main) }}\n\
+                 }}\n\
+                 machine mark(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main) _ -> block head(main) }}\n\
+                 }}\n\
+                 machine bump(main: &mut Main) {{\n\
+                     main.i = main.i + 1;\n\
+                     transition {{ _ -> block head(main) }}\n\
+                 }}\n\
+                 machine done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; block cycle(&mut storage); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
+#[test]
+fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
+    for (name, guard, expected) in [
+        ("both_bounds", "mid >= 0 && mid < 26", "accepted"),
+        ("weak_bound", "mid >= 0 && mid < 27", "rejected"),
+        ("disjunction", "mid >= 0 || mid < 26", "rejected"),
+    ] {
+        let source = format!(
+            "data Main {{ pout: i32; }}\n\
+             machine fill(main: &mut Main, v: i32) {{ main.pout = v; }}\n\
+             machine use_it(main: &mut Main, mid: i32) requires 0 <= mid && mid < 26 {{ main.pout = mid; }}\n\
+             machine step(main: &mut Main, v: i32) {{\n\
+                 fill(main, v);\n\
+                 let mid: i32 = main.pout;\n\
+                 transition {guard} {{ true -> use_it(main, mid) _ -> done(main) }}\n\
+             }}\n\
+             machine done(main: &mut Main) {{ }}\n\
+             machine main() {{ let mut storage: Main; step(&mut storage, 3); step(&mut storage, 300); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn trapping_normal_results_are_retained_in_guarantees() {
     // Observe the denotation using clause forms the current prover handles.

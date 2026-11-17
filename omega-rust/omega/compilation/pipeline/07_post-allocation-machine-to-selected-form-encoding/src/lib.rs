@@ -89,8 +89,8 @@ use post_allocation_machine::{
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
 };
 use selected_instructions::{
-    CurrentSelectedProgram, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, terminator_instruction,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionPlanIdentity,
+    terminator_instruction,
 };
 
 pub fn stage_optimized_layout_independent_selected_form_encoding(
@@ -100,6 +100,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding(
     let program = Arc::new(artifact);
     Ok(StagedOptimizedSelectedFormEncoding {
         current: machine_code::EncodedMachineProgram {
+            storage: input.storage,
             frame_identity: input.frame_identity,
             protocol_identity: input.protocol_identity,
             instructions: input.instructions,
@@ -132,13 +133,26 @@ pub fn validate_optimized_layout_independent_selected_form_encoding(
         replay,
     )
     .map_err(OptimizedSelectedFormEncodingError::CurrentProgram)?;
-    validation::validate(
-        replay.selected,
-        replay.machine,
-        replay.environment.physical(),
-        frame,
-        artifact.program(),
+    if frame != Some(&*artifact.current.frame) {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    validate_current_selected_form_encoding(
+        &artifact.current.instructions,
+        &artifact.current.frame,
+        &artifact.current.encoding,
     )
+}
+
+/// Check encoded bytes against the current instruction, physical and frame
+/// columns. Comparing them with original allocation inputs is a separate audit.
+pub fn validate_current_selected_form_encoding(
+    program: &post_allocation_machine::PostAllocationMachineProgram,
+    frame: &TargetFrameLayoutPlan,
+    encoding: &SelectedFormEncoding,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    post_allocation_machine::program_validation::validate_current_program_integrity(program)
+        .map_err(OptimizedSelectedFormEncodingError::CurrentProgram)?;
+    validation::validate(program, Some(frame), encoding)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,7 +304,7 @@ fn compute(
 }
 
 pub(crate) fn for_each_row<V>(
-    selected: CurrentSelectedProgram<'_>,
+    selected: &post_allocation_machine::PostAllocationMachineProgram,
     machine: &PostAllocationMachinePlan,
     mut visit: V,
 ) -> Result<(), OptimizedSelectedFormEncodingError>
@@ -302,7 +316,7 @@ where
         &PostAllocationMachineInstruction,
     ) -> Result<(), OptimizedSelectedFormEncodingError>,
 {
-    let selected_plan = selected.plan;
+    let selected_plan = selected;
     if selected_plan.functions.len() != machine.functions.len() {
         return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
     }

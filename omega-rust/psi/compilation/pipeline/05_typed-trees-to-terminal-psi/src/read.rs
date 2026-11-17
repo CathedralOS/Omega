@@ -50,6 +50,7 @@ mod predicates;
 mod provider_selections;
 mod providers;
 mod rankings;
+mod record_parameters;
 mod references;
 mod reflection;
 mod regions;
@@ -743,6 +744,65 @@ mod tests {
             requires: Vec::new(),
             authored_layout: false,
         }
+    }
+
+    #[test]
+    fn zero_values_require_complete_types_and_cannot_invent_reference_backing() {
+        use terminal_psi::StructuralAccess;
+        let typed = TypedTrees::default();
+        let mut program = Program::new(&typed, false);
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let empty = program.records.push(plain_record());
+        program.record_sources.push(places::RecordSource {
+            declaration: SymbolHandle::invalid(),
+            application: None,
+            region_owner: SymbolHandle::invalid(),
+            fields: Vec::new(),
+            cases: Vec::new(),
+        });
+        assert!(matches!(
+            program
+                .zero_value(machine(), ValueType::record(empty), source)
+                .unwrap()
+                .kind,
+            ExpressionKind::Record { fields } if fields.is_empty()
+        ));
+        for (shape, expected) in [
+            (
+                crate::StorageShape::Reference {
+                    referent: empty,
+                    access: StructuralAccess::SharedBorrow,
+                },
+                "zero-established reference without backing",
+            ),
+            (
+                crate::StorageShape::ElementView {
+                    element: empty,
+                    qualification: crate::body::Qualification::NONE,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                "zero-established mutable sequence",
+            ),
+            (
+                crate::StorageShape::Opaque,
+                "opaque initialization requires boundary-supplied contents",
+            ),
+        ] {
+            let record = program.records.push(RecordType {
+                shape,
+                ..plain_record()
+            });
+            let refusal = program
+                .zero_value(machine(), ValueType::record(record), source)
+                .unwrap_err();
+            assert!(refusal.detail.contains(expected), "{}", refusal.detail);
+        }
+        let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
+        assert!(
+            program
+                .zero_value(machine(), ValueType::record(missing), source)
+                .is_err()
+        );
     }
 
     #[test]

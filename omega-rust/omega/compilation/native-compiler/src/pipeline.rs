@@ -10,6 +10,13 @@ installations to instruction selection (`Omega 03`), selected-instruction optimi
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
 optimization (`Omega 09`), and fragment object emission.
+
+Emission reads the current machine program plus `EmissionFacts`, the few facts
+settled before instruction selection that it still needs, which `emit_target`
+copies out of stage 02's output. Stage 02's output and the original
+allocation, encoding and layout inputs reach emission only when a validator
+request asked to retain them (`retain_native_stage_inputs`); otherwise they
+are dropped as soon as their successor stage has run.
 */
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
@@ -28,6 +35,7 @@ use register_homes_to_post_allocation_machine::{
 };
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
+use selected_instruction_analyses::SelectedOptimizationRecord;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::{
     SelectedInstructionOptimizationError, SelectedOptimizationInput, optimize_selected_instructions,
@@ -140,6 +148,7 @@ pub(crate) fn emit_target(
         terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
     >,
     observation: &NativePipelineObservation,
+    retain_native_stage_inputs: bool,
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
@@ -161,6 +170,9 @@ pub(crate) fn emit_target(
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     }?;
+    let facts = emission_facts(&target_input);
+    let original_target = retain_native_stage_inputs
+        .then(|| image_emission::RetainedTargetOperations::new(target_input));
     let selected = {
         observation.enter(NativePipelineStage::SelectedOptimization);
         optimize_selected_instructions(SelectedOptimizationInput {
@@ -169,12 +181,20 @@ pub(crate) fn emit_target(
             register_environment: selected.register_environment().clone(),
             selections: selected.selections().clone(),
             budget_per_pass: selected.budget_per_pass(),
+            record: SelectedOptimizationRecord::default(),
         })
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     }?;
+    // A validator request keeps Omega 04's completed run as replay evidence;
+    // a default compile drops it here and allocation never sees it.
+    let (selected, selected_optimization) = if retain_native_stage_inputs {
+        selected.retain_replay_for_validation()
+    } else {
+        (selected.into_allocation_input(), None)
+    };
     let allocation = {
         observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected.into_selected_output())
+        stage_register_allocation(selected)
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     }?;
     let machine = {
@@ -182,12 +202,10 @@ pub(crate) fn emit_target(
         stage_optimized_post_allocation_machine_plan(allocation.facts())
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
     }?;
-    let current = allocation.current();
     let framed = machine_emission::stage_function_frame(
         machine.current().clone(),
         machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
-    let (framed, frame) = framed.into_parts();
     let encoding = {
         observation.enter(NativePipelineStage::SelectedFormEncoding);
         stage_optimized_layout_independent_selected_form_encoding(framed)
@@ -202,43 +220,59 @@ pub(crate) fn emit_target(
         observation.enter(NativePipelineStage::LayoutOptimization);
         execute_resolved_layout_optimization(
             layout.current(),
-            &current
+            &layout
+                .current()
+                .instructions
+                .publication
                 .selections()
                 .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-            current.budget_per_pass(),
+            layout.current().instructions.publication.budget(),
         )
         .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
-    let realization = machine_emission::assemble_fixed_frame_realization(
-        machine_emission::FixedFrameRealizationInput {
-            current: optimized_layout,
-            receipts: machine_emission::FunctionRelativePublicationReceipts::capture(
-                &current,
-                &machine,
-                frame,
-                target_input.optimized().pre_physical_manifest().identity,
-            ),
-            replay: machine_emission::FunctionRealizationReplay {
-                allocation,
-                target_input: std::sync::Arc::clone(&target_input),
-                machine,
-                encoding,
-                baseline_layout: layout,
-            },
-        },
-    )?;
-    let physical = StagedOptimizedFunctionFragmentEmissionSource::new(
-        realization,
-        target_input,
-        installations,
-    )
-    .map_err(|error| {
-        BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
-            "native artifact function-fragment emission failed: {error}"
-        ))])
-    })?;
+    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
+    let realization = if retain_native_stage_inputs {
+        realization.retain_replay_for_validation(machine_emission::FunctionRealizationReplay {
+            allocation,
+            machine,
+            encoding,
+            baseline_layout: layout,
+            selected_optimization: selected_optimization.map(|run| {
+                Box::new(run)
+                    as Box<dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>
+            }),
+        })
+    } else {
+        drop((allocation, machine, encoding, layout, selected_optimization));
+        realization
+    };
+    let physical =
+        StagedOptimizedFunctionFragmentEmissionSource::new(realization, facts, installations)
+            .map_err(|error| {
+                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+                    "native artifact function-fragment emission failed: {error}"
+                ))])
+            })?;
     observation.enter(NativePipelineStage::FragmentEmission);
-    native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+    native_artifact::emit_fragment_object(physical, original_target)
+        .map_err(BodyEmissionError::Object)
+}
+
+/// Copy what emission needs from stage 02's output and cannot read from the
+/// current machine program: the admitted lowering facts and the optimized
+/// abstract program with its projection identities. The program is shared,
+/// not copied.
+fn emission_facts(target: &ValidatedOptimizedTargetOperations) -> machine_emission::EmissionFacts {
+    let optimized = target.optimized();
+    machine_emission::EmissionFacts {
+        lowering: target.lowering_facts().clone(),
+        abstract_program: optimized.shared_program(),
+        projection: machine_emission::OptimizedProgramProjection {
+            identity: optimized.projection(),
+            terminal: optimized.projection_psi(),
+            final_unit: optimized.final_unit(),
+        },
+    }
 }
 
 pub(crate) enum BodyEmissionError {

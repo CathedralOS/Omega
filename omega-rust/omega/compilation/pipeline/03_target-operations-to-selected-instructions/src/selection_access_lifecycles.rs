@@ -4632,6 +4632,8 @@ pub(crate) mod tests {
         let materialize =
             crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
         let program = LegalizedOperationPlan {
+            execution: None,
+            publication: Default::default(),
             borrowed_storage_layouts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,

@@ -1241,6 +1241,46 @@ fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
     );
 }
 
+/// `cell = Cell { .. }` replaces the record a live `&cell` observes, so the
+/// checker must see that write. The positive twin uses the reference before
+/// the assignment and also reassigns a local, a declared local and an owned
+/// parameter after a whole move, a `[copy]` record, and a record whose
+/// replacement reads its old contents.
+#[test]
+fn a_whole_record_assignment_writes_the_storage_its_references_observe() {
+    let negative = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/ownership/reference_live_across_whole_record_assignment/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    let verdict = super::build_purpose::judge_build(&negative).unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("the live reference must exclude the whole assignment: {verdict:?}");
+    };
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
+    let positive = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/ownership/whole_record_assignment/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    let verdict = super::build_purpose::judge_build(&positive).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("assignments after the last use must be accepted: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+}
+
 #[test]
 fn canonical_reference_creation_rejects_an_unowned_carrier() {
     // The direct producer lookup and supplied-row validation share one

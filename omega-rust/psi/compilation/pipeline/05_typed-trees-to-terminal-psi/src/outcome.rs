@@ -554,6 +554,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Zero
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => Ok(true),
             ExpressionKind::Not(operand)

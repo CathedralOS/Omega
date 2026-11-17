@@ -3318,6 +3318,9 @@ pub(crate) mod scalar_operations {
                 let source = self.scalar_value(operand)?;
                 let (source_type, source_value) = match source {
                     TerminalScalarValue::Callable { .. } => return Err(malformed()),
+                    TerminalScalarValue::HostAddress { .. } => {
+                        return Err(crate::boundary::errors::host_address_mixed());
+                    }
                     TerminalScalarValue::Boolean(value) => {
                         (ScalarType::Boolean, ScalarViewValue::Boolean(value))
                     }
@@ -3512,7 +3515,7 @@ pub(crate) mod scalar_operations {
         }
     }
     pub(crate) mod integer {
-        use crate::boundary::errors::{TerminalInterpretError, malformed};
+        use crate::boundary::errors::{TerminalInterpretError, host_address_mixed, malformed};
         use crate::boundary::values::TerminalScalarValue;
         use crate::engine::execution::{OperationFlow, TerminalExecution, dispatched_operation};
         use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
@@ -3526,6 +3529,41 @@ pub(crate) mod scalar_operations {
                 return Err(malformed());
             };
             Ok(scalar_type)
+        }
+
+        // A host-returned address is comparable only with another host address
+        // or with null. Anything else would order a real host pointer against
+        // an interpreter storage identity, a comparison whose answer means
+        // nothing in either the Psi or the native run. `None` means neither
+        // operand is a host address, so the ordinary integer rules apply.
+        pub(crate) fn host_address_ordering(
+            left: TerminalScalarValue,
+            right: TerminalScalarValue,
+        ) -> Result<Option<std::cmp::Ordering>, TerminalInterpretError> {
+            let host = |value| matches!(value, TerminalScalarValue::HostAddress { .. });
+            if !host(left) && !host(right) {
+                return Ok(None);
+            }
+            let side = |value| match value {
+                TerminalScalarValue::HostAddress {
+                    scalar_type,
+                    address,
+                } => Some((scalar_type, Some(address))),
+                TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(0),
+                } if scalar_type.is_address() => Some((scalar_type, None)),
+                _ => None,
+            };
+            let (Some((left_type, left)), Some((right_type, right))) = (side(left), side(right))
+            else {
+                return Err(host_address_mixed());
+            };
+            if left_type != right_type {
+                return Err(malformed());
+            }
+            // Null sorts below every host address, which is never null.
+            Ok(Some(left.cmp(&right)))
         }
 
         macro_rules! saturating_integer_op {
@@ -3558,8 +3596,17 @@ pub(crate) mod scalar_operations {
             ) -> Result<(IntegerType, IntegerValue), TerminalInterpretError> {
                 match self.scalar_value(operand)? {
                     TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
+                    TerminalScalarValue::HostAddress { .. } => Err(host_address_mixed()),
                     _ => Err(malformed()),
                 }
+            }
+
+            fn host_address_ordering(
+                &self,
+                left: semantic_vocabulary::ValueId,
+                right: semantic_vocabulary::ValueId,
+            ) -> Result<Option<std::cmp::Ordering>, TerminalInterpretError> {
+                host_address_ordering(self.scalar_value(left)?, self.scalar_value(right)?)
             }
 
             fn integer_operands(
@@ -3601,6 +3648,10 @@ pub(crate) mod scalar_operations {
             ) -> Result<OperationFlow, TerminalInterpretError> {
                 dispatched_operation!(operation => IntegerEqual { left, right });
                 self.require_boolean_result(operation)?;
+                if let Some(ordering) = self.host_address_ordering(left, right)? {
+                    return self
+                        .store_scalar(operation, TerminalScalarValue::Boolean(ordering.is_eq()));
+                }
                 let (left_type, left) = self.integer_operand(left)?;
                 let (right_type, right) = self.integer_operand(right)?;
                 let ordering = left_type
@@ -3617,11 +3668,16 @@ pub(crate) mod scalar_operations {
                     unreachable!("dispatched execute_integer_less_than")
                 };
                 self.require_boolean_result(operation)?;
-                let (left_type, left_value) = self.integer_operand(left)?;
-                let (right_type, right_value) = self.integer_operand(right)?;
-                let ordering = left_type
-                    .compare_with(left_value, right_type, right_value)
-                    .ok_or(malformed())?;
+                let ordering = match self.host_address_ordering(left, right)? {
+                    Some(ordering) => ordering,
+                    None => {
+                        let (left_type, left_value) = self.integer_operand(left)?;
+                        let (right_type, right_value) = self.integer_operand(right)?;
+                        left_type
+                            .compare_with(left_value, right_type, right_value)
+                            .ok_or(malformed())?
+                    }
+                };
                 let result = match operation.kind {
                     OperationKind::IntegerLessThan { .. } => ordering.is_lt(),
                     OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
@@ -3908,9 +3964,13 @@ pub(crate) mod scalar_operations {
 
         #[cfg(test)]
         mod tests {
+            use super::host_address_ordering;
             use crate::boundary::errors::{TerminalInterpretError, malformed};
+            use crate::boundary::values::TerminalScalarValue;
             use crate::engine::execution::TerminalExecution;
-            use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, ScalarType, ValueId,
+            };
             use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
             fn operation(kind: OperationKind) -> Operation {
@@ -3979,6 +4039,53 @@ pub(crate) mod scalar_operations {
                     error,
                     TerminalInterpretError::VerifiedOperationMalformed { .. }
                 ));
+            }
+
+            #[test]
+            fn host_addresses_compare_only_with_host_addresses_and_null() {
+                let address = IntegerType::address(64).unwrap();
+                let host = |value| TerminalScalarValue::HostAddress {
+                    scalar_type: address,
+                    address: value,
+                };
+                let interpreter = |value| TerminalScalarValue::Integer {
+                    scalar_type: address,
+                    value: IntegerValue::Unsigned(value),
+                };
+                assert_eq!(
+                    host_address_ordering(host(0x7000), host(0x7000)),
+                    Ok(Some(std::cmp::Ordering::Equal))
+                );
+                assert_eq!(
+                    host_address_ordering(host(0x7000), host(0x8000)),
+                    Ok(Some(std::cmp::Ordering::Less))
+                );
+                assert_eq!(
+                    host_address_ordering(host(0x7000), interpreter(0)),
+                    Ok(Some(std::cmp::Ordering::Greater))
+                );
+                assert_eq!(
+                    host_address_ordering(interpreter(0x7001), interpreter(0x7001)),
+                    Ok(None)
+                );
+                // Same number, different provenance: no defined answer.
+                assert_eq!(
+                    host_address_ordering(host(0x7001), interpreter(0x7001)),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
+                assert_eq!(
+                    host_address_ordering(interpreter(0x7001), host(0x7001)),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
+                let count = TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                        .unwrap(),
+                    value: IntegerValue::Unsigned(0),
+                };
+                assert_eq!(
+                    host_address_ordering(host(0x7000), count),
+                    Err(TerminalInterpretError::HostAddressMixed)
+                );
             }
 
             #[test]
@@ -4097,6 +4204,16 @@ pub(crate) mod scalar_operations {
         match value {
             TerminalScalarValue::Callable { .. } | TerminalScalarValue::Boolean(_) => true,
             TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
+            TerminalScalarValue::HostAddress {
+                scalar_type,
+                address,
+            } => {
+                address != 0
+                    && scalar_type.is_address()
+                    && scalar_type.admits(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                        address,
+                    )))
+            }
             TerminalScalarValue::IeeeFloat(_) => true,
         }
     }

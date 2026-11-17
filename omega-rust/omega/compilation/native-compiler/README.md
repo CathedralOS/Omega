@@ -1,20 +1,18 @@
 # Native compilation
 
-The application first calls
-[prepare](src/preparation.rs) with the retained Terminal Psi and a
-`NativeCompileRequest` (component calls, imports, image ownership and policy).
-Preparation selects native work and lists the scalar values each artifact
-needs. It reads only the retained Terminal product and its native proposal;
-no Omega stage runs yet. The application computes the values outside this
-crate, then passes the same `PreparedNativeCompilation` to
-[compile](src/compile.rs), which runs Omega 00 to 09 once, in order. Compilation
-needs every scalar before emitting any component or root image; it does not
-call an evaluator, reopen source or repeat preparation. Failures return
-the original image request and diagnostics.
+The application calls [compile](src/compile.rs) once with the retained
+Terminal Psi and a `NativeCompileRequest` (component calls, imports, image
+ownership, policy and the completed scalar values). It completes those values
+before the call with `build_settings::scalar_completion::complete_native` (and
+`complete_native_demand` for each component), because this crate never calls
+an evaluator. [Preparation](src/preparation.rs) then selects native work from
+the retained product and its native proposal, refuses work whose required
+values are missing, and Omega 00 to 09 run once, in order. Failures return the
+original image request and diagnostics.
 
-Programs with and without components follow the same two calls. Callable export
+Programs with and without components make the same single call. Callable export
 emission stays separate because it produces an independent image, not an
-application entry. Prepare and compile are steps of one route.
+application entry.
 
 [pipeline.rs](src/pipeline.rs) sequences the body transformations for application
 entries, callbacks and component exports: abstract optimization, target lowering,

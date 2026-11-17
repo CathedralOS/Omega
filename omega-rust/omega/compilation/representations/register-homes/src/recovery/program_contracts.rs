@@ -31,6 +31,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, contracts: &SelectedProgramContracts) 
     for abi in contracts.function_abis().iter() {
         target_vocabulary::identity::function_abi::encode_function_abi(bytes, abi);
     }
+    contracts.publication().encode(bytes);
+    match contracts.execution() {
+        None => bytes.push(0),
+        Some(facts) => {
+            bytes.push(1);
+            facts.encode(bytes);
+        }
+    }
 }
 
 pub(super) fn decode(
@@ -53,8 +61,20 @@ pub(super) fn decode(
     };
     // Machine ID, empty calling plan, three row counts and two option tags.
     let function_abis = decode_rows(cursor, 65, decode_abi)?;
-    SelectedProgramContracts::new(borrowed_storage_layouts, profile, Arc::from(function_abis))
-        .map_err(Error::InvalidProgramContracts)
+    let publication = super::publication::decode(cursor)?;
+    let execution = match cursor.byte()? {
+        0 => None,
+        1 => Some(super::execution_facts::decode(cursor)?),
+        tag => return Err(Error::UnknownOption(tag)),
+    };
+    SelectedProgramContracts::new(
+        borrowed_storage_layouts,
+        profile,
+        Arc::from(function_abis),
+        publication,
+        execution,
+    )
+    .map_err(Error::InvalidProgramContracts)
 }
 
 fn decode_abi(cursor: &mut Cursor<'_>) -> Result<LegalizedFunctionAbi, Error> {
@@ -136,7 +156,7 @@ fn decode_parameters(
     decode_rows(cursor, 48, decode_abi_parameter)
 }
 
-fn decode_rows<T>(
+pub(super) fn decode_rows<T>(
     cursor: &mut Cursor<'_>,
     minimum: usize,
     mut decode: impl FnMut(&mut Cursor<'_>) -> Result<T, Error>,
@@ -226,6 +246,34 @@ mod tests {
         }
     }
 
+    fn publication(machine: MachineId) -> target_vocabulary::NativePublicationFacts {
+        target_vocabulary::NativePublicationFacts::seal(
+            vec![target_vocabulary::NativeFunctionPublication {
+                call_targets: Vec::new(),
+                machine,
+                operation_count: 0,
+                sites: Vec::new(),
+                byte_literals: Vec::new(),
+            }],
+            Default::default(),
+        )
+        .unwrap()
+    }
+
+    fn execution(
+        psi: terminal_psi::TerminalPsiIdentity,
+        work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+        entry: MachineId,
+    ) -> Option<target_vocabulary::NativeExecutionFacts> {
+        Some(target_vocabulary::NativeExecutionFacts::seal(target_vocabulary::NativeExecutionRoots {
+            psi, work_schedule, entry,
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"metadata fixture unit"),
+            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"metadata fixture prephysical"),
+        }, Arc::new(target_vocabulary::execution_facts::ReachableCallableInvocations {
+            roots: vec![entry], reached_machines: vec![entry], invocations: Vec::new(), inputs: Vec::new(),
+        }), Vec::new()).unwrap())
+    }
+
     #[test]
     fn recovery_retains_complete_nonempty_abi_rows_and_profile() {
         use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -234,11 +282,18 @@ mod tests {
                 FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
             );
             let abi = abi(plan.transformed.entry, structural);
+            let execution = execution(
+                plan.transformed.psi,
+                plan.transformed.work_schedule,
+                plan.transformed.entry,
+            );
             Arc::make_mut(&mut plan.transformed).contracts = Arc::new(
                 SelectedProgramContracts::new(
                     Default::default(),
                     Some(target::TargetProfile::WindowsX64),
                     Arc::from([abi]),
+                    publication(plan.transformed.entry),
+                    execution,
                 )
                 .unwrap(),
             );
@@ -250,6 +305,37 @@ mod tests {
                 Some(target::TargetProfile::WindowsX64)
             );
             assert_eq!(received.transformed.contracts.function_abis().len(), 1);
+            let current = &plan.transformed.contracts;
+            let old = current.execution().unwrap();
+            let mut roots = old.roots();
+            roots.psi.program_fingerprint =
+                terminal_psi::SemanticFingerprint::from_bytes([255; 32]);
+            assert_ne!(roots.psi, plan.transformed.psi);
+            let foreign = target_vocabulary::NativeExecutionFacts::seal(
+                roots,
+                Arc::new(old.callable_invocations().clone()),
+                old.entry_callable_invocations().to_vec(),
+            )
+            .unwrap();
+            let contracts = SelectedProgramContracts::new(
+                current.borrowed_storage_layouts.clone(),
+                current.profile(),
+                Arc::clone(current.function_abis()),
+                current.publication().clone(),
+                Some(foreign),
+            )
+            .unwrap();
+            Arc::make_mut(&mut plan.transformed).contracts = Arc::new(contracts);
+            // The envelope and selected identity are freshly computed for the
+            // foreign roots; the reader must reject their header correspondence.
+            assert!(matches!(
+                FixedViewCopyPlan::decode(&plan.encode().unwrap()),
+                Err(Error::InvalidExecutionFacts(
+                    target_vocabulary::NativeExecutionFactsError::Invalid(
+                        "execution facts differ from the current selected header"
+                    )
+                ))
+            ));
         }
     }
 
@@ -261,6 +347,8 @@ mod tests {
         for _ in 0..2 {
             target_vocabulary::identity::function_abi::encode_function_abi(&mut bytes, &abi);
         }
+        target_vocabulary::NativePublicationFacts::default().encode(&mut bytes);
+        bytes.push(0); // Required execution-context option after complete publication.
         assert_eq!(
             decode(&mut Cursor::new(&bytes), Default::default()).unwrap_err(),
             Error::InvalidProgramContracts("function ABI rows are unordered or repeated")
@@ -276,9 +364,21 @@ mod tests {
     fn entry_conversion_unavailability_is_preserved_and_never_becomes_direct_transport() {
         let mut abi = abi(MachineId::new(1).unwrap(), true);
         abi.entry_scalar_codecs[1] = None;
-        let contracts =
-            SelectedProgramContracts::new(Default::default(), None, Arc::from([abi.clone()]))
-                .unwrap();
+        let contracts = SelectedProgramContracts::new(
+            Default::default(),
+            None,
+            Arc::from([abi.clone()]),
+            publication(abi.machine),
+            execution(
+                terminal_psi::TerminalPsiIdentity {
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+                    vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                },
+                semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
+                abi.machine,
+            ),
+        )
+        .unwrap();
         let mut bytes = Vec::new();
         encode(&mut bytes, &contracts);
         assert_eq!(
@@ -288,8 +388,14 @@ mod tests {
         for codec in [Some(0), Some(u64::MAX)] {
             abi.entry_scalar_codecs[1] = codec;
             assert_eq!(
-                SelectedProgramContracts::new(Default::default(), None, Arc::from([abi.clone()]))
-                    .unwrap_err(),
+                SelectedProgramContracts::new(
+                    Default::default(),
+                    None,
+                    Arc::from([abi.clone()]),
+                    publication(abi.machine),
+                    None,
+                )
+                .unwrap_err(),
                 "function ABI has an incompatible entry conversion"
             );
         }
