@@ -725,8 +725,8 @@ mod entry {
     }
 
     impl EntryRecord {
-        pub fn borrowed(&self) -> crate::NativeProgramEntrySettlement<'_> {
-            crate::NativeProgramEntrySettlement {
+        pub fn borrowed(&self) -> crate::entry_settlement::NativeProgramEntrySettlement<'_> {
+            crate::entry_settlement::NativeProgramEntrySettlement {
                 source: &self.source,
                 semantic_calling_application: self.semantic.as_ref(),
                 physical_calling_application: self.physical.as_ref(),
@@ -736,7 +736,7 @@ mod entry {
             }
         }
         pub fn write_borrowed(
-            entry: crate::NativeProgramEntrySettlement<'_>,
+            entry: crate::entry_settlement::NativeProgramEntrySettlement<'_>,
             output: &mut RecordWriter,
         ) -> Result<(), RecordError> {
             entry.source().write(output)?;
@@ -967,7 +967,7 @@ mod entry {
                 identities.build(),
             )
             .expect("free hosted entry signature");
-            let entry = crate::NativeProgramEntrySettlement::new(&source, None);
+            let entry = crate::entry_settlement::NativeProgramEntrySettlement::new(&source, None);
             let mut output = RecordWriter::new(RecordLimits::default());
             EntryRecord::write_borrowed(entry, &mut output).expect("entry encoding");
             let bytes = output.finish();
@@ -1000,19 +1000,19 @@ mod entry {
 mod records {
     macro_rules! record_fields {
     ($value:path { $($field:ident),* $(,)? }) => {
-        impl $crate::retained_terminal::codec::value::RecordValue for $value {
-            fn write(&self, output: &mut $crate::retained_terminal::codec::value::RecordWriter)
-                -> Result<(), $crate::retained_terminal::codec::value::RecordError>
+        impl $crate::retained_terminal_codec::value::RecordValue for $value {
+            fn write(&self, output: &mut $crate::retained_terminal_codec::value::RecordWriter)
+                -> Result<(), $crate::retained_terminal_codec::value::RecordError>
             {
                 let Self { $($field),* } = self;
-                $($crate::retained_terminal::codec::value::RecordValue::write($field, output)?;)*
+                $($crate::retained_terminal_codec::value::RecordValue::write($field, output)?;)*
                 Ok(())
             }
-            fn read(input: &mut $crate::retained_terminal::codec::value::RecordReader<'_>)
-                -> Result<Self, $crate::retained_terminal::codec::value::RecordError>
+            fn read(input: &mut $crate::retained_terminal_codec::value::RecordReader<'_>)
+                -> Result<Self, $crate::retained_terminal_codec::value::RecordError>
             {
                 input.record(|input| Ok(Self {
-                    $($field: $crate::retained_terminal::codec::value::RecordValue::read(input)?),*
+                    $($field: $crate::retained_terminal_codec::value::RecordValue::read(input)?),*
                 }))
             }
         }
@@ -1476,13 +1476,13 @@ mod value {
 #[path = "retained_terminal_vocabulary.rs"]
 mod vocabulary;
 
-use super::{
-    RetainedTerminalArtifact, TerminalNativeProposalRequest,
-    project_terminal_native_realization_proposal,
+use crate::RetainedTerminalArtifact;
+use crate::native_proposal::{
+    TerminalNativeProposalRequest, project_terminal_native_realization_proposal,
 };
-use crate::providers::provider_admission::TerminalAuthorityPermissionPolicy;
 use diagnostics::Diagnostic;
 use entry::EntryRecord;
+use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
@@ -1656,7 +1656,7 @@ fn capture(
         .without_checked_specializations()
         .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
-    for crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
+    for provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
         semantic_schema,
         row_executions,
@@ -1916,10 +1916,10 @@ pub fn recover_native_derivation_inputs(
         accepted_identities,
         installation_assumptions,
     } = inputs;
-    crate::providers::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
+    provider_admission::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
         accepted_permissions.iter(), &accepted_identities)?;
     let accepted =
-        crate::providers::provider_admission::terminal_authority_permission_policy_with_rows(
+        provider_admission::provider_admission::terminal_authority_permission_policy_with_rows(
             accepted_permissions,
             accepted_identities,
         )
@@ -1937,20 +1937,21 @@ pub fn recover_native_derivation_inputs(
         evaluated_binding_identities: &evaluated_binding_identities,
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: profile,
-        boundaries: crate::BoundaryApplicationSettlement {
-            selected_provider_plans: &selected,
-            selected_provider_provenance: intrinsic_provenance
-                .iter()
-                .map(
-                    |row| crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan: &row.plan,
-                        semantic_schema: &row.semantic_schema,
-                        row_executions: &row.row_executions,
-                    },
-                )
-                .collect(),
-            calling_applications: calling,
-        },
+        boundaries:
+            crate::settlement::boundary_application_settlement::BoundaryApplicationSettlement {
+                selected_provider_plans: &selected,
+                selected_provider_provenance: intrinsic_provenance
+                    .iter()
+                    .map(|row| {
+                        provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
+                            plan: &row.plan,
+                            semantic_schema: &row.semantic_schema,
+                            row_executions: &row.row_executions,
+                        }
+                    })
+                    .collect(),
+                calling_applications: calling,
+            },
         native_target: native,
         program_entry: entry.as_ref().map(EntryRecord::borrowed),
         application,
