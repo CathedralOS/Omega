@@ -760,6 +760,9 @@ pub(crate) fn follow_the_lowered_form(
                     None => Construct::Machine,
                 };
                 let (reason, detail) = match error {
+                    Error::Unavailable(unavailable) => {
+                        (RefusalReason::Unestablished, unavailable.message())
+                    }
                     Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
                     Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
                 };
