@@ -12,7 +12,7 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
-The proposed route runs down the canvas. The stage index stays in view as you scroll. Select a stage to jump to its operations and follow the arrows through its output. Pinch or use the zoom controls to change scale.
+The proposed route runs down the canvas. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
 Follow the bold route from START, top to bottom. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed
