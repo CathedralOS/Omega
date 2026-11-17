@@ -53,6 +53,19 @@ impl Program<'_> {
         let previous_owner = self.lifetime_owner;
         let first_new_record = self.records.len();
         let result = (|| {
+            for request in &source.requests {
+                for instance in &request.instances {
+                    for &(declaring, requirement) in &instance.headers {
+                        let declaring = declaring.scope(typed).ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "Calling header lost its retained declaring application",
+                            )
+                        })?;
+                        self.read_calling_requirement_header(context, &declaring, requirement)?;
+                    }
+                }
+            }
             let mut descriptions = Vec::with_capacity(source.signatures.len());
             for signature in signatures {
                 let signature = signature?;

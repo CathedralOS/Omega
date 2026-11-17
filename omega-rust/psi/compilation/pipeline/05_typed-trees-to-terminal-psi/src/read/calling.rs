@@ -98,6 +98,10 @@ pub(crate) struct SourceCallingInstance {
     pub(crate) policy: MachineId,
     pub(crate) signatures: Vec<CallingSignatureId>,
     pub(crate) schema: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
+    pub(super) headers: Vec<(
+        typed_trees::trait_definition::RetainedTraitScope,
+        SymbolHandle,
+    )>,
 }
 
 fn application_identity(typed: &TypedTrees, scope: &AppliedTraitScope<'_>) -> Option<String> {
@@ -111,7 +115,7 @@ impl Program<'_> {
     /// Calling metadata admits the same complete source header as a call does,
     /// without supplying a body or creating a boundary invocation. Read the
     /// prepared application, not its unapplied declaration's clause handles.
-    fn read_calling_requirement_header(
+    pub(super) fn read_calling_requirement_header(
         &mut self,
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
@@ -136,7 +140,14 @@ impl Program<'_> {
                     "Calling requirement lost its prepared source contract application",
                 )
             })?;
-        let (signature, _) = self.boundary_signature(context, source)?;
+        let (signature, _) = self
+            .boundary_signature(context, source)
+            .map_err(|mut refusal| {
+                let name = typed.symbols.display_path(source.symbol, "::");
+                let name = name.chars().take(256).collect::<String>();
+                refusal.detail = format!("Calling header `{name}`: {}", refusal.detail);
+                refusal
+            })?;
         self.admitted_declarations.include(owner.symbol);
         Ok(signature)
     }
@@ -368,6 +379,7 @@ impl Program<'_> {
             }
             self.admitted_declarations.include(scope.declaration.symbol);
             let mut signatures = Vec::new();
+            let mut headers = Vec::new();
             for signature in calling.signatures(instance) {
                 if let Some(reason) = &signature.abi_refusal {
                     return Err(services::unavailable(context, reason.clone()));
@@ -378,17 +390,22 @@ impl Program<'_> {
                         "Calling instance lost an exact requirement declaration",
                     )
                 })?;
-                let declaring = signature
-                    .declaring_scope
-                    .as_ref()
-                    .and_then(|scope| scope.scope(typed))
-                    .ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "Calling signature lost its exact declaring application",
-                        )
-                    })?;
-                self.read_calling_requirement_header(context, &declaring, source.symbol)?;
+                let declaring = signature.declaring_scope.ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "Calling signature lost its exact declaring application",
+                    )
+                })?;
+                if declaring.scope(typed).is_none() {
+                    return Err(services::unavailable(
+                        context,
+                        "Calling signature lost its exact declaring application",
+                    ));
+                }
+                // The selected declaration is retained now; its full contract
+                // is read with ABI metadata after the executable body closure.
+                // Describing a linear carrier must not admit it as a body value.
+                headers.push((declaring, source.symbol));
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
                         .abi_signatures()
@@ -434,6 +451,7 @@ impl Program<'_> {
                 policy,
                 signatures,
                 schema: schema.declaration,
+                headers,
             };
             match prepared
                 .requests
@@ -447,6 +465,7 @@ impl Program<'_> {
                         if existing.policy != new_instance.policy
                             || existing.signatures != new_instance.signatures
                             || existing.schema != new_instance.schema
+                            || existing.headers != new_instance.headers
                         {
                             return Err(services::unavailable(
                                 context,
@@ -681,6 +700,7 @@ mod header_reading_tests {
             builtin_type_symbols().into_iter().chain([
                 (SymbolKind::Trait, SymbolNameRef::Static("Raw")),
                 (SymbolKind::Trait, SymbolNameRef::Static("Other")),
+                (SymbolKind::Data, SymbolNameRef::Static("Claim")),
             ]),
         );
         let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
@@ -702,6 +722,19 @@ mod header_reading_tests {
             symbols: builder.finish(),
             ..Default::default()
         };
+        let claim = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 2)
+            .unwrap();
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            symbol: claim,
+            name: "Claim".into(),
+            properties: typed_trees::data::DataProperties {
+                multiplicity: language_semantics::Multiplicity::Linear,
+                carry: None,
+            },
+            ..Default::default()
+        });
         let boolean_symbol = typed
             .symbols
             .builtin_atom_symbol(BuiltinTypeAtom::Bool)
@@ -866,6 +899,70 @@ mod header_reading_tests {
         assert!(program.signatures.is_empty());
         assert!(program.boundaries.rows.is_empty());
         assert!(program.fixed_inputs.is_empty());
+    }
+
+    #[test]
+    fn calling_header_storage_keeps_linear_custody_out_of_executable_values() {
+        let (mut typed, owner, _, requirement) = fixture(true);
+        let claim = typed
+            .data_definitions()
+            .iter()
+            .find(|row| row.name.as_str() == "Claim")
+            .unwrap()
+            .symbol;
+        let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: claim,
+            name: "Claim".into(),
+        });
+        let signature = typed
+            .trait_definition_by_symbol(owner)
+            .unwrap()
+            .machines
+            .start();
+        typed
+            .trait_machine_signatures
+            .get_mut(signature)
+            .return_type = reference;
+        let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+        let scope = AppliedTraitScope::new(
+            &typed,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        assert!(
+            program
+                .read_calling_requirement_header(context, &scope, requirement)
+                .unwrap_err()
+                .detail
+                .contains("type data with custody")
+        );
+        program.begin_declaration_storage(context, 0).unwrap();
+        let described = program
+            .read_calling_requirement_header(context, &scope, requirement)
+            .unwrap();
+        assert!(
+            !described.requires.is_empty(),
+            "metadata must still form the complete written Boolean contract"
+        );
+        assert!(program.signatures.is_empty());
+        assert!(program.boundaries.rows.is_empty());
+        assert!(program.fixed_inputs.is_empty());
+        // Challenge the existing admission-before-cache boundary after the
+        // header has introduced its descriptor row. This is test-only reset;
+        // production enters storage mode once after closing all bodies.
+        program.type_purpose = crate::read::storage_metadata::TypePurpose::Value;
+        assert_eq!(
+            program.value_type(context, reference).unwrap_err().detail,
+            "type data with custody"
+        );
     }
 
     #[test]
