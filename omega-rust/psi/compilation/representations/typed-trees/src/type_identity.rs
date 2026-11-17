@@ -8383,32 +8383,13 @@ pub(crate) mod substitution {
         None
     }
 
-    macro_rules! open_selected_substitution {
-        ($context:expr, $symbol:expr, $active:ident, $reference:ident, $nested:ident) => {
-            let (ordinal, $reference) = match selected($context, $symbol) {
-                Some(selected_reference) => selected_reference,
-                None => return None,
-            };
-            if $context.active_const_substitutions.len() >= 64
-                || $context.active_const_substitutions.contains(&$symbol)
-            {
-                return Some(rejected($context));
-            }
-            let mut $active = $context.active_const_substitutions.to_vec();
-            $active.push($symbol);
-            let $nested = TypeIdentityContext {
-                active_const_substitutions: &$active,
-                ..$context.replacement_context_at(ordinal)
-            };
-        };
-    }
-
-    fn selected_index(
+    fn selected_index<R>(
         program: &TypedTrees,
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
-        render: fn(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> String,
-    ) -> Option<String> {
+        render: impl FnOnce(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> R,
+        reject: impl FnOnce(&TypeIdentityContext<'_>) -> R,
+    ) -> Option<R> {
         if let Some((argument, outer)) = context.applied_argument(symbol) {
             return Some(render(program, argument, &outer));
         }
@@ -8427,12 +8408,74 @@ pub(crate) mod substitution {
                 },
             ));
         }
-        open_selected_substitution!(context, symbol, active, reference, nested);
+        let (ordinal, reference) = selected(context, symbol)?;
+        if context.active_const_substitutions.len() >= 64
+            || context.active_const_substitutions.contains(&symbol)
+        {
+            return Some(reject(context));
+        }
+        let mut active = context.active_const_substitutions.to_vec();
+        active.push(symbol);
+        let nested = TypeIdentityContext {
+            active_const_substitutions: &active,
+            ..context.replacement_context_at(ordinal)
+        };
         Some(render(
             program,
             IndexIdentityArgument::TypeReference(reference),
             &nested,
         ))
+    }
+
+    /// Follow the same actual-argument frames used by index identity before
+    /// checking its declared integer type. A type binder is never a value,
+    /// and a policy-qualified integer is not its plain carrier.
+    pub(crate) fn integer_argument_matches(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+        expected: crate::types::PrimitiveType,
+    ) -> bool {
+        use crate::data::TypeParameterKind;
+        let operand = match argument {
+            IndexIdentityArgument::TypeReference(reference) => {
+                match program.static_operand_from_type_reference(reference) {
+                    Ok(operand) => operand,
+                    Err(_) => return false,
+                }
+            }
+            IndexIdentityArgument::Subject(symbol) => crate::expression::StaticMachineArgument {
+                symbol,
+                ..Default::default()
+            },
+            IndexIdentityArgument::StaticArgument(argument) => argument.clone(),
+            _ => return false,
+        };
+        let declared = program.data_type_parameter_by_symbol(operand.symbol);
+        if let Some(parameter) = declared
+            && !matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                if matches!(program.type_reference_node(type_reference), TypeReferenceNode::Named { .. })
+                    && program.primitive_type_reference(type_reference) == Some(expected))
+        {
+            return false;
+        }
+        if let Some(matches) = selected_index(
+            program,
+            operand.symbol,
+            context,
+            |program, argument, context| {
+                integer_argument_matches(program, argument, context, expected)
+            },
+            |_| false,
+        ) {
+            return matches;
+        }
+        if declared.is_some() {
+            return true;
+        }
+        program
+            .prepare_callable_scalar_argument(expected, &operand)
+            .is_ok()
     }
 
     pub(crate) fn index(
@@ -8441,7 +8484,7 @@ pub(crate) mod substitution {
         _spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> Option<String> {
-        selected_index(program, symbol, context, index_argument)
+        selected_index(program, symbol, context, index_argument, rejected)
     }
 
     fn index_reference(
@@ -8482,7 +8525,7 @@ pub(crate) mod substitution {
         _spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> Option<String> {
-        selected_index(program, symbol, context, array_length_argument)
+        selected_index(program, symbol, context, array_length_argument, rejected)
     }
 
     fn literal_array_length(
@@ -9154,6 +9197,45 @@ pub fn normalized_index_identity(
         },
     );
     (!invalid.get()).then_some(identity)
+}
+
+pub(crate) fn scoped_integer_argument_matches(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    expected: crate::types::PrimitiveType,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> bool {
+    substitution::integer_argument_matches(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            ..TypeIdentityContext::default()
+        },
+        expected,
+    )
+}
+
+pub(crate) fn scoped_index_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
 }
 
 pub(crate) fn normalized_const_index_expression_identity(

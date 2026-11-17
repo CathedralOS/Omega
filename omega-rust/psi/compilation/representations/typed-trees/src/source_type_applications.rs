@@ -51,6 +51,34 @@ impl SourceTypeScope {
         })
     }
 
+    pub fn index_identity(
+        &self,
+        typed: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.with_substitutions(|substitutions, starts, _| {
+            crate::type_identity::scoped_index_identity(typed, reference, substitutions, starts)
+        })
+    }
+
+    pub fn integer_argument_matches(
+        &self,
+        typed: &TypedTrees,
+        reference: TypeReferenceHandle,
+        expected: crate::types::PrimitiveType,
+    ) -> bool {
+        self.admits_argument(typed, reference)
+            && self.with_substitutions(|substitutions, starts, _| {
+                crate::type_identity::scoped_integer_argument_matches(
+                    typed,
+                    reference,
+                    expected,
+                    substitutions,
+                    starts,
+                )
+            })
+    }
+
     pub fn declared_carrier_identity(
         &self,
         typed: &TypedTrees,
@@ -176,5 +204,120 @@ mod tests {
             swapped.type_identity(&typed, u_ref),
             typed.normalized_type_identity(integer)
         );
+    }
+    #[test]
+    fn constant_arguments_keep_their_carrier_and_simultaneous_scope() {
+        use crate::data::{TypeParameter, TypeParameterKind};
+        use crate::types::PrimitiveType;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let mut children = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("M")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("Other")),
+            ]),
+        ))
+        .collect::<Vec<_>>();
+        let other = children.pop().unwrap();
+        let t = children.pop().unwrap();
+        let m = children.pop().unwrap();
+        let n = children.pop().unwrap();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let u64_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: children[BuiltinTypeAtom::U64.ordinal()],
+            name: "u64".into(),
+        });
+        let u32_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: children[BuiltinTypeAtom::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(32),
+            )
+            .ordinal()],
+            name: "u32".into(),
+        });
+        let mut reference = |symbol, name: &str| {
+            typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol,
+                name: name.into(),
+            })
+        };
+        let n_ref = reference(n, "N");
+        let m_ref = reference(m, "M");
+        let t_ref = reference(t, "T");
+        let other_ref = reference(other, "Other");
+        let four = reference(SymbolHandle::invalid(), "4");
+        let five = reference(SymbolHandle::invalid(), "5");
+        for (symbol, kind) in [
+            (
+                n,
+                TypeParameterKind::Const {
+                    type_reference: u64_type,
+                },
+            ),
+            (
+                m,
+                TypeParameterKind::Const {
+                    type_reference: u64_type,
+                },
+            ),
+            (t, TypeParameterKind::Type),
+            (
+                other,
+                TypeParameterKind::Const {
+                    type_reference: u32_type,
+                },
+            ),
+        ] {
+            typed.data_type_parameters.insert(TypeParameter {
+                symbol,
+                kind,
+                ..Default::default()
+            });
+        }
+        let scope = SourceTypeScope {
+            rigid_parameters: vec![n, m, t, other],
+            ..Default::default()
+        };
+        assert!(scope.integer_argument_matches(&typed, n_ref, PrimitiveType::U64));
+        assert!(!scope.integer_argument_matches(&typed, other_ref, PrimitiveType::U64));
+        assert!(!scope.integer_argument_matches(&typed, t_ref, PrimitiveType::U64));
+        assert!(!SourceTypeScope::default().integer_argument_matches(
+            &typed,
+            n_ref,
+            PrimitiveType::U64
+        ));
+        let bound = Arc::new(SourceTypeScope {
+            substitutions: vec![(n, four), (m, five)],
+            ..Default::default()
+        });
+        let swapped = SourceTypeScope {
+            parent: Some(bound),
+            substitutions: vec![(n, m_ref), (m, n_ref)],
+            ..Default::default()
+        };
+        assert_eq!(
+            swapped.index_identity(&typed, n_ref),
+            scope.index_identity(&typed, five)
+        );
+        assert_eq!(
+            swapped.index_identity(&typed, m_ref),
+            scope.index_identity(&typed, four)
+        );
+        assert!(swapped.integer_argument_matches(&typed, n_ref, PrimitiveType::U64));
+        let foreign_carrier = SourceTypeScope {
+            parent: Some(Arc::new(SourceTypeScope {
+                parent: Some(Arc::new(scope)),
+                substitutions: vec![(other, four)],
+                ..Default::default()
+            })),
+            substitutions: vec![(n, other_ref)],
+            ..Default::default()
+        };
+        assert!(!foreign_carrier.integer_argument_matches(&typed, n_ref, PrimitiveType::U64));
     }
 }
