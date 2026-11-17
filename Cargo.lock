@@ -2228,9 +2228,12 @@ dependencies = [
  "arena",
  "diagnostics",
  "execution-admission",
+ "memchr",
  "rayon",
  "source",
+ "syntax-trees",
  "tokens",
+ "tokens-to-syntax-trees",
 ]
 
 [[package]]
