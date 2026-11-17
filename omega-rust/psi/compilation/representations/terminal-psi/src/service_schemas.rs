@@ -85,6 +85,76 @@ pub struct TerminalProviderSelection {
 }
 
 impl crate::TerminalModule {
+    /// Recognize only a receiver-bundled filesystem capability application.
+    /// The descriptive application joins its retained exact declaration before
+    /// recognition; neither a familiar name nor successful parsing grants host
+    /// access. The host still supplies the filesystem and admits each mechanism.
+    pub fn core_filesystem_service(
+        &self,
+        service: semantic_vocabulary::ServiceId,
+    ) -> Result<language_core::core_vocabulary::FilesystemService, String> {
+        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
+        use language_semantics::type_identity::{
+            encoding::{CoordinateTag, atom, bare, compound},
+            vocabulary::{NameForm, OwnerForm},
+        };
+
+        let mut services = self.services.iter().filter(|row| row.id == service);
+        let (Some(service), None) = (services.next(), services.next()) else {
+            return Err("filesystem service has no unique retained declaration".into());
+        };
+        if !service.parents.is_empty() {
+            return Err("core filesystem capability has unexpected parent services".into());
+        }
+        let mut schemas = self
+            .service_schemas
+            .iter()
+            .filter(|row| row.application == service.identity);
+        let (Some(schema), None) = (schemas.next(), schemas.next()) else {
+            return Err("filesystem service has no unique retained schema application".into());
+        };
+        let schema = self.service_schema(schema.declaration, schema.application)?;
+        let declaration = self
+            .identities
+            .text(schema.declaration)
+            .ok_or("filesystem service has no retained exact owner")?;
+        let kind = read_core_filesystem_declaration(declaration)?;
+        let catalog = CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(kind))
+            .ok_or("filesystem service is absent from the core catalog")?;
+        let descriptive = compound(
+            NameForm::Nominal,
+            [
+                bare(OwnerForm::Toolchain),
+                atom(CoordinateTag::Path, catalog.declaration),
+            ],
+        );
+        let application = compound(
+            CoordinateTag::TraitApplication,
+            [
+                atom(CoordinateTag::Declaration, &descriptive),
+                compound(CoordinateTag::Arguments, []),
+                compound(CoordinateTag::Lifetimes, []),
+            ],
+        );
+        let surface = &schema.surface;
+        let [root] = surface.receiver_applications.as_slice() else {
+            return Err("core filesystem capability has unexpected receiver applications".into());
+        };
+        if self.identities.text(service.identity) != Some(application.as_str())
+            || surface.trait_package_identity.is_some()
+            || surface.identity_text(surface.trait_name) != catalog.declaration
+            || !surface.methods.is_empty()
+            || !root.argument_identities.is_empty()
+            || !root.lifetime_argument_identities.is_empty()
+            || !root.requirement_identities.is_empty()
+        {
+            return Err(
+                "filesystem service differs from its exact core capability contract".into(),
+            );
+        }
+        Ok(kind)
+    }
+
     pub fn service_schema(
         &self,
         declaration: TerminalIdentityIndex,
@@ -207,5 +277,338 @@ impl crate::TerminalModule {
             return Err("selected provider lost its exact package custody".into());
         }
         Ok(row)
+    }
+}
+
+fn read_core_filesystem_declaration(
+    identity: &str,
+) -> Result<language_core::core_vocabulary::FilesystemService, String> {
+    use language_core::core_vocabulary::{
+        CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
+    };
+    use language_semantics::type_identity::{
+        TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
+        visit_type_identity_package_owners,
+        vocabulary::{OwnerForm, TypeForm},
+    };
+
+    struct Declaration {
+        depth: usize,
+        remaining: usize,
+        service: Option<FilesystemService>,
+    }
+    impl TypeIdentityPackageOwnerVisitor for Declaration {
+        fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
+            if self.depth == 128 {
+                return Err(TypeIdentityVisitError::ResourceLimitExceeded);
+            }
+            self.depth += 1;
+            Ok(())
+        }
+        fn leave(&mut self) {
+            self.depth -= 1;
+        }
+        fn reserve(&mut self, bytes: usize) -> Result<(), TypeIdentityVisitError> {
+            self.remaining = self
+                .remaining
+                .checked_sub(bytes)
+                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+            Ok(())
+        }
+        fn package_owner(&mut self, _: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
+            Err(TypeIdentityVisitError::UnknownPackage)
+        }
+        fn embedded_name(&mut self, _: &str) -> Result<(), TypeIdentityVisitError> {
+            Ok(())
+        }
+        fn enter_type(&mut self, form: TypeForm) -> Result<(), TypeIdentityVisitError> {
+            if form != TypeForm::Nominal {
+                return Err(TypeIdentityVisitError::MalformedIdentity);
+            }
+            Ok(())
+        }
+        fn nominal_declaration(
+            &mut self,
+            owner: OwnerForm,
+            digest: Option<[u8; 32]>,
+            path: &str,
+        ) -> Result<(), TypeIdentityVisitError> {
+            if owner != OwnerForm::ToolchainSource || self.service.is_some() {
+                return Err(TypeIdentityVisitError::MalformedIdentity);
+            }
+            for service in FilesystemService::ALL {
+                let site =
+                    CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(service))
+                        .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
+                if site.declaration != path {
+                    continue;
+                }
+                let file = site
+                    .file
+                    .to_str()
+                    .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
+                let revision = source::source_identity::owned_toolchain_source_identity_digest(
+                    "core",
+                    &[file],
+                    site.source,
+                )
+                .map_err(|_| TypeIdentityVisitError::MalformedIdentity)?;
+                if digest != Some(revision) {
+                    return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
+                }
+                self.service = Some(service);
+                return Ok(());
+            }
+            Err(TypeIdentityVisitError::UnsupportedEmbeddedName)
+        }
+    }
+    let mut declaration = Declaration {
+        depth: 0,
+        remaining: identity.len(),
+        service: None,
+    };
+    visit_type_identity_package_owners(identity, &mut declaration)
+        .map_err(|_| "filesystem service is not an exact receiver-bundled core declaration")?;
+    declaration
+        .service
+        .ok_or_else(|| "filesystem service has no exact core declaration".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule};
+    use language_core::core_vocabulary::{
+        CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
+    };
+    use language_semantics::{
+        service_surface::{ServiceMethod, ServiceReceiverApplication},
+        type_identity::{
+            encoding::{CoordinateTag, atom, bare, byte_atom, compound},
+            vocabulary::{NameForm, OwnerForm},
+        },
+    };
+    use semantic_vocabulary::{PackageKeyIdentity, ServiceId};
+
+    fn id() -> ServiceId {
+        ServiceId::new(1).unwrap()
+    }
+
+    fn nominal(owner: String, path: &str) -> String {
+        compound(NameForm::Nominal, [owner, atom(CoordinateTag::Path, path)])
+    }
+
+    fn application(path: &str, arguments: Vec<String>, lifetimes: Vec<String>) -> String {
+        compound(
+            CoordinateTag::TraitApplication,
+            [
+                atom(
+                    CoordinateTag::Declaration,
+                    &nominal(bare(OwnerForm::Toolchain), path),
+                ),
+                compound(CoordinateTag::Arguments, arguments),
+                compound(CoordinateTag::Lifetimes, lifetimes),
+            ],
+        )
+    }
+
+    fn revision(namespace: &str, file: &str) -> [u8; 32] {
+        let site = CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(
+            FilesystemService::MetadataQuery,
+        ))
+        .unwrap();
+        source::source_identity::owned_toolchain_source_identity_digest(
+            namespace,
+            &[file],
+            site.source,
+        )
+        .unwrap()
+    }
+
+    fn fixture(kind: FilesystemService) -> TerminalModule {
+        let site =
+            CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(kind)).unwrap();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let declaration = identities.intern(&nominal(
+            byte_atom(
+                OwnerForm::ToolchainSource,
+                &revision("core", "filesystem_authority.omg"),
+            ),
+            site.declaration,
+        ));
+        let application_text = application(site.declaration, vec![], vec![]);
+        let application = identities.intern(&application_text);
+        let mut surface = ServiceSurface::default();
+        surface.trait_name = surface.identities.intern(site.declaration);
+        surface
+            .receiver_applications
+            .push(ServiceReceiverApplication {
+                application: surface.identities.intern(&application_text),
+                trait_name: surface.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![],
+                lifetime_argument_identities: vec![],
+                requirement_identities: vec![],
+            });
+        let mut module = TerminalModule::declarations();
+        module.identities = identities.build();
+        module.services.push(ServiceDeclaration {
+            id: id(),
+            identity: application,
+            parents: vec![],
+        });
+        module.service_schemas.push(TerminalServiceSchema {
+            declaration,
+            application,
+            surface: Arc::new(surface),
+        });
+        module
+    }
+
+    fn intern(module: &mut TerminalModule, text: &str) -> TerminalIdentityIndex {
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let identity = identities.intern(text);
+        module.identities = identities.build();
+        identity
+    }
+
+    fn replace_application(module: &mut TerminalModule, text: &str) {
+        let identity = intern(module, text);
+        module.services[0].identity = identity;
+        module.service_schemas[0].application = identity;
+        let surface = Arc::make_mut(&mut module.service_schemas[0].surface);
+        surface.receiver_applications[0].application = surface.identities.intern(text);
+    }
+
+    #[test]
+    fn canonical_filesystem_services_join_exact_receiver_bundled_declarations() {
+        for kind in FilesystemService::ALL {
+            assert_eq!(fixture(kind).core_filesystem_service(id()), Ok(kind));
+        }
+    }
+
+    #[test]
+    fn filesystem_services_refuse_foreign_owners_and_changed_source_coordinates() {
+        let exact = revision("core", "filesystem_authority.omg");
+        let mut changed = exact;
+        changed[0] ^= 1;
+        let path = "FilesystemMetadataQuery";
+        for declaration in [
+            nominal(byte_atom(OwnerForm::Package, &exact), path),
+            nominal(bare(OwnerForm::Toolchain), path),
+            nominal(byte_atom(OwnerForm::ToolchainSource, &changed), path),
+            nominal(
+                byte_atom(OwnerForm::ToolchainSource, &exact),
+                "other::FilesystemMetadataQuery",
+            ),
+            nominal(
+                byte_atom(
+                    OwnerForm::ToolchainSource,
+                    &revision("foreign", "filesystem_authority.omg"),
+                ),
+                path,
+            ),
+            nominal(
+                byte_atom(OwnerForm::ToolchainSource, &revision("core", "other.omg")),
+                path,
+            ),
+        ] {
+            let mut module = fixture(FilesystemService::MetadataQuery);
+            module.service_schemas[0].declaration = intern(&mut module, &declaration);
+            assert!(
+                module.core_filesystem_service(id()).is_err(),
+                "accepted {declaration}"
+            );
+        }
+    }
+
+    #[test]
+    fn filesystem_services_refuse_changed_applications_and_malformed_identities() {
+        let path = "FilesystemMetadataQuery";
+        let exact = application(path, vec![], vec![]);
+        for application in [
+            application(path, vec!["compiler-type(atom(u8))".into()], vec![]),
+            application(path, vec![], vec!["lifetime(other)".into()]),
+            application("other::FilesystemMetadataQuery", vec![], vec![]),
+            exact[..exact.len() - 1].to_owned(),
+            format!("{exact}trailing"),
+            "toolchain::FilesystemMetadataQuery".into(),
+        ] {
+            let mut module = fixture(FilesystemService::MetadataQuery);
+            replace_application(&mut module, &application);
+            assert!(
+                module.core_filesystem_service(id()).is_err(),
+                "accepted {application}"
+            );
+        }
+        let module = fixture(FilesystemService::MetadataQuery);
+        let exact = module
+            .identities
+            .text(module.service_schemas[0].declaration)
+            .unwrap();
+        for declaration in [
+            exact[..exact.len() - 1].to_owned(),
+            format!("{exact}trailing"),
+            "nominal(".into(),
+        ] {
+            let mut module = fixture(FilesystemService::MetadataQuery);
+            module.service_schemas[0].declaration = intern(&mut module, &declaration);
+            assert!(
+                module.core_filesystem_service(id()).is_err(),
+                "accepted {declaration}"
+            );
+        }
+    }
+
+    #[test]
+    fn filesystem_services_refuse_missing_duplicate_or_expanded_contract_metadata() {
+        for case in 0..15 {
+            let mut module = fixture(FilesystemService::MetadataQuery);
+            match case {
+                0 => module.services.clear(),
+                1 => module.services.push(module.services[0].clone()),
+                2 => module.services[0].parents.push(id()),
+                3 => module.services[0].parents.push(ServiceId::new(99).unwrap()),
+                4 => module.service_schemas.clear(),
+                5 => module
+                    .service_schemas
+                    .push(module.service_schemas[0].clone()),
+                6 => {
+                    let mut other = module.service_schemas[0].clone();
+                    other.declaration = intern(&mut module, "nominal(toolchain-owner,path(Other))");
+                    module.service_schemas.push(other);
+                }
+                case => {
+                    let surface = Arc::make_mut(&mut module.service_schemas[0].surface);
+                    let foreign = surface.identities.intern("Other");
+                    match case {
+                        7 => {
+                            surface.trait_package_identity =
+                                PackageKeyIdentity::from_digest([1; 32])
+                        }
+                        8 => surface.trait_name = foreign,
+                        9 => surface.receiver_applications[0].application = foreign,
+                        10 => surface
+                            .receiver_applications
+                            .push(surface.receiver_applications[0].clone()),
+                        11 => surface.receiver_applications[0]
+                            .argument_identities
+                            .push(foreign),
+                        12 => surface.receiver_applications[0]
+                            .lifetime_argument_identities
+                            .push(foreign),
+                        13 => surface.receiver_applications[0]
+                            .requirement_identities
+                            .push(foreign),
+                        14 => surface.methods.push(ServiceMethod::default()),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            assert!(
+                module.core_filesystem_service(id()).is_err(),
+                "accepted malformed case {case}"
+            );
+        }
     }
 }
