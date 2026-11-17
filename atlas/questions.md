@@ -60,11 +60,12 @@ requires later source operations. Wrapping the old stage API calls in a new
 coordinator is not the replacement. Eagerly parsing every available file would
 also change the demand/error contract.
 
-The executor receives immutable accepted code and a sealed invocation admission
-binding caller, arguments, target/supplies, permitted observations and account.
-It returns values/status and receipts. It receives no mutable syntax, source
-consent object or source lookup callback. Source-job construction and
-[retained-product preparation][product-preparation] move into settlement.
+Evaluation is a private operation of the stage requesting the value, not an
+external executor. Source settlement owns source-job construction,
+[retained-product preparation][product-preparation], invocation admission,
+execution and use of the returned value. Native planning owns calling-policy
+computation over carried accepted code. Both preserve caller, arguments,
+target/supplies, permitted observations, account and invocation-bound receipts.
 The [existing dependency][source-dependency] prevents simply reversing the
 facade call without replacing both interfaces.
 
