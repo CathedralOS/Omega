@@ -2925,7 +2925,7 @@ pub(crate) mod case_flow {
         Unknown,
         Exact {
             subjects: BTreeSet<DescriptorLocation>,
-            possible: BTreeSet<StructuralCaseId>,
+            possible: Vec<StructuralCaseId>,
         },
     }
 
@@ -2958,7 +2958,9 @@ pub(crate) mod case_flow {
             .iter()
             .map(|case| case.id)
             .filter(|case| (*case == predicate.case) == truth)
-            .collect::<BTreeSet<_>>();
+            .collect::<Vec<_>>();
+        possible.sort_unstable();
+        possible.dedup();
         for subject in &subjects {
             if let Some(known) = state.cases.facts.get(subject) {
                 possible.retain(|case| known.contains(case));
@@ -2982,6 +2984,7 @@ pub(crate) mod case_flow {
         if possible.is_empty() {
             return Some(false);
         }
+        let possible = possible.into_iter().collect::<BTreeSet<_>>();
         let cases = Arc::make_mut(&mut state.cases);
         for subject in subjects {
             cases.facts.insert(subject, possible.clone());
@@ -2998,9 +3001,10 @@ pub(crate) mod case_flow {
         subject: &DescriptorLocation,
     ) -> Option<StructuralCaseId> {
         let storage = replay.canonical_storage(machine, state, subject, None)?;
-        let unique = |cases: &BTreeSet<StructuralCaseId>| {
-            (cases.len() == 1).then(|| *cases.first().expect("one case is present"))
-        };
+        fn unique(mut cases: impl Iterator<Item = StructuralCaseId>) -> Option<StructuralCaseId> {
+            let first = cases.next()?;
+            cases.next().is_none().then_some(first)
+        }
         if let Some((ordinal, edge)) = successor {
             if machine.flow.get(&position)?.successors.get(ordinal)?.edge != Some(edge) {
                 return None;
@@ -3016,11 +3020,11 @@ pub(crate) mod case_flow {
                     return None;
                 };
                 if subjects.contains(&storage) {
-                    return unique(&possible);
+                    return unique(possible.into_iter());
                 }
             }
         }
-        unique(state.cases.facts.get(&storage)?)
+        unique(state.cases.facts.get(&storage)?.iter().copied())
     }
 
     pub(crate) fn membership(
