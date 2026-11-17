@@ -50,7 +50,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
 
 use super::authority::has_predicates;
-use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
+use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{Qualification, ValueType};
 use crate::{ClauseText, Unserved, refuse};
@@ -125,7 +125,10 @@ impl Program<'_> {
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -357,9 +360,6 @@ impl Program<'_> {
             subject: None,
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
         };
         let subject = ScalarTerm::Value {
             id: subject,
@@ -416,9 +416,6 @@ impl Program<'_> {
             subject: None,
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
         };
         let clauses = self
             .storage_predicates(id, &scope, value_type, root, &[])?
@@ -590,7 +587,10 @@ impl Program<'_> {
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -644,9 +644,6 @@ impl Program<'_> {
             result: ResultTerm::Absent("result in a domain predicate"),
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
             subject: None,
         };
         Ok(self
