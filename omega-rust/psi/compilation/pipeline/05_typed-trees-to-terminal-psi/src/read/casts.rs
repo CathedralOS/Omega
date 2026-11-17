@@ -739,7 +739,7 @@ impl Program<'_> {
                 // rejects at its own declaration".
                 let edges = match self.typed.machine_by_symbol(machine) {
                     Some(declared) => self.typed.machine_trait_conformances(declared),
-                    None => &[],
+                    None => arena::RootRows::from_slice(&[]),
                 };
                 let routed = routes.iter().any(|route| match route {
                     DomainEstablishmentRoute::ExactMachine { machine: origin } => {

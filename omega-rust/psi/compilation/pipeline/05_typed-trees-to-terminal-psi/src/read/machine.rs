@@ -1877,7 +1877,7 @@ impl<'t> Program<'t> {
                 "the requirement it satisfies",
             )
         };
-        let [edge] = self.typed.machine_trait_conformances(machine) else {
+        let Some([edge]) = self.typed.machine_trait_conformances(machine).as_array() else {
             return Err(unserved(
                 "conformer without exactly one declared requirement",
             ));
