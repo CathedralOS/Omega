@@ -164,13 +164,6 @@ framework or a list of unimplemented features.
 - Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
 
-### POSIX std reads `errno` by `memcpy` from a raw address and declares it cannot crash
-- Category: A verdict with nothing behind it
-- Where: [copy_error](source/library/std/posix_filesystem_adapter.omg#L1813), [posix_canonical_error](source/library/std/posix_filesystem_adapter.omg#L1875), [c_copy_from_address](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L156), [darwin_failure_i32](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L161), [memcpy bindings](source/library/std/build.omg#L359)
-- Saw: [inert addresses and marshaling](wiki/spec/build/foreign_storage.md) says `addr` is numerical data that ordinary code cannot dereference, and a binding materializes a pointer "only from established storage claims"; thread-local storage must be copied or mediated by such a claim. std declares `copy_error(destination, source: u64, count)` and `c_copy_from_address` as `reaches none crashes none`, binds both to `memcpy`, and passes the bare `u64` from `__errno_location`/`___error` as the source. That is a general read of any address, and `source = 0` faults. The two copies also decode differently: one assembles four bytes, the other keeps only `code[0]`.
-- Cost: Reviewers see a crash-free boundary that is really an unchecked dereference. Provide one shared errno requirement whose provider returns the `int`, or an admitted view of the thread-local slot, for both callers.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/foreign_storage.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
