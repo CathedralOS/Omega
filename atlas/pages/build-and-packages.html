@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Build and packages</h1>
       <p class="lede">How package custody and Build evaluation become a compilation request and provider choices.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/c774b9ae86d6ca9c937f672b8bd32ee980e9e991/atlas"><code>c774b9ae86d6</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/c774b9ae86d6ca9c937f672b8bd32ee980e9e991/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/c774b9ae86d6ca9c937f672b8bd32ee980e9e991/atlas/subsystems/build-and-packages.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/build-and-packages.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -1301,7 +1301,7 @@ ownership and control flow, not a fresh compiler capability certification.</p></
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/c774b9ae86d6ca9c937f672b8bd32ee980e9e991/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1727,9 +1727,11 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   start();
   if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
   function openHandlerHandoff(){
-    if(location.hash!=='#proposed-handlers')return;
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
     if(!expanded)root.querySelector('[data-camera="expand"]').click();
-    switchView('proposed');traceDetour('handlers');
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
   }
   window.addEventListener('hashchange',openHandlerHandoff);
   openHandlerHandoff();
