@@ -1040,7 +1040,7 @@ impl<'t> Program<'t> {
             None => return Err(unserved("match with a Unit arm")),
         };
         if result.is_some_and(|result| {
-            !self.type_excludes_values(result) && !self.agrees(Some(value_type), result)
+            !self.type_excludes_values(result) && !self.agrees(Some(value_type), Some(result))
         }) {
             return Err(self.mistyped(
                 id,

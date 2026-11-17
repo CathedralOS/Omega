@@ -391,7 +391,7 @@ impl Program<'_> {
         if byte_view
             && requested == StructuralAccess::SharedBorrow
             && self.observes_only(machine, base.result)?
-            && self.data_type(machine, backing)?.copyable
+            && self.data_type(machine, backing)?.is_copyable()
         {
             self.authorized(machine, backing_type, Access::Read)?;
             let value = self.byte_subslice(machine, slots, base, range, target, source)?;
@@ -607,7 +607,7 @@ impl Program<'_> {
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
-            if !self.agrees(element.result, declared) {
+            if !self.agrees(element.result, Some(declared)) {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
@@ -695,7 +695,7 @@ impl Program<'_> {
         if stored_length
             && access == Access::Read
             && element_read == ElementRead::Whole
-            && !self.data_type(machine, element)?.copyable
+            && !self.data_type(machine, element)?.is_copyable()
         {
             return Err(refuse(
                 machine,
@@ -872,9 +872,9 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: self.typed.stored_value_multiplicity(reference)
-                == language_semantics::Multiplicity::Unrestricted,
+            multiplicity: crate::body::source_multiplicity(
+                self.typed.stored_value_multiplicity(reference),
+            ),
             cleanup: None,
             identity,
             shape,
@@ -958,12 +958,11 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let copyable = self.data_type(machine, element)?.copyable;
-        let owns_linear_claim = self.data_type(machine, element)?.owns_linear_claim;
+        let multiplicity =
+            crate::body::source_multiplicity(self.typed.stored_value_multiplicity(reference));
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim,
-            copyable,
+            multiplicity,
             cleanup: None,
             identity,
             shape,
@@ -1042,8 +1041,7 @@ impl Program<'_> {
         }
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
             shape: StorageShape::PrimitiveScalar {

@@ -120,7 +120,7 @@ impl Program<'_> {
                     )?;
                     self.authorized(id, referent, Access::Replace)?;
                     let value = self.expression(id, slots, assignment.value, Some(referent))?;
-                    if !self.agrees(value.result, referent) {
+                    if !self.agrees(value.result, Some(referent)) {
                         return Err(assigned(self, &value, referent));
                     }
                     return Ok(Statement::Store {
@@ -154,7 +154,7 @@ impl Program<'_> {
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
-                if !self.agrees(value.result, value_type) {
+                if !self.agrees(value.result, Some(value_type)) {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
@@ -259,7 +259,7 @@ impl Program<'_> {
                 }
                 self.written_through(id, storage)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
-                if !self.agrees(value.result, stored) {
+                if !self.agrees(value.result, Some(stored)) {
                     return Err(assigned(self, &value, stored));
                 }
                 self.authorized(id, stored, Access::Replace)?;
@@ -493,7 +493,7 @@ impl Program<'_> {
         // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
         // Wrapping local, which only a cast does.
         if let Some(declared) = declared
-            && !self.agrees(Some(value_type), declared)
+            && !self.agrees(Some(value_type), Some(declared))
         {
             return Err(self.mistyped(
                 id,

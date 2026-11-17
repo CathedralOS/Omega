@@ -286,7 +286,7 @@ pub(crate) mod capabilities {
         let callable_values = terminal_semantics::callable_values::terminal_callable_values(
             program.catalogs.as_ref().as_ref(),
         )
-        .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
+        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -814,7 +814,7 @@ pub(crate) mod capabilities {
                 id: StructuralTypeId::new(id).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(0),
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -962,7 +962,7 @@ pub(crate) mod capabilities {
                 id,
                 identity: terminal_psi::TerminalIdentityIndex(0),
                 owns_linear_claim: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,

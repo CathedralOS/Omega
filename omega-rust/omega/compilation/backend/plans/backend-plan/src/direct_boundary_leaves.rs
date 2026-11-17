@@ -346,12 +346,12 @@ impl DirectBoundaryLeaf {
         }) = boundary
             .declaration
             .as_ref()
-            .map(|declaration| declaration.execution)
+            .map(|declaration| &declaration.execution)
         {
             let expected = crate::canonical_schemas::hosted_requirement_schema(
                 module,
-                operation,
-                requirement,
+                *operation,
+                *requirement,
             )?;
             let execution = match operation {
                 language_core::sealed_intrinsics::HostedOperation::ProcessExit => {

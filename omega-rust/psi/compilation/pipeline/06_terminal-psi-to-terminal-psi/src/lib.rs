@@ -1093,20 +1093,33 @@ fn fill_knowledge<'a>(
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here.
-        let stated = match substitute(proposition, &mut storage.at_entry(references, tables)) {
-            Ok(stated) => stated,
-            Err(Unbound::Unproved(_)) => continue,
-            Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-        };
-        push_knowledge(
-            tables,
-            stated,
-            ProgramPoint::BlockEntry(lowered.entry),
-            Justification::EntryRequirement {
-                clause: position(clause, id)?,
-            },
-        );
+        // field. One that names no such value states nothing here. Each
+        // conjunct of a clause holds on its own, so only the conjuncts that
+        // name such a field are dropped: an inferred input condition joins
+        // facts about every field the caller knew, and one about a field this
+        // body never reads must not discard the bound it does need. A
+        // disjunction stays whole, since dropping one of its alternatives
+        // would assume more than the clause says.
+        let mut conjuncts = vec![proposition];
+        while let Some(conjunct) = conjuncts.pop() {
+            if let Proposition::Conjunction(parts) = conjunct {
+                conjuncts.extend(parts);
+                continue;
+            }
+            let stated = match substitute(conjunct, &mut storage.at_entry(references, tables)) {
+                Ok(stated) => stated,
+                Err(Unbound::Unproved(_)) => continue,
+                Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
+            };
+            push_knowledge(
+                tables,
+                stated,
+                ProgramPoint::BlockEntry(lowered.entry),
+                Justification::EntryRequirement {
+                    clause: position(clause, id)?,
+                },
+            );
+        }
     }
     // Each readable record formal of the machine or of a loop head arrived
     // as a member of its type's domain, so the clauses of that type hold of

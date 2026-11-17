@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI36`) for retained native
+  Compiler-private binary persistence (`OMGNTI37`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1486,7 +1486,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI36";
+// Structural type rows now retain their declared three-way multiplicity.
+// The previous schema carried only the copy bit.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI37";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1552,6 +1554,7 @@ mod tests {
             b"OMGNTI33",
             b"OMGNTI34",
             b"OMGNTI35",
+            b"OMGNTI36",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1575,7 +1578,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI37", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI38", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

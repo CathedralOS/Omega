@@ -430,7 +430,7 @@ impl AcceptedTerminalSource {
                 root,
                 implementations,
             )
-            .map_err(|detail| defect(detail.to_owned()))?;
+            .map_err(defect)?;
             boundaries.extend(reached.boundaries);
             reached_machines.extend(reached.reached_machines);
         }

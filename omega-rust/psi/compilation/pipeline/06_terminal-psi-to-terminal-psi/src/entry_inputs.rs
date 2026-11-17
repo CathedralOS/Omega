@@ -229,6 +229,7 @@ fn describe_calls(
             .iter()
             .zip(actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .chain(fields.observations().field_crossings())
             .collect::<Vec<_>>();
         let predicate = describe(
             &known,
@@ -278,10 +279,14 @@ fn describe_calls(
             call.site,
             Construct::Invocation(site.invocation),
         )?;
+        // Record fields cross like scalar formals, so a field the caller
+        // overwrote keeps its name beside the field its value was read from.
+        let mut described = crossing.clone();
+        described.extend(fields.observations().field_crossings());
         let predicate = describe(
             &known,
             &prepared.context,
-            &crossing,
+            &described,
             &mut InputBindings {
                 actuals: &actuals,
                 target,
@@ -741,6 +746,7 @@ pub(crate) fn describe(
 ) -> Proposition {
     let mut parts = Vec::new();
     let mut computation_names = Vec::new();
+    let mut aliases = Vec::new();
     let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
         // Callable identity and selection have no mathematical equality.
@@ -752,6 +758,17 @@ pub(crate) fn describe(
         if let Ok(term) = crate::bound(&definition, &mut *bindings)
             && *name != term
         {
+            // The receiving name holds a value the description names
+            // elsewhere, for example a field the caller overwrote with
+            // another field's value. Facts are restated under it below.
+            if matches!(
+                term,
+                ScalarTerm::Value { .. }
+                    | ScalarTerm::IntegerField { .. }
+                    | ScalarTerm::BooleanField { .. }
+            ) {
+                aliases.push((term.clone(), name.clone()));
+            }
             parts.push(Proposition::Equal(name.clone(), term));
         }
         if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
@@ -768,7 +785,99 @@ pub(crate) fn describe(
             substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
-    joins::connective(parts, true)
+    // The receiver checks against these facts directly; it does not search
+    // through the equality above. State each fact again with the other name
+    // in place of the one the description chose.
+    for (from, to) in &aliases {
+        let mut renamed = RenamedTerm {
+            from,
+            to,
+            inner: &mut *bindings,
+        };
+        for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+            parts.push(joins::project(&fact.proposition, &mut |atom| {
+                substitute_clause_with_computation_names(atom, &mut renamed, &computation_names)
+                    .ok()
+            }));
+        }
+    }
+    // A restated fact can itself be a conjunction. Terminal's canonical
+    // encoding refuses one nested in another, so join its operands here.
+    let mut flat = Vec::with_capacity(parts.len());
+    while let Some(part) = parts.pop() {
+        match part {
+            Proposition::Conjunction(nested) => parts.extend(nested),
+            // Restating a fact under the other name of the same value can
+            // produce `x == x`; it says nothing.
+            Proposition::Equal(left, right) if left == right => {}
+            Proposition::IntegerMathEqual(left, right) if left == right => {}
+            other => flat.push(other),
+        }
+    }
+    joins::connective(flat, true)
+}
+
+/// Bindings that resolve like `inner`, except that the one term `from` reads
+/// as `to`. Both name the same value at the arrival being described.
+struct RenamedTerm<'s> {
+    from: &'s ScalarTerm,
+    to: &'s ScalarTerm,
+    inner: &'s mut dyn Bindings<Error = Unbound>,
+}
+
+impl RenamedTerm<'_> {
+    fn rename(&self, term: ScalarTerm) -> ScalarTerm {
+        if term == *self.from {
+            self.to.clone()
+        } else {
+            term
+        }
+    }
+}
+
+impl Bindings for RenamedTerm<'_> {
+    type Error = Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.inner.validate_float_meaning_source(source)
+    }
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.value(value, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn field(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.field(version, root, path, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.extent(root, path, scalar_type)
+    }
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.byte_predicate(predicate, root, path)
+    }
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        self.inner.case(root, path, case)
+    }
 }
 
 fn flatten<'a>(
@@ -1053,6 +1162,57 @@ fn conjuncts(proposition: &Proposition) -> &[Proposition] {
 /// Add the inferred predicate to the contract and mint its obligation at
 /// every real call. Existing clauses retain their obligation identities when
 /// canonical ordering moves their positions.
+/// The part of an inferred condition whose arithmetic forms in the callee's
+/// contract. Nobody wrote the condition, so a conjunct that cannot form (a
+/// product like `pi == e * 26` that arrived without the bound on `e` that
+/// keeps it total) is not the program's error: leave it out. Keeping fewer
+/// conjuncts only gives the body fewer premises, and every arrival still
+/// proves what is kept. Conjuncts are retried while any joins, so a bound
+/// that sorts after the term it protects still admits that term.
+fn formed(
+    elaboration: &Elaboration,
+    callee: MachineId,
+    predicate: Proposition,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Option<Proposition>> {
+    let contract = &terminal_machine(&elaboration.module.machines, callee, callee)?.contract;
+    // A defect in the module itself is still reported, never left out.
+    let forms = |clause: &Proposition, activity: &mut crate::ProofSearchActivity| {
+        let mut proposed = contract.clone();
+        proposed.requires.push(clause.clone());
+        match crate::formation::contract(&elaboration.module, callee, &proposed, activity) {
+            Ok(_) => Ok(true),
+            Err(refusal) if refusal.reason == RefusalReason::ForeignIdentity => Err(refusal),
+            Err(_) => Ok(false),
+        }
+    };
+    if forms(&predicate, activity)? {
+        return Ok(Some(predicate));
+    }
+    let mut pending = conjuncts(&predicate).to_vec();
+    let mut kept = Vec::new();
+    loop {
+        let mut joined = false;
+        let mut waiting = Vec::with_capacity(pending.len());
+        for part in pending {
+            let mut trial = kept.clone();
+            trial.push(part.clone());
+            if forms(&joins::connective(trial, true), activity)? {
+                kept.push(part);
+                joined = true;
+            } else {
+                waiting.push(part);
+            }
+        }
+        pending = waiting;
+        if !joined || pending.is_empty() {
+            break;
+        }
+    }
+    let predicate = joins::connective(kept, true);
+    Ok((predicate != Proposition::Truth).then_some(predicate))
+}
+
 pub(super) fn require(
     elaboration: &mut Elaboration,
     callee: MachineId,
@@ -1062,11 +1222,9 @@ pub(super) fn require(
 ) -> Checked<()> {
     // An inferred condition becomes a premise for later callers in this
     // pass. Its arithmetic must form before publishing that new contract.
-    let mut proposed = terminal_machine(&elaboration.module.machines, callee, callee)?
-        .contract
-        .clone();
-    proposed.requires.push(predicate.clone());
-    crate::formation::contract(&elaboration.module, callee, &proposed, activity)?;
+    let Some(predicate) = formed(elaboration, callee, predicate, activity)? else {
+        return Ok(());
+    };
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -1401,6 +1559,8 @@ pub(super) fn require(
             .zip(&block.structural_parameters)
             .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
             .collect();
+        // A clause may itself be an inferred conjunction; the published
+        // invariant must be Terminal's canonical flat, ordered form.
         let predicate = joins::connective(
             clauses
                 .iter()
@@ -1415,12 +1575,15 @@ pub(super) fn require(
                 .collect(),
             true,
         );
+        let predicate = canonical(predicate, callee)?;
         if let Ok(index) = invariants
             .binary_search_by_key(&(head.caller, head.block), |row| (row.machine, row.header))
         {
             let invariant = &mut invariants[index];
-            invariant.predicate =
-                joins::connective(vec![invariant.predicate.clone(), predicate], true);
+            invariant.predicate = canonical(
+                joins::connective(vec![invariant.predicate.clone(), predicate], true),
+                callee,
+            )?;
         } else {
             added.push(terminal_psi::ScalarBlockInvariant {
                 machine: head.caller,

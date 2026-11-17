@@ -8,7 +8,7 @@
 //! exactly where the program has shown the index lies inside this view: a
 //! `requires` clause, or a guard, over this view's own `len`.
 
-use super::build_purpose::judge_build;
+use super::byte_domains::judge_build;
 use super::*;
 use terminal_psi::OperationKind;
 
@@ -592,7 +592,7 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
 #[test]
 fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
     let program = r#"
-        domain [u8]::Path requires no_nul(self);
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
         machine prefix_length(path: &[u8] in Path, position: u64) -> u64
         requires position <= path.len {
             let prefix: &[u8] = &path[0..position];
@@ -1703,7 +1703,7 @@ machine use(same: bool) {}"), "accepted");
 #[test]
 fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
     let program = r#"
-        domain [u8]::Path requires no_nul(self);
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
         machine build_entry() {
             let other: &[u8] in Path = "trusted" as +Path;
             let path: &[u8] in Path = "foo/bar" as +Path;
@@ -1730,7 +1730,7 @@ fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
 #[test]
 fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
     let program = r#"
-        domain [u8]::Path requires no_nul(self);
+        domain [u8]::Path requires byte_observation::no_nul(&self[..]);
         machine require_path(path: &[u8] in Path, position: u64)
         requires position <= path.len { }
         machine build_entry(flag: bool) {

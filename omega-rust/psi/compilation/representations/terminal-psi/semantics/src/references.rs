@@ -2121,7 +2121,7 @@ pub(crate) mod reference_origins {
                     id,
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
@@ -4963,7 +4963,7 @@ pub(crate) mod reference_storage_geometry {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -5175,7 +5175,7 @@ pub(crate) mod reference_storage_geometry {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -5342,7 +5342,7 @@ pub(crate) mod reference_storage_geometry {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -5451,7 +5451,7 @@ pub(crate) mod reference_storage_geometry {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -5465,7 +5465,7 @@ pub(crate) mod reference_storage_geometry {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -5516,7 +5516,7 @@ pub(crate) mod reference_storage_geometry {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -5543,7 +5543,7 @@ pub(crate) mod reference_storage_geometry {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -5581,7 +5581,7 @@ pub(crate) mod reference_storage_geometry {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -5774,7 +5774,7 @@ pub(crate) mod reference_views {
         let mut declarations = types.clone().filter(|row| row.id == structural_type);
         let declared_copyable = declarations
             .next()
-            .is_some_and(|row| row.copyable && !row.owns_linear_claim)
+            .is_some_and(|row| row.is_copyable() && !row.owns_linear_claim)
             && declarations.next().is_none();
         declared_copyable || is_shared_reference_carrier(types, structural_type)
     }
@@ -6467,7 +6467,7 @@ pub(crate) mod reference_views {
                 id: StructuralTypeId::new(raw).expect("type identity"),
                 identity: TerminalIdentityIndex(raw as u32),
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,

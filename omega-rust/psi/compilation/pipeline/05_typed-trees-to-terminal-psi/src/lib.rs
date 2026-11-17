@@ -51,6 +51,7 @@ mod callable_formations;
 mod callable_headers;
 mod callables;
 mod calling_publication;
+mod claim_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
@@ -1093,18 +1094,19 @@ fn finish_reading_into<'source>(
     program.finish_operational_envelopes(&bodies, &components)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
-    let services = program.service_map(diagnostic)?;
-    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
-    let policies = (!policies.requests.is_empty()).then_some(policies);
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
-    let descriptions = policies
-        .as_ref()
-        .map(|policies| program.prepare_calling_storage(diagnostic, policies))
+    let descriptions = (!policies.requests.is_empty())
+        .then(|| program.prepare_calling_storage(diagnostic, &policies))
         .transpose()?;
     program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
+    // Header types and clauses may name services and parent contracts.
+    // Build the service list and check all parents after those reads finish.
+    let services = program.service_map(diagnostic)?;
+    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
+    let policies = (!policies.requests.is_empty()).then_some(policies);
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
@@ -1968,6 +1970,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
+    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

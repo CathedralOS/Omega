@@ -24,8 +24,12 @@ pub(crate) mod complete_values {
                 return Err(malformed());
             }
             let types = self.structural_types();
+            let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(types.values())
+                .map_err(
+                    |reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason },
+                )?;
             terminal_semantics::owned_structure::validate_complete_claim_frontier(
-                |identity| types.get(&identity),
+                &claim_types,
                 structural_type,
                 region,
                 self.live_claims.values().filter_map(|claim| {
@@ -544,8 +548,11 @@ pub(crate) fn require_owned_value_claims<'claims>(
             "owned value claim has no exact linear multiplicity",
         ));
     }
+    let claim_types =
+        terminal_semantics::owned_structure::ClaimTypes::new(structural_types.values())
+            .map_err(refusal)?;
     terminal_semantics::owned_structure::validate_owned_claim_frontier(
-        &|identity| structural_types.get(&identity),
+        &claim_types,
         selected,
         &argument.path,
         claims.map(|claim| claim.path.clone()),
@@ -2439,7 +2446,7 @@ pub(crate) mod tests {
             identity: terminal_psi::TerminalIdentityIndex(u32::try_from(id).unwrap()),
             declaration_identity: terminal_psi::TerminalIdentityIndex(u32::try_from(id).unwrap()),
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,
@@ -2668,7 +2675,7 @@ pub(crate) mod tests {
                 id: structural_type(1),
                 identity: terminal_psi::TerminalIdentityIndex(1),
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -2682,7 +2689,7 @@ pub(crate) mod tests {
                 id: structural_type(2),
                 identity: terminal_psi::TerminalIdentityIndex(2),
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,

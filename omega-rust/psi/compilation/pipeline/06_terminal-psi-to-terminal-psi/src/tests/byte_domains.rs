@@ -16,19 +16,18 @@
 use super::*;
 use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
 
-fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
+    "byte_observation.omg",
+    "byte_observation",
+    include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/byte_observation.omg"
+    )),
+)];
+
+pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let source = format!("use omega::language::core::byte_observation;\n{build}");
-    super::build_purpose::judge_build_with_core(
-        &source,
-        &[(
-            "byte_observation.omg",
-            "byte_observation",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../source/library/core/byte_observation.omg"
-            )),
-        )],
-    )
+    super::build_purpose::judge_build_with_core(&source, BYTE_OBSERVATION_SOURCE)
 }
 
 /// `accepted` for a program the checker accepts and can publish; for one it
@@ -81,8 +80,13 @@ machine build_entry() {{
 }
 
 fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-    use super::build_purpose::{frontier_of, package, roster, symbol};
-    let typed = frontier_of("machine product_entry() { }", source);
+    use super::build_purpose::{frontier_with_core, package, roster, symbol};
+    let source = format!("use omega::language::core::byte_observation;\n{source}");
+    let typed = frontier_with_core(
+        "machine product_entry() { }",
+        &source,
+        BYTE_OBSERVATION_SOURCE,
+    );
     let entries = [symbol(&typed, "build_entry")];
     let subjects = [Some(package())];
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
@@ -144,7 +148,7 @@ fn a_case_literal_retains_other_cases_conditional_domains() {
     use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment};
 
     let source = r#"
-domain [u8]::Text requires valid_utf8(self);
+domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
 data Rejection<'reason> { reason: &'reason [u8] in Text; }
 data Outcome<'reason> {
     case Accepted(value: &'reason [u8]);
@@ -279,7 +283,7 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 #[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
     let source = r#"
-domain [u8]::Text requires no_nul(self);
+domain [u8]::Text requires byte_observation::no_nul(&self[..]);
 data Choice { case First; case Second; }
 machine same<'a>(text: &'a [u8] in Text, choice: Choice) -> &'a [u8] in Text {
     match choice {
@@ -657,7 +661,7 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
 fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
     format!(
         r#"
-domain [u8]::Text requires {predicate}(self);
+domain [u8]::Text requires byte_observation::{predicate}(&self[..]);
 machine length(text: &[u8] in Text) -> u64 {{ text.len }}
 machine prefix_length(text: &[u8]{source_domain}, end: u64) -> u64
 requires end <= text.len {{
@@ -699,7 +703,7 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
 #[test]
 fn a_slice_uses_the_byte_predicate_of_the_current_loop_parameter() {
     let source = r#"
-domain [u8]::Text requires no_nul(self);
+domain [u8]::Text requires byte_observation::no_nul(&self[..]);
 machine length(text: &[u8] in Text) -> u64 { text.len }
 machine prefix_length(text: &[u8] in Text, end: u64, remaining: u32) -> u64
 requires end <= text.len {

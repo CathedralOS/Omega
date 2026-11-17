@@ -1,0 +1,24 @@
+// Must reject passing input to another call after its first move.
+// An ordinary call preserves both independently linear fields and their values.
+// Successful process exit abandons the two remaining obligations explicitly.
+use omega::language::core::ProcessExit;
+
+data Token [linear] { value: u32; }
+data Pair { left: Token; right: Token; }
+
+machine forward(value: Pair) -> Pair { value }
+
+machine main() reaches ProcessExit crashes Trap {
+    let input: Pair = Pair {
+        left: Token { value: 17u32 },
+        right: Token { value: 29u32 },
+    };
+    let result: Pair = forward(input);
+    let duplicate: Pair = forward(input);
+    transition result.left.value == 17u32 && result.right.value == 29u32
+        && duplicate.left.value == 17u32 && duplicate.right.value == 29u32 {
+        true -> ProcessExit::exit_process(0i32)
+        false -> failed()
+    }
+    machine failed() { crash Trap; }
+}

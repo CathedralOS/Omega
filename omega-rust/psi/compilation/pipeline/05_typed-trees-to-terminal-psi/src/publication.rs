@@ -75,7 +75,6 @@ impl PreparedProgram<'_> {
                         || !policies.signatures.is_empty()
                         || !policies.entries.is_empty()
                         || !descriptions.signatures.is_empty()
-                        || !descriptions.properties.is_empty()
                 });
             let providers = pending
                 .providers

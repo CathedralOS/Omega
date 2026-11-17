@@ -16,7 +16,7 @@ use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
+use super::contracts::{ClauseScope, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
     Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
@@ -2873,14 +2873,12 @@ impl<'t> Program<'t> {
             subject: None,
             formal_fields: false,
             logical: None,
-            mathematical: MathematicalTerms::Served,
         };
         // Requirements observe inputs; guarantees choose owned inputs or
         // borrowed completion storage in the shared clause binding.
         let required = ClauseScope {
             formal_fields: true,
             logical: None,
-            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let exit = ClauseScope {
@@ -2901,7 +2899,6 @@ impl<'t> Program<'t> {
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
             logical: None,
-            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let mut requires = Vec::new();
@@ -3762,7 +3759,7 @@ impl<'t> Program<'t> {
                     crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
-                            if !self.agrees(expression.result, result) {
+                            if !self.agrees(expression.result, Some(result)) {
                                 return Err(self.mistyped(
                                     id,
                                     expression.source,

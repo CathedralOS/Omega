@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Unpatched mbx bypasses the cache for checksum-enabled compilations
+- Category: Verifying costs more than writing
+- Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
+- Saw: Worker 1's ordinary focused build recorded `unknown-flag` for `-Zchecksum-hash-algorithm=blake3` in `/tmp/omega-worker1-cache-bypasses.jsonl`. Cargo emits that flag for the repository's content-based fingerprints. The adapter in upstream mbx 1.30.0 also rejects it. The shared cache therefore supplies no objects for these compilations.
+- Cost: Independent worktrees rebuild unchanged dependencies. This Mac now uses a locally repaired 1.29.2 adapter that retains the checksum option in its input identity and preserves checksum dependency output. An isolated probe reused unchanged inputs and rejected a same-size, same-mtime source change; subsequent ordinary Omega builds stored cache objects without the checksum-flag bypass. The patch, original binary and receipts are retained in `worker-1/build/mbx-workflow-tooling-20261116` under the local worktree pool. Upstream releases and fresh hosts still need the repair; do not disable content fingerprint checks.
+- Reported: 2026-11-16, Codex, during the draft PR takeovers
+
 ### macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot
 - Category: A verdict with nothing behind it
 - Where: [Darwin stack packing](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L767), [ValueShape](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L144), [clang cross-check](omega-rust/omega/compilation/backend/calling-conventions/src/tests/clang_crosscheck.rs)
@@ -164,13 +171,6 @@ framework or a list of unimplemented features.
 - Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
 
-### POSIX std reads `errno` by `memcpy` from a raw address and declares it cannot crash
-- Category: A verdict with nothing behind it
-- Where: [copy_error](source/library/std/posix_filesystem_adapter.omg#L1813), [posix_canonical_error](source/library/std/posix_filesystem_adapter.omg#L1875), [c_copy_from_address](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L156), [darwin_failure_i32](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L161), [memcpy bindings](source/library/std/build.omg#L359)
-- Saw: [inert addresses and marshaling](wiki/spec/build/foreign_storage.md) says `addr` is numerical data that ordinary code cannot dereference, and a binding materializes a pointer "only from established storage claims"; thread-local storage must be copied or mediated by such a claim. std declares `copy_error(destination, source: u64, count)` and `c_copy_from_address` as `reaches none crashes none`, binds both to `memcpy`, and passes the bare `u64` from `__errno_location`/`___error` as the source. That is a general read of any address, and `source = 0` faults. The two copies also decode differently: one assembles four bytes, the other keeps only `code[0]`.
-- Cost: Reviewers see a crash-free boundary that is really an unchecked dereference. Provide one shared errno requirement whose provider returns the `int`, or an admitted view of the thread-local slot, for both callers.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/foreign_storage.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
@@ -244,9 +244,9 @@ framework or a list of unimplemented features.
 ### Emission libraries still name earlier stage outputs
 - Category: knowledge crossing a boundary
 - Where: [emission facts](omega-rust/omega/compilation/backend/machine-emission/src/emission_facts.rs), [function realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
-- Saw: Fragment emission no longer keeps stage 02's output; the driver hands it `EmissionFacts`, and stage 02's output reaches the object only when a validator request retains it. Three reaches remain. Frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates 05–09. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side, and `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
-- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Move the stage output types frame staging names into `compilation/representations`, carry the abstract-operation rows image emission reads in the current form, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
-- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output.
+- Saw: Fragment emission no longer keeps stage 02's output, and machine emission no longer depends on stages 05 to 09: it reads stage 09's output as `machine_code::OptimizedMachineLayout` and runs stage validators only through the `FunctionStageAudit` the driver attaches. Two reaches remain. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side, and `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
+- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
+- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output, and by pi after machine emission stopped naming stages 05 to 09.
 
 ### Borrowed field recasts lose the target carrier layout of the enclosing record
 - Category: re-deriving

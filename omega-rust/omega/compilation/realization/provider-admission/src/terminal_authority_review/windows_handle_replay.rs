@@ -2163,10 +2163,13 @@ impl CanonicalHandleState {
             .into_iter()
             .flatten()
             .map(|predicate| {
-                let (range, _, _, dependencies) =
-                    geometry.resolve(&predicate.subject, &self.references)?;
+                let subject = predicate
+                    .subject
+                    .exact_location()
+                    .ok_or("handle case constructor has no exact subject location")?;
+                let (range, _, _, dependencies) = geometry.resolve(subject, &self.references)?;
                 let carrier = geometry
-                    .carrier(&predicate.subject)?
+                    .carrier(subject)?
                     .ok_or("handle case constructor has no original sum carrier")?;
                 Ok((
                     range,

@@ -1001,6 +1001,12 @@ pub(crate) mod machine {
                 .push_machine_contract(&mut typed_machine, contract);
         }
 
+        let bodyless_header = typed_machine.has_bodyless_signature()
+            && lowerer
+                .source_trees
+                .machine_state_handles(machine.states)
+                .len()
+                == 1;
         for (state_index, state) in lowerer
             .source_trees
             .machine_state_handles(machine.states)
@@ -1015,9 +1021,29 @@ pub(crate) mod machine {
                     AuthoredDeclarationSelectionExposure::PrivateImplementation
                 }
             });
-            let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
+            let complete_header = bodyless_header && state.statement_nodes.is_empty();
+            let mut state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
                 lower_state_declaration(lowerer, state)
             })?;
+            if complete_header {
+                // A bodyless declaration has one header, not a state-local
+                // precondition. Retain its qualified-formal memberships after
+                // the authored machine rows once, with their original facts,
+                // formal symbols and source coordinates. Later readers then
+                // borrow the complete machine contract without copying it.
+                let contracts = state.contracts;
+                for ordinal in 0..contracts.len() {
+                    let contract = lowerer
+                        .typed_trees
+                        .signature_contracts
+                        .get(contracts.handle_at(ordinal as u32))
+                        .clone();
+                    lowerer
+                        .typed_trees
+                        .push_machine_contract(&mut typed_machine, contract);
+                }
+                state.contracts = HandleSpan::empty();
+            }
             lowerer
                 .typed_trees
                 .push_machine_state(&mut typed_machine, state);
