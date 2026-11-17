@@ -1,8 +1,8 @@
-use crate::parsing::contracts::facts::parse_proof_facts_until;
-use crate::parsing::declarations::namespaces::take_optional_semicolon;
-use crate::parsing::parameters::callable::parse_callable_signature;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::contracts::facts::parse_proof_facts_until;
+use crate::declarations::namespaces::take_optional_semicolon;
+use crate::parameters::callable::parse_callable_signature;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,

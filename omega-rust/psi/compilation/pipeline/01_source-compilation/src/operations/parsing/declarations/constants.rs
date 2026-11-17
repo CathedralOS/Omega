@@ -1,6 +1,6 @@
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::expressions::parse::parse_expression_handle;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;

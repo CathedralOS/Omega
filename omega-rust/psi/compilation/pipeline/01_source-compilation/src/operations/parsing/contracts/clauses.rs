@@ -1,11 +1,11 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::parse::{
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
 };
-use crate::parsing::parameters::callable::parse_optional_return_type;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::callable::parse_optional_return_type;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
@@ -131,7 +131,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
-            input = crate::parsing::contracts::effects::take_operational_reaches_clause(
+            input = crate::contracts::effects::take_operational_reaches_clause(
                 input,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
@@ -155,7 +155,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             suspends_keyword_source_spans.push(input.current_source_span());
             let after_keyword = input.take_contextual("suspends")?;
-            (suspends, input) = crate::parsing::contracts::effects::operational_bound(after_keyword)?;
+            (suspends, input) = crate::contracts::effects::operational_bound(after_keyword)?;
             continue;
         }
 
@@ -165,7 +165,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             blocks_keyword_source_spans.push(input.current_source_span());
             let after_keyword = input.take_contextual("blocks")?;
-            (blocks, input) = crate::parsing::contracts::effects::operational_bound(after_keyword)?;
+            (blocks, input) = crate::contracts::effects::operational_bound(after_keyword)?;
             continue;
         }
 
@@ -197,7 +197,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 let other_route = contracts.iter().any(|contract: &CapabilityContract| {
                     matches!(contract.kind, CapabilityContractKind::Crashes { .. })
                 });
-                input = crate::parsing::contracts::effects::finish_crashes_none(
+                input = crate::contracts::effects::finish_crashes_none(
                     after_header,
                     other_route,
                     machine_reaches_clause_boundary,
@@ -211,7 +211,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 );
             }
             let ((facts, fact_token_count), rest) =
-                crate::parsing::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
+                crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
                     after_header,
                     |input| {
@@ -286,7 +286,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
-                crate::parsing::contracts::facts::parse_required_proof_facts_until(
+                crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
                     |input| {
@@ -365,7 +365,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: crate::parsing::contracts::effects::publish_capability_contracts(
+            contracts: crate::contracts::effects::publish_capability_contracts(
                 syntax_trees,
                 contracts,
             ),
@@ -484,7 +484,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
         let row_input = input;
         let (binding, fact_input) = input.take_optional_label()?;
         let ((facts, token_count), rest) =
-            crate::parsing::contracts::facts::parse_proof_facts_until(syntax_trees, fact_input, |input| {
+            crate::contracts::facts::parse_proof_facts_until(syntax_trees, fact_input, |input| {
                 input.at_punctuation(PunctuationKind::Semicolon)
                     || input.at_punctuation(PunctuationKind::RightBrace)
                     || input.tokens.is_empty()
@@ -535,7 +535,7 @@ fn parse_crash_header<'tokens, 'source>(
         return Ok(((None, 2), input.take_contextual("none")?));
     }
     let (cause, after_cause) = input.take_identifier()?;
-    let cause = crate::parsing::contracts::effects::parse_crash_cause(&cause, after_cause)?;
+    let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
     Ok(((Some(cause), 2), after_cause))
 }
 

@@ -1,10 +1,10 @@
-use crate::parsing::contracts::facts::parse_required_logical_proof_facts_until;
-use crate::parsing::expressions::postfix::try_parse_static_symbol_application;
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
-use crate::parsing::types::references::parse_domain_argument_handles;
-use crate::parsing::types::references::parse_named_type_reference;
+use crate::contracts::facts::parse_required_logical_proof_facts_until;
+use crate::expressions::postfix::try_parse_static_symbol_application;
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::types::references::parse_domain_argument_handles;
+use crate::types::references::parse_named_type_reference;
 use arena::HandleSpan;
 use language_core::DomainPredicatePresence;
 use syntax_trees::SyntaxTrees;
@@ -29,7 +29,7 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
     let (target_type, target_label, target_identifier, input) =
         if input.at_punctuation(PunctuationKind::LeftBracket) {
             let (handle, input) =
-                crate::parsing::types::references::parse_type_reference_handle(syntax_trees, input)?;
+                crate::types::references::parse_type_reference_handle(syntax_trees, input)?;
             let label = type_reference_target_label(syntax_trees, handle);
             (handle, label, None, input)
         } else {
@@ -252,7 +252,7 @@ fn parse_domain_requires<'tokens, 'source>(
 }
 
 fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
-    crate::parsing::declarations::items::named_implementation_prefix(input).is_some()
+    crate::declarations::items::named_implementation_prefix(input).is_some()
         || input.at_contextual("established")
         || input.at_contextual("access")
         || input.at_contextual("satisfies")
@@ -261,7 +261,7 @@ fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
         || input.at_keyword(KeywordKind::Public)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Machine)
-        || crate::parsing::declarations::items::starts_machine_declaration(input)
+        || crate::declarations::items::starts_machine_declaration(input)
         || input.at_keyword(KeywordKind::Use)
         || input.at_contextual("domain")
         || input.at_contextual("operator")

@@ -1,6 +1,6 @@
-use crate::parsing::contracts::facts::parse_proof_facts_until;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::token_input::cursor::Input;
+use crate::contracts::facts::parse_proof_facts_until;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::token_input::cursor::Input;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
@@ -44,7 +44,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
-) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::parsing::errors::parse_error::ParseError> {
+) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::errors::parse_error::ParseError> {
     let mut service_reaches = Vec::new();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
@@ -89,7 +89,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
-            input = crate::parsing::contracts::effects::take_operational_reaches_clause(
+            input = crate::contracts::effects::take_operational_reaches_clause(
                 input,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
@@ -113,7 +113,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             }
             suspends_keyword_source_spans.push(input.current_source_span());
             let after_keyword = input.take_contextual("suspends")?;
-            (suspends, input) = crate::parsing::contracts::effects::operational_bound(after_keyword)?;
+            (suspends, input) = crate::contracts::effects::operational_bound(after_keyword)?;
             continue;
         }
 
@@ -123,7 +123,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             }
             blocks_keyword_source_spans.push(input.current_source_span());
             let after_keyword = input.take_contextual("blocks")?;
-            (blocks, input) = crate::parsing::contracts::effects::operational_bound(after_keyword)?;
+            (blocks, input) = crate::contracts::effects::operational_bound(after_keyword)?;
             continue;
         }
 
@@ -134,7 +134,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 let other_route = contracts.iter().any(|contract: &CapabilityContract| {
                     matches!(contract.kind, CapabilityContractKind::Crashes { .. })
                 });
-                input = crate::parsing::contracts::effects::finish_crashes_none(
+                input = crate::contracts::effects::finish_crashes_none(
                     after_keyword.take_contextual("none")?,
                     other_route,
                     signature_clause_boundary,
@@ -148,7 +148,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 );
             }
             let (cause, after_cause) = after_keyword.take_identifier()?;
-            let cause = crate::parsing::contracts::effects::parse_crash_cause(&cause, after_cause)?;
+            let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
             let after_header = after_cause;
             let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =
@@ -177,7 +177,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             };
             let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
-                crate::parsing::contracts::facts::parse_required_proof_facts_until(
+                crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
                     signature_clause_boundary,
@@ -243,7 +243,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: crate::parsing::contracts::effects::publish_capability_contracts(
+            contracts: crate::contracts::effects::publish_capability_contracts(
                 syntax_trees,
                 contracts,
             ),

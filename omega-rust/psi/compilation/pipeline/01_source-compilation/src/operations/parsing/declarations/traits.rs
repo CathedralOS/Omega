@@ -1,15 +1,15 @@
-use crate::parsing::contracts::signatures::parse_signature_clauses;
-use crate::parsing::declarations::operators::parse_operator_spelling;
-use crate::parsing::machine_bodies::defaults::parse_trait_default_machine_body;
-use crate::parsing::parameters::callable::{
+use crate::contracts::signatures::parse_signature_clauses;
+use crate::declarations::operators::parse_operator_spelling;
+use crate::machine_bodies::defaults::parse_trait_default_machine_body;
+use crate::parameters::callable::{
     parse_optional_parameters, parse_optional_return_type, parse_parameter,
 };
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::parameters::requirements::validate_machine_parameter_contracts;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::parameters::requirements::validate_machine_parameter_contracts;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -274,7 +274,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             "a refinement clause names an existing base requirement; it declares no parameters, generics, or result",
         ));
     }
-    let mut signature = crate::parsing::parameters::callable::blank_state_signature();
+    let mut signature = crate::parameters::callable::blank_state_signature();
     signature.name = requirement
         .clone()
         .unwrap_or_else(|| Identifier::generated("*"));
@@ -294,7 +294,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             input = input.take_contextual("ensures")?;
             let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
-                crate::parsing::contracts::facts::parse_required_proof_facts_until(
+                crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
                     refinement_reaches_clause_boundary,
@@ -323,7 +323,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             }
             let mut reaches = Vec::new();
             let mut installation_bound = false;
-            input = crate::parsing::contracts::effects::take_operational_reaches_clause(
+            input = crate::contracts::effects::take_operational_reaches_clause(
                 input,
                 &mut signature.service_reach_keyword_source_spans,
                 &mut reaches,
@@ -342,7 +342,7 @@ fn parse_refinement_clause<'tokens, 'source>(
                 .suspends_keyword_source_spans
                 .push(input.current_source_span());
             input = input.take_contextual("suspends")?;
-            (signature.suspends, input) = crate::parsing::contracts::effects::operational_bound(input)?;
+            (signature.suspends, input) = crate::contracts::effects::operational_bound(input)?;
             continue;
         }
         if input.at_contextual("blocks") {
@@ -354,7 +354,7 @@ fn parse_refinement_clause<'tokens, 'source>(
                 .blocks_keyword_source_spans
                 .push(input.current_source_span());
             input = input.take_contextual("blocks")?;
-            (signature.blocks, input) = crate::parsing::contracts::effects::operational_bound(input)?;
+            (signature.blocks, input) = crate::contracts::effects::operational_bound(input)?;
             continue;
         }
         if input.at_contextual("terminates") {
@@ -372,7 +372,7 @@ fn parse_refinement_clause<'tokens, 'source>(
     }
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     signature.contracts =
-        crate::parsing::contracts::effects::publish_capability_contracts(syntax_trees, contracts);
+        crate::contracts::effects::publish_capability_contracts(syntax_trees, contracts);
     clauses.push(syntax_trees::item::TraitRefinementClause {
         requirement,
         signature,
@@ -512,7 +512,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             parameters,
             native_callback_parameters,
             return_type,
-            ..crate::parsing::parameters::callable::blank_state_signature()
+            ..crate::parameters::callable::blank_state_signature()
         },
         input,
     ))

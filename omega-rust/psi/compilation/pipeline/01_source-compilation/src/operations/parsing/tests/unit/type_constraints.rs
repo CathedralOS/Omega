@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::DataMember;
@@ -14,7 +14,7 @@ fn unary_const_arguments_retain_their_typed_evaluation_obligation() {
         "!false", "(!false)", "!!true", "~1u8", "(~1u8)", "!0", "~false",
     ] {
         let source = format!("data Main {{ value: Flag<{argument}>; }}");
-        let parsed = crate::parsing::tests::parse_source_verbose(
+        let parsed = crate::tests::parse_source_verbose(
             &source,
             "tokenize unary argument",
             "retain unary argument syntax",
@@ -55,7 +55,7 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> requires {equation} {{ storage: Backing; }}"
         );
-        let parsed = crate::parsing::tests::parse_source_verbose(
+        let parsed = crate::tests::parse_source_verbose(
             &source,
             "tokenize equation",
             "parse fixed-array type equation",
@@ -115,7 +115,7 @@ fn proof_fact_array_values_remain_value_expressions() {
         "&[1, 2] == &[1, 2]",
     ] {
         let source = format!("data Buffer requires {equation} {{ storage: u64; }}");
-        let parsed = crate::parsing::tests::parse_source_verbose(
+        let parsed = crate::tests::parse_source_verbose(
             &source,
             "tokenize array values",
             "parse array value equality",
@@ -217,7 +217,7 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
 #[test]
 fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
     let source = "data Buffer<Backing, Element, const Count: u64> requires Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         source,
         "tokenize generic element",
         "parse generic array element",
@@ -268,7 +268,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
         let equation = format!(
             "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
         );
-        let parsed = crate::parsing::tests::parse_source_verbose(
+        let parsed = crate::tests::parse_source_verbose(
             &equation,
             "tokenize computed extent",
             "computed extents are retained for semantic evaluation",
@@ -282,7 +282,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
             })
             .expect("the equation operand keeps its type role");
         let field = format!("data Buffer<Element, const Count: u64> {{ storage: {operand}; }}");
-        let field_parsed = crate::parsing::tests::parse_source_verbose(
+        let field_parsed = crate::tests::parse_source_verbose(
             &field,
             "tokenize computed extent",
             "computed extents are retained for semantic evaluation",
@@ -316,7 +316,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
 
 #[test]
 fn fixed_array_type_operand_is_not_runtime_value_syntax() {
-    let parsed = crate::parsing::tests::parse_source(
+    let parsed = crate::tests::parse_source(
         "machine main() -> u64 { [u8; 4] }",
         "type operands share the complete expression grammar",
     );

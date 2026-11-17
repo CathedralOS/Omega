@@ -1,6 +1,6 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::parse::parse_expression_handle_without_struct_literals;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::parse_expression_handle_without_struct_literals;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
@@ -10,7 +10,7 @@ use syntax_trees::statement::TableOutcomeProofSelector;
 use syntax_trees::statement::TransitionGuardNode;
 use tokens::{KeywordKind, PunctuationKind};
 
-pub(crate) use crate::parsing::patterns::bindings::{
+pub(crate) use crate::patterns::bindings::{
     DestructureBinding, rewrite_destructure_guard_expression,
 };
 
@@ -439,7 +439,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     }
 
     let (parsed_fields, pattern_rest) =
-        crate::parsing::patterns::fields::parse_destructure_fields(syntax_trees, after_path)?;
+        crate::patterns::fields::parse_destructure_fields(syntax_trees, after_path)?;
     let fields = parsed_fields
         .fields
         .iter()

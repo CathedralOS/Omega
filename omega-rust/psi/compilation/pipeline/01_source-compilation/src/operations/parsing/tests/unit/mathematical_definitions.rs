@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
@@ -211,7 +211,7 @@ fn empty_parameter_list_names_a_nullary_definition() {
 fn top_level_let_requires_a_body_or_boundary() {
     let tokens = Lexer::new("let f(): A;").tokenize().expect("tokenize");
     let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
-    crate::parsing::tests::expect_error(&error, "boundary let");
+    crate::tests::expect_error(&error, "boundary let");
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn boundary_let_rejects_a_body() {
         .tokenize()
         .expect("tokenize");
     let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
-    crate::parsing::tests::expect_error(&error, "`;`");
+    crate::tests::expect_error(&error, "`;`");
 }
 
 #[test]

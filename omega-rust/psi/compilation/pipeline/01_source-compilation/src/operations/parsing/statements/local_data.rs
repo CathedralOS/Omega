@@ -1,7 +1,7 @@
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::statements::expressions::expression_handle_to_statement_call;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_type_reference_handle_allowing_borrow;
+use crate::expressions::parse::parse_expression_handle;
+use crate::statements::expressions::expression_handle_to_statement_call;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle_allowing_borrow;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableMemberExpression,
@@ -113,7 +113,7 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
     };
     let (name, input) = input.take_identifier()?;
     let (relevance, input) =
-        crate::parsing::parameters::relevance::parse_binding_relevance_brackets(input, "local")?;
+        crate::parameters::relevance::parse_binding_relevance_brackets(input, "local")?;
     let (type_reference, input) = if input.at_punctuation(PunctuationKind::Colon) {
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
         parse_type_reference_handle_allowing_borrow(syntax_trees, input)?

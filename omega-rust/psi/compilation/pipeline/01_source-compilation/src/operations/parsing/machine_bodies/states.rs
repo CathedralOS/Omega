@@ -1,6 +1,6 @@
-use crate::parsing::declarations::items::{ParsedDeclaration, parse_item, starts_machine_declaration};
-use crate::parsing::statements::sequence::parse_statements;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::declarations::items::{ParsedDeclaration, parse_item, starts_machine_declaration};
+use crate::statements::sequence::parse_statements;
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -140,7 +140,7 @@ fn starts_retired_entry_member(input: Input<'_, '_>) -> bool {
     if after_name
         .tokens
         .first()
-        .is_some_and(crate::parsing::token_input::cursor::is_identifier_token_for_parser)
+        .is_some_and(crate::token_input::cursor::is_identifier_token_for_parser)
     {
         return true;
     }
@@ -180,7 +180,7 @@ fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {
     if !after_keyword
         .tokens
         .first()
-        .is_some_and(crate::parsing::token_input::cursor::is_identifier_token_for_parser)
+        .is_some_and(crate::token_input::cursor::is_identifier_token_for_parser)
     {
         return false;
     }
@@ -199,7 +199,7 @@ fn starts_state_member(input: Input<'_, '_>) -> bool {
         .restarted(input.tokens.get(1..).unwrap_or_default())
         .tokens
         .first()
-        .is_some_and(crate::parsing::token_input::cursor::is_identifier_token_for_parser)
+        .is_some_and(crate::token_input::cursor::is_identifier_token_for_parser)
 }
 
 fn parse_implicit_entry_state<'tokens, 'source>(

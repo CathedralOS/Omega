@@ -1,4 +1,4 @@
-use crate::parsing::frontend_fixture::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::{SyntaxTrees, expression::ExpressionNode, statement::StatementNode};
 
 #[test]
@@ -11,7 +11,7 @@ fn field_omission_is_one_final_standalone_marker_and_survives_copy() {
     ] {
         let text = format!("const VALUE: Item = {literal};");
         let tokens = Lexer::new(&text).tokenize().unwrap();
-        let syntax = crate::parsing::parse_syntax_trees(&tokens).unwrap();
+        let syntax = crate::parse_syntax_trees(&tokens).unwrap();
         let (handle, literal) = syntax
             .expressions
             .iter_expressions()
@@ -46,7 +46,7 @@ fn field_omission_is_one_final_standalone_marker_and_survives_copy() {
     ] {
         let text = format!("const VALUE: Item = {literal};");
         let tokens = Lexer::new(&text).tokenize().unwrap();
-        assert!(crate::parsing::parse_syntax_trees(&tokens).is_err(), "{literal}");
+        assert!(crate::parse_syntax_trees(&tokens).is_err(), "{literal}");
     }
 }
 
@@ -73,7 +73,7 @@ fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
 
 fn check_call_extents(text: &str, expected: &[(&str, &str, &str)]) {
     let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("syntax");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
     let mut copied = SyntaxTrees::new(source_text::SourceId::default());
     copied.extend_from(&syntax);
     for program in [&syntax, &copied] {
@@ -156,7 +156,7 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
         }
     "#;
     let tokens = Lexer::new(text).tokenize().expect("tokenize calls");
-    let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("parse calls");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("parse calls");
     let mut copied = SyntaxTrees::new(source_text::SourceId::default());
     copied.extend_from(&syntax);
     for program in [&syntax, &copied] {
@@ -197,7 +197,7 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
             "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool {{ {comparison} }}"
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
-        let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("ordinary comparison syntax");
+        let syntax = crate::parse_syntax_trees(&tokens).expect("ordinary comparison syntax");
         assert!(
             syntax.type_references.generic_nodes().is_empty(),
             "abandoned static argument probes publish no generic types"
@@ -210,7 +210,7 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
 fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
     let text = "const READ: i32 = Parent<u64>::read(); const NOTED: i32 = Sink<u8, bool>::note<Handler>(value); const COMPARED: bool = left < right;";
     let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("syntax");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
     let values = syntax
         .root_items()
         .filter_map(|item| match item {
@@ -277,7 +277,7 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
     for (role, text) in cases {
         let tokens = Lexer::new(text).tokenize().expect("tokens");
         let syntax =
-            crate::parsing::parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{role}: {error:?}"));
+            crate::parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{role}: {error:?}"));
         match role {
             "local" | "guard" => equalities += syntax.expressions.iter_expressions().filter(|(_, node)| matches!(node, ExpressionNode::Binary(binary)
                 if binary.operator == syntax_trees::expression::BinaryOperator::Equal
@@ -298,7 +298,7 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
 fn boolean_type_operands_do_not_turn_qualified_type_arguments_into_indices() {
     let text = "machine initialize<P, T>() -> AccessOutcome<Extent in Granted & Resident<P, T>, AccessReturn<Extent in Granted & Vacant, T>, Failure> {}";
     let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("qualified type arguments");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("qualified type arguments");
     let machine = syntax
         .root_items()
         .find_map(|item| match item {

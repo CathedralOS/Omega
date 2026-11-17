@@ -8,6 +8,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+source-parser = { path = "src/operations/parsing" }
+source-lexer = { path = "src/operations/lexing" }
 access-vocabulary = { path = "../../representations/access-vocabulary" }
 declaration-contracts = { path = "../../representations/declaration-contracts" }
 schema-reflection = { path = "../../representations/schema-reflection" }
@@ -37,7 +39,6 @@ filesystem-authority = { path = "../../../evaluation/filesystem-authority" }
 flow-effects = { path = "../../representations/source-effects" }
 language-core = { path = "../../representations/source-vocabulary" }
 layout-plans = { path = "../../representations/storage-layout" }
-memchr = "2"
 numerics = { path = "../../representations/scalar-values" }
 optimization = { path = "../../representations/optimization-policy" }
 proof-admission = { path = "../../proof-admission" }

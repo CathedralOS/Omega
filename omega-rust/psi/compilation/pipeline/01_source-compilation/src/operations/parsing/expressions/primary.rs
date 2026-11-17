@@ -1,5 +1,5 @@
-use crate::parsing::token_input::cursor::Input;
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::token_input::cursor::Input;
+use crate::types::references::parse_type_reference_handle;
 use source_text::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -20,7 +20,7 @@ pub(crate) fn try_uninvoked_application<'tokens, 'source>(
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
         let (selection, rest) =
-            crate::parsing::expressions::postfix::parse_static_name_selection(syntax, input).ok()??;
+            crate::expressions::postfix::parse_static_name_selection(syntax, input).ok()??;
         let application = selection.application?;
         if allows_type_expression && !application.member.is_valid() {
             return None;
@@ -91,9 +91,9 @@ fn probe_applied_requirement_head<'tokens, 'source>(
     let accepted = (|| {
         // This expression owns the applied receiver head; the call parser
         // consumes its member. A full type can itself include that member.
-        let (name, rest) = crate::parsing::types::references::parse_static_name(input).ok()?;
+        let (name, rest) = crate::types::references::parse_static_name(input).ok()?;
         let (reference, rest) =
-            crate::parsing::types::references::parse_named_type_reference(syntax, name, rest, false).ok()?;
+            crate::types::references::parse_named_type_reference(syntax, name, rest, false).ok()?;
         if !matches!(
             syntax.type_references.type_reference(reference),
             syntax_trees::types::TypeReferenceNode::Generic { .. }

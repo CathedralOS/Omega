@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 
 #[test]
 fn retired_receiver_parameters_reject_in_every_signature_owner() {
@@ -14,7 +14,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
         ] {
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let error = parse_syntax_trees(&tokens).expect_err("receiver must reject");
-            crate::parsing::tests::expect_error(&error, "`self` receivers are retired");
+            crate::tests::expect_error(&error, "`self` receivers are retired");
         }
     }
 }
@@ -30,7 +30,7 @@ fn implicit_self_expressions_and_transition_targets_reject() {
         let source = format!("machine run() {{ {body} }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let error = parse_syntax_trees(&tokens).expect_err("implicit subject must reject");
-        crate::parsing::tests::expect_error(&error, "implicit `self` is retired");
+        crate::tests::expect_error(&error, "implicit `self` is retired");
     }
 }
 

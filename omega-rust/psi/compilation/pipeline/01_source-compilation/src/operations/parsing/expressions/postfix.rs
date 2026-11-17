@@ -1,7 +1,7 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::context::ExpressionContext;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_cast_target_type_reference_handle;
+use crate::errors::parse_error::ParseError;
+use crate::expressions::context::ExpressionContext;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_cast_target_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -10,7 +10,7 @@ use syntax_trees::expression::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
-use crate::parsing::types::references::parse_domain_argument_handles;
+use crate::types::references::parse_domain_argument_handles;
 use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::identifier::Identifier;
 
@@ -21,10 +21,10 @@ pub(crate) fn parse_postfix_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    crate::parsing::expressions::parse::run_expression(
+    crate::expressions::parse::run_expression(
         syntax_trees,
         input,
-        crate::parsing::expressions::parse::Goal::Postfix(context),
+        crate::expressions::parse::Goal::Postfix(context),
     )
 }
 
@@ -191,7 +191,7 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
     let mut semantic_domain_arguments = arena::HandleSpan::empty();
     if input.at_contextual("in") {
         let after_in = input.take_contextual("in")?;
-        let (domain_name, rest) = crate::parsing::types::references::parse_static_name(after_in)?;
+        let (domain_name, rest) = crate::types::references::parse_static_name(after_in)?;
         match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
             Some(_) if form.is_recast() => {
                 return Err(input.error_here(
@@ -297,7 +297,7 @@ fn parse_cast_entries<'tokens, 'source>(
                     "`{sign}` after a cast begins a domain entry such as `{sign}Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
                 )));
         }
-        let (domain_name, rest) = crate::parsing::types::references::parse_static_name(after_sign)?;
+        let (domain_name, rest) = crate::types::references::parse_static_name(after_sign)?;
         let mut domain = ArithmeticDomain::Exact;
         let mut semantic_domain = arena::HandleSpan::empty();
         let mut semantic_domain_arguments = arena::HandleSpan::empty();
@@ -748,7 +748,7 @@ fn parse_static_value_alternatives<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
     let Some((expression, rest)) =
-        crate::parsing::expressions::static_arguments::parse_static_argument_expression(scratch, input)?
+        crate::expressions::static_arguments::parse_static_argument_expression(scratch, input)?
     else {
         return Ok(None);
     };
@@ -851,7 +851,7 @@ fn parse_static_type_argument<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<(StaticMachineArgument, Input<'tokens, 'source>), ParseError> {
     let (type_reference, rest) =
-        crate::parsing::types::references::parse_type_reference_handle(syntax_trees, input)?;
+        crate::types::references::parse_type_reference_handle(syntax_trees, input)?;
     Ok((
         StaticMachineArgument {
             type_reference,

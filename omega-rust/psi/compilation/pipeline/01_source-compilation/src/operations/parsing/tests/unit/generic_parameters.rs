@@ -1,9 +1,9 @@
-use crate::parsing::ParseError;
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parameters::generics::{
+use crate::ParseError;
+use crate::frontend_fixture::Lexer;
+use crate::parameters::generics::{
     GenericParameterSyntax, ParsedGenericParameters, parse_generic_parameters,
 };
-use crate::parsing::token_input::cursor::Input;
+use crate::token_input::cursor::Input;
 use source_text::SourceId;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{Item, MachineParameterContract, TypeParameterKind};
@@ -150,7 +150,7 @@ fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
         ] {
             let source = format!("{declaration} Carrier<machine Selected> {clause} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
-            let trees = crate::parsing::parse_syntax_trees(&tokens).expect("authored callable contract");
+            let trees = crate::parse_syntax_trees(&tokens).expect("authored callable contract");
             let parameters = match trees.root_items().next().unwrap() {
                 Item::Data(data) => data.type_parameters,
                 Item::TypeAlias(alias) => alias.type_parameters,
@@ -182,7 +182,7 @@ fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
             let source = format!("{declaration} Carrier<machine Selected> {clauses} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
             assert!(
-                crate::parsing::parse_syntax_trees(&tokens).is_err(),
+                crate::parse_syntax_trees(&tokens).is_err(),
                 "missing or duplicated contracts must refuse"
             );
         }

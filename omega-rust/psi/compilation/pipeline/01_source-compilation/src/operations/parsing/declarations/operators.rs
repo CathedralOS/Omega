@@ -1,8 +1,8 @@
-use crate::parsing::contracts::facts::parse_proof_facts_until;
-use crate::parsing::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::contracts::facts::parse_proof_facts_until;
+use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
 use syntax_trees::operator_spelling::OperatorSpelling;
@@ -106,7 +106,7 @@ pub(crate) fn parse_operator_spelling<'tokens, 'source>(
 fn parse_operator_contract<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: &mut Input<'tokens, 'source>,
-) -> Result<CapabilityContract, crate::parsing::errors::parse_error::ParseError> {
+) -> Result<CapabilityContract, crate::errors::parse_error::ParseError> {
     if input.at_contextual("requires") {
         let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("requires")?;
@@ -138,7 +138,7 @@ fn parse_operator_contract<'tokens, 'source>(
                 ));
         }
         let (cause, after_cause) = input.take_identifier()?;
-        let cause = crate::parsing::contracts::effects::parse_crash_cause(&cause, after_cause)?;
+        let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
         let after_header = after_cause;
         let header_token_count = 2usize;
         *input = after_header;
@@ -163,7 +163,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
     input: &mut Input<'tokens, 'source>,
     kind: CapabilityContractKind,
     keyword_source_span: Option<source_text::SourceSpan>,
-) -> Result<CapabilityContract, crate::parsing::errors::parse_error::ParseError> {
+) -> Result<CapabilityContract, crate::errors::parse_error::ParseError> {
     let ((facts, token_count), rest) =
         parse_proof_facts_until(syntax_trees, *input, operator_contract_terminator)?;
     *input = rest;

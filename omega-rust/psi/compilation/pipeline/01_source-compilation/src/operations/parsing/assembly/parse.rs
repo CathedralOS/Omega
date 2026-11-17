@@ -1,9 +1,9 @@
-use crate::parsing::assembly::generated_statements;
+use crate::assembly::generated_statements;
 
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::transitions::targets::parse_transition_block_target_handle;
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::parse_expression_handle;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::transitions::targets::parse_transition_block_target_handle;
 use arena::HandleSpan;
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmFenceKind, AsmInstructionAvailability, AsmInstructionRefusal,

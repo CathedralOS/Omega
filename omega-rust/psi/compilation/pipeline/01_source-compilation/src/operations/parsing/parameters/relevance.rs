@@ -1,4 +1,4 @@
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::token_input::cursor::{Input, ParseResult};
 use tokens::PunctuationKind;
 
 pub(crate) fn parse_binding_relevance_brackets<'tokens, 'source>(

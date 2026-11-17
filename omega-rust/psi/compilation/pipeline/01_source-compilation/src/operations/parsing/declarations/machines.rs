@@ -1,19 +1,19 @@
-use crate::parsing::declarations::operators::parse_operator_spelling;
-use crate::parsing::machine_bodies::states;
-use crate::parsing::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::declarations::operators::parse_operator_spelling;
+use crate::machine_bodies::states;
+use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Machine;
 use tokens::PunctuationKind;
 
-use crate::parsing::contracts::clauses::parse_machine_clauses;
-use crate::parsing::contracts::conformance::parse_satisfies_traits;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::parameters::requirements::validate_machine_parameter_contracts;
+use crate::contracts::clauses::parse_machine_clauses;
+use crate::contracts::conformance::parse_satisfies_traits;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::parameters::requirements::validate_machine_parameter_contracts;
 
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -89,7 +89,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             .same_stack_clause_span
             .expect("a positive stack demand records its clause span");
         if !bodyless {
-            return Err(crate::parsing::errors::parse_error::ParseError::at_source_span(
+            return Err(crate::errors::parse_error::ParseError::at_source_span(
                 "`stack N bytes` admits demand only on a bodyless external realization",
                 span,
             ));
@@ -100,7 +100,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             .iter()
             .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
         if !has_external_binding {
-            return Err(crate::parsing::errors::parse_error::ParseError::at_source_span(
+            return Err(crate::errors::parse_error::ParseError::at_source_span(
                 "`stack N bytes` requires a `satisfies ... via ...` binding",
                 span,
             ));

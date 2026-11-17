@@ -603,7 +603,7 @@ fn native_and_psi_execute_the_finite_family_contract() {
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(), retain_native_inputs: false,
         retain_native_stage_inputs: false, image: Default::default(), private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(

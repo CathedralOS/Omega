@@ -1,18 +1,18 @@
-use crate::parsing::declarations::namespaces::{parse_module_declaration, parse_package_declaration};
+use crate::declarations::namespaces::{parse_module_declaration, parse_package_declaration};
 
-use crate::parsing::declarations::capabilities::parse_capability_definition;
-use crate::parsing::declarations::constants::parse_const_definition;
-use crate::parsing::declarations::data::{parse_boundary_data_definition, parse_data_definition};
-use crate::parsing::declarations::domains::parse_domain_definition;
-use crate::parsing::declarations::imports::parse_use_item;
-use crate::parsing::declarations::machines::parse_machine;
-use crate::parsing::declarations::mathematical_bindings::parse_let_definition;
-use crate::parsing::declarations::measures::parse_measure_definition;
-use crate::parsing::declarations::operators::parse_operator_definition;
-use crate::parsing::declarations::propositions::parse_proposition_definition;
-use crate::parsing::declarations::traits::parse_trait_definition;
-use crate::parsing::expressions::parse::parse_proof_fact_expression_handle;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::declarations::capabilities::parse_capability_definition;
+use crate::declarations::constants::parse_const_definition;
+use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
+use crate::declarations::domains::parse_domain_definition;
+use crate::declarations::imports::parse_use_item;
+use crate::declarations::machines::parse_machine;
+use crate::declarations::mathematical_bindings::parse_let_definition;
+use crate::declarations::measures::parse_measure_definition;
+use crate::declarations::operators::parse_operator_definition;
+use crate::declarations::propositions::parse_proposition_definition;
+use crate::declarations::traits::parse_trait_definition;
+use crate::expressions::parse::parse_proof_fact_expression_handle;
+use crate::token_input::cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, MathematicalDefinition};
@@ -393,13 +393,13 @@ fn parse_declared_item<'tokens, 'source>(
     }
 
     if let Some((alias, rest)) = named_implementation_prefix(input) {
-        return crate::parsing::declarations::conformances::parse_conformance(syntax_trees, alias, rest);
+        return crate::declarations::conformances::parse_conformance(syntax_trees, alias, rest);
     }
     if let Ok((alias, rest)) = input.take_identifier()
         && (rest.at_punctuation(PunctuationKind::Colon)
             || rest.at_punctuation(PunctuationKind::Less))
     {
-        return crate::parsing::declarations::conformances::parse_conformance(syntax_trees, alias, rest);
+        return crate::declarations::conformances::parse_conformance(syntax_trees, alias, rest);
     }
 
     if input.at_contextual("satisfies") {

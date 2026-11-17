@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use language_core::BindingRelevance;
 use language_core::ReferenceAccess;
 use syntax_trees::expression::ExpressionNode;
@@ -18,7 +18,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic;
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "compiler intrinsic binding should parse");
+    let parsed = crate::tests::parse_source(source, "compiler intrinsic binding should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -58,7 +58,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
             value
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         source,
         "tokenize",
         "parse exact requirement application",
@@ -118,7 +118,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
         satisfies Kernel32Requirements::write_file
         via write_file_binding();
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "ordinary via call should parse");
+    let parsed = crate::tests::parse_source(source, "ordinary via call should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -160,11 +160,11 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
-    let error = crate::parsing::tests::parse_tokenized_error(
+    let error = crate::tests::parse_tokenized_error(
         source,
         "compiler intrinsic identity is derived, never authored",
     );
-    crate::parsing::tests::expect_error(&error, "found punctuation `(`");
+    crate::tests::expect_error(&error, "found punctuation `(`");
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
         satisfies Firmware::invoke
         via ForeignBinding::VtableSlot(not_an_integer_payload);
     "#;
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         source,
         "tokenize retired vtable slot",
         "authored numeric vtable slots are retired",
@@ -201,7 +201,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
         satisfies Contract::call
         via ForeignBinding::DllImport("legacy.dll", "call");
     "#;
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         source,
         "tokenize retired string-backed import",
         "authored string-backed import bootstrap is retired",
@@ -217,7 +217,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
 #[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
-    let error = crate::parsing::tests::parse_tokenized_error(source, "identity above u64::MAX must fail");
+    let error = crate::tests::parse_tokenized_error(source, "identity above u64::MAX must fail");
     assert!(error.message.contains("nonnegative u64"));
 }
 
@@ -246,8 +246,8 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
             case Wrapped(witness [erased]: i32);
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "field relevance should parse");
-    let data = crate::parsing::tests::root_data(&parsed, "data declaration");
+    let parsed = crate::tests::parse_source(source, "field relevance should parse");
+    let data = crate::tests::root_data(&parsed, "data declaration");
     let members = parsed.items.data_members(data.members);
     let syntax_trees::item::DataMember::Field(value) = &members[0] else {
         panic!("value field");
@@ -283,7 +283,7 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
         ),
     ] {
         let error =
-            crate::parsing::tests::parse_tokenized_error(source, "invalid field property must reject");
+            crate::tests::parse_tokenized_error(source, "invalid field property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -297,8 +297,8 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             let mut y: i32 = 1;
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "binding relevance should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine declaration");
+    let parsed = crate::tests::parse_source(source, "binding relevance should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine declaration");
     let [state] = parsed.items.state_handles(machine.states) else {
         panic!("one state");
     };
@@ -348,7 +348,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
         ),
     ] {
         let error =
-            crate::parsing::tests::parse_tokenized_error(source, "invalid binding property must reject");
+            crate::tests::parse_tokenized_error(source, "invalid binding property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -447,14 +447,14 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
 
-    let data = crate::parsing::tests::root_data(&parsed, "data declaration");
+    let data = crate::tests::root_data(&parsed, "data declaration");
     assert_eq!(data.lifetime_parameters.len(), 1);
     assert_eq!(data.lifetime_parameters[0].as_str(&parsed), "buf");
     assert_eq!(data.type_parameters.count(), 1);
 
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine declaration");
+    let machine = crate::tests::root_machine(&parsed, "machine declaration");
     assert_eq!(machine.lifetime_parameters.len(), 1);
     assert_eq!(machine.lifetime_parameters[0].as_str(&parsed), "call");
     assert!(machine.type_parameters.is_empty());
@@ -470,8 +470,8 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
         machine borrow<'call>(value: &'call i32) -> View<'call, i32> {}
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine declaration");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine declaration");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -564,8 +564,8 @@ fn parses_generic_standalone_conformance_arguments() {
         ScalarConversion satisfies Converter<i32, bool> {}
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "generic conformance should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "generic conformance should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
     let arguments = parsed
         .type_references
         .type_reference_handles(conformance.trait_arguments);
@@ -598,8 +598,8 @@ fn parses_name_owned_generic_conformance_telescope() {
         {}
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "generic conformance should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "generic conformance should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
     assert_eq!(conformance.lifetime_parameters[0].as_str(&parsed), "scope");
@@ -639,8 +639,8 @@ fn parses_named_implementation_block() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "named implementation should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "named implementation should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
     assert_eq!(
         conformance
             .alias
@@ -677,19 +677,19 @@ fn data_subject_satisfaction_is_rejected() {
         "trait Ranked<Item> { } data Card { } PowerOrder: Card satisfies Ranked<Card>;",
         "trait Ranked<Item> { } PowerOrder<Item>: Item satisfies Ranked<Item> { }",
     ] {
-        let error = crate::parsing::tests::parse_tokenized_error(source, "data cannot satisfy a trait");
-        crate::parsing::tests::expect_error(&error, "data does not satisfy traits");
+        let error = crate::tests::parse_tokenized_error(source, "data cannot satisfy a trait");
+        crate::tests::expect_error(&error, "data does not satisfy traits");
     }
 }
 
 #[test]
 fn qualified_trait_requirement_names_are_rejected() {
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         "trait Ranked<Item> { machine Self::before(value: &Item, other: &Item) -> bool; }",
         "tokenize should succeed",
         "a requirement has no subject qualifier",
     );
-    crate::parsing::tests::expect_error(&error, "declares its bare name");
+    crate::tests::expect_error(&error, "declares its bare name");
 }
 
 #[test]
@@ -724,8 +724,8 @@ fn parses_closed_conformance_block_members() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "closed conformance block should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "closed conformance block should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
     let [before, rank_value] = parsed.items.conformance_members(conformance.members) else {
         panic!("two retained conformance members");
     };
@@ -751,8 +751,8 @@ fn selection_row_names_its_slot_and_the_existing_machine() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "a selection row should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "a selection row should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
     let [member] = parsed.items.conformance_members(conformance.members) else {
         panic!("one retained conformance member");
     };
@@ -789,8 +789,8 @@ fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "an exact edge on a member should parse");
-    let conformance = crate::parsing::tests::root_conformance(&parsed, "conformance root item");
+    let parsed = crate::tests::parse_source(source, "an exact edge on a member should parse");
+    let conformance = crate::tests::root_conformance(&parsed, "conformance root item");
     let [member] = parsed.items.conformance_members(conformance.members) else {
         panic!("one retained conformance member");
     };
@@ -814,8 +814,8 @@ fn rejects_retired_machine_where_clause() {
         { }
     "#;
 
-    let error = crate::parsing::tests::parse_tokenized_error(source, "a machine `where` clause is retired");
-    crate::parsing::tests::expect_error(&error, "found identifier `where`");
+    let error = crate::tests::parse_tokenized_error(source, "a machine `where` clause is retired");
+    crate::tests::expect_error(&error, "found identifier `where`");
 }
 
 #[test]
@@ -828,8 +828,8 @@ fn parses_evidence_binder_in_machine_telescope() {
         ) {}
     "#;
     let parsed =
-        crate::parsing::tests::parse_source_verbose(source, "tokenize", "an evidence binder should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine");
+        crate::tests::parse_source_verbose(source, "tokenize", "an evidence binder should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine");
 
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1, "Order is not a runtime type parameter");
@@ -852,8 +852,8 @@ fn rejects_subject_spelled_evidence_binder() {
         ) {}
     "#;
     let error =
-        crate::parsing::tests::parse_source_error(source, "tokenize", "a conformance has no data subject");
-    crate::parsing::tests::expect_error(&error, "a conformance has no data subject");
+        crate::tests::parse_source_error(source, "tokenize", "a conformance has no data subject");
+    crate::tests::expect_error(&error, "a conformance has no data subject");
 }
 
 #[test]
@@ -868,9 +868,9 @@ fn rejects_retired_dyn_type_forms() {
         "data Choices { order: [dyn Ranked<Card>; 2]; }",
         "machine choose() { let order: u64 = PowerOrder as dyn Ranked<Card>; }",
     ] {
-        let error = crate::parsing::tests::parse_source_error(source, "tokenize", "dyn is retired");
-        crate::parsing::tests::expect_error(&error, "`dyn` types are retired");
-        crate::parsing::tests::expect_error(&error, "machine values and `some` packages");
+        let error = crate::tests::parse_source_error(source, "tokenize", "dyn is retired");
+        crate::tests::expect_error(&error, "`dyn` types are retired");
+        crate::tests::expect_error(&error, "machine values and `some` packages");
     }
 }
 
@@ -880,9 +880,9 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
         machine borrow(shared: &u8, mutable: &mut u8, output: &write u8) {}
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "reference access modes should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "reference access modes should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     let accesses = parsed
         .items
         .state_parameters(state.parameters)
@@ -917,7 +917,7 @@ fn parses_trait_header_evidence_binder() {
         { }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "trait header binder should parse");
+    let parsed = crate::tests::parse_source(source, "trait header binder should parse");
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -943,9 +943,9 @@ fn parses_attached_main_state_name_as_main() {
         machine Main::main(main: &mut Main) {}
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     assert_eq!(state.name.as_str(&parsed), "main");
 }
 
@@ -955,7 +955,7 @@ fn retired_spawn_forms_name_the_task_runtime_migration() {
         "machine run() { spawn { Worker::run(); } }",
         "machine run() { let task: i32 = spawn { Worker::run() }; }",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             source,
             "tokenize should succeed",
             "spawn must be retired",
@@ -974,7 +974,7 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
         let source = format!(
             "boundary trait Flags {{ machine open_read() -> i32 reaches crashes none; }}\n{declaration}"
         );
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "provides syntax must be retired");
+        let error = crate::tests::parse_tokenized_error(&source, "provides syntax must be retired");
         assert!(
             error
                 .message
@@ -995,7 +995,7 @@ fn retired_library_block_names_the_boundary_provider_migration() {
                 boundary host
         }
     "#;
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         source,
         "tokenize retired library block",
         "library blocks must be retired",

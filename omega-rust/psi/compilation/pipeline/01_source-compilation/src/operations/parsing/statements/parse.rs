@@ -1,20 +1,20 @@
-use crate::parsing::assembly::parse::parse_asm_block_statement_handles;
-use crate::parsing::declarations::items::starts_machine_declaration;
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::statements::bindings::try_desugar_atomic_let;
-use crate::parsing::statements::bindings::try_desugar_atomic_store;
-use crate::parsing::statements::destructuring::{
+use crate::assembly::parse::parse_asm_block_statement_handles;
+use crate::declarations::items::starts_machine_declaration;
+use crate::expressions::parse::parse_expression_handle;
+use crate::statements::bindings::try_desugar_atomic_let;
+use crate::statements::bindings::try_desugar_atomic_store;
+use crate::statements::destructuring::{
     reject_retired_proof_output_binding, try_parse_destructure_let, try_parse_proof_output_binding,
 };
-use crate::parsing::statements::expressions::{
+use crate::statements::expressions::{
     expression_handle_to_statement_call, root_binding_declaration,
 };
-use crate::parsing::statements::local_data::{
+use crate::statements::local_data::{
     copy_compound_assignment_target, parse_discard_statement_handle,
     parse_if_transition_statement_handle, parse_local_data,
 };
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::transitions::blocks::parse_transition_block_handles;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::transitions::blocks::parse_transition_block_handles;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};

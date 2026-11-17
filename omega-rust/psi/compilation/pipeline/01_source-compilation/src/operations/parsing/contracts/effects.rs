@@ -1,8 +1,8 @@
 /// A bare operational clause permits the effect. An explicit Boolean
 /// states its bound without conflating `false` with omission.
 pub(crate) fn operational_bound<'tokens, 'source>(
-    input: crate::parsing::token_input::cursor::Input<'tokens, 'source>,
-) -> crate::parsing::token_input::cursor::ParseResult<'tokens, 'source, bool> {
+    input: crate::token_input::cursor::Input<'tokens, 'source>,
+) -> crate::token_input::cursor::ParseResult<'tokens, 'source, bool> {
     use tokens::KeywordKind;
     if input.at_keyword(KeywordKind::False) {
         Ok((false, input.take_keyword(KeywordKind::False, "false")?))
@@ -13,11 +13,11 @@ pub(crate) fn operational_bound<'tokens, 'source>(
     }
 }
 
-use crate::parsing::errors::parse_error::ParseError;
+use crate::errors::parse_error::ParseError;
 
 pub(crate) fn parse_crash_cause<'tokens, 'source>(
     cause: &syntax_trees::identifier::Identifier,
-    after_cause: crate::parsing::token_input::cursor::Input<'tokens, 'source>,
+    after_cause: crate::token_input::cursor::Input<'tokens, 'source>,
 ) -> Result<syntax_trees::item::CrashCause, ParseError> {
     use syntax_trees::item::CrashCause;
     match cause.as_str(&after_cause) {
@@ -32,7 +32,7 @@ pub(crate) fn parse_crash_cause<'tokens, 'source>(
 
 pub(crate) fn reject_retired_operational_reach(
     service: &syntax_trees::identifier::Identifier,
-    input: crate::parsing::token_input::cursor::Input<'_, '_>,
+    input: crate::token_input::cursor::Input<'_, '_>,
 ) -> Result<(), ParseError> {
     let replacement = match service.as_str(&input) {
         "Suspend" => "suspends",
@@ -46,9 +46,9 @@ pub(crate) fn reject_retired_operational_reach(
     )))
 }
 pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
-    input: crate::parsing::token_input::cursor::Input<'tokens, 'source>,
+    input: crate::token_input::cursor::Input<'tokens, 'source>,
     service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
-) -> Result<crate::parsing::token_input::cursor::Input<'tokens, 'source>, ParseError> {
+) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
     let (service, rest) = input.take_identifier()?;
     reject_retired_operational_reach(&service, rest)?;
@@ -63,12 +63,12 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
 }
 
 pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
-    input: crate::parsing::token_input::cursor::Input<'tokens, 'source>,
+    input: crate::token_input::cursor::Input<'tokens, 'source>,
     service_reach_keyword_source_spans: &mut Vec<source_text::SourceSpan>,
     service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
     service_reach_is_installation_bound: &mut bool,
-    at_clause_boundary: impl Fn(crate::parsing::token_input::cursor::Input<'_, '_>) -> bool,
-) -> Result<crate::parsing::token_input::cursor::Input<'tokens, 'source>, ParseError> {
+    at_clause_boundary: impl Fn(crate::token_input::cursor::Input<'_, '_>) -> bool,
+) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
     service_reach_keyword_source_spans.push(input.current_source_span());
     let mut input = input.take_contextual("reaches")?;
@@ -128,10 +128,10 @@ pub(crate) fn publish_capability_contracts(
 /// cause set an omitted clause denotes on a published surface today; the
 /// explicit spelling exists so that promise is readable without the rule.
 pub(crate) fn finish_crashes_none<'tokens, 'source>(
-    after_none: crate::parsing::token_input::cursor::Input<'tokens, 'source>,
+    after_none: crate::token_input::cursor::Input<'tokens, 'source>,
     other_route_present: bool,
-    at_clause_boundary: impl Fn(crate::parsing::token_input::cursor::Input<'_, '_>) -> bool,
-) -> Result<crate::parsing::token_input::cursor::Input<'tokens, 'source>, ParseError> {
+    at_clause_boundary: impl Fn(crate::token_input::cursor::Input<'_, '_>) -> bool,
+) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
     if other_route_present {
         return Err(after_none
             .error_here("`crashes none` cannot share a header with a `crashes Cause` route"));

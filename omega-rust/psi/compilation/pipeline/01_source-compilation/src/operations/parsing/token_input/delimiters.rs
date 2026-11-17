@@ -1,4 +1,4 @@
-use crate::parsing::token_input::cursor::Input;
+use crate::token_input::cursor::Input;
 use tokens::PunctuationKind;
 
 pub(crate) fn find_top_level_punctuation(

@@ -53,11 +53,9 @@ pub(crate) mod checking;
 #[path = "operations/checking/src/lib.rs"]
 pub mod checking;
 #[cfg(not(any(test, feature = "test-support")))]
-#[path = "operations/lexing/lexer.rs"]
-pub(crate) mod lexing;
+pub(crate) use source_lexer as lexing;
 #[cfg(any(test, feature = "test-support"))]
-#[path = "operations/lexing/lexer.rs"]
-pub mod lexing;
+pub use source_lexer as lexing;
 #[cfg(not(any(test, feature = "test-support")))]
 #[path = "operations/lowering/src/lib.rs"]
 pub(crate) mod lowering;
@@ -65,11 +63,9 @@ pub(crate) mod lowering;
 #[path = "operations/lowering/src/lib.rs"]
 pub mod lowering;
 #[cfg(not(any(test, feature = "test-support")))]
-#[path = "operations/parsing/parser.rs"]
-pub(crate) mod parsing;
+pub(crate) use source_parser as parsing;
 #[cfg(any(test, feature = "test-support"))]
-#[path = "operations/parsing/parser.rs"]
-pub mod parsing;
+pub use source_parser as parsing;
 #[cfg(not(any(test, feature = "test-support")))]
 #[path = "operations/preparation/src/lib.rs"]
 pub(crate) mod preparation;

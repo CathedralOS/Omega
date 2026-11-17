@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use language_core::DataSupplyMode;
 use language_core::Multiplicity;
 use language_core::OperatorSpelling;
@@ -22,7 +22,7 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
             }
         }
     "#;
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         source,
         "tokenize retired capability entry",
         "capability entry must be retired",
@@ -88,7 +88,7 @@ fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
         "machine run { public entry() {} }",
         "machine run { public entry begin() {} }",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             retired,
             "tokenize retired explicit machine entry",
             "explicit machine entry members must be retired",
@@ -114,7 +114,7 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
         "capability Legacy { state run() { boundary host; } }",
         "capability Legacy { state run() { boundary LegacyHost; } }",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             retired,
             "tokenize retired trailing boundary contract",
             "trailing boundary contract clauses must be retired",
@@ -137,7 +137,7 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
 #[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
-    let error = crate::parsing::tests::parse_tokenized_error(retired, "Join<T> must be retired");
+    let error = crate::tests::parse_tokenized_error(retired, "Join<T> must be retired");
     let rendered = error.message;
     assert!(rendered.contains("Join<T>") && rendered.contains("finish()"));
 
@@ -159,7 +159,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
         data Receipt [linear] {}
         data Envelope<T [linear]> [linear] { value: T; }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "linear properties should parse");
+    let parsed = crate::tests::parse_source(source, "linear properties should parse");
     let data: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -178,7 +178,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
 #[test]
 fn multiplicity_property_lists_accept_trailing_commas() {
     let source = "data Copy [copy,] {} data Linear [linear,] {}";
-    let parsed = crate::parsing::tests::parse_source(source, "trailing property commas should parse");
+    let parsed = crate::tests::parse_source(source, "trailing property commas should parse");
     let multiplicities = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -196,7 +196,7 @@ fn multiplicity_property_lists_accept_trailing_commas() {
 #[test]
 fn copy_and_linear_properties_are_mutually_exclusive() {
     for source in ["data Bad [copy, linear] {}", "data Bad [linear, copy] {}"] {
-        let error = crate::parsing::tests::parse_tokenized_error(
+        let error = crate::tests::parse_tokenized_error(
             source,
             "copy and linear must not coexist on one declaration",
         );
@@ -218,12 +218,12 @@ fn carry_property_parses_all_four_axes_on_data_and_bounds() {
             address: movable,
         )]> { value: T; }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         source,
         "tokenize",
         "four-axis carry properties should parse",
     );
-    let data = crate::parsing::tests::root_data_items(&parsed);
+    let data = crate::tests::root_data_items(&parsed);
 
     assert_eq!(
         data[0].properties.carry,
@@ -242,11 +242,11 @@ fn carry_property_parses_all_four_axes_on_data_and_bounds() {
 fn carry_property_requires_every_axis_and_retires_send() {
     let missing = "data Bad [carry(suspension: allowed, cpu: any, thread: any)] {}";
     let error =
-        crate::parsing::tests::parse_source_error(missing, "tokenize", "partial carry policy must reject");
+        crate::tests::parse_source_error(missing, "tokenize", "partial carry policy must reject");
     assert!(error.message.contains("missing address"));
 
     let retired = "data Bad [send] {}";
-    let error = crate::parsing::tests::parse_source_error(retired, "tokenize", "send must remain retired");
+    let error = crate::tests::parse_source_error(retired, "tokenize", "send must remain retired");
     assert!(error.message.contains("`[send]` is retired"));
 }
 
@@ -256,7 +256,7 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
         .tokenize()
         .expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("opaque boundary data should parse");
-    let data = crate::parsing::tests::root_data(&parsed, "data item");
+    let data = crate::tests::root_data(&parsed, "data item");
 
     assert_eq!(data.supply_mode, DataSupplyMode::BoundaryOpaque);
     assert!(data.members.is_empty());
@@ -278,7 +278,7 @@ fn parses_plain_and_boundary_traits() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let traits: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -311,8 +311,8 @@ fn parses_trait_owned_fixed_operator_requirements() {
             machine equivalent(left: T, right: T) -> bool;
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "trait operators should parse");
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "Ranked trait");
+    let parsed = crate::tests::parse_source(source, "trait operators should parse");
+    let trait_definition = crate::tests::root_trait(&parsed, "Ranked trait");
     let requirements = parsed.items.state_signatures(trait_definition.machines);
 
     assert_eq!(requirements.len(), 2);
@@ -329,8 +329,8 @@ fn rejects_retired_operator_introducer_on_trait_requirements() {
         "trait Ranked<T> { operator < compare(left: T, right: T) -> bool; }",
         "trait Ranked<T> { operator equivalent(left: T, right: T) -> bool; }",
     ] {
-        let error = crate::parsing::tests::parse_tokenized_error(source, "trait `operator` must reject");
-        crate::parsing::tests::expect_error(&error, "the `operator` introducer is retired");
+        let error = crate::tests::parse_tokenized_error(source, "trait `operator` must reject");
+        crate::tests::expect_error(&error, "the `operator` introducer is retired");
     }
 }
 
@@ -350,8 +350,8 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "operational clauses should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine item");
+    let parsed = crate::tests::parse_source(source, "operational clauses should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine item");
     assert!(machine.suspends);
     assert!(machine.blocks);
     assert_eq!(machine.suspends_keyword_source_spans.len(), 1);
@@ -362,7 +362,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     assert_eq!(service_reaches.len(), 1);
     assert_eq!(service_reaches[0].as_str(&parsed), "Console");
 
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait item");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     assert!(signature.suspends);
@@ -448,8 +448,8 @@ fn parses_machine_requires_before_reaches_on_one_line() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "requires before reaches should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine item");
+    let parsed = crate::tests::parse_source(source, "requires before reaches should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine item");
 
     let service_reaches = parsed
         .items
@@ -491,7 +491,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "clause orderings should parse");
+    let parsed = crate::tests::parse_source(source, "clause orderings should parse");
 
     let machine = |name: &str| {
         parsed
@@ -544,7 +544,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         ExpressionNode::Call(_)
     ));
 
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait item");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait item");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
@@ -600,8 +600,8 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "crash buckets should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine item");
+    let parsed = crate::tests::parse_source(source, "crash buckets should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine item");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     let CapabilityContractKind::Crashes { cause } = &contracts[0].kind else {
@@ -616,7 +616,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
     assert_eq!(*cause, CrashCause::Abort);
     assert!(parsed.items.proof_facts(contracts[1].facts).is_empty());
 
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait item");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait item");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
@@ -637,8 +637,8 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
         crashes Trap
             denominator == 0;
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "operator crash bucket should parse");
-    let operator = crate::parsing::tests::root_operator(&parsed, "operator item");
+    let parsed = crate::tests::parse_source(source, "operator crash bucket should parse");
+    let operator = crate::tests::root_operator(&parsed, "operator item");
     let [contract] = parsed.items.capability_contracts(operator.contracts) else {
         panic!("operator should carry one crash bucket");
     };
@@ -661,8 +661,8 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
         boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
         operator named(left: i32, right: i32) -> i32;
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "fixed-token heads should parse");
-    let operators = crate::parsing::tests::root_operators(&parsed);
+    let parsed = crate::tests::parse_source(source, "fixed-token heads should parse");
+    let operators = crate::tests::root_operators(&parsed);
 
     assert_eq!(operators.len(), 4);
     assert!(operators[0].is_public);
@@ -676,9 +676,9 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
 #[test]
 fn rejects_retired_operator_spelling_clause() {
     let source = "operator add(left: i32, right: i32) -> i32 spelling +;";
-    let error = crate::parsing::tests::parse_tokenized_error(source, "retired clause must reject");
+    let error = crate::tests::parse_tokenized_error(source, "retired clause must reject");
 
-    crate::parsing::tests::expect_error(&error, "expected `;`");
+    crate::tests::expect_error(&error, "expected `;`");
 }
 
 #[test]
@@ -699,8 +699,8 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         }
         machine ordinary(value: u64) -> u64 { value }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "machine token heads should parse");
-    let machines = crate::parsing::tests::root_machines(&parsed);
+    let parsed = crate::tests::parse_source(source, "machine token heads should parse");
+    let machines = crate::tests::root_machines(&parsed);
 
     assert_eq!(machines.len(), 6);
     assert_eq!(machines[0].spelling, Some(OperatorSpelling::Add));
@@ -758,8 +758,8 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
             "a conformance member supplies an implementation",
         ),
     ] {
-        let error = crate::parsing::tests::parse_tokenized_error(source, "malformed token head must reject");
-        crate::parsing::tests::expect_error(&error, expected);
+        let error = crate::tests::parse_tokenized_error(source, "malformed token head must reject");
+        crate::tests::expect_error(&error, expected);
     }
 }
 
@@ -779,7 +779,7 @@ fn rejects_all_retired_invariant_declaration_forms_with_direction() {
             "the `invariant` machine member is retired",
         ),
     ] {
-        let error = crate::parsing::tests::parse_tokenized_error(source, "retired invariant must reject");
+        let error = crate::tests::parse_tokenized_error(source, "retired invariant must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -790,7 +790,7 @@ fn rejects_retired_provider_item_and_operator_clause() {
         .tokenize()
         .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("provider items must reject");
-    crate::parsing::tests::expect_error(&error, "expected one of");
+    crate::tests::expect_error(&error, "expected one of");
 
     let tokens = Lexer::new(
         "boundary operator [] Slice::index(items: &[u8], index: u64) -> u8 provider Slice;",
@@ -798,7 +798,7 @@ fn rejects_retired_provider_item_and_operator_clause() {
     .tokenize()
     .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("operator provider clauses must reject");
-    crate::parsing::tests::expect_error(&error, "expected `;`");
+    crate::tests::expect_error(&error, "expected `;`");
 }
 
 #[test]
@@ -820,8 +820,8 @@ fn rejects_unknown_or_multiple_fixed_operator_tokens() {
 #[test]
 fn rejects_unknown_crash_causes() {
     let source = "machine fail() crashes Panic {}";
-    let error = crate::parsing::tests::parse_tokenized_error(source, "unknown crash cause must fail");
-    crate::parsing::tests::expect_error(
+    let error = crate::tests::parse_tokenized_error(source, "unknown crash cause must fail");
+    crate::tests::expect_error(
         &error,
         "unknown crash cause `Panic`; expected `Trap` or `Abort`",
     );
@@ -836,8 +836,8 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
             crash Abort;
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "explicit crash should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine item");
+    let parsed = crate::tests::parse_source(source, "explicit crash should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -859,15 +859,15 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
 #[test]
 fn rejects_duplicate_operational_clauses() {
     let source = "machine run() suspends suspends {}";
-    let error = crate::parsing::tests::parse_tokenized_error(source, "duplicate clause must fail");
-    crate::parsing::tests::expect_error(&error, "duplicate `suspends`");
+    let error = crate::tests::parse_tokenized_error(source, "duplicate clause must fail");
+    crate::tests::expect_error(&error, "duplicate `suspends`");
 }
 
 #[test]
 fn rejects_legacy_effects_reach_clause() {
     let source = "machine run() effects Console {}";
-    let error = crate::parsing::tests::parse_tokenized_error(source, "legacy reach spelling must fail");
-    crate::parsing::tests::expect_error(&error, "`effects` reach clause is retired");
+    let error = crate::tests::parse_tokenized_error(source, "legacy reach spelling must fail");
+    crate::tests::expect_error(&error, "`effects` reach clause is retired");
     assert!(error.message.contains("`reaches <Service> + ...`"));
 }
 
@@ -885,7 +885,7 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens)
         .expect("bounded installation reach should parse on a boundary requirement");
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "boundary trait");
+    let trait_definition = crate::tests::root_trait(&parsed, "boundary trait");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
@@ -901,13 +901,13 @@ fn rejects_retired_standalone_boundary_requirement() {
         "boundary requirement Package::operation() {}",
         "boundary requirement Package::operation() satisfies Contract::operation;",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             source,
             "tokenize retired boundary requirement",
             "a standalone boundary requirement must reject",
         );
-        crate::parsing::tests::expect_error(&error, "are retired");
-        crate::parsing::tests::expect_error(&error, "boundary trait");
+        crate::tests::expect_error(&error, "are retired");
+        crate::tests::expect_error(&error, "boundary trait");
     }
 }
 
@@ -920,12 +920,12 @@ fn rejects_top_level_installation_bound_reach_outside_fresh_boundary_requirement
         "boundary machine complete() satisfies Completion::complete reaches <= MachineControl;",
         "Named satisfies Trait { machine complete() reaches <= MachineControl {} }",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             source,
             "tokenize should succeed",
             "installation-bound reach must stay on a fresh boundary requirement",
         );
-        crate::parsing::tests::expect_error(&error, "`reaches <= Bound`");
+        crate::tests::expect_error(&error, "`reaches <= Bound`");
     }
 }
 
@@ -936,12 +936,12 @@ fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
         "boundary trait Completion { machine complete() reaches <= MachineControl crashes none {} }",
         "machine run<machine Op>() requires machine Op() reaches <= MachineControl; {}",
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             source,
             "tokenize should succeed",
             "installation-bound reach must stay on a bodyless boundary requirement",
         );
-        crate::parsing::tests::expect_error(&error, "`reaches <= Bound`");
+        crate::tests::expect_error(&error, "`reaches <= Bound`");
     }
 }
 
@@ -952,11 +952,11 @@ fn rejects_empty_or_mixed_installation_bound_reach_rows() {
         "boundary trait Completion { machine complete() reaches MachineControl reaches <= PortIo; }",
         "boundary trait Completion { machine complete() reaches <= MachineControl reaches PortIo; }",
     ] {
-        let error = crate::parsing::tests::parse_tokenized_error(
+        let error = crate::tests::parse_tokenized_error(
             source,
             "empty or mixed installation-bound reach must reject",
         );
-        crate::parsing::tests::expect_error(&error, "installation-bound reach");
+        crate::tests::expect_error(&error, "installation-bound reach");
     }
 }
 
@@ -968,9 +968,9 @@ fn rejects_operational_members_in_service_reach_rows() {
         ("thread_block", "blocks"),
     ] {
         let source = format!("machine run() reaches Console, {retired} {{}}");
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "retired effect member must fail");
+        let error = crate::tests::parse_tokenized_error(&source, "retired effect member must fail");
         assert!(error.message.contains("boundary-service identities only"));
-        crate::parsing::tests::expect_error(&error, replacement);
+        crate::tests::expect_error(&error, replacement);
     }
 }
 
@@ -986,8 +986,8 @@ fn parses_machine_contract_clauses() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
     let contracts = parsed.items.capability_contracts(machine.contracts);
 
     assert_eq!(contracts.len(), 2);
@@ -1018,8 +1018,8 @@ fn parses_named_machine_contract_evidence_bindings() {
         {
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(source, "tokenize", "named contracts parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine");
+    let parsed = crate::tests::parse_source_verbose(source, "tokenize", "named contracts parse");
+    let machine = crate::tests::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     assert_eq!(
@@ -1055,8 +1055,8 @@ fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
         { Outcome::Success }
     "#;
     let parsed =
-        crate::parsing::tests::parse_source_verbose(source, "tokenize", "outcome-specific ensures parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine");
+        crate::tests::parse_source_verbose(source, "tokenize", "outcome-specific ensures parse");
+    let machine = crate::tests::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     for contract in contracts {
@@ -1098,12 +1098,12 @@ fn rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces() {
             "duplicate machine-wide public ensures selector",
         ),
     ] {
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             source,
             "tokenize invalid group",
             "invalid group must reject",
         );
-        crate::parsing::tests::expect_error(&error, expected);
+        crate::tests::expect_error(&error, expected);
     }
 }
 
@@ -1116,12 +1116,12 @@ fn rejects_named_contract_with_multiple_propositions() {
         {
         }
     "#;
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         source,
         "tokenize",
         "one evidence term cannot bind two facts",
     );
-    crate::parsing::tests::expect_error(&error, "exactly one proposition");
+    crate::tests::expect_error(&error, "exactly one proposition");
 }
 
 #[test]
@@ -1136,7 +1136,7 @@ fn parses_named_bodyless_signature_contract_bindings() {
         }
     "#;
     let parsed =
-        crate::parsing::tests::parse_source_verbose(source, "tokenize", "named signature contracts parse");
+        crate::tests::parse_source_verbose(source, "tokenize", "named signature contracts parse");
     let worker = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1188,8 +1188,8 @@ fn parses_nested_machine_requires() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "nested machine requires should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "nested machine requires should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
     let positive = machine
         .nested_machines
         .handles()
@@ -1216,8 +1216,8 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
             left == right
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source(source, "bodyless crash bucket should parse");
-    let machines = crate::parsing::tests::root_machines(&parsed);
+    let parsed = crate::tests::parse_source(source, "bodyless crash bucket should parse");
+    let machines = crate::tests::root_machines(&parsed);
     let [equal, compare] = machines.as_slice() else {
         panic!("two machine items");
     };
@@ -1243,7 +1243,7 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("bare bodyless signature should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine item");
+    let machine = crate::tests::root_machine(&parsed, "machine item");
     assert!(machine.bodyless && !machine.boundary && machine.spelling.is_none());
     assert_eq!(machine.name.as_str(&parsed), "Float::meaning32");
 
@@ -1251,7 +1251,7 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
         .tokenize()
         .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("a bodyless realization needs `via`");
-    crate::parsing::tests::expect_error(
+    crate::tests::expect_error(
         &error,
         "a machine without a body is the ACCEPTED boundary form",
     );
@@ -1259,7 +1259,7 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
 
 #[test]
 fn contextual_clause_names_retain_their_first_contract_proposition() {
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         r#"machine check(blocks: i64, suspends: bool)
             requires blocks >= 0
             requires suspends
@@ -1269,7 +1269,7 @@ fn contextual_clause_names_retain_their_first_contract_proposition() {
         "tokenize contextual contract subjects",
         "contextual subjects must not become empty contracts or effect clauses",
     );
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine");
+    let machine = crate::tests::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 3);
     assert!(contracts.iter().all(|contract| contract.facts.count() == 1));

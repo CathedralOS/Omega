@@ -1,5 +1,5 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::errors::parse_error::ParseError;
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -10,8 +10,8 @@ use syntax_trees::statement::{
 };
 use tokens::PunctuationKind;
 
-use crate::parsing::transitions::guards::{parse_transition_expression_list, parse_transition_guard_node};
-use crate::parsing::transitions::targets::parse_transition_block_target_with_bindings;
+use crate::transitions::guards::{parse_transition_expression_list, parse_transition_guard_node};
+use crate::transitions::targets::parse_transition_block_target_with_bindings;
 
 pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

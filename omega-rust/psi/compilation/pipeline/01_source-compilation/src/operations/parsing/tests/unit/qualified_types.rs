@@ -1,4 +1,4 @@
-use crate::parsing::frontend_fixture::Lexer;
+use crate::frontend_fixture::Lexer;
 use source_text::SourceId;
 use syntax_trees::SyntaxTrees;
 #[test]
@@ -17,7 +17,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                 .tokenize()
                 .expect("tokenize boolean domain index");
             let mut syntax = SyntaxTrees::new(SourceId::default());
-            crate::parsing::parse_into(&mut syntax, source_id, &tokens).expect("parse boolean domain index");
+            crate::parse_into(&mut syntax, source_id, &tokens).expect("parse boolean domain index");
             let arguments = if cast {
                 syntax
                     .expressions
@@ -63,6 +63,6 @@ fn qualified_type_names_reject_missing_path_members() {
         let tokens = Lexer::new(&text)
             .tokenize()
             .expect("tokenize invalid qualified type");
-        crate::parsing::parse_syntax_trees(&tokens).expect_err("every separator needs a member");
+        crate::parse_syntax_trees(&tokens).expect_err("every separator needs a member");
     }
 }

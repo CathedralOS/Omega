@@ -1,5 +1,5 @@
-use crate::parsing::statements::parse::parse_statement_handles;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::statements::parse::parse_statement_handles;
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::statement::StatementHandle;
@@ -12,7 +12,7 @@ pub(crate) fn parse_statements<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let mut statements = arena::HandleSpan::empty();
     while (requires_result && input.at_identifier_then_contextual("machine"))
-        || !crate::parsing::machine_bodies::states::starts_machine_member(input)
+        || !crate::machine_bodies::states::starts_machine_member(input)
     {
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(
@@ -32,7 +32,7 @@ pub(crate) fn parse_statements<'tokens, 'source>(
                             | syntax_trees::statement::StatementNode::Expression(_)
                     )
                 })
-                && crate::parsing::declarations::items::starts_machine_declaration(rest);
+                && crate::declarations::items::starts_machine_declaration(rest);
         statements.extend_contiguous(parsed);
         input = rest;
         if completes_body {

@@ -1,5 +1,5 @@
-use crate::parsing::expressions::context::ExpressionContext;
-use crate::parsing::token_input::cursor::Input;
+use crate::expressions::context::ExpressionContext;
+use crate::token_input::cursor::Input;
 use numerics::arithmetic::ArithmeticDomain;
 use numeric_literals::IntegerLiteral;
 use syntax_trees::FloatSpelling;
@@ -136,7 +136,7 @@ pub(crate) fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDoma
 pub(crate) fn take_right_shift_policy<'tokens, 'source>(
     shift: source_text::SourceSpan,
     input: Input<'tokens, 'source>,
-) -> Result<(ArithmeticDomain, Input<'tokens, 'source>), crate::parsing::ParseError> {
+) -> Result<(ArithmeticDomain, Input<'tokens, 'source>), crate::ParseError> {
     for (punctuation, label, policy) in [
         (PunctuationKind::Percent, "%", ArithmeticDomain::Wrapping),
         (PunctuationKind::Pipe, "|", ArithmeticDomain::Saturating),
@@ -190,16 +190,16 @@ pub(crate) enum UnaryPrefix<'tokens, 'source> {
     Move,
 }
 
-pub(crate) fn has_unary_expression_prefix(input: Input<'_, '_>) -> Result<bool, crate::parsing::ParseError> {
+pub(crate) fn has_unary_expression_prefix(input: Input<'_, '_>) -> Result<bool, crate::ParseError> {
     take_unary_prefix(input, ExpressionContext::Default).map(|prefix| prefix.is_some())
 }
 
 pub(crate) fn take_unary_prefix<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
-) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::parsing::ParseError> {
+) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::ParseError> {
     if context.allows_type_expression()
-        && crate::parsing::expressions::primary::starts_lifetime_reference_type(input)
+        && crate::expressions::primary::starts_lifetime_reference_type(input)
     {
         return Ok(None);
     }
@@ -297,7 +297,7 @@ pub(crate) fn apply_unary_prefix(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
     prefix: UnaryPrefix<'_, '_>,
-) -> Result<ExpressionHandle, crate::parsing::ParseError> {
+) -> Result<ExpressionHandle, crate::ParseError> {
     match prefix {
         UnaryPrefix::Borrow(access, span) => {
             let borrow = syntax_trees.expressions.insert(ExpressionNode::Borrow(

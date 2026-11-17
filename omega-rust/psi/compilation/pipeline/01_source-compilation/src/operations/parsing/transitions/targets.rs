@@ -1,10 +1,10 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::context::ExpressionContext;
-use crate::parsing::expressions::operators::has_unary_expression_prefix;
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::expressions::postfix::parse_postfix_expression_handle;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::transitions::guards::{DestructureBindings, rewrite_destructure_guard_expression};
+use crate::errors::parse_error::ParseError;
+use crate::expressions::context::ExpressionContext;
+use crate::expressions::operators::has_unary_expression_prefix;
+use crate::expressions::parse::parse_expression_handle;
+use crate::expressions::postfix::parse_postfix_expression_handle;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::transitions::guards::{DestructureBindings, rewrite_destructure_guard_expression};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};

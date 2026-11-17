@@ -1,6 +1,6 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::statements::parse::parse_statement_handles;
-use crate::parsing::token_input::cursor::Input;
+use crate::errors::parse_error::ParseError;
+use crate::statements::parse::parse_statement_handles;
+use crate::token_input::cursor::Input;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::statement::StatementHandle;

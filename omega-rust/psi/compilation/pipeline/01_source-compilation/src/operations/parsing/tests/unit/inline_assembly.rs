@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementHandle;
 use syntax_trees::statement::StatementNode;
@@ -30,8 +30,8 @@ pub(crate) fn instruction_statements(
 }
 
 fn main_statements(parsed: &syntax_trees::SyntaxTrees) -> Vec<StatementHandle> {
-    let machine = crate::parsing::tests::root_machine(parsed, "machine root item");
-    let entry = crate::parsing::tests::entry_state_handle(parsed, machine);
+    let machine = crate::tests::root_machine(parsed, "machine root item");
+    let entry = crate::tests::entry_state_handle(parsed, machine);
     let statements = parsed
         .items
         .statements(parsed.items.state(entry).statements);
@@ -48,7 +48,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 3);
@@ -75,7 +75,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 2);
@@ -102,7 +102,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
@@ -135,7 +135,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
@@ -173,7 +173,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
     let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 7);
 
@@ -229,8 +229,8 @@ fn parses_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait root item");
     let default_signature = parsed
         .items
         .state_signatures(trait_definition.machines)
@@ -246,7 +246,7 @@ fn parses_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
         2,
         "trait default should retain both asm instructions"
     );
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
     let child = machine
         .nested_machines
         .handles()
@@ -302,7 +302,7 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
             }}
             "#
         );
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "asm block should reject");
+        let error = crate::tests::parse_tokenized_error(&source, "asm block should reject");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -332,7 +332,7 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "asm instruction should reject");
+        let error = crate::tests::parse_tokenized_error(&source, "asm instruction should reject");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -358,7 +358,7 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "register moves should parse");
+    let parsed = crate::tests::parse_source(source, "register moves should parse");
     let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 3, "let + two desugared moves");
@@ -394,7 +394,7 @@ fn parses_memory_transfers_as_place_assignments() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "memory transfers should parse");
+    let parsed = crate::tests::parse_source(source, "memory transfers should parse");
     let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 2, "two desugared transfers");
@@ -423,7 +423,7 @@ fn parses_memory_transfers_as_place_assignments() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = crate::parsing::tests::parse_source_error(
+        let error = crate::tests::parse_source_error(
             &source,
             "tokenize should succeed",
             "a bracketed transfer operand keeps the bracket refusal",
@@ -449,7 +449,7 @@ fn rejects_bracketed_memory_operands_on_register_moves() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "bracketed operand should reject");
+        let error = crate::tests::parse_tokenized_error(&source, "bracketed operand should reject");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("bracketed `[...]` memory addressing"),
@@ -489,8 +489,8 @@ fn parses_asm_requires_facts_at_entry_and_exit() {
             { out main.port, main.value }
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(source, "tokenize", "asm facts should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine");
+    let parsed = crate::tests::parse_source_verbose(source, "tokenize", "asm facts should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -545,7 +545,7 @@ fn rejects_inexact_asm_clobber_contracts() {
             "#
         );
         let error =
-            crate::parsing::tests::parse_tokenized_error(&source, "inexact asm contract should reject");
+            crate::tests::parse_tokenized_error(&source, "inexact asm contract should reject");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -569,7 +569,7 @@ fn rejects_unknown_asm_mnemonics() {
             "#
         );
 
-        let error = crate::parsing::tests::parse_tokenized_error(&source, "unknown mnemonic must not parse");
+        let error = crate::tests::parse_tokenized_error(&source, "unknown mnemonic must not parse");
         let message = format!("{error:?}");
         assert!(
             message.contains("only known-contract instructions compile"),

@@ -2475,7 +2475,6 @@ dependencies = [
  "language-core",
  "layout-planning",
  "layout-plans",
- "memchr",
  "mimalloc",
  "numeric-literals",
  "numerics",
@@ -2490,6 +2489,8 @@ dependencies = [
  "sha2",
  "source-admission",
  "source-capture",
+ "source-lexer",
+ "source-parser",
  "source-text",
  "storage-access",
  "symbols",
@@ -2503,6 +2504,39 @@ dependencies = [
  "terminal-work",
  "tokens",
  "wire",
+]
+
+[[package]]
+name = "source-lexer"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "execution-admission",
+ "memchr",
+ "rayon",
+ "source-admission",
+ "source-text",
+ "tokens",
+]
+
+[[package]]
+name = "source-parser"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "declaration-contracts",
+ "diagnostics",
+ "execution-admission",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "rayon",
+ "source-admission",
+ "source-lexer",
+ "source-text",
+ "syntax-trees",
+ "tokens",
 ]
 
 [[package]]

@@ -1,10 +1,10 @@
-use crate::parsing::token_input::cursor::*;
+use crate::token_input::cursor::*;
 use std::sync::Arc;
 
 #[test]
 fn escaping_text_and_literal_bytes_outlive_token_storage() {
     let source: Arc<str> = Arc::from(r#"name 1.5 "\xff""#);
-    let tokens = crate::parsing::frontend_fixture::lex_retained(source.clone()).unwrap();
+    let tokens = crate::frontend_fixture::lex_retained(source.clone()).unwrap();
     let mut syntax = syntax_trees::SyntaxTrees::new(SourceId(77));
     let input = Input::new(SourceId(77), &tokens, &source, &mut syntax);
     let (name, rest) = input.take_identifier().unwrap();

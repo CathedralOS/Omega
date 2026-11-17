@@ -7,8 +7,8 @@
 
 pub use errors::parse_error::ParseError;
 
-use crate::parsing::declarations::items::{ParsedDeclaration, parse_item};
-use crate::parsing::token_input::cursor::Input;
+use crate::declarations::items::{ParsedDeclaration, parse_item};
+use crate::token_input::cursor::Input;
 use arena::{ConcurrentPagedArena, Handle};
 use rayon::prelude::*;
 use source_text::{SourceId, SourcePosition};
@@ -55,7 +55,7 @@ pub fn parse(lexed: &LexedSources, options: ParseOptions) -> Result<ParsedSyntax
     parse_source_pages_with_count(sources, desired_pages, options.first_page_identity)
 }
 
-pub(crate) fn parse_into(
+pub fn parse_into(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
     tokens: &TokenStream<'_>,
@@ -310,5 +310,9 @@ use test_support::{
 };
 
 #[cfg(test)]
-#[path = "../../../../../../../../tests/support/frontend.rs"]
+use crate as parsing;
+#[cfg(test)]
+use source_lexer as lexing;
+#[cfg(test)]
+#[path = "../../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

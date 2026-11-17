@@ -1,7 +1,7 @@
-use crate::parsing::contracts::conformance::parse_conformance_trait_application;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::properties::parse_property_brackets;
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::contracts::conformance::parse_conformance_trait_application;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::properties::parse_property_brackets;
+use crate::types::references::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -136,7 +136,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     || input.at_punctuation(PunctuationKind::Less)
                 {
                     let (signature, rest) =
-                        crate::parsing::parameters::requirements::parse_typed_machine_contract(
+                        crate::parameters::requirements::parse_typed_machine_contract(
                             syntax_trees,
                             name.clone(),
                             input,

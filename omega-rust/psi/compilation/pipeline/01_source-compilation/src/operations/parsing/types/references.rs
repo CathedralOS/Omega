@@ -1,5 +1,5 @@
-use crate::parsing::expressions::static_arguments::parse_static_argument_expression;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::expressions::static_arguments::parse_static_argument_expression;
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
@@ -83,7 +83,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             let (expression, input) =
-                crate::parsing::expressions::parse::parse_expression_handle(syntax_trees, input)?;
+                crate::expressions::parse::parse_expression_handle(syntax_trees, input)?;
             let length = match syntax_trees.expressions.expression(expression) {
                 ExpressionNode::Integer(value) => {
                     let text = value.to_string();
@@ -150,7 +150,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     if input.at_keyword(tokens::KeywordKind::Machine) {
         let source_span = input.current_source_span();
         let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
-        let (signature, input) = crate::parsing::parameters::requirements::parse_runtime_machine_contract(
+        let (signature, input) = crate::parameters::requirements::parse_runtime_machine_contract(
             syntax_trees,
             Identifier::new("$callable", source_span),
             input,
@@ -186,7 +186,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     // apply different declarations. Reuse the scoped selection syntax.
     syntax_trees.rewind_appended(checkpoint);
     let Some((selection, rest)) =
-        crate::parsing::expressions::postfix::parse_static_name_selection(syntax_trees, authored)?
+        crate::expressions::postfix::parse_static_name_selection(syntax_trees, authored)?
     else {
         return Err(authored.error_here("expected a scoped type selection"));
     };
@@ -325,7 +325,7 @@ pub(crate) fn parse_static_argument_reference<'tokens, 'source>(
     } else if input
         .tokens
         .first()
-        .is_some_and(crate::parsing::token_input::cursor::is_identifier_token_for_parser)
+        .is_some_and(crate::token_input::cursor::is_identifier_token_for_parser)
     {
         let checkpoint = syntax_trees.append_checkpoint();
         let const_expression = parse_static_argument_expression(syntax_trees, input)?;

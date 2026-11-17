@@ -63,7 +63,7 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError>
 
 
 /// Scans one admitted source using the current page's token buffers.
-pub(crate) fn lex_unit_reusing<'source>(
+pub fn lex_unit_reusing<'source>(
     source: &'source str,
     scratch: &mut tokens::TokenScratch,
 ) -> Result<TokenStream<'source>, LexError> {

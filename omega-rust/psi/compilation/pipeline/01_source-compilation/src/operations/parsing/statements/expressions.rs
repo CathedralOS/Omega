@@ -1,4 +1,4 @@
-use crate::parsing::errors::parse_error::ParseError;
+use crate::errors::parse_error::ParseError;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{

@@ -3,8 +3,8 @@ Unit tests for the Omega syntax parser across declarations, contracts,
 expressions, inline assembly, patterns, and type constraints.
 */
 
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::frontend_fixture::Lexer;
+use crate::errors::parse_error::ParseError;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::State;
@@ -16,12 +16,12 @@ fn parse_source(source: &str, parse_message: &str) -> SyntaxTrees {
 
 fn parse_source_verbose(source: &str, tokenize_message: &str, parse_message: &str) -> SyntaxTrees {
     let tokens = Lexer::new(source).tokenize().expect(tokenize_message);
-    crate::parsing::parse_syntax_trees(&tokens).expect(parse_message)
+    crate::parse_syntax_trees(&tokens).expect(parse_message)
 }
 
 fn parse_source_unwrap(source: &str) -> SyntaxTrees {
     let tokens = Lexer::new(source).tokenize().unwrap();
-    crate::parsing::parse_syntax_trees(&tokens).unwrap()
+    crate::parse_syntax_trees(&tokens).unwrap()
 }
 
 fn argument_path<'p>(parsed: &'p SyntaxTrees, path: &'p [Identifier]) -> Vec<&'p str> {
@@ -97,7 +97,7 @@ fn entry_state<'p>(parsed: &'p SyntaxTrees, machine: &syntax_trees::item::Machin
 
 fn parse_source_error(source: &str, tokenize_message: &str, error_message: &str) -> ParseError {
     let tokens = Lexer::new(source).tokenize().expect(tokenize_message);
-    crate::parsing::parse_syntax_trees(&tokens).expect_err(error_message)
+    crate::parse_syntax_trees(&tokens).expect_err(error_message)
 }
 
 fn parse_tokenized_error(source: &str, error_message: &str) -> ParseError {

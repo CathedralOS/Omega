@@ -1,7 +1,7 @@
-use crate::parsing::errors::expected as diagnostics;
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::literals::numbers::{parse_integer_literal, validate_float_literal};
-use crate::parsing::token_input::delimiters::find_top_level_punctuation;
+use crate::errors::expected as diagnostics;
+use crate::errors::parse_error::ParseError;
+use crate::literals::numbers::{parse_integer_literal, validate_float_literal};
+use crate::token_input::delimiters::find_top_level_punctuation;
 use arena::{Handle, HandleSpan};
 use language_core::ReferenceAccess;
 use numeric_literals::IntegerLiteral;

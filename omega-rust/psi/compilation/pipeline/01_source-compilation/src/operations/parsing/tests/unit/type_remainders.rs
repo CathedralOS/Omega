@@ -1,4 +1,4 @@
-use crate::parsing::frontend_fixture::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -30,7 +30,7 @@ fn division_and_remainder_const_arguments_retain_operations_before_semantic_admi
             };
             let source = format!("data Main {{ value: {field_type}; }}");
             let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-            let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("parse const arithmetic syntax");
+            let syntax = crate::parse_syntax_trees(&tokens).expect("parse const arithmetic syntax");
             let data = syntax
                 .root_items()
                 .find_map(|item| match item {

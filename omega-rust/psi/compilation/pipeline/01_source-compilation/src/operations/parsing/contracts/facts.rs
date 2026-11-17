@@ -1,9 +1,9 @@
-use crate::parsing::declarations::items::starts_following_item;
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::parse::parse_expression_handle_without_struct_literals_or_membership;
-use crate::parsing::expressions::parse::parse_logical_proof_fact_expression_handle;
-use crate::parsing::expressions::parse::parse_proof_fact_expression_handle;
-use crate::parsing::token_input::cursor::{Input, parse_path_handle_span};
+use crate::declarations::items::starts_following_item;
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::parse_expression_handle_without_struct_literals_or_membership;
+use crate::expressions::parse::parse_logical_proof_fact_expression_handle;
+use crate::expressions::parse::parse_proof_fact_expression_handle;
+use crate::token_input::cursor::{Input, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -391,5 +391,5 @@ fn parse_proof_fact_domain_arguments<'tokens, 'source>(
     if name == "Carry::Portable" || language_core::CarryPermission::from_name(&name).is_some() {
         return Err(input.error_here("compiler carry permissions do not take index arguments"));
     }
-    crate::parsing::types::references::parse_domain_argument_handles(syntax_trees, input)
+    crate::types::references::parse_domain_argument_handles(syntax_trees, input)
 }

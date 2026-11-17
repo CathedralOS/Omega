@@ -1,7 +1,7 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_static_argument_reference;
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::parse_expression_handle;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_static_argument_reference;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -22,7 +22,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
 
     loop {
         let ((trait_name, lifetime_arguments, arguments), mut rest) =
-            crate::parsing::contracts::conformance::parse_conformance_trait_application(
+            crate::contracts::conformance::parse_conformance_trait_application(
                 syntax_trees,
                 input,
             )?;
@@ -56,7 +56,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
                 .is_ok_and(|(root, _)| root.as_str(syntax_trees) == "ForeignBinding");
             if is_bootstrap_binding {
                 let (binding, next) =
-                    crate::parsing::contracts::bindings::parse_external_provider_binding(next)?;
+                    crate::contracts::bindings::parse_external_provider_binding(next)?;
                 via = Some(binding);
                 rest = next;
             } else {
@@ -147,7 +147,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
             } else {
                 saw_non_lifetime = true;
                 let (argument, next) =
-                    crate::parsing::contracts::conformance::parse_satisfies_type_argument(
+                    crate::contracts::conformance::parse_satisfies_type_argument(
                         syntax_trees,
                         rest,
                     )?;

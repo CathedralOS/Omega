@@ -1,4 +1,4 @@
-use crate::parsing::literals::numbers::{FloatLiteralKind, validate_float_literal};
+use crate::literals::numbers::{FloatLiteralKind, validate_float_literal};
 
 /*
     A literal suffix is a carrier's own spelling, read as a sign
@@ -7,7 +7,7 @@ use crate::parsing::literals::numbers::{FloatLiteralKind, validate_float_literal
 */
 #[test]
 fn an_integer_suffix_lands_the_literal_in_the_carrier_it_spells() {
-    use crate::parsing::literals::numbers::{
+    use crate::literals::numbers::{
         FixedInteger, IntegerLiteralKind, LandedIntegerType, NumericBase, parse_integer_literal,
     };
     let suffixed = |text: &str, base| {

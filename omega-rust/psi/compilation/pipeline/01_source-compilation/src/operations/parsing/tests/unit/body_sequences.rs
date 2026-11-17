@@ -1,5 +1,5 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::statement::TransitionGuardNode;
@@ -13,9 +13,9 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
         "42 machine helper() {}",
     ] {
         let source = format!("machine run() -> u64 {{ {body} }}");
-        let trees = crate::parsing::tests::parse_source(&source, "final value");
-        let machine = crate::parsing::tests::root_machine(&trees, "machine");
-        let state = crate::parsing::tests::entry_state(&trees, machine);
+        let trees = crate::tests::parse_source(&source, "final value");
+        let machine = crate::tests::root_machine(&trees, "machine");
+        let state = crate::tests::entry_state(&trees, machine);
         let statements = trees.items.statements(state.statements);
         let StatementNode::Transition(completion) = trees.statements.statement(statements[0])
         else {
@@ -30,9 +30,9 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
         ));
     }
     let trees =
-        crate::parsing::tests::parse_source("machine run() { callee(); 42; }", "ordinary statements");
-    let machine = crate::parsing::tests::root_machine(&trees, "machine");
-    let state = crate::parsing::tests::entry_state(&trees, machine);
+        crate::tests::parse_source("machine run() { callee(); 42; }", "ordinary statements");
+    let machine = crate::tests::root_machine(&trees, "machine");
+    let state = crate::tests::entry_state(&trees, machine);
     let statements = trees.items.statements(state.statements);
     assert!(matches!(
         trees.statements.statement(statements[0]),
@@ -48,8 +48,8 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
 fn nested_machine_declarations_and_copies_retain_direct_child_cohorts() {
     let source =
         "machine outer() -> u64 { 42 machine first() { machine inner() {} } machine second() {} }";
-    let trees = crate::parsing::tests::parse_source(source, "nested declarations after a value completion");
-    let outer = crate::parsing::tests::root_machine(&trees, "outer machine");
+    let trees = crate::tests::parse_source(source, "nested declarations after a value completion");
+    let outer = crate::tests::root_machine(&trees, "outer machine");
     assert_eq!(trees.root_items().count(), 1);
     assert_eq!(outer.nested_machines.len(), 2);
     let children = outer
@@ -132,7 +132,7 @@ fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
         };
         let states = trees.items.state_handles(machine.states);
         assert_eq!(states.len(), 1);
-        let statements = crate::parsing::tests::inline_assembly::instruction_statements(
+        let statements = crate::tests::inline_assembly::instruction_statements(
             &trees,
             trees
                 .items

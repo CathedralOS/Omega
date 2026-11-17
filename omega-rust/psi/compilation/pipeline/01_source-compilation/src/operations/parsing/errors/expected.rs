@@ -1,5 +1,5 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::token_input::cursor::Input;
+use crate::errors::parse_error::ParseError;
+use crate::token_input::cursor::Input;
 use tokens::{CommentKind, Token, TokenKind};
 
 fn expected_at(input: Input<'_, '_>, token: Option<&Token>, expected: &[&str]) -> ParseError {

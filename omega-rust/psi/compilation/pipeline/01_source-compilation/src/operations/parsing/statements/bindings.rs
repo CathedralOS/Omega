@@ -1,5 +1,5 @@
-use crate::parsing::expressions::postfix::memory_ordering_from_expression;
-use crate::parsing::statements::expressions::copy_expression_as_place;
+use crate::expressions::postfix::memory_ordering_from_expression;
+use crate::statements::expressions::copy_expression_as_place;
 use arena::HandleSpan;
 use language_core::atomic::AtomicOrderingPlan;
 use numeric_literals::IntegerLiteral;

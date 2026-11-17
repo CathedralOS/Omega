@@ -1,9 +1,9 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::{parse_into as parse, parse_source_units, parse_sources};
+use crate::frontend_fixture::Lexer;
+use crate::{parse_into as parse, parse_source_units, parse_sources};
 use declaration_contracts::source_identity::DependencyScope;
 use source_admission::{LoadedSource, LoadedSources, SourceOrigin};
 use source_text::SourceId;
-use crate::lexing::lex as lex_sources;
+use source_lexer::lex as lex_sources;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -260,8 +260,8 @@ fn float_spellings_share_forest_custody_and_survive_cross_forest_copy() {
     let source: Arc<str> = Arc::from(
         "machine numbers() { let first: f32 = 1.25f32; let second: f64 = -2.5e-2f64; first }",
     );
-    let tokens = crate::parsing::frontend_fixture::lex_retained(source.clone()).unwrap();
-    let syntax = crate::parsing::parse_syntax_trees(&tokens).unwrap();
+    let tokens = crate::frontend_fixture::lex_retained(source.clone()).unwrap();
+    let syntax = crate::parse_syntax_trees(&tokens).unwrap();
     drop(tokens);
     assert_eq!(
         Arc::strong_count(&source),

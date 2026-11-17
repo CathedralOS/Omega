@@ -1,6 +1,6 @@
-use crate::parsing::frontend_fixture::Lexer;
-use crate::parsing::parse_syntax_trees;
-use crate::parsing::tests::inline_assembly::instruction_statements;
+use crate::frontend_fixture::Lexer;
+use crate::parse_syntax_trees;
+use crate::tests::inline_assembly::instruction_statements;
 use language_core::ReferenceAccess;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
@@ -36,7 +36,7 @@ fn logical_domain_subject_preserves_ordinary_machine_operands() {
         domain Player::Alive requires self.health > 0;
         machine health(player: Player) -> u64 { player.health }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         source,
         "tokenize logical subject",
         "parse logical subject",
@@ -44,7 +44,7 @@ fn logical_domain_subject_preserves_ordinary_machine_operands() {
     let mut copied = syntax_trees::SyntaxTrees::default();
     copied.extend_from(&parsed);
     for trees in [&parsed, &copied] {
-        crate::parsing::tests::root_domain(trees, "domain");
+        crate::tests::root_domain(trees, "domain");
         for name in ["self", "player"] {
             assert_eq!(trees.expressions.iter_expressions().filter(|(_, node)| {
                 let ExpressionNode::Name { members: path, application: None } = node else { return false; };
@@ -97,7 +97,7 @@ fn accepts_exit_contract_clauses_on_nested_machines() {
         }
     "#;
 
-    crate::parsing::tests::parse_source(source, "nested machines have ordinary exit contracts");
+    crate::tests::parse_source(source, "nested machines have ordinary exit contracts");
 }
 
 #[test]
@@ -109,8 +109,8 @@ fn parses_machine_termination_clauses() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
 
     assert_expression_count(&parsed, machine.ranking_subjects, 1);
     assert_path_member_count(&parsed, machine.ranking_view, 2);
@@ -125,8 +125,8 @@ fn parses_machine_termination_tuple_subjects() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
 
     assert_expression_count(&parsed, machine.ranking_subjects, 2);
     assert_path_member_count(&parsed, machine.ranking_view, 2);
@@ -141,8 +141,8 @@ fn parses_machine_termination_argumented_view() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
 
     assert!(!machine.terminates_guarantee);
     assert_expression_count(&parsed, machine.ranking_subjects, 1);
@@ -159,8 +159,8 @@ fn parses_trait_requirement_termination_guarantee() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait root item");
 
     let signatures: Vec<_> = parsed
         .items
@@ -184,17 +184,17 @@ fn rejects_ranking_witness_on_trait_requirement() {
         }
         "#;
 
-    let error = crate::parsing::tests::parse_tokenized_error(source, "the witness must be rejected");
-    crate::parsing::tests::expect_error(&error, "does not belong on a bodyless requirement");
+    let error = crate::tests::parse_tokenized_error(source, "the witness must be rejected");
+    crate::tests::expect_error(&error, "does not belong on a bodyless requirement");
 }
 
 #[test]
 fn parses_data_default_domain_requires_clause() {
-    let retired = crate::parsing::tests::parse_tokenized_error(
+    let retired = crate::tests::parse_tokenized_error(
         "data MemoryMap where count <= len { len: u32; count: u32; }",
         "retired data `where` must reject",
     );
-    crate::parsing::tests::expect_error(&retired, "expected `{`, found identifier `where`");
+    crate::tests::expect_error(&retired, "expected `{`, found identifier `where`");
     let source = r#"
         data MemoryMap
         requires
@@ -207,8 +207,8 @@ fn parses_data_default_domain_requires_clause() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let data = crate::parsing::tests::root_data(&parsed, "data root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let data = crate::tests::root_data(&parsed, "data root item");
 
     assert_eq!(parsed.items.proof_facts(data.requires_facts).len(), 2);
     assert_eq!(parsed.items.data_members(data.members).len(), 3);
@@ -226,8 +226,8 @@ fn retains_complete_default_domain_predicate() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let data = crate::parsing::tests::root_data(&parsed, "data root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let data = crate::tests::root_data(&parsed, "data root item");
 
     let mut fact_counts =
         parsed
@@ -251,7 +251,7 @@ fn retains_complete_default_domain_predicate() {
 
 #[test]
 fn rejects_case_local_requires_clause() {
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         "data Interval { case Range(lo: u64, hi: u64) requires lo <= hi; }",
         "tokenize retired case predicate",
         "case-local requires must reject",
@@ -273,8 +273,8 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let data = crate::parsing::tests::root_data(&parsed, "data root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let data = crate::tests::root_data(&parsed, "data root item");
     let field = parsed
         .items
         .data_members(data.members)
@@ -311,7 +311,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "open index expression should parse");
+    let parsed = crate::tests::parse_source(source, "open index expression should parse");
     let rate = parsed
         .root_items()
         .find_map(|item| match item {
@@ -365,8 +365,8 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let data = crate::parsing::tests::root_data(&parsed, "data root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let data = crate::tests::root_data(&parsed, "data root item");
     let fields = parsed
         .items
         .data_members(data.members)
@@ -412,8 +412,8 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
     let [contract] = parsed.items.capability_contracts(machine.contracts) else {
         panic!("one ensures contract");
     };
@@ -452,9 +452,9 @@ fn parses_slice_range_indexing_into_range_expression() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should accept slice range surface");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "parse should accept slice range surface");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     let statement_handle = parsed
         .items
         .statements(state.statements)
@@ -489,15 +489,15 @@ fn parses_slice_range_indexing_into_range_expression() {
 
 #[test]
 fn borrows_bind_before_casts_and_after_field_and_index_access() {
-    let parsed = crate::parsing::tests::parse_source(
+    let parsed = crate::tests::parse_source(
         r#"machine view(packet: &mut Packet) {
             let shared: &u8 = &packet.parts[0] as -Marked;
             let mutable: &mut u8 = &mut packet.parts[1] as -Marked;
         }"#,
         "borrowed projections with domain casts should parse",
     );
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     let locals = parsed
         .items
         .statements(state.statements)
@@ -543,8 +543,8 @@ fn parses_structural_recast_targets_as_type_references() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "array and slice recast targets should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
+    let parsed = crate::tests::parse_source(source, "array and slice recast targets should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -610,8 +610,8 @@ fn parses_trait_machine_contract_clauses() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let trait_definition = crate::parsing::tests::root_trait(&parsed, "trait root item");
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let trait_definition = crate::tests::root_trait(&parsed, "trait root item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     let contracts = parsed.items.capability_contracts(signature.contracts);
@@ -654,9 +654,9 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let entry = crate::parsing::tests::entry_state_handle(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let entry = crate::tests::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     let statement = parsed
         .items
@@ -704,7 +704,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
             }
         }
     "#;
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         source,
         "tokenize outcome arm",
         "outcome selector arm should parse",
@@ -765,7 +765,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
     ];
     let mut plans = Vec::new();
     for source in sources {
-        let parsed = crate::parsing::tests::parse_source_verbose(
+        let parsed = crate::tests::parse_source_verbose(
             source,
             "tokenize outcome arm",
             "outcome arm should parse",
@@ -835,7 +835,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
 
 #[test]
 fn rejects_duplicate_and_defers_noncase_outcome_proof_selectors() {
-    let error = crate::parsing::tests::parse_source_error(
+    let error = crate::tests::parse_source_error(
         "machine inspect(result: Outcome) { transition result { Outcome::Success { ; selected: local, selected: other } -> {} } }",
         "tokenize rejected selector arm",
         "duplicate selector arm must reject",
@@ -848,13 +848,13 @@ fn rejects_duplicate_and_defers_noncase_outcome_proof_selectors() {
         error.message
     );
 
-    let parsed = crate::parsing::tests::parse_source_verbose(
+    let parsed = crate::tests::parse_source_verbose(
         "machine inspect(result: Record) { transition result { Record { ; selected: local } -> {} } }",
         "tokenize non-case selector arm",
         "head classification belongs to declaration selection",
     );
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     let transition = parsed
         .items
         .statements(state.statements)
@@ -884,9 +884,9 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
         }
     "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "field-value pattern should parse");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let state = crate::parsing::tests::entry_state(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "field-value pattern should parse");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let state = crate::tests::entry_state(&parsed, machine);
     let transition = parsed
         .items
         .statements(state.statements)
@@ -948,9 +948,9 @@ fn parses_asm_jmp_block_as_transition_statement() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let entry = crate::parsing::tests::entry_state_handle(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let entry = crate::tests::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     let instructions = instruction_statements(&parsed, parsed.items.statements(state.statements));
     let statement = *instructions.first().expect("asm transition");
@@ -975,9 +975,9 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
         }
         "#;
 
-    let parsed = crate::parsing::tests::parse_source(source, "parse should succeed");
-    let machine = crate::parsing::tests::root_machine(&parsed, "machine root item");
-    let entry = crate::parsing::tests::entry_state_handle(&parsed, machine);
+    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let machine = crate::tests::root_machine(&parsed, "machine root item");
+    let entry = crate::tests::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
     assert_eq!(statements.len(), 4, "let + three asm statements");

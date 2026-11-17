@@ -1,4 +1,4 @@
-use crate::parsing::*;
+use crate::*;
 use diagnostics::Diagnostic;
 use syntax_trees::ParsedSources;
 
@@ -23,7 +23,7 @@ pub(crate) fn parse_sources(
         first_page_identity: u32::try_from(syntax_trees.page_count()).unwrap() + 1,
         ..Default::default()
     };
-    let (pages, sources) = crate::parsing::parse(&lexed, options)
+    let (pages, sources) = crate::parse(&lexed, options)
         .map_err(|error| vec![error.into_diagnostic()])?
         .into_parts();
     for page in pages {
@@ -35,7 +35,7 @@ pub(crate) fn parse_sources(
 pub(crate) fn parse_source_units(
     lexed: LexedSources,
 ) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    crate::parsing::parse(
+    crate::parse(
         &lexed,
         ParseOptions {
             layout: ParseLayout::IndependentUnits,

@@ -1,4 +1,4 @@
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::token_input::cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
@@ -55,7 +55,7 @@ fn parse_dot_or_colon_path<'tokens, 'source>(
 
 pub(crate) fn take_optional_semicolon<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parsing::errors::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::errors::parse_error::ParseError> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")
     } else {

@@ -1,4 +1,4 @@
-use crate::parsing::expressions::postfix::*;
+use crate::expressions::postfix::*;
 
 #[test]
 fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
@@ -6,7 +6,7 @@ fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
         "<Outer<[u8; Count]>, value + >()",
         "<Outer<Inner<3>>, value + >()",
     ] {
-        let tokens = crate::parsing::frontend_fixture::Lexer::new(spelling)
+        let tokens = crate::frontend_fixture::Lexer::new(spelling)
             .tokenize()
             .unwrap();
         let retained = Input::retain_source(&tokens);

@@ -1,4 +1,4 @@
-use crate::parsing::frontend_fixture::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -24,7 +24,7 @@ fn nested_static_values_keep_closers_shifts_and_named_argument_transactions() {
                 format!("data Packet {{ value: {field_type}; }}")
             };
             let tokens = Lexer::new(&text).tokenize().unwrap();
-            let syntax = crate::parsing::parse_syntax_trees(&tokens).expect("nested static argument");
+            let syntax = crate::parse_syntax_trees(&tokens).expect("nested static argument");
             let argument = if owner == "implementation" {
                 let implementation = syntax
                     .root_items()

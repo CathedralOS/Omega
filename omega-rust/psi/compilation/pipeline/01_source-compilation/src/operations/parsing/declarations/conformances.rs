@@ -1,10 +1,10 @@
-use crate::parsing::contracts::conformance::parse_conformance_trait_application;
-use crate::parsing::declarations::items::{ParsedDeclaration, parse_item};
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::parameters::requirements::validate_machine_parameter_contracts;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::contracts::conformance::parse_conformance_trait_application;
+use crate::declarations::items::{ParsedDeclaration, parse_item};
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::parameters::requirements::validate_machine_parameter_contracts;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConformanceMember, Item, Machine, State};

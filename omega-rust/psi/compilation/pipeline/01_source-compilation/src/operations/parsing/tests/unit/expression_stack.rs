@@ -1,5 +1,5 @@
-use crate::parsing::expressions::parse::parse_expression_handle;
-use crate::parsing::frontend_fixture::Lexer;
+use crate::expressions::parse::parse_expression_handle;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
@@ -16,8 +16,8 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
         .tokenize()
         .expect("tokenize nested values");
     let mut parsed = syntax_trees::SyntaxTrees::new(source_text::SourceId::default());
-    let retained_source = crate::parsing::token_input::cursor::Input::retain_source(&tokens);
-    let input = crate::parsing::token_input::cursor::Input::new(
+    let retained_source = crate::token_input::cursor::Input::retain_source(&tokens);
+    let input = crate::token_input::cursor::Input::new(
         source_text::SourceId::default(),
         &tokens,
         &retained_source,
@@ -55,9 +55,9 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
     let source_id = source_text::SourceId::default();
     let tokens = Lexer::new(source).tokenize().expect("tokenize expression");
     let mut parsed = SyntaxTrees::new(source_id);
-    let retained_source = crate::parsing::token_input::cursor::Input::retain_source(&tokens);
+    let retained_source = crate::token_input::cursor::Input::retain_source(&tokens);
     let input =
-        crate::parsing::token_input::cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
+        crate::token_input::cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
     let (expression, rest) = parse_expression_handle(&mut parsed, input).expect("parse expression");
     assert!(
         rest.tokens.is_empty(),
@@ -193,7 +193,7 @@ fn a_constant_initializer_rejects_a_nested_policy_suffix() {
         "data Buffer { bytes: [u8; SIZE +% 1]; }",
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize constant");
-        let error = crate::parsing::parse_syntax_trees(&tokens).expect_err("constant must reject");
+        let error = crate::parse_syntax_trees(&tokens).expect_err("constant must reject");
         assert!(
             error
                 .message
@@ -249,7 +249,7 @@ fn membership_remains_a_separate_operand_grammar() {
     let tokens = Lexer::new("machine test() { let value: u64 = a in First + 1; }")
         .tokenize()
         .expect("tokenize ungrouped membership");
-    assert!(crate::parsing::parse_syntax_trees(&tokens).is_err());
+    assert!(crate::parse_syntax_trees(&tokens).is_err());
 }
 
 #[test]
@@ -286,7 +286,7 @@ fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize invalid prefix");
-        let error = crate::parsing::parse_syntax_trees(&tokens).expect_err("reject invalid prefix");
+        let error = crate::parse_syntax_trees(&tokens).expect_err("reject invalid prefix");
         assert!(error.message.contains(expected), "{}", error.message);
     }
     parse_expression("suspend()");

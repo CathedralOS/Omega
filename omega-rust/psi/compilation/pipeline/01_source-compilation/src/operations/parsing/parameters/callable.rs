@@ -1,7 +1,7 @@
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::parameters::relevance::parse_binding_relevance_brackets;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
-use crate::parsing::types::references::parse_type_reference_handle_allowing_borrow;
+use crate::errors::parse_error::ParseError;
+use crate::parameters::relevance::parse_binding_relevance_brackets;
+use crate::token_input::cursor::{Input, ParseResult};
+use crate::types::references::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{StateParameterHandle, StateSignature};

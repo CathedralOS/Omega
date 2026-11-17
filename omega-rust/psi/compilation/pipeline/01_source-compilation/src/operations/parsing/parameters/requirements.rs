@@ -1,9 +1,9 @@
-use crate::parsing::contracts::conformance::parse_optional_satisfies_type_arguments;
-use crate::parsing::contracts::signatures::parse_signature_clauses;
-use crate::parsing::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::token_input::cursor::{Input, ParseResult};
+use crate::contracts::conformance::parse_optional_satisfies_type_arguments;
+use crate::contracts::signatures::parse_signature_clauses;
+use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::MachineParameterContract;
@@ -150,7 +150,7 @@ pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
         contracts: clauses.contracts,
         terminates_guarantee: clauses.terminates_guarantee,
         declares_no_crash_route: clauses.declares_no_crash_route,
-        ..crate::parsing::parameters::callable::blank_state_signature()
+        ..crate::parameters::callable::blank_state_signature()
     };
     Ok((contract, rest))
 }
@@ -249,7 +249,7 @@ pub(crate) fn validate_machine_parameter_contracts(
     syntax_trees: &SyntaxTrees,
     type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
     input: Input<'_, '_>,
-) -> Result<(), crate::parsing::errors::parse_error::ParseError> {
+) -> Result<(), crate::errors::parse_error::ParseError> {
     if let Some(missing) = syntax_trees
         .items
         .type_parameters(type_parameters)
@@ -274,7 +274,7 @@ pub(crate) fn validate_machine_parameter_contracts(
 
 fn take_machine_contract_terminator<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parsing::errors::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::errors::parse_error::ParseError> {
     input.take_punctuation(PunctuationKind::Semicolon, ";")
 }
 
@@ -287,7 +287,7 @@ fn parse_nominal_requirement_path<'tokens, 'source>(
         HandleSpan<syntax_trees::types::TypeReferenceHandle>,
         Input<'tokens, 'source>,
     ),
-    crate::parsing::errors::parse_error::ParseError,
+    crate::errors::parse_error::ParseError,
 > {
     let (first, mut rest) = input.take_identifier()?;
     let mut members = vec![first];

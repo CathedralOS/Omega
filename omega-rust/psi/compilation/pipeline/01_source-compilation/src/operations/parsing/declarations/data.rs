@@ -1,13 +1,13 @@
-use crate::parsing::contracts::conformance::parse_conformance_trait_application;
-use crate::parsing::contracts::facts::parse_required_logical_proof_facts_until;
-use crate::parsing::parameters::generics::GenericParameterSyntax;
-use crate::parsing::parameters::generics::parse_generic_parameters;
-use crate::parsing::parameters::relevance::parse_binding_relevance_brackets;
-use crate::parsing::parameters::requirements::parse_machine_parameter_contracts;
-use crate::parsing::parameters::requirements::validate_machine_parameter_contracts;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
-use crate::parsing::types::properties::parse_property_brackets;
-use crate::parsing::types::references::{
+use crate::contracts::conformance::parse_conformance_trait_application;
+use crate::contracts::facts::parse_required_logical_proof_facts_until;
+use crate::parameters::generics::GenericParameterSyntax;
+use crate::parameters::generics::parse_generic_parameters;
+use crate::parameters::relevance::parse_binding_relevance_brackets;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::parameters::requirements::validate_machine_parameter_contracts;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::types::properties::parse_property_brackets;
+use crate::types::references::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
 use arena::HandleSpan;
@@ -40,7 +40,7 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
     validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
     input = next;
     let (cleanup_selection, next) =
-        crate::parsing::declarations::domains::parse_cleanup_selection(syntax_trees, input)?;
+        crate::declarations::domains::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
     if input.at_punctuation(PunctuationKind::Equal) {
         input = input.take_punctuation(PunctuationKind::Equal, "=")?;
@@ -249,7 +249,7 @@ fn parse_data_members<'tokens, 'source>(
 fn validate_data_identity_modes(
     members: &[DataMember],
     input: Input<'_, '_>,
-) -> Result<(), crate::parsing::errors::parse_error::ParseError> {
+) -> Result<(), crate::errors::parse_error::ParseError> {
     let fields: Vec<Option<u64>> = members
         .iter()
         .filter_map(|member| match member {
@@ -297,7 +297,7 @@ fn validate_identity_scope(
     identities: &[Option<u64>],
     retired: &[u64],
     input: Input<'_, '_>,
-) -> Result<(), crate::parsing::errors::parse_error::ParseError> {
+) -> Result<(), crate::errors::parse_error::ParseError> {
     let numbered = identities
         .iter()
         .filter(|identity| identity.is_some())

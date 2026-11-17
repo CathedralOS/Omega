@@ -16,27 +16,27 @@ lists and constant-integer probes) still enter it again through
 `parse_expression_handle_in`; each such entry runs its own loop.
 */
 
-use crate::parsing::errors::parse_error::ParseError;
-use crate::parsing::expressions::context::ExpressionContext;
-use crate::parsing::expressions::membership::extend_membership;
-use crate::parsing::expressions::operators::{
+use crate::errors::parse_error::ParseError;
+use crate::expressions::context::ExpressionContext;
+use crate::expressions::membership::extend_membership;
+use crate::expressions::operators::{
     ARITHMETIC_OPERATORS, LOGICAL_OPERATORS, UnaryPrefix, apply_unary_prefix,
     insert_binary_expression, punctuation_label, punctuation_policy, take_right_shift_policy,
     take_unary_prefix,
 };
-use crate::parsing::expressions::postfix::{
+use crate::expressions::postfix::{
     MemberSuffix, build_call_expression_handle, finish_argument_lanes,
     memory_ordering_from_expression, parse_cast_suffix, parse_member_suffix, range_separator,
     take_range_separator, try_parse_static_machine_arguments,
 };
-use crate::parsing::expressions::primary::{
+use crate::expressions::primary::{
     spanned, starts_fixed_array_type, starts_lifetime_reference_type, try_applied_requirement_head,
     try_generic_type_operand, try_uninvoked_application,
 };
-use crate::parsing::patterns::bindings::{DestructureBinding, rewrite_destructure_guard_expression};
-use crate::parsing::patterns::fields::DestructureFields;
-use crate::parsing::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
-use crate::parsing::types::references::parse_type_reference_handle;
+use crate::patterns::bindings::{DestructureBinding, rewrite_destructure_guard_expression};
+use crate::patterns::fields::DestructureFields;
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::types::references::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
 use numerics::arithmetic::ArithmeticDomain;
 use numeric_literals::IntegerLiteral;
@@ -81,14 +81,14 @@ pub(crate) fn parse_proof_fact_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    crate::parsing::expressions::proof_facts::parse(syntax_trees, input, ExpressionContext::ProofFact)
+    crate::expressions::proof_facts::parse(syntax_trees, input, ExpressionContext::ProofFact)
 }
 
 pub(crate) fn parse_logical_proof_fact_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    crate::parsing::expressions::proof_facts::parse(syntax_trees, input, ExpressionContext::LogicalProofFact)
+    crate::expressions::proof_facts::parse(syntax_trees, input, ExpressionContext::LogicalProofFact)
 }
 
 pub(crate) fn parse_const_integer_expression_handle<'tokens, 'source>(
