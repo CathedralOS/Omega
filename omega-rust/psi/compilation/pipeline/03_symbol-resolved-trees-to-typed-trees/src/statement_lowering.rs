@@ -1,9 +1,65 @@
 /*
 State-body statement lowering (`expressions::statement`): calls, transitions,
-root bindings, inline assembly windows, and inferred hoist-temporary types.
+root bindings, inline assembly windows, and initializer types.
 */
 
 pub(crate) mod statement {
+    /// Types already produced in this state, without any permission to read or
+    /// move their values. Later initializers reuse the exact type handles.
+    pub(crate) struct LocalTypes {
+        rows: std::collections::HashMap<
+            symbols::SymbolHandle,
+            typed_trees::types::TypeReferenceHandle,
+            symbols::BuildSymbolHasher,
+        >,
+    }
+
+    impl LocalTypes {
+        pub(crate) fn new(
+            program: &typed_trees::TypedTrees,
+            state: &typed_trees::state::State,
+        ) -> Result<Self, diagnostics::Diagnostic> {
+            let mut types = Self {
+                rows: Default::default(),
+            };
+            for parameter in program.state_parameters(state) {
+                types.insert(parameter.symbol, parameter.type_reference)?;
+            }
+            Ok(types)
+        }
+
+        fn insert(
+            &mut self,
+            symbol: symbols::SymbolHandle,
+            reference: typed_trees::types::TypeReferenceHandle,
+        ) -> Result<(), diagnostics::Diagnostic> {
+            if symbol.is_valid() && self.rows.insert(symbol, reference).is_some() {
+                return Err(diagnostics::Diagnostic::error(
+                    "local type information repeats a binder",
+                ));
+            }
+            Ok(())
+        }
+
+        fn record(
+            &mut self,
+            statement: &typed_trees::statement::StatementNode,
+        ) -> Result<(), diagnostics::Diagnostic> {
+            if let Some(local) = statement.as_local_data()
+                && local.role.has_ordinary_initializer()
+            {
+                self.insert(local.symbol, local.type_reference)?;
+            }
+            Ok(())
+        }
+
+        fn get(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<typed_trees::types::TypeReferenceHandle> {
+            self.rows.get(&symbol).copied()
+        }
+    }
     pub(crate) mod arguments {
         use crate::expressions::expression::lower_executable_expression_handle;
         use crate::lowerer::Lowerer;
@@ -315,7 +371,8 @@ pub(crate) mod statement {
             })
         }
     }
-    pub(crate) mod hoist_temp_type {
+    pub(crate) mod initializer_type {
+        use super::LocalTypes;
         use crate::expressions::call_results::declared_call_return;
         use crate::lowerer::Lowerer;
         use crate::tables::resolved_expressions;
@@ -327,17 +384,19 @@ pub(crate) mod statement {
 
         use resolved::expression::{ExpressionHandle, ExpressionNode};
 
-        pub(crate) fn infer_hoist_temp_type(
+        pub(crate) fn infer_initializer_type(
             lowerer: &mut Lowerer,
             attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
+            types: &LocalTypes,
             initial_value: ExpressionHandle,
         ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
             let expressions = &lowerer.source_trees.tables.bodies.expressions;
 
             if let ExpressionNode::Borrow(borrow) = expressions.expression(initial_value) {
                 let (target, access) = (borrow.target, borrow.access);
-                let Some(referee) = infer_hoist_temp_type(lowerer, attached_data, state, target)?
+                let Some(referee) =
+                    infer_initializer_type(lowerer, attached_data, state, types, target)?
                 else {
                     return Ok(None);
                 };
@@ -350,9 +409,8 @@ pub(crate) mod statement {
                 )));
             }
 
-            // Hoisted operands keep the same selected meaning as authored
-            // expressions. A collection's length is a u64 observation, not a
-            // nominal field to look up on the collection's element type.
+            // Collection lengths keep their selected u64 observation type
+            // when read from an initializer.
             if matches!(
                 expressions.expression(initial_value),
                 ExpressionNode::Member(_)
@@ -377,6 +435,26 @@ pub(crate) mod statement {
             }
 
             match expressions.expression(initial_value) {
+                ExpressionNode::StructLiteral(literal) => {
+                    let reference = if literal.application_type.is_valid() {
+                        let declared = lowerer
+                            .source_trees
+                            .child_type_reference(literal.application_type);
+                        lower_type_reference_into_table(lowerer, declared)?
+                    } else if literal.type_symbol.is_valid() {
+                        lower_type_reference_into_table(
+                            lowerer,
+                            &TypeReference::Named {
+                                symbol: literal.type_symbol,
+                                name: literal.type_name.clone(),
+                                supplied_operand_owner: Default::default(),
+                            },
+                        )?
+                    } else {
+                        return Ok(None);
+                    };
+                    return Ok(Some(reference));
+                }
                 ExpressionNode::Call(call)
                     if language_core::data_layout_queries::is_data_layout_query_spelling(
                         call.target.as_str(),
@@ -477,6 +555,7 @@ pub(crate) mod statement {
                         lowerer,
                         attached_data,
                         state,
+                        types,
                         call,
                         target_symbol,
                         declared_return,
@@ -490,7 +569,13 @@ pub(crate) mod statement {
                 expressions.expression(initial_value),
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ) {
-                return declared_projection_type(lowerer, attached_data, state, initial_value);
+                return declared_projection_type(
+                    lowerer,
+                    attached_data,
+                    state,
+                    types,
+                    initial_value,
+                );
             }
 
             // A captured Boolean result has the same type as an authored
@@ -515,6 +600,7 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
+            types: &LocalTypes,
             place: ExpressionHandle,
         ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
             enum ProjectionStep<'source> {
@@ -551,12 +637,38 @@ pub(crate) mod statement {
                     _ => break,
                 }
             }
-            let Some(declared_root) =
-                collection_type_reference(lowerer, attached_data, state, root)
-            else {
-                return Ok(None);
+            let supplied = if let ExpressionNode::Name(path) = expressions.expression(root)
+                && expressions.name_path_members(path.members).len() == 1
+            {
+                types
+                    .get(path.symbol)
+                    .or_else(|| types.get(path.head_symbol))
+            } else {
+                None
             };
-            let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
+            let root_type = if let Some(reference) = supplied {
+                reference
+            } else {
+                if let ExpressionNode::Name(path) = expressions.expression(root)
+                    && [path.symbol, path.head_symbol].into_iter().any(|symbol| {
+                        symbol.is_valid()
+                            && lowerer.source_trees.symbols.get(symbol).kind
+                                == symbols::SymbolKind::Local
+                    })
+                {
+                    return Ok(None);
+                }
+                let Some(declared_root) =
+                    collection_type_reference(lowerer, attached_data, state, root)
+                else {
+                    return Ok(None);
+                };
+                lower_type_reference_into_table(lowerer, &declared_root)?
+            };
+            lowerer
+                .typed_trees
+                .prepare_data_application_view(root_type)
+                .map_err(Diagnostic::error)?;
             let mut current = root_type;
             for step in steps.into_iter().rev() {
                 let projected = match step {
@@ -573,16 +685,23 @@ pub(crate) mod statement {
                         .ok()
                     }
                     ProjectionStep::Field(member) => {
-                        declared_projection_field(&lowerer.typed_trees, current, member).and_then(
-                            |symbol| {
-                                crate::typing_queries::collection_field_type(
-                                    &lowerer.typed_trees,
-                                    current,
-                                    symbol,
-                                )
-                                .ok()
-                            },
+                        crate::typing_queries::declared_projection_field(
+                            &lowerer.typed_trees,
+                            current,
+                            member.member.as_str(),
+                            member.member_symbol,
                         )
+                        .ok()
+                        .filter(|_| member.case_variant.is_none())
+                        .and_then(|field| {
+                            let symbol = field.symbol;
+                            crate::typing_queries::collection_field_type(
+                                &lowerer.typed_trees,
+                                current,
+                                symbol,
+                            )
+                            .ok()
+                        })
                     }
                 };
                 let Some(projected) = projected else {
@@ -594,49 +713,6 @@ pub(crate) mod statement {
                 current = projected;
             }
             Ok(Some(current))
-        }
-
-        fn declared_projection_field(
-            program: &typed::TypedTrees,
-            reference: typed::types::TypeReferenceHandle,
-            member: &resolved::expression::TableMemberExpression,
-        ) -> Option<symbols::SymbolHandle> {
-            let reference = program
-                .type_reference_table
-                .peeled_type_reference(reference);
-            let owner = program
-                .closed_data_field_definition(reference)
-                .or_else(|| {
-                    let symbol = program.type_reference_table.type_head_symbol(reference)?;
-                    program.unique_data_definition_by_symbol(symbol)
-                })?;
-            if owner.generic_instance.is_some() {
-                return program
-                    .closed_data_member_field(
-                        reference,
-                        member.member_symbol,
-                        member.member.as_str(),
-                    )
-                    .map(|field| field.symbol);
-            }
-            let mut fields = program
-                .data_members(owner)
-                .iter()
-                .filter_map(|row| match row {
-                    typed::data::DataMember::Field(field) if member.case_variant.is_none() => {
-                        Some(field)
-                    }
-                    _ => None,
-                })
-                .filter(|field| field.name.as_str() == member.member.as_str());
-            let field = fields.next()?;
-            if fields.next().is_some()
-                || !field.symbol.is_valid()
-                || (member.member_symbol.is_valid() && member.member_symbol != field.symbol)
-            {
-                return None;
-            }
-            Some(field.symbol)
         }
 
         fn static_conformance_requirement_return(
@@ -705,6 +781,7 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
+            types: &LocalTypes,
             call: &resolved::expression::TableCallExpression,
             target: symbols::SymbolHandle,
             result: typed::types::TypeReferenceHandle,
@@ -746,7 +823,7 @@ pub(crate) mod statement {
                 .to_vec();
             for (formal, argument) in formal_parameters.iter().zip(arguments) {
                 let Some(concrete) =
-                    infer_hoist_temp_type(lowerer, attached_data, state, argument)?
+                    infer_initializer_type(lowerer, attached_data, state, types, argument)?
                 else {
                     continue;
                 };
@@ -1252,10 +1329,10 @@ pub(crate) mod statement {
 
     use self::arguments::lower_statement_expression;
     use self::calls::lower_call_statement;
-    use self::hoist_temp_type::infer_hoist_temp_type;
+    use self::initializer_type::infer_initializer_type;
     use self::transitions::lower_transition_statement;
     pub(crate) mod assembly {
-        use super::lower_statement_node;
+        use super::{LocalTypes, lower_statement_node};
         use crate::contracts::proof_facts::lower_statement_fact;
         use crate::lowerer::Lowerer;
         use crate::tables::resolved_statements;
@@ -1271,6 +1348,7 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
+            types: &mut LocalTypes,
             handle: Handle<resolved::statement::AssemblyControlFlow>,
         ) -> Result<Vec<StatementNode>, Diagnostic> {
             let declarations = &lowerer.source_trees.tables.declarations;
@@ -1300,13 +1378,21 @@ pub(crate) mod statement {
                         fact,
                     })
                 }));
-                let mut instructions = resolved_statements(lowerer.source_trees)
-                    .statements(block.statement_nodes)
-                    .iter()
-                    .map(|instruction| {
-                        lower_statement_node(lowerer, attached_data, state, instruction, true)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let mut instructions = Vec::new();
+                for instruction in
+                    resolved_statements(lowerer.source_trees).statements(block.statement_nodes)
+                {
+                    let instruction = lower_statement_node(
+                        lowerer,
+                        attached_data,
+                        state,
+                        types,
+                        instruction,
+                        true,
+                    )?;
+                    types.record(&instruction)?;
+                    instructions.push(instruction);
+                }
                 let transfer = if matches!(
                     block.exit,
                     resolved::statement::AssemblyExit::EnclosingTransition
@@ -1408,14 +1494,17 @@ pub(crate) mod statement {
         lowerer: &mut Lowerer,
         attached_data: Option<&resolved::name::DiagnosticName>,
         state: &resolved::state::State,
+        types: &mut LocalTypes,
         statement: &resolved::statement::StatementNode,
         closes_run: bool,
     ) -> Result<Vec<typed::statement::StatementNode>, Diagnostic> {
         if let resolved::statement::StatementNode::Assembly(handle) = statement {
-            assembly::lower(lowerer, attached_data, state, *handle)
+            assembly::lower(lowerer, attached_data, state, types, *handle)
         } else {
-            lower_statement_node(lowerer, attached_data, state, statement, closes_run)
-                .map(|statement| vec![statement])
+            let statement =
+                lower_statement_node(lowerer, attached_data, state, types, statement, closes_run)?;
+            types.record(&statement)?;
+            Ok(vec![statement])
         }
     }
 
@@ -1423,6 +1512,7 @@ pub(crate) mod statement {
         lowerer: &mut Lowerer,
         attached_data: Option<&resolved::name::DiagnosticName>,
         state: &resolved::state::State,
+        types: &LocalTypes,
         statement: &resolved::statement::StatementNode,
         closes_run: bool,
     ) -> Result<typed::statement::StatementNode, Diagnostic> {
@@ -1531,7 +1621,13 @@ pub(crate) mod statement {
                     && local_data.type_is_inferred
                     && local_data.role.has_ordinary_initializer()
                 {
-                    infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
+                    infer_initializer_type(
+                        lowerer,
+                        attached_data,
+                        state,
+                        types,
+                        local_data.initial_value,
+                    )?
                 } else {
                     None
                 };

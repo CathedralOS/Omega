@@ -1846,7 +1846,7 @@ pub(crate) mod provider_defaults {
     }
 }
 pub(crate) mod state {
-    use crate::expressions::statement::lower_statement;
+    use crate::expressions::statement::{LocalTypes, lower_statement};
     use crate::lowerer::Lowerer;
     use crate::tables::{expression_table, resolved_statements, statement_table_mut};
     use diagnostics::Diagnostic;
@@ -1906,6 +1906,7 @@ pub(crate) mod state {
         }
         let statements =
             resolved_statements(lowerer.source_trees).statements(state.statement_nodes);
+        let mut local_types = LocalTypes::new(&lowerer.typed_trees, typed_state)?;
         let mut pending = Vec::new();
         for (index, statement) in statements.iter().enumerate() {
             let closes_run = matches!(statement,
@@ -1969,6 +1970,7 @@ pub(crate) mod state {
                 lowerer,
                 attached_data,
                 state,
+                &mut local_types,
                 statement,
                 closes_run,
             )?);
