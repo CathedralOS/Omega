@@ -75,7 +75,7 @@ def main():
                                 frame.evaluate('(el) => {el.scrollLeft = el.scrollWidth}')
                                 figure.screenshot(path=str(output/f'{name}-end.png'))
                 if width == 1440:
-                    page.goto(address('pages/pipeline-map.html'), wait_until='load')
+                    page.goto(address('pages/pipeline-current.html'), wait_until='load')
                     page.evaluate('document.fonts.ready')
                     page.locator('.diagram').first.screenshot(path=str(output/f'pipeline-{theme}.png'))
                     page.locator('.diagram-frame').first.evaluate('(el) => {el.scrollLeft = el.scrollWidth}')
@@ -85,11 +85,11 @@ def main():
         if not args.screens_only:
             context = browser.new_context(viewport={'width':1440,'height':1000},color_scheme='light')
             page = context.new_page()
-            page.goto(address('index.html'))
+            page.goto(address('pages/architecture.html'))
             page.locator('#page-filter').fill('psi')
             assert page.locator('nav li:visible').count()==2
             page.locator('#page-filter').fill('')
-            page.locator('nav a[href="pages/psi.html"]').click()
+            page.locator('nav a[href="psi.html"]').click()
             page.wait_for_url('**/pages/psi.html')
             page.locator('#theme').click()
             assert page.evaluate('document.documentElement.dataset.theme')=='dark'

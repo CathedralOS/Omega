@@ -19,6 +19,7 @@ import textwrap
 from urllib.parse import quote, unquote, urlsplit
 import xml.etree.ElementTree as ET
 from artifacts.explorer import render_explorer
+from artifacts.whole_map import render_architecture
 
 
 ATLAS = Path(__file__).resolve().parent
@@ -39,7 +40,9 @@ PAGES = [
     ("bootstrap", "Bootstrap", "subsystems/bootstrap.md", "The construction routes and the evidence still needed for a complete compiler self-rebuild.", "Observed source map"),
     ("tools", "Tools and verification", "subsystems/tools.md", "Repository commands, gates, and the difference between a source check and an execution result.", "Observed source map"),
     ("library", "Bundled library", "subsystems/library.md", "Language declarations, target providers, and their use through Build and realization.", "Observed source map"),
-    ("pipeline-map", "Pipeline diagrams", "artifacts/pipeline-map/map.md", "Today's compilation route, the data that travels beside it, and the proposed ownership changes.", "Current behavior and marked proposals"),
+    ("pipeline-map", "Original pipeline map", "artifacts/pipeline-map/original.html", "Claude’s original authored presentation, preserved as a historical proposed design.", "Historical proposed design"),
+    ("pipeline-current", "Reviewed pipeline routes", "artifacts/pipeline-map/map.md", "Observed compilation routes, corrected value paths and the proposed ownership changes.", "Current behavior and marked proposals"),
+    ("architecture", "Interactive architecture", "artifacts/architecture.md", "One Canvas2D workspace for the current whole architecture, with readable labels, a minimap and source links.", "Observed source map"),
     ("foundation-backend-plan", "Foundation and backend plan", "plans/foundation-and-backend.md", "A proposed migration with source evidence, intermediate contracts, and deletion conditions.", "Judgment — migration proposal"),
     ("questions", "Open questions", "questions.md", "Design choices that still need a ruling; recommendations remain proposals.", "Open decisions"),
     ("rulings", "Owner rulings", "rulings.md", "The dated owner decisions the atlas must follow.", "Recorded owner decisions"),
@@ -228,7 +231,7 @@ def render_markdown(source: Path, page_id: str, content_revision: str | None, ou
 def navigation(current: str, prefix="") -> str:
     parts = []
     for number, (page_id, title, *_rest) in enumerate(PAGES, 1):
-        if number in (1, 10):
+        if number == 1 or page_id == "pipeline-map":
             if number != 1:
                 parts.append("</ul>")
             parts.append(f'<h2>{"The codebase" if number == 1 else "Planning"}</h2><ul>')
@@ -258,6 +261,31 @@ def check_content_revision(revision: str) -> None:
         raise ValueError("Atlas source differs from its recorded content revision; commit sources, then use --content-revision HEAD. Draft previews use --draft.\n" + "\n".join(changed))
 
 
+
+def render_original(content_revision: str | None, output: Path, landing: bool) -> str:
+    """Keep the authored drawing intact; adapt only assets and a small status/nav strip."""
+    original = HERE / "pipeline-map/original.html"
+    raw = original.read_text()
+    if hashlib.sha256(original.read_bytes()).hexdigest() != "8c0035540a1b92d88db28322faee945938b809c242914f208b46baecc072333a":
+        raise ValueError("The original authored map is an immutable snapshot; edit its wrapper, not original.html")
+    prefix = "pages/" if landing else ""
+    assets = "" if landing else "../"
+    page = re.sub(r'<link[^>]+https://fonts.googleapis.com[^>]+>\n?', '', raw)
+    page = re.sub(r'@font-face.*?\n(?=body \{)', ':root { --serif: var(--font-serif); --mono: var(--font-mono); }\n\n', page, count=1, flags=re.S)
+    page = page.replace('<style>', f'<link rel="stylesheet" href="{assets}design/tokens.css">\n<style>', 1)
+    wrapper_css = ".original-status { border-bottom:1px solid var(--rule); padding-bottom:12px; font-size:13px; line-height:20px; } .original-status a { color:inherit; } .original-links { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:8px; } .original-status button { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--ink-muted); padding:2px 8px; } .atlas-directory { font-size:15px; } .atlas-directory ul { display:flex; flex-wrap:wrap; gap:8px 24px; list-style:none; padding:0; } .atlas-directory a { color:inherit; }"
+    page = page.replace('</style>', wrapper_css+'\n</style>', 1)
+    publication = 'Draft preview' if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas">{content_revision[:12]}</a>'
+    selected = '' if landing else ' aria-current="page"'
+    strip = f'<aside class="original-status" aria-label="Historical design status"><strong>Original proposed design · 2026-11-17</strong> · {publication}<br>Original drawing, labels and estimates preserved. The declaration-selection bypass was corrected in the <a href="{prefix}pipeline-current.html">reviewed account</a>.<nav class="original-links" aria-label="Atlas views"><a href="{prefix}pipeline-map.html"{selected}>Original map</a><a href="{prefix}architecture.html">Interactive full architecture</a><a href="{prefix}foundation-backend-plan.html">Complete migration plan</a><a href="{prefix}repository.html">Codebase guide</a><a href="#atlas-directory">All pages</a><button id="original-theme" type="button">Light / dark</button></nav></aside>'
+    page = page.replace('<div class="page">', '<div class="page">'+strip, 1)
+    directory = '<section class="atlas-directory" id="atlas-directory"><h2>Atlas pages</h2><nav aria-label="All atlas pages">'+navigation('',prefix)+'</nav><p><a href="'+source_url(original,content_revision,output)+'">Preserved HTML source</a> · <a href="'+GITHUB+'/blob/4dcadfb359b143f87df4cda6d2b0c5b55203e7ef/atlas/pages/pipeline-map.html">Original publication revision</a></p></section>'
+    page = page.replace('\n</div>\n\n<script>', '\n'+directory+'\n</div>\n\n<script>', 1)
+    page = page.replace('g.hidden = !box.checked;', 'g.toggleAttribute("hidden", !box.checked);')
+    page = page.replace('</html>', '<script>document.getElementById("original-theme").addEventListener("click",()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");r.dataset.theme=d==="dark"?"light":"dark";});</script>\n</html>')
+    assert re.findall(r'<svg\b.*?</svg>', page, re.S) == re.findall(r'<svg\b.*?</svg>', raw, re.S), 'authored drawings changed'
+    return page
+
 def build_all(content_revision: str | None, site: Path) -> Path:
     import markdown
     manifest_path = ATLAS / "evidence/data/manifest.json"
@@ -267,8 +295,8 @@ def build_all(content_revision: str | None, site: Path) -> Path:
     specs = json.loads((HERE / "diagrams.json").read_text())
     revision = manifest["source_revision"]
     template = (HERE / "page_template.html").read_text()
-    style = (HERE / "style.css").read_text()
-    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text()
+    style = (HERE / "style.css").read_text() + "\n" + (HERE / "architecture.css").read_text()
+    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text() + "\n" + (HERE / "architecture.js").read_text()
     pages = site / "pages"
     pages.mkdir(parents=True, exist_ok=True)
     built = []
@@ -283,14 +311,17 @@ def build_all(content_revision: str | None, site: Path) -> Path:
     for number, (page_id, title, source_name, description, status) in enumerate([landing, *PAGES]):
         output = site / "index.html" if page_id == "landing" else pages / f"{page_id}.html"
         source = ATLAS / source_name
-        if page_id == "landing":
-            cards = "".join(f'<section class="atlas-card"><span class="eyebrow">{i:02} / {html.escape(p[4])}</span><h2><a href="pages/{p[0]}.html">{html.escape(p[1])}</a></h2><p>{html.escape(p[3])}</p></section>' for i, p in enumerate(PAGES, 1))
-            body = '<div class="atlas-grid">' + cards + '</div>'
-            toc, diagrams = "", 0
-        else:
-            body, toc, diagrams = render_markdown(source, page_id, content_revision, output, specs)
+        if page_id in ("landing", "pipeline-map"):
+            page = render_original(content_revision, output, page_id == "landing")
+            output.write_text(page, encoding="utf-8")
+            built.append({"page": output.relative_to(site).as_posix(), "source": "artifacts/pipeline-map/original.html", "diagrams": len(re.findall(r"<svg\b", page)), "sha256": hashlib.sha256(page.encode()).hexdigest(), "historical_revision": "4dcadfb359b143f87df4cda6d2b0c5b55203e7ef"})
+            continue
+        body, toc, diagrams = render_markdown(source, page_id, content_revision, output, specs)
         prefix = "" if page_id == "landing" else "../"
-        explorer, extra_diagrams = render_explorer(revision, graph, "pages/" if page_id == "landing" else "") if page_id in ("landing", "repository") else ("", 0)
+        explorer, extra_diagrams = render_explorer(revision, graph, "pages/" if page_id == "landing" else "") if page_id == "architecture" else ("", 0)
+        if explorer:
+            explorer = render_architecture(ATLAS, "pages/" if page_id == "landing" else "") + '<details class="secondary-routes"><summary>Focused walkthroughs and Cargo declarations</summary>' + explorer + '</details>'
+            extra_diagrams += 1
         diagrams += extra_diagrams
         if explorer:
             body = glance + body
@@ -300,7 +331,7 @@ def build_all(content_revision: str | None, site: Path) -> Path:
             "SCRIPT": script, "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
             "PAGE_COUNT": str(len(PAGES)), "REVISION": revision[:12], "PUBLICATION": publication,
             "REVISION_URL": f"{GITHUB}/tree/{revision}", "MANIFEST_URL": source_url(manifest_path, content_revision, output),
-            "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-map", "foundation-backend-plan") else "",
+            "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-current", "foundation-backend-plan") else "",
             "EXPLORER": explorer, "PAGE_CLASS": "overview-page" if explorer else "",
             "NAV": navigation(page_id, "pages/" if page_id == "landing" else ""),
             "TOC": ('<details class="contents"><summary>On this page</summary>' + toc + '</details>') if toc else "",

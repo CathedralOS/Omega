@@ -22,7 +22,8 @@ def main():
     parser.add_argument('--base-url', default='http://127.0.0.1:8765/artifacts/out/')
     parser.add_argument('--browser', default=shutil.which('chromium'))
     args = parser.parse_args()
-    url = args.base_url.rstrip('/') + '/'
+    base = args.base_url.rstrip('/') + '/'
+    url = base + 'pages/architecture.html'
     output = ATLAS / 'artifacts/out/interactive-review'
     output.mkdir(parents=True, exist_ok=True)
     graph = json.loads((ATLAS/'evidence/data/graph.json').read_text())
@@ -43,7 +44,7 @@ def main():
                 page = context.new_page()
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.on('requestfailed', lambda request: failures.append(request.url))
-                page.goto(url); page.evaluate('document.fonts.ready')
+                page.goto(url); page.locator('.secondary-routes > summary').click(); page.evaluate('document.fonts.ready')
                 for view in data:
                     key = view['id']
                     page.locator(f'[data-view="{key}"]').click()
@@ -68,7 +69,7 @@ def main():
 
         context = browser.new_context(viewport={'width':1440,'height':1000})
         page = context.new_page(); page.on('pageerror',lambda e:errors.append(str(e)))
-        page.goto(url); page.clock.install()
+        page.goto(url); page.locator('.secondary-routes > summary').click(); page.clock.install()
         native = page.locator('[data-view-panel="native"]')
         assert native.locator('[data-action="previous"]').is_disabled()
         handler = native.locator('[data-node="handlers"]')
@@ -101,7 +102,7 @@ def main():
         assert not page.locator('.flow-explorer').evaluate("e=>e.classList.contains('is-playing')")
         assert not page.locator('[data-view-panel="dependencies"] .tour').is_visible()
         scenarios.append('Previous/Next, finite Play, explicit Pause and view-switch cancellation work with a controlled clock')
-        page.goto(url+'pages/omega.html')
+        page.goto(base+'pages/omega.html')
         figure = page.locator('figure.diagram').first
         node = figure.locator('.node').first; node.focus(); node.press('Space')
         reset = figure.get_by_role('button',name='Show all'); reset.focus(); reset.press('Enter')
@@ -112,7 +113,7 @@ def main():
         context.close()
 
         context = browser.new_context(viewport={'width':400,'height':844},has_touch=True)
-        page = context.new_page();page.goto(url)
+        page = context.new_page();page.goto(url); page.locator('.secondary-routes > summary').click()
         native = page.locator('[data-view-panel="native"]')
         for _ in range(3): native.locator('[data-action="next"]').tap()
         assert native.locator('.diagram-frame').evaluate('e=>e.scrollLeft') > 0
@@ -132,7 +133,7 @@ def main():
         context.close()
 
         context = browser.new_context(viewport={'width':400,'height':844},reduced_motion='reduce')
-        page=context.new_page();page.goto(url)
+        page=context.new_page();page.goto(url); page.locator('.secondary-routes > summary').click()
         native=page.locator('[data-view-panel="native"]')
         assert native.locator('[data-action="play"]').is_disabled()
         native.locator('[data-action="next"]').click()
@@ -142,7 +143,7 @@ def main():
         context.close()
 
         context=browser.new_context(viewport={'width':400,'height':844},java_script_enabled=False)
-        page=context.new_page();page.goto(url)
+        page=context.new_page();page.goto(url); page.locator('.secondary-routes > summary').click()
         assert page.locator('.flow-view:visible').count()==3
         assert not page.locator('.view-switch').is_visible()
         page.locator('.flow-reference summary').first.click()

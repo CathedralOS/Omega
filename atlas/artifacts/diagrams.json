@@ -147,7 +147,7 @@
     }
   },
   "psi-1": {
-    "claim": "A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.",
+    "claim": "A prepared source request crosses Psi 00\u201306 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.",
     "default_node": "psi",
     "nodes": {
       "A": "hub",
@@ -456,37 +456,6 @@
       }
     }
   },
-  "omega-4": {
-    "claim": "Proposed whole-program route: carry body and installation demands until current-form measurements can bind them. The numeric-consumer contract remains unverified.",
-    "default_node": "proposed",
-    "nodes": {},
-    "edges": {
-      "A->B": {
-        "label": "close and admit demand"
-      },
-      "B->C": {
-        "label": "carry complete body roster"
-      },
-      "C->D": {
-        "label": "lower current program"
-      },
-      "D->E": {
-        "label": "carry symbolic demands"
-      },
-      "E->F": {
-        "label": "derive current frame facts"
-      },
-      "F->G": {
-        "label": "supply bound values"
-      },
-      "G->H": {
-        "label": "carry resolved bytes"
-      },
-      "H->I": {
-        "label": "publish completed image"
-      }
-    }
-  },
   "map-1": {
     "claim": "Current product routes share checked Terminal Psi and provider settlement. Native compilation emits code; runtime admission supplies provisions for Psi execution.",
     "default_node": "around",
@@ -552,7 +521,7 @@
     }
   },
   "map-3": {
-    "claim": "Current bypass: O02 supplies EmissionFacts separately from the O03–09 machine forms. The optimized program is shared rather than copied.",
+    "claim": "Current bypass: O02 supplies EmissionFacts separately from the O03\u201309 machine forms. The optimized program is shared rather than copied.",
     "default_node": "native",
     "nodes": {},
     "edges": {
@@ -587,25 +556,40 @@
       }
     }
   },
-  "map-5": {
-    "claim": "Proposed migration dependencies: define contracts and fact ownership before extracting stages, then delete each replaced path after its users move.",
+  "foundation-and-backend-1": {
+    "claim": "Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.",
     "default_node": "proposed",
     "nodes": {},
     "edges": {
-      "C->P": {
-        "label": "establish admitted inputs"
+      "A->B": {
+        "label": "admit and activate on demand"
       },
-      "P->M": {
-        "label": "carry selected facts"
+      "B->C": {
+        "label": "seal accepted result"
       },
-      "M->I": {
-        "label": "define measured inputs"
+      "C->D": {
+        "label": "supply closed logical selections"
       },
-      "I->E": {
-        "label": "preserve later authority"
+      "D->E": {
+        "label": "carry retained bodies and recipes"
       },
-      "E->D": {
-        "label": "move consumers first"
+      "E->F": {
+        "label": "supply complete effects and resource demands"
+      },
+      "F->G": {
+        "label": "carry bound physical program"
+      },
+      "G->H": {
+        "label": "carry encodings and alternatives"
+      },
+      "H->I": {
+        "label": "supply resolved text and references"
+      },
+      "I->J": {
+        "label": "supply completed objects and entry plans"
+      },
+      "J->K": {
+        "label": "write completed product"
       }
     }
   }

@@ -3,7 +3,9 @@
 Any model can make an atlas page with this kit, whether that is GPT, Codex or
 Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
-inline SVG, and opens in any browser. This file holds the rules; `tokens.css`,
+inline SVG, and opens in any browser. The architecture overview progressively enhances
+its static SVG to a Canvas2D workspace with the same model and a DOM text
+outline. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.
 
@@ -22,14 +24,17 @@ Omega looks like masonry. Build every page from flat, square-edged blocks on
 `--ground`, separated by space and hairlines, never by shadows. Words are set
 in Omega Serif, code in IBM Plex Mono, nothing else. Color carries meaning,
 never decoration: green (`--checked`) means proven or passing, red (`--trap`)
-means a rejection, a trap or a reach-around, and everything else is ink on
-stone.
+means a rejection, a trap or a reach-around. The full architecture map also
+uses the named family colors below to distinguish subsystem ownership. The
+owner requested this categorical color extension on 2026-11-17; it does not
+assign proof status to a subsystem.
 
 ## Page contract
 
 - One `.html` file per page in `atlas/pages/`, named for its subject
   (`psi-stages.html`, not `page3.html`). It must open from disk with no build
-  step and no network except Google Fonts for IBM Plex Mono.
+  step and no network requests; the three Omega Serif weights ship locally, and
+  code uses the available monospace fallback.
 - Start the file with `<!doctype html>`, `<meta charset="utf-8">`,
   `<meta name="viewport" content="width=device-width, initial-scale=1">`, a
   `<title>` that names the page in two to four words, and
@@ -39,8 +44,8 @@ stone.
 - Both themes must read. `tokens.css` switches them; give `body` an explicit
   `background: var(--ground)`, and give every SVG mark a token color.
 - No JavaScript is required. A page may add a small inline script for a
-  theme toggle, navigation or scroll hints, and must read
-  correctly without it.
+  theme toggle, navigation, diagram selection or a controlled walkthrough.
+  The map and its source notes must remain usable without it.
 - Running text stays under 68 characters a line. Wide tables and figures
   scroll inside their own frame (`overflow-x: auto`); the page itself never
   scrolls sideways. Check it at 400px wide.
@@ -65,8 +70,16 @@ stone.
 | `--ink` | Text and solid marks; realized (Omega) things |
 | `--ink-muted` | Secondary text, labels, control and outline edges |
 | `--rule` | Decorative hairlines between sections; never the only edge of anything |
-| `--checked` | Proven, passing, closed; the checker's verdict; the focus ring |
+| `--checked` | Proven, passing, closed; the checker's verdict |
 | `--trap` | Rejections, traps and reach-arounds; keep it small |
+
+The architecture canvas uses these family token pairs, each with an explicit
+legend label: `--family-psi`, `--family-native`, `--family-build`,
+`--family-runtime`, `--family-library`, `--family-omega-source`,
+`--family-bootstrap` and `--family-support`. Each has a `-surface` companion
+for its box fill. Family color says who owns the work, not whether a claim was
+proved. Selection and keyboard focus use neutral ink. Keep JSON and CSS values
+in sync; review both themes and preserve readable text contrast.
 
 Never show status by color alone: pair `--checked` with a word or check mark,
 `--trap` with a word or cross. No gradients, no opacity tints, no shadows.
@@ -113,6 +126,17 @@ write the list instead.
 | Dashed red arrow or box (`--trap`) | Code that reaches around the pipeline today |
 | Dotted line across the figure | A firewall (Psi never depends on Omega) |
 
+The full architecture canvas uses a second, explicit grammar: a named family
+color identifies each owner, while the edge legend identifies the relationship.
+Solid means data or transformation; dashed means invocation; dotted means a
+Cargo declaration; dash-dot means construction or implementation correspondence.
+Heavy dotted edges mean validation or measurement, and long heavy dashes mean
+normative contracts. Red marks the observed separate `EmissionFacts` path. The
+legend is rendered from the same stroke rules as the edges. None of these
+relationships is a measured execution trace. Exact handoff labels and citations
+appear on selection and in the static text outline, rather than overlapping
+short arrows in the overview.
+
 Drawing rules:
 
 - Inline `<svg viewBox="0 0 W H" role="img" aria-label="...">` inside
@@ -121,7 +145,10 @@ Drawing rules:
 - Flows read left to right. A long figure may continue right to left on the
   next row or scroll within a labeled frame; keep its text at drawn scale.
 - Arrowheads are `<marker>` paths filled with the arrow's own token color.
-- Text 11.5–14px at drawn scale. Give arrow labels a halo so lines never cut
+- Small static figures use text 11.5–14px at drawn scale. The full canvas uses
+  20px labels at natural scale, a readable default camera, a minimap and explicit Fit all/zoom
+  controls. Canvas buffers follow devicePixelRatio; redraw on camera, size,
+  selection, theme and font readiness, without a standing animation loop. Selecting any box restores at least natural scale. Give arrow labels a halo so lines never cut
   them: `paint-order: stroke; stroke: var(--surface); stroke-width: 4px`.
 - Align boxes to a grid with equal gaps; give every box the same height in a
   row.
