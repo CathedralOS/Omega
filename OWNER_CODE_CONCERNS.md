@@ -120,13 +120,6 @@ framework or a list of unimplemented features.
 - Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
 
-### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
-- Category: One idea, several implementations
-- Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
-- Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
-- Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
