@@ -16,7 +16,7 @@
 public machine bind_domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
@@ -30,7 +30,7 @@ crashes Trap
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         bind_generic_annotations(resolver, sources, syntax, scope);
         bind_type_reference(resolver, sources, syntax, scope, item.carrier, TypeRole::Type);
-        transition { _ -> argument(resolver, sources, syntax, index, item, scope, 0) }
+        transition { _ -> argument(resolver, sources, syntax, index, item, scope, 0u64 as +Trapping) }
     }
 
     machine argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
@@ -54,7 +54,7 @@ crashes Trap
 public machine check_domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
@@ -67,7 +67,7 @@ crashes Trap
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let known: DomainBinding = known_domain(sources, item.name.source_span);
         transition known {
-            DomainBinding::Unqualified -> prior(resolver, sources, syntax, index, item, 0)
+            DomainBinding::Unqualified -> prior(resolver, sources, syntax, index, item, 0u64 as +Trapping)
             _ -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, item.name)
         }
     }
@@ -82,8 +82,8 @@ crashes Trap
     machine compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
         let earlier_item: DomainItem = syntax_trees_domain_item(syntax, earlier);
         let named: bool = spans_equal(sources, item.name.source_span, earlier_item.name.source_span);
-        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as u64 in Trapping,
-            earlier_item.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
+            earlier_item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition named && same_module {
             true -> carriers(resolver, sources, syntax, index, item, earlier, earlier_item)
             _ -> prior(resolver, sources, syntax, index, item, earlier + 1)
@@ -151,7 +151,7 @@ crashes Trap
 public machine resolver_declared_domain(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> Lookup
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, row, name, 0) }
+    transition { _ -> next(resolver, sources, syntax, row, name, 0u64 as +Trapping) }
 
     machine next(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
@@ -406,11 +406,11 @@ crashes Trap
 public machine bind_domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> routes(resolver, sources, syntax, index, 0)
+            true -> routes(resolver, sources, syntax, index, 0u64 as +Trapping)
             _ -> done()
         }
     }
@@ -419,7 +419,7 @@ crashes Trap
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         transition offset < item.route_count && resolver.output.accepted {
             true -> route(resolver, sources, syntax, index, offset, item.first_route + offset)
-            _ -> constituents(resolver, sources, syntax, index, 0)
+            _ -> constituents(resolver, sources, syntax, index, 0u64 as +Trapping)
         }
     }
 
@@ -493,7 +493,7 @@ crashes Trap
 public machine domain_by_head(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> Lookup
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, scope, carrier, name, 0) }
+    transition { _ -> next(resolver, sources, syntax, scope, carrier, name, 0u64 as +Trapping) }
 
     machine next(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
@@ -598,7 +598,7 @@ crashes Trap
 public machine domain_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> Lookup
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, name, 0) }
+    transition { _ -> next(sources, syntax, name, 0u64 as +Trapping) }
 
     machine next(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {

@@ -2,6 +2,8 @@
 // its TokenStream; `parse` observes it through one shared borrow forwarded
 // along every state edge that reads a token, so no token or stream is copied
 // and nothing is moved out of the owning lexer.
+// A selected branch captures scalar arguments and completed Copy rows before
+// lending the parser to its continuation. Failed branches do not build rows.
 public data Parser
 requires
     current_index <= 65535,
@@ -67,9 +69,9 @@ requires
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
     // until their list closes.
-    type_frames: [TypeFrame; 16] in Trapping;
+    type_frames: [TypeFrame; 16];
     type_frame_depth: u64;
-    pending_type_arguments: [u64; 32] in Trapping;
+    pending_type_arguments: [u64 in Trapping; 32];
     pending_type_argument_count: u64;
     // Lifetime arguments staged like the type arguments, and whether the
     // static argument just parsed was one (it leaves no row).
@@ -115,11 +117,11 @@ requires
     // Open callable scopes and their direct rows. Child headers publish before
     // their parent; staging keeps each owner's clause and contract ranges
     // contiguous without mistaking descendant rows for the parent's clauses.
-    header_frames: [CallableHeaderFrame; 257] in Trapping;
+    header_frames: [CallableHeaderFrame; 257];
     header_depth: u64;
-    header_clauses: [Clause; 2048] in Trapping;
+    header_clauses: [Clause; 2048];
     header_clause_count: u64;
-    header_contracts: [Contract; 256] in Trapping;
+    header_contracts: [Contract; 256];
     header_contract_count: u64;
     machine_first_component: u64 in Trapping;
     machine_component_count: u64 in Trapping;
@@ -140,18 +142,18 @@ requires
     binding_erased_start: u64 in Trapping;
     // Expression stacks: operands, pending operators and open brackets, with
     // the arguments and construction fields staged until their bracket closes.
-    expression_operands: [u64; 64] in Trapping;
+    expression_operands: [u64 in Trapping; 64];
     expression_operand_depth: u64;
-    expression_operators: [PendingOperator; 64] in Trapping;
+    expression_operators: [PendingOperator; 64];
     expression_operator_depth: u64;
-    expression_frames: [ExpressionFrame; 32] in Trapping;
+    expression_frames: [ExpressionFrame; 32];
     expression_frame_depth: u64;
-    pending_arguments: [u64; 256] in Trapping;
+    pending_arguments: [u64 in Trapping; 256];
     pending_argument_count: u64;
-    pending_fields: [ConstructField; 64] in Trapping;
+    pending_fields: [ConstructField; 64];
     pending_field_count: u64;
     // A value-position match's arms stage here until its `}`.
-    pending_arms: [TransitionArm; 64] in Trapping;
+    pending_arms: [TransitionArm; 64];
     pending_arm_count: u64;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
@@ -185,7 +187,7 @@ requires
     clause_first_argument: u64 in Trapping;
     clause_argument_count: u64 in Trapping;
     // A ranking witness's subjects stage here until its list closes.
-    ranked_subjects: [u64; 8] in Trapping;
+    ranked_subjects: [u64 in Trapping; 8];
     ranked_subject_count: u64;
     // Declaration scratch for the trait, conformance, domain, constant and
     // proposition grammars; one root declaration is under way at a time, and
@@ -226,7 +228,7 @@ requires
 // appends one at a time. Every row keeps its unit in its source span, so the
 // tables are shared and handles stay dense across units.
 public machine parser_initialize(parser: &mut Parser) {
-    syntax_trees_clear(&mut parser.output, SourceId { value: 0 });
+    syntax_trees_clear(&mut parser.output, SourceId { value: 0u32 as +Trapping });
 }
 
 // The unit `parse` appends next: its spans anchor to `source`, and its token
@@ -818,8 +820,8 @@ machine root_machine_head(start: u64 in Trapping, is_public: bool) -> MachineHea
         start: start,
         is_public: is_public,
         has_target: false,
-        target_start: 0,
-        target_end: 0,
+        target_start: 0u64 as +Trapping,
+        target_end: 0u64 as +Trapping,
         is_boundary: false,
         container: MachineContainer::Root
     }
@@ -830,8 +832,8 @@ machine measure_head(start: u64 in Trapping) -> MachineHead {
         start: start,
         is_public: false,
         has_target: false,
-        target_start: 0,
-        target_end: 0,
+        target_start: 0u64 as +Trapping,
+        target_end: 0u64 as +Trapping,
         is_boundary: false,
         container: MachineContainer::Measure
     }

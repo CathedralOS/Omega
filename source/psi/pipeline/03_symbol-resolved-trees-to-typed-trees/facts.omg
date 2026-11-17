@@ -10,12 +10,12 @@
 public machine type_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
-    transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next_machine(typer, sources, syntax, resolution, 0u64 as +Trapping) }
 
     machine next_machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
             true -> machine(typer, sources, syntax, resolution, index)
-            _ -> next_data(typer, sources, syntax, resolution, 0)
+            _ -> next_data(typer, sources, syntax, resolution, 0u64 as +Trapping)
         }
     }
 
@@ -23,7 +23,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Ensures);
-        transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, 0) }
+        transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, 0u64 as +Trapping) }
     }
 
     machine next_contract(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
@@ -43,7 +43,7 @@ crashes Trap
     machine next_data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.data_count && typer.output.accepted {
             true -> data(typer, sources, syntax, resolution, index)
-            _ -> next_domain(typer, sources, syntax, resolution, 0)
+            _ -> next_domain(typer, sources, syntax, resolution, 0u64 as +Trapping)
         }
     }
 

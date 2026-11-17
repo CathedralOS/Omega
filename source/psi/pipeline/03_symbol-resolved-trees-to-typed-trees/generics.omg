@@ -55,7 +55,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -71,7 +71,7 @@ crashes Trap
 
     machine declared(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow) {
         let item: DataItem = syntax_trees_data_item(syntax, owner.item);
-        transition { _ -> next(typer, syntax, owner, item, 0, 0) }
+        transition { _ -> next(typer, syntax, owner, item, 0u64 as +Trapping, 0u64 as +Trapping) }
     }
 
     machine next(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping) {
@@ -105,7 +105,7 @@ crashes Trap
 public machine all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(typer, syntax, first, count, 0) }
+    transition { _ -> next(typer, syntax, first, count, 0u64 as +Trapping) }
 
     machine next(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
@@ -141,8 +141,8 @@ public machine substitute_bound(typer: &mut Typer, handle: u64 in Trapping, sour
 crashes Trap
 {
     typer.memo_generation = typer.memo_generation + 1;
-    work_store(typer, 0, handle * 2);
-    transition { _ -> next(typer, handle, source_span, 1) }
+    work_store(typer, 0u64 as +Trapping, handle * 2);
+    transition { _ -> next(typer, handle, source_span, 1u64 as +Trapping) }
 
     machine next(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping) -> u64 in Trapping {
         transition depth > 0 && typer.output.accepted {
@@ -247,7 +247,7 @@ crashes Trap
 
     machine expand_data(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
         work_store(typer, depth, current * 2 + 1);
-        transition { _ -> push_arguments(typer, root, source_span, depth + 1, row, 0) }
+        transition { _ -> push_arguments(typer, root, source_span, depth + 1, row, 0u64 as +Trapping) }
     }
 
     machine push_arguments(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, row: TypeRow, offset: u64 in Trapping) -> u64 in Trapping {
@@ -267,7 +267,7 @@ crashes Trap
     // declaration as a new application (or the existing equal one).
     machine reapply(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
         let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
-        transition { _ -> reapply_argument(typer, root, source_span, depth, current, row, first, 0) }
+        transition { _ -> reapply_argument(typer, root, source_span, depth, current, row, first, 0u64 as +Trapping) }
     }
 
     machine reapply_argument(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
@@ -302,7 +302,7 @@ crashes Trap
     }
 
     machine failed() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 
     machine result(typer: &mut Typer, root: u64 in Trapping) -> u64 in Trapping {
@@ -319,9 +319,9 @@ crashes Trap
 public machine typer_unify(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, parameter: u64 in Trapping, argument: u64 in Trapping)
 crashes Trap
 {
-    work_store(typer, 0, parameter);
-    work_store(typer, 1, argument);
-    transition { _ -> next(typer, first, count, 2) }
+    work_store(typer, 0u64 as +Trapping, parameter);
+    work_store(typer, 1u64 as +Trapping, argument);
+    transition { _ -> next(typer, first, count, 2u64 as +Trapping) }
 
     machine next(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping) {
         transition depth >= 2 {
@@ -340,7 +340,7 @@ crashes Trap
             TypeKind::Reference -> reference(typer, first, count, depth, wanted_row, given_row, given)
             TypeKind::Array -> array(typer, first, count, depth, wanted_row, given_row)
             TypeKind::Slice -> collection(typer, first, count, depth, wanted_row, given_row)
-            TypeKind::Data -> data(typer, first, count, depth, wanted_row, given_row, 0)
+            TypeKind::Data -> data(typer, first, count, depth, wanted_row, given_row, 0u64 as +Trapping)
             _ -> next(typer, first, count, depth)
         }
     }

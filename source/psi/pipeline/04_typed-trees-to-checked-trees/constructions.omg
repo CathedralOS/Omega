@@ -41,7 +41,7 @@ crashes Trap
     }
 
     machine data(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Construction, handle, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Construction, handle, 0u64 as +Trapping, type_handle);
         transition place > 0 {
             true -> placed(checker, syntax, typing, handle, expression, place)
             _ -> unplaced(checker, handle)
@@ -51,7 +51,7 @@ crashes Trap
     // A construction evaluated again writes its fields afresh.
     machine placed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping) {
         forget_place(checker, typing, place);
-        transition { _ -> next_field(checker, syntax, typing, handle, expression, place, 0) }
+        transition { _ -> next_field(checker, syntax, typing, handle, expression, place, 0u64 as +Trapping) }
     }
 
     machine next_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
@@ -210,7 +210,7 @@ public machine take_pending(checker: &mut Checker, entry: Place)
 crashes Trap
 {
     transition entry.kind == PlaceKind::Field && entry.subject > 0 {
-        true -> next(checker, entry, 0)
+        true -> next(checker, entry, 0u64 as +Trapping)
         _ -> done()
     }
 
@@ -250,9 +250,9 @@ crashes Trap
     }
 
     machine equated(checker: &mut Checker, subject: u64 in Trapping, value: Value) {
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         let unknown: Value = value_unknown();
-        let own: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let own: Value = Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         constrain_difference(checker, own, value, zero);
         constrain_difference(checker, value, own, zero);
     }
@@ -285,7 +285,7 @@ crashes Trap
 public machine forget_pending(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, typing, place, 0) }
+    transition { _ -> next(checker, typing, place, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
@@ -356,7 +356,7 @@ public machine copy_pending(checker: &mut Checker, typing: &Typing, target: u64 
 crashes Trap
 {
     transition target > 0 && source > 0 && target != source {
-        true -> next(checker, typing, target, source, 0, checker.pending_count)
+        true -> next(checker, typing, target, source, 0u64 as +Trapping, checker.pending_count)
         _ -> done()
     }
 
@@ -372,7 +372,7 @@ crashes Trap
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
-        let path: ArrivalPath = path_below(checker, source, pending.parent, 0);
+        let path: ArrivalPath = path_below(checker, source, pending.parent, 0u64 as +Trapping);
         let parent: Place = place_at(checker, pending.parent - 1);
         let row: TypeRow = type_table_row(&typing.types, parent.type_handle);
         let owned: bool = owned_below(checker, typing, source, pending.parent)
@@ -403,7 +403,7 @@ crashes Trap
 public machine settle_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping)
 crashes Trap
 {
-    settle_pending_fields(checker, typing, parent, false, 0);
+    settle_pending_fields(checker, typing, parent, false, 0u64 as +Trapping);
 }
 
 // A narrow call frame must see pending fields it writes as places before
@@ -418,7 +418,7 @@ crashes Trap
 machine settle_pending_fields(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, typing, parent, written_only, callee, 0) }
+    transition { _ -> next(checker, typing, parent, written_only, callee, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {

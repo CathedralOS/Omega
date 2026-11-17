@@ -164,7 +164,7 @@ crashes Trap
     let valued: bool = event % 2 == 1;
     transition offset < expression.count {
         true -> arm(syntax, expression, offset, valued)
-        _ -> at(18446744073709551615)
+        _ -> at(18446744073709551615u64 as +Trapping)
     }
 
     machine arm(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, valued: bool) -> u64 in Trapping {

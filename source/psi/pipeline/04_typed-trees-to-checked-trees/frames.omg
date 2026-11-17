@@ -23,12 +23,12 @@
 public machine derive_frames(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
-    transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0) }
+    transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0u64 as +Trapping) }
 
     machine clear_parameter(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.parameter_count && index < 32768 {
             true -> parameter_cleared(checker, syntax, resolution, typing, index)
-            _ -> clear_machine(checker, syntax, resolution, typing, 0)
+            _ -> clear_machine(checker, syntax, resolution, typing, 0u64 as +Trapping)
         }
     }
 
@@ -56,7 +56,7 @@ crashes Trap
     }
 
     machine round(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
-        transition { _ -> next(checker, syntax, resolution, typing, 0, false) }
+        transition { _ -> next(checker, syntax, resolution, typing, 0u64 as +Trapping, false) }
     }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, changed: bool) {
@@ -94,7 +94,7 @@ crashes Trap
 
     machine entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem) -> bool {
         let stores: bool = frame_stores(checker, syntax, resolution, typing, machine, item.first_statement, item.statement_count);
-        transition { _ -> expression(checker, syntax, resolution, typing, machine, item, 0, stores) }
+        transition { _ -> expression(checker, syntax, resolution, typing, machine, item, 0u64 as +Trapping, stores) }
     }
 
     machine expression(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
@@ -207,7 +207,7 @@ machine frame_arguments(
 crashes Trap
 {
     let count: u64 in Trapping = operand_count(expression);
-    transition { _ -> next(checker, syntax, resolution, typing, machine, expression, first_parameter, parameter_count, unknown, count, 0, false) }
+    transition { _ -> next(checker, syntax, resolution, typing, machine, expression, first_parameter, parameter_count, unknown, count, 0u64 as +Trapping, false) }
 
     machine next(
         checker: &mut Checker,
@@ -285,7 +285,7 @@ crashes Trap
 machine frame_write(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> step(checker, syntax, resolution, typing, machine, handle, false, 0) }
+    transition { _ -> step(checker, syntax, resolution, typing, machine, handle, false, 0u64 as +Trapping) }
 
     // `fielded` once the walk has met a field, `written` that field.
     machine step(
@@ -423,7 +423,7 @@ machine lends_exclusively(syntax: &SyntaxTrees, typing: &Typing, expression: Exp
 crashes Trap
 {
     let count: u64 in Trapping = operand_count(expression);
-    transition { _ -> next(syntax, typing, expression, count, 0) }
+    transition { _ -> next(syntax, typing, expression, count, 0u64 as +Trapping) }
 
     machine next(syntax: &SyntaxTrees, typing: &Typing, expression: Expression, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
@@ -612,7 +612,7 @@ crashes Trap
 machine merge_field_writes(checker: &mut Checker, into: u64 in Trapping, from: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(checker, into, from, 0, false) }
+    transition { _ -> next(checker, into, from, 0u64 as +Trapping, false) }
 
     machine next(checker: &mut Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
         transition field < 1024 {
@@ -643,7 +643,7 @@ machine clear_field_writes(checker: &mut Checker, machine: u64 in Trapping)
 crashes Trap
 {
     transition machine < 10240 {
-        true -> next(checker, machine * 16, 0)
+        true -> next(checker, machine * 16, 0u64 as +Trapping)
         _ -> done()
     }
 

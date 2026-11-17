@@ -17,11 +17,11 @@ crashes Trap
     let expressions: u64 in Trapping = syntax.expression_count as u64 in Trapping;
     invocation_graph_initialize(&mut checker.invocations, nodes, expressions);
     checker.collecting_completion = false;
-    transition { _ -> clear(checker, syntax, resolution, typing, 0) }
+    transition { _ -> clear(checker, syntax, resolution, typing, 0u64 as +Trapping) }
     machine clear(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && index < 10240 {
             true -> cleared(checker, syntax, resolution, typing, index)
-            false -> discover(checker, syntax, resolution, typing, 0)
+            false -> discover(checker, syntax, resolution, typing, 0u64 as +Trapping)
         }
     }
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
@@ -52,7 +52,7 @@ crashes Trap
     machine seal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         let sealed: bool = invocation_graph_seal(&mut checker.invocations);
         transition sealed {
-            true -> ordered(checker, syntax, resolution, typing, 0)
+            true -> ordered(checker, syntax, resolution, typing, 0u64 as +Trapping)
             false -> done(checker)
         }
     }
@@ -112,7 +112,7 @@ crashes Trap
     let diagnostics: u64 = checker.output.diagnostic_count;
     let obligations: u64 in Wrapping = checker.output.obligation_count;
     prepare_body(checker, item, index);
-    checker.body_count = 0;
+    checker.body_count = 0u64 as +Trapping;
     checker.queue_count = 0;
     checker.trap_route = false;
     checker.abort_route = false;
@@ -193,7 +193,7 @@ crashes Trap
     }
     machine materialized(checker: &mut Checker, typing: &Typing, expression: u64 in Trapping, value: Value) -> bool {
         let type_handle: u64 in Trapping = typing_expression_type(typing, expression);
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, expression, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, expression, 0u64 as +Trapping, type_handle);
         initialize_place(checker, typing, place, value);
         let result: Value = reference_value(checker, typing, place);
         checker_set_value(checker, expression, result);

@@ -168,9 +168,9 @@ requires
     token_count <= 65536,
     decoded_length <= 131072,
 {
-    tokens: [Token; 65536] in Trapping;
+    tokens: [Token; 65536];
     token_count: u64;
-    decoded: [u8; 131072] in Trapping;
+    decoded: [u8 in Trapping; 131072];
     decoded_length: u64;
     diagnostic: LexDiagnostic;
     accepted: bool;
@@ -184,8 +184,8 @@ machine token_stream_clear(token_stream: &mut TokenStream, source: SourceId) {
     token_stream.last_retained = true;
     token_stream.diagnostic.code = LexDiagnosticCode::None;
     token_stream.diagnostic.source_span.source = source;
-    token_stream.diagnostic.source_span.span.start = 0;
-    token_stream.diagnostic.source_span.span.end = 0;
+    token_stream.diagnostic.source_span.span.start = 0u64 as +Trapping;
+    token_stream.diagnostic.source_span.span.end = 0u64 as +Trapping;
 }
 
 machine token_stream_reject(

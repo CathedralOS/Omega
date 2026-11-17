@@ -66,7 +66,7 @@ public machine bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syn
 crashes Trap
 {
     assign_name_roles(resolver, syntax);
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
@@ -95,7 +95,7 @@ crashes Trap
 machine bind_constant_values(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.constant_count && resolver.output.accepted {
@@ -108,18 +108,18 @@ crashes Trap
         let item: ConstantItem = constant_item(syntax, index);
         bind_tree(resolver, sources, syntax, NameScope {
             has_machine: false,
-            machine: 0,
-            first_parameter: 0,
-            parameter_count: 0,
-            first_statement: 0,
-            visible_statement_end: 0,
-            first_binder: 0,
-            binder_count: 0,
+            machine: 0u64 as +Trapping,
+            first_parameter: 0u64 as +Trapping,
+            parameter_count: 0u64 as +Trapping,
+            first_statement: 0u64 as +Trapping,
+            visible_statement_end: 0u64 as +Trapping,
+            first_binder: 0u64 as +Trapping,
+            binder_count: 0u64 as +Trapping,
             result_binding: ValueBinding::NotAName,
             in_fact: false,
-            fact_root: 0,
+            fact_root: 0u64 as +Trapping,
             names_subject: false,
-            subject_domain: 0
+            subject_domain: 0u64 as +Trapping
         }, item.value);
         transition { _ -> next(resolver, sources, syntax, index + 1) }
     }
@@ -132,12 +132,12 @@ crashes Trap
 machine assign_name_roles(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, syntax, 0) }
+    transition { _ -> next(resolver, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.expression_count {
             true -> clear(resolver, syntax, index)
-            _ -> parents(resolver, syntax, 0)
+            _ -> parents(resolver, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -234,13 +234,13 @@ crashes Trap
         parameter_count: parameter_count,
         first_statement: first_statement,
         visible_statement_end: first_statement,
-        first_binder: 0,
-        binder_count: 0,
+        first_binder: 0u64 as +Trapping,
+        binder_count: 0u64 as +Trapping,
         result_binding: ValueBinding::NotAName,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0u64 as +Trapping,
         names_subject: false,
-        subject_domain: 0
+        subject_domain: 0u64 as +Trapping
     }, first_statement + statement_count) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
@@ -330,13 +330,13 @@ crashes Trap
     machine subject(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, statement: Statement) {
         transition statement.has_value {
             true -> subject_value(resolver, sources, syntax, scope, statement)
-            _ -> arm(resolver, sources, syntax, scope, statement, 0)
+            _ -> arm(resolver, sources, syntax, scope, statement, 0u64 as +Trapping)
         }
     }
 
     machine subject_value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, statement: Statement) {
         bind_tree(resolver, sources, syntax, scope, statement.value);
-        transition { _ -> arm(resolver, sources, syntax, scope, statement, 0) }
+        transition { _ -> arm(resolver, sources, syntax, scope, statement, 0u64 as +Trapping) }
     }
 
     machine arm(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, statement: Statement, offset: u64 in Trapping) {
@@ -390,7 +390,7 @@ crashes Trap
     machine case_pattern(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
         resolver_set_role(resolver, arm.pattern, NameRole::CasePattern);
         bind_tree(resolver, sources, syntax, scope, arm.pattern);
-        transition { _ -> field(resolver, sources, syntax, scope, arm, 0) }
+        transition { _ -> field(resolver, sources, syntax, scope, arm, 0u64 as +Trapping) }
     }
 
     machine field(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm, offset: u64 in Trapping) {
@@ -662,7 +662,7 @@ crashes Trap
     machine local(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, end: u64 in Trapping) -> ValueBinding {
         transition end > scope.first_statement {
             true -> local_statement(resolution, sources, syntax, scope, name, end - 1)
-            _ -> binder(resolution, sources, syntax, scope, name, 0)
+            _ -> binder(resolution, sources, syntax, scope, name, 0u64 as +Trapping)
         }
     }
 
@@ -678,7 +678,7 @@ crashes Trap
     machine binder(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < scope.binder_count {
             true -> binder_field(resolution, sources, syntax, scope, name, offset)
-            _ -> parameter(resolution, sources, syntax, scope, name, 0)
+            _ -> parameter(resolution, sources, syntax, scope, name, 0u64 as +Trapping)
         }
     }
 
@@ -982,7 +982,7 @@ crashes Trap
 machine lexical_callee(sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    transition { _ -> candidate(sources, syntax, machine + 1, name, 0) }
+    transition { _ -> candidate(sources, syntax, machine + 1, name, 0u64 as +Trapping) }
 
     machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
         transition index < syntax.machine_count {
@@ -1003,7 +1003,7 @@ crashes Trap
     machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> ValueBinding {
         let item: MachineItem = machine_item(syntax, parent - 1);
         transition item.parent > 0 {
-            true -> candidate(sources, syntax, item.parent, name, 0)
+            true -> candidate(sources, syntax, item.parent, name, 0u64 as +Trapping)
             false -> found(ValueBinding::Unresolved)
         }
     }
@@ -1024,7 +1024,7 @@ crashes Trap
     machine enclosing(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         transition scope.has_machine {
             true -> declaration_callee(resolution, sources, syntax, scope.machine + 1, name)
-            false -> declaration_callee(resolution, sources, syntax, 0, name)
+            false -> declaration_callee(resolution, sources, syntax, 0u64 as +Trapping, name)
         }
     }
 }
@@ -1280,7 +1280,7 @@ crashes Trap
 machine resolver_binder_named(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, first, count, name, machine_binder, 0) }
+    transition { _ -> next(sources, syntax, first, count, name, machine_binder, 0u64 as +Trapping) }
 
     machine next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> ValueBinding {
         transition offset < count {
@@ -1357,7 +1357,7 @@ crashes Trap
 
     machine cases(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan, item: u64 in Trapping) -> ValueBinding {
         let data_item: DataItem = syntax_trees_data_item(syntax, item);
-        transition { _ -> case_at(resolution, sources, syntax, owner, name, item, data_item, 0) }
+        transition { _ -> case_at(resolution, sources, syntax, owner, name, item, data_item, 0u64 as +Trapping) }
     }
 
     machine case_at(

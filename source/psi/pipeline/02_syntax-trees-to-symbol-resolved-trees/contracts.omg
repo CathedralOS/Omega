@@ -8,17 +8,17 @@
 public machine bind_machine_contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> clear(resolver, sources, syntax, 0) }
+    transition { _ -> clear(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine clear(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, parameter: u64 in Trapping) {
         transition parameter < syntax.generic_parameter_count {
             true -> cleared(resolver, sources, syntax, parameter)
-            _ -> next_machine(resolver, sources, syntax, 0)
+            _ -> next_machine(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
 
     machine cleared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, parameter: u64 in Trapping) {
-        set_binder_contract(&mut resolver.output, parameter, BinderContract { present: false, contract: 0 });
+        set_binder_contract(&mut resolver.output, parameter, BinderContract { present: false, contract: 0u64 as +Trapping });
         transition { _ -> clear(resolver, sources, syntax, parameter + 1) }
     }
 
@@ -31,7 +31,7 @@ crashes Trap
 
     machine machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
-        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
+        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0u64 as +Trapping) }
     }
 
     machine next_contract(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
@@ -95,7 +95,7 @@ crashes Trap
 machine contract_binder(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, item, name, 0) }
+    transition { _ -> next(sources, syntax, item, name, 0u64 as +Trapping) }
 
     machine next(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < item.generic_parameter_count {

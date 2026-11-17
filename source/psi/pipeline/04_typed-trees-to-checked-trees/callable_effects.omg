@@ -14,7 +14,7 @@ crashes Trap
     }
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, target: Selection) -> bool {
         transition target {
-            Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0)
+            Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0u64 as +Trapping)
             Selection::Binder { parameter } -> bound(resolution, parameter)
             _ -> false
         }
@@ -36,10 +36,10 @@ crashes Trap
         transition { _ -> clear(checker, syntax, resolution, required, root, index + 1) }
     }
     machine seed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, root: u64 in Trapping) -> bool {
-        checker.invocations.work_count = 0;
+        checker.invocations.work_count = 0u64 as +Trapping;
         let queued: bool = queue_callable_effect(checker, root);
         transition checker.invocations.complete && checker.invocations.sealed && queued {
-            true -> next(checker, syntax, resolution, required, 0)
+            true -> next(checker, syntax, resolution, required, 0u64 as +Trapping)
             false -> false
         }
     }
@@ -137,7 +137,7 @@ crashes Trap
 {
     let suspends: bool = callable_has_clause(syntax, required, ClauseKind::Suspends);
     let blocks: bool = callable_has_clause(syntax, required, ClauseKind::Blocks);
-    transition { _ -> next(syntax, given, suspends, blocks, 0) }
+    transition { _ -> next(syntax, given, suspends, blocks, 0u64 as +Trapping) }
     machine next(syntax: &SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         transition offset < given.clause_count {
             true -> clause(syntax, given, suspends, blocks, offset)
@@ -156,7 +156,7 @@ crashes Trap
 public machine callable_has_clause(syntax: &SyntaxTrees, clauses: CallClauses, kind: ClauseKind) -> bool
 crashes Trap
 {
-    transition { _ -> next(syntax, clauses, kind, 0) }
+    transition { _ -> next(syntax, clauses, kind, 0u64 as +Trapping) }
     machine next(syntax: &SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
         transition offset < clauses.clause_count {
             true -> row(syntax, clauses, kind, offset)

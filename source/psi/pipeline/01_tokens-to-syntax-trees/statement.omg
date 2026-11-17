@@ -81,15 +81,15 @@ crashes Trap
     machine discard_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let statement: Statement = Statement {
             kind: StatementKind::Discard,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: true,
             value: value,
-            target: 0,
+            target: 0u64 as +Trapping,
             cause: CrashCause::Trap,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -124,15 +124,15 @@ crashes Trap
     machine crash_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
         let statement: Statement = Statement {
             kind: StatementKind::Crash,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: false,
-            value: 0,
-            target: 0,
+            value: 0u64 as +Trapping,
+            target: 0u64 as +Trapping,
             cause: cause,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -209,7 +209,7 @@ crashes Trap
         let initialized: bool = at_punctuation(parser, input, PunctuationKind::Equal);
         transition initialized {
             true -> let_value(parser, input, unsupported)
-            _ -> let_end(parser, input, unsupported, false, 0)
+            _ -> let_end(parser, input, unsupported, false, 0u64 as +Trapping)
         }
     }
 
@@ -253,10 +253,10 @@ crashes Trap
             type_reference: parser.local_type,
             has_value: has_value,
             value: value,
-            target: 0,
+            target: 0u64 as +Trapping,
             cause: CrashCause::Trap,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -323,15 +323,15 @@ crashes Trap
     ) {
         let statement: Statement = Statement {
             kind: StatementKind::Assign,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: true,
             value: value,
             target: target,
             cause: CrashCause::Trap,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -341,15 +341,15 @@ crashes Trap
         take_current(parser, input);
         let statement: Statement = Statement {
             kind: StatementKind::Expression,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: true,
             value: value,
-            target: 0,
+            target: 0u64 as +Trapping,
             cause: CrashCause::Trap,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -360,15 +360,15 @@ crashes Trap
         let expression: Expression = syntax_trees_expression(&parser.output, value);
         let statement: Statement = Statement {
             kind: StatementKind::Tail,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: true,
             value: value,
-            target: 0,
+            target: 0u64 as +Trapping,
             cause: CrashCause::Trap,
-            first_arm: 0,
-            arm_count: 0,
+            first_arm: 0u64 as +Trapping,
+            arm_count: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.statement_start, expression.source_span.span.end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -394,7 +394,7 @@ crashes Trap
         take_current(parser, input);
         let open: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
-            true -> arms_open(parser, input, unsupported, false, 0)
+            true -> arms_open(parser, input, unsupported, false, 0u64 as +Trapping)
             _ -> transition_subject(parser, input, unsupported)
         }
     }
@@ -467,7 +467,7 @@ crashes Trap
         parser.arm_has_fields = false;
         parser.arm_has_rest = false;
         parser.arm_has_guard = false;
-        parser.arm_guard = 0;
+        parser.arm_guard = 0u64 as +Trapping;
         let wildcard: bool = at_word(parser, input, "_");
         transition wildcard {
             true -> wildcard_arm(parser, input, unsupported, has_subject, subject)
@@ -483,7 +483,7 @@ crashes Trap
         subject: u64 in Trapping
     ) {
         take_current(parser, input);
-        transition { _ -> arm_guard(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0, 0, 0) }
+        transition { _ -> arm_guard(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0u64 as +Trapping, 0u64 as +Trapping, 0u64 as +Trapping) }
     }
 
     machine arm_expression(
@@ -513,7 +513,7 @@ crashes Trap
         let expression: Expression = syntax_trees_expression(&parser.output, pattern);
         transition has_subject {
             true -> subject_pattern(parser, input, unsupported, subject, pattern, expression.kind)
-            _ -> arm_guard(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0, 0)
+            _ -> arm_guard(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0u64 as +Trapping, 0u64 as +Trapping)
         }
     }
 
@@ -528,7 +528,7 @@ crashes Trap
         transition kind {
             ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern)
             ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern)
-            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
+            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0u64 as +Trapping, 0u64 as +Trapping)
         }
     }
 
@@ -545,7 +545,7 @@ crashes Trap
         transition braced {
             true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
             _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
-                parser.pattern_first_field, 0)
+                parser.pattern_first_field, 0u64 as +Trapping)
         }
     }
 
@@ -865,7 +865,7 @@ crashes Trap
                 has_guard: parser.arm_has_guard,
                 guard: parser.arm_guard,
                 target_kind: ArmTargetKind::Unit,
-                target: 0,
+                target: 0u64 as +Trapping,
                 source_span: parser_source_span(parser, parser.arm_start, parser.token_end)
             })
             _ -> done()
@@ -1066,12 +1066,12 @@ crashes Trap
         take_current(parser, input);
         let statement: Statement = Statement {
             kind: StatementKind::Transition,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             is_mutable: false,
-            type_reference: 0,
+            type_reference: 0u64 as +Trapping,
             has_value: has_subject,
             value: subject,
-            target: 0,
+            target: 0u64 as +Trapping,
             cause: CrashCause::Trap,
             first_arm: parser.transition_first_arm,
             arm_count: (parser.output.arm_count as u64 in Trapping) - parser.transition_first_arm,
@@ -1114,9 +1114,9 @@ machine pattern_binder(parser: &Parser) -> PatternField {
     PatternField {
         name: identifier_span(parser, parser.pattern_field_start, parser.pattern_field_end),
         has_value: false,
-        value: 0,
+        value: 0u64 as +Trapping,
         has_rename: false,
-        rename: identifier_span(parser, 0, 0),
+        rename: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         is_waived: false,
         source_span: parser_source_span(parser, parser.pattern_field_start, parser.pattern_field_end)
     }
@@ -1127,7 +1127,7 @@ machine renamed_binder(parser: &Parser, binder: PatternField, waived: bool) -> P
     PatternField {
         name: binder.name,
         has_value: false,
-        value: 0,
+        value: 0u64 as +Trapping,
         has_rename: true,
         rename: identifier_span(parser, parser.name_start, parser.name_end),
         is_waived: waived,
@@ -1142,7 +1142,7 @@ machine valued_pattern_field(parser: &Parser, value: u64 in Trapping, end: u64 i
         has_value: true,
         value: value,
         has_rename: false,
-        rename: identifier_span(parser, 0, 0),
+        rename: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         is_waived: false,
         source_span: parser_source_span(parser, parser.pattern_field_start, end)
     }

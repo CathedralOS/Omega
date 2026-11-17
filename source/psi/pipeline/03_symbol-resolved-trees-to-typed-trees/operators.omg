@@ -17,9 +17,9 @@ public machine type_operator_call(
 )
 crashes Trap
 {
-    let matches: u64 in Trapping = operator_matches(typer, sources, syntax, resolution, expression, 0, 0);
+    let matches: u64 in Trapping = operator_matches(typer, sources, syntax, resolution, expression, 0u64 as +Trapping, 0u64 as +Trapping);
     transition matches == 1 {
-        true -> select(typer, sources, syntax, resolution, index, expression, 0)
+        true -> select(typer, sources, syntax, resolution, index, expression, 0u64 as +Trapping)
         _ -> unmatched(typer, expression, matches)
     }
 
@@ -166,8 +166,8 @@ crashes Trap
         item: MachineItem
     ) -> bool {
         let is_public: bool = machine_public(resolution, syntax, item, candidate);
-        let use_unit: u64 in Trapping = expression.source_span.source.value as u64 in Trapping;
-        let declared_unit: u64 in Trapping = item.name.source_span.source.value as u64 in Trapping;
+        let use_unit: u64 in Trapping = expression.source_span.source.value as -Trapping as u64 +Trapping;
+        let declared_unit: u64 in Trapping = item.name.source_span.source.value as -Trapping as u64 +Trapping;
         let own: bool = resolver_same_package(sources, use_unit, declared_unit);
         transition is_public || own {
             true -> operands(typer, syntax, expression, item)

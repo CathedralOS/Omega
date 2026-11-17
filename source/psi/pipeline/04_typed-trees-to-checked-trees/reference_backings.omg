@@ -18,7 +18,7 @@ crashes Trap
         false -> {}
     }
     machine opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0u64 as +Trapping, type_handle);
         transition place > 0 && place <= 256 && checker.reference_view_count < 256 {
             true -> group(checker, syntax, resolution, typing, expression, place, checker.reference_view_count)
             false -> full(checker, expression.source_span)
@@ -29,9 +29,9 @@ crashes Trap
     requires place > 0
     requires place <= 256
     {
-        checker.reference_views[index] = ReferenceView { first: checker.reference_backing_count, count: 0 };
+        checker.reference_views[index] = ReferenceView { first: checker.reference_backing_count, count: 0u64 as +Trapping };
         checker.reference_view_count = index + 1;
-        transition { _ -> next(checker, syntax, resolution, typing, expression, place, index, 0) }
+        transition { _ -> next(checker, syntax, resolution, typing, expression, place, index, 0u64 as +Trapping) }
     }
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, place: u64 in Trapping, group: u64 in Trapping, offset: u64 in Trapping)
     requires group < 256
@@ -58,7 +58,7 @@ crashes Trap
     requires place <= 256
     {
         let entry: Place = place_at(checker, place - 1);
-        let home: u64 in Trapping = checker_place(checker, typing, PlaceKind::View, backing, 0, entry.type_handle);
+        let home: u64 in Trapping = checker_place(checker, typing, PlaceKind::View, backing, 0u64 as +Trapping, entry.type_handle);
         transition home > 0 && home <= 256 {
             true -> publish(checker, place - 1, home - 1, backing)
             false -> full(checker, expression.source_span)

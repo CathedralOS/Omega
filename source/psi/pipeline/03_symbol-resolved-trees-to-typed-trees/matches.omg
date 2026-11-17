@@ -22,7 +22,7 @@ crashes Trap
     let joined: bool = unlanded_join_type(typer, subject_type);
     transition subject_type == 0 || joined {
         true -> subject_absent(typer, syntax, expression)
-        _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
+        _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0u64 as +Trapping)
     }
 
     machine subject_absent(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {

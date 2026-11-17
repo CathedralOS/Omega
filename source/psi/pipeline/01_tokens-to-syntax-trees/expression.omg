@@ -208,7 +208,7 @@ crashes Trap
     // An acknowledgement binds like a prefix operator: it applies to the
     // whole postfix expression that follows.
     machine acknowledge(parser: &mut Parser, input: &TokenStream, operator: OperatorKind, start: u64 in Trapping) {
-        push_operator(parser, input, operator, 11, true, start);
+        push_operator(parser, input, operator, 11u64 as +Trapping, true, start);
         transition parser.output.accepted {
             true -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand)
             _ -> done()
@@ -235,7 +235,7 @@ crashes Trap
 
     machine prefix(parser: &mut Parser, input: &TokenStream, operator: OperatorKind) {
         let token: Token = input.tokens[parser.current_index];
-        push_operator(parser, input, operator, 11, true, token.start);
+        push_operator(parser, input, operator, 11u64 as +Trapping, true, token.start);
         transition parser.output.accepted {
             true -> prefix_taken(parser, input)
             _ -> done()
@@ -273,7 +273,7 @@ crashes Trap
     }
 
     machine borrow_operator(parser: &mut Parser, input: &TokenStream, operator: OperatorKind, start: u64 in Trapping) {
-        push_operator(parser, input, operator, 11, true, start);
+        push_operator(parser, input, operator, 11u64 as +Trapping, true, start);
         transition parser.output.accepted {
             true -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand)
             _ -> done()
@@ -282,7 +282,7 @@ crashes Trap
 
     machine literal(parser: &mut Parser, input: &TokenStream, kind: ExpressionKind) {
         take_current(parser, input);
-        transition { _ -> literal_node(parser, input, kind, 0) }
+        transition { _ -> literal_node(parser, input, kind, 0u64 as +Trapping) }
     }
 
     machine integer(parser: &mut Parser, input: &TokenStream) {
@@ -297,14 +297,14 @@ crashes Trap
         let node: Expression = Expression {
             kind: kind,
             operator: OperatorKind::None,
-            left: 0,
-            right: 0,
-            first: 0,
-            count: 0,
+            left: 0u64 as +Trapping,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
             name: identifier_span(parser, parser.token_start, parser.token_end),
-            type_reference: 0,
-            first_row: 0,
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
             literal: literal_handle,
             source_span: parser_source_span(parser, parser.token_start, parser.token_end)
         };
@@ -320,15 +320,15 @@ crashes Trap
         let node: Expression = Expression {
             kind: ExpressionKind::Boolean,
             operator: OperatorKind::None,
-            left: 0,
-            right: 0,
-            first: 0,
-            count: 0,
+            left: 0u64 as +Trapping,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: value,
             name: identifier_span(parser, parser.token_start, parser.token_end),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.token_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -384,15 +384,15 @@ crashes Trap
         let node: Expression = Expression {
             kind: ExpressionKind::Name,
             operator: OperatorKind::None,
-            left: 0,
-            right: 0,
-            first: 0,
-            count: 0,
+            left: 0u64 as +Trapping,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
             name: identifier_span(parser, parser.path_start, parser.token_end),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.path_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -407,15 +407,15 @@ crashes Trap
         let node: Expression = Expression {
             kind: ExpressionKind::Path,
             operator: OperatorKind::None,
-            left: 0,
-            right: 0,
+            left: 0u64 as +Trapping,
+            right: 0u64 as +Trapping,
             first: parser.path_first_member,
             count: count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, parser.path_start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -451,23 +451,23 @@ crashes Trap
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_index(parser, input)
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_call(parser, input)
             TokenKind::Keyword { keyword: KeywordKind::As, .. } -> cast(parser, input)
-            TokenKind::Punctuation { punctuation: PunctuationKind::PipePipe, .. } -> binary(parser, input, OperatorKind::Or, 1)
-            TokenKind::Punctuation { punctuation: PunctuationKind::AndAnd, .. } -> binary(parser, input, OperatorKind::And, 2)
-            TokenKind::Punctuation { punctuation: PunctuationKind::EqualEqual, .. } -> binary(parser, input, OperatorKind::Equal, 3)
-            TokenKind::Punctuation { punctuation: PunctuationKind::ExclamationEqual, .. } -> binary(parser, input, OperatorKind::NotEqual, 3)
+            TokenKind::Punctuation { punctuation: PunctuationKind::PipePipe, .. } -> binary(parser, input, OperatorKind::Or, 1u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::AndAnd, .. } -> binary(parser, input, OperatorKind::And, 2u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::EqualEqual, .. } -> binary(parser, input, OperatorKind::Equal, 3u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::ExclamationEqual, .. } -> binary(parser, input, OperatorKind::NotEqual, 3u64 as +Trapping)
             TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> less(parser, input)
-            TokenKind::Punctuation { punctuation: PunctuationKind::LessEqual, .. } -> binary(parser, input, OperatorKind::LessEqual, 4)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LessEqual, .. } -> binary(parser, input, OperatorKind::LessEqual, 4u64 as +Trapping)
             TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> greater(parser, input)
-            TokenKind::Punctuation { punctuation: PunctuationKind::GreaterEqual, .. } -> binary(parser, input, OperatorKind::GreaterEqual, 4)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Pipe, .. } -> binary(parser, input, OperatorKind::BitOr, 5)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Caret, .. } -> binary(parser, input, OperatorKind::BitXor, 6)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> binary(parser, input, OperatorKind::BitAnd, 7)
-            TokenKind::Punctuation { punctuation: PunctuationKind::LessLess, .. } -> binary(parser, input, OperatorKind::ShiftLeft, 8)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Plus, .. } -> binary(parser, input, OperatorKind::Add, 9)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Minus, .. } -> binary(parser, input, OperatorKind::Subtract, 9)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Asterisk, .. } -> binary(parser, input, OperatorKind::Multiply, 10)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Slash, .. } -> binary(parser, input, OperatorKind::Divide, 10)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Percent, .. } -> binary(parser, input, OperatorKind::Modulo, 10)
+            TokenKind::Punctuation { punctuation: PunctuationKind::GreaterEqual, .. } -> binary(parser, input, OperatorKind::GreaterEqual, 4u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Pipe, .. } -> binary(parser, input, OperatorKind::BitOr, 5u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Caret, .. } -> binary(parser, input, OperatorKind::BitXor, 6u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> binary(parser, input, OperatorKind::BitAnd, 7u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LessLess, .. } -> binary(parser, input, OperatorKind::ShiftLeft, 8u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Plus, .. } -> binary(parser, input, OperatorKind::Add, 9u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Minus, .. } -> binary(parser, input, OperatorKind::Subtract, 9u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Asterisk, .. } -> binary(parser, input, OperatorKind::Multiply, 10u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Slash, .. } -> binary(parser, input, OperatorKind::Divide, 10u64 as +Trapping)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Percent, .. } -> binary(parser, input, OperatorKind::Modulo, 10u64 as +Trapping)
             TokenKind::Identifier -> word_suffix(parser, input)
             _ -> end_operand(parser, input)
         }
@@ -485,7 +485,7 @@ crashes Trap
     // membership, so its value is the whole operand before it.
     machine membership(parser: &mut Parser, input: &TokenStream) {
         let base: u64 in Trapping = frame_operator_base(parser);
-        reduce_until(parser, input, base, 5);
+        reduce_until(parser, input, base, 5u64 as +Trapping);
         transition parser.output.accepted {
             true -> membership_value(parser, input)
             _ -> done()
@@ -599,14 +599,14 @@ crashes Trap
             kind: ExpressionKind::Membership,
             operator: connective,
             left: value,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: first_domain,
             count: (parser.output.name_path_count as u64 in Trapping) - first_domain,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -620,7 +620,7 @@ crashes Trap
     // its `{` opens the arms.
     machine match_open(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        parser_push_frame(parser, input, ExpressionFrameKind::MatchSubject, 0);
+        parser_push_frame(parser, input, ExpressionFrameKind::MatchSubject, 0u64 as +Trapping);
         transition parser.output.accepted {
             true -> match_taken(parser, input, token.start)
             _ -> done()
@@ -630,7 +630,7 @@ crashes Trap
     machine match_taken(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
         take_current(parser, input);
         let frame: ExpressionFrame = top_frame(parser);
-        replace_top_frame(parser, match_frame(frame, ExpressionFrameKind::MatchSubject, 0, start));
+        replace_top_frame(parser, match_frame(frame, ExpressionFrameKind::MatchSubject, 0u64 as +Trapping, start));
         transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedMatchSubject) }
     }
 
@@ -687,7 +687,7 @@ crashes Trap
 
     machine match_wildcard(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
         take_current(parser, input);
-        transition { _ -> match_arrow(parser, input, frame, ArmPatternKind::Wildcard, 0) }
+        transition { _ -> match_arrow(parser, input, frame, ArmPatternKind::Wildcard, 0u64 as +Trapping) }
     }
 
     // A name or path is a case pattern; any other value pattern a literal.
@@ -766,14 +766,14 @@ crashes Trap
             kind: ExpressionKind::Match,
             operator: OperatorKind::None,
             left: frame.callee,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: parser.committed_first,
             count: parser.committed_count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -793,7 +793,7 @@ crashes Trap
         let applied: bool = static_arguments_ahead(parser, input);
         transition named && applied {
             true -> static_arguments(parser, input)
-            _ -> binary(parser, input, OperatorKind::Less, 4)
+            _ -> binary(parser, input, OperatorKind::Less, 4u64 as +Trapping)
         }
     }
 
@@ -813,14 +813,14 @@ crashes Trap
             kind: ExpressionKind::Apply,
             operator: OperatorKind::None,
             left: callee,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: parser.committed_type_first,
             count: parser.committed_type_count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -836,13 +836,13 @@ crashes Trap
         let shift: bool = next_is_adjacent_punctuation(parser, input, PunctuationKind::Greater, token.end);
         transition shift {
             true -> shift_right(parser, input)
-            _ -> binary(parser, input, OperatorKind::Greater, 4)
+            _ -> binary(parser, input, OperatorKind::Greater, 4u64 as +Trapping)
         }
     }
 
     machine shift_right(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
-        transition { _ -> binary(parser, input, OperatorKind::ShiftRight, 8) }
+        transition { _ -> binary(parser, input, OperatorKind::ShiftRight, 8u64 as +Trapping) }
     }
 
     machine field(parser: &mut Parser, input: &TokenStream) {
@@ -861,14 +861,14 @@ crashes Trap
             kind: ExpressionKind::Field,
             operator: OperatorKind::None,
             left: base,
-            right: 0,
-            first: 0,
-            count: 0,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
             name: identifier_span(parser, parser.name_start, parser.name_end),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, base_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -883,7 +883,7 @@ crashes Trap
     // type's `in` qualifier, which would hide what was added or removed.
     machine cast(parser: &mut Parser, input: &TokenStream) {
         let base: u64 in Trapping = frame_operator_base(parser);
-        reduce_until(parser, input, base, 11);
+        reduce_until(parser, input, base, 11u64 as +Trapping);
         transition parser.output.accepted {
             true -> cast_begin(parser, input)
             _ -> done()
@@ -924,14 +924,14 @@ crashes Trap
             kind: ExpressionKind::Cast,
             operator: OperatorKind::None,
             left: value,
-            right: 0,
-            first: 0,
-            count: 0,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
-            name: identifier_span(parser, 0, 0),
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
             type_reference: parser.type_result,
-            first_row: 0,
-            literal: 0,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.type_end)
         };
         emit_expression(parser, input, node);
@@ -1004,14 +1004,14 @@ crashes Trap
             kind: ExpressionKind::Cast,
             operator: operation,
             left: value,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: first,
-            count: 1,
+            count: 1u64 as +Trapping,
             flag: true,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
@@ -1040,7 +1040,7 @@ crashes Trap
     }
 
     machine open_group(parser: &mut Parser, input: &TokenStream) {
-        parser_push_frame(parser, input, ExpressionFrameKind::Group, 0);
+        parser_push_frame(parser, input, ExpressionFrameKind::Group, 0u64 as +Trapping);
         transition parser.output.accepted {
             true -> prefix_taken(parser, input)
             _ -> done()
@@ -1061,7 +1061,7 @@ crashes Trap
         let open: bool = at_punctuation(parser, input, PunctuationKind::DotDot);
         let inclusive: bool = at_punctuation(parser, input, PunctuationKind::DotDotEqual);
         transition open || inclusive {
-            true -> range_open(parser, input, false, 0, inclusive, 0)
+            true -> range_open(parser, input, false, 0u64 as +Trapping, inclusive, 0u64 as +Trapping)
             _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand)
         }
     }
@@ -1093,7 +1093,7 @@ crashes Trap
         parser_pop_frame(parser);
         transition has_end {
             true -> range_ended(parser, input, frame)
-            _ -> range_built(parser, input, frame, false, 0)
+            _ -> range_built(parser, input, frame, false, 0u64 as +Trapping)
         }
     }
 
@@ -1113,10 +1113,10 @@ crashes Trap
             first: first,
             count: count,
             flag: frame.range_inclusive,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1130,7 +1130,7 @@ crashes Trap
     // has no elements.
     machine open_array(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        parser_push_frame(parser, input, ExpressionFrameKind::Elements, 0);
+        parser_push_frame(parser, input, ExpressionFrameKind::Elements, 0u64 as +Trapping);
         transition parser.output.accepted {
             true -> array_taken(parser, input, token.start)
             _ -> done()
@@ -1197,15 +1197,15 @@ crashes Trap
         let node: Expression = Expression {
             kind: ExpressionKind::Array,
             operator: OperatorKind::None,
-            left: 0,
-            right: 0,
+            left: 0u64 as +Trapping,
+            right: 0u64 as +Trapping,
             first: parser.committed_first,
             count: parser.committed_count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, frame.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1280,7 +1280,7 @@ crashes Trap
     // the innermost frame, then let that frame read its delimiter.
     machine end_operand(parser: &mut Parser, input: &TokenStream) {
         let base: u64 in Trapping = frame_operator_base(parser);
-        reduce_until(parser, input, base, 0);
+        reduce_until(parser, input, base, 0u64 as +Trapping);
         transition parser.output.accepted {
             true -> frame_delimiter(parser, input)
             _ -> done()
@@ -1355,13 +1355,13 @@ crashes Trap
             operator: OperatorKind::None,
             left: frame.callee,
             right: index,
-            first: 0,
-            count: 0,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, base_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1418,14 +1418,14 @@ crashes Trap
             kind: ExpressionKind::Call,
             operator: OperatorKind::None,
             left: frame.callee,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: parser.committed_first,
             count: parser.committed_count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1482,14 +1482,14 @@ crashes Trap
             kind: ExpressionKind::Construct,
             operator: OperatorKind::None,
             left: frame.callee,
-            right: 0,
+            right: 0u64 as +Trapping,
             first: parser.committed_first,
             count: parser.committed_count,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, path_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
@@ -1598,7 +1598,7 @@ crashes Trap
             name: node.name,
             type_reference: node.type_reference,
             first_row: first_row,
-            literal: 0,
+            literal: 0u64 as +Trapping,
             source_span: node.source_span
         };
         parser.output.expression_count = parser.output.expression_count + 1;
@@ -1789,14 +1789,14 @@ crashes Trap
             kind: ExpressionKind::Unary,
             operator: pending.operator,
             left: operand,
-            right: 0,
-            first: 0,
-            count: 0,
+            right: 0u64 as +Trapping,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, pending.start, operand_expression.source_span.span.end)
         };
         emit_expression(parser, input, node);
@@ -1812,13 +1812,13 @@ crashes Trap
             operator: pending.operator,
             left: left,
             right: right,
-            first: 0,
-            count: 0,
+            first: 0u64 as +Trapping,
+            count: 0u64 as +Trapping,
             flag: false,
-            name: identifier_span(parser, 0, 0),
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            name: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: parser_source_span(parser, left_expression.source_span.span.start,
                 right_expression.source_span.span.end)
         };
@@ -1841,11 +1841,11 @@ crashes Trap
         operator_base: parser.expression_operator_depth as u64 in Trapping,
         pending_base: parser_pending_base(parser, kind),
         callee: callee,
-        field_start: 0,
-        field_end: 0,
-        start: 0,
-        arm_start: 0,
-        pattern: 0,
+        field_start: 0u64 as +Trapping,
+        field_end: 0u64 as +Trapping,
+        start: 0u64 as +Trapping,
+        arm_start: 0u64 as +Trapping,
+        pattern: 0u64 as +Trapping,
         pattern_kind: ArmPatternKind::Wildcard,
         range_start: false,
         range_inclusive: false
@@ -1897,11 +1897,11 @@ crashes Trap
             operator_base: parser.expression_operator_depth as u64 in Trapping,
             pending_base: parser_pending_base(parser, ExpressionFrameKind::RangeEnd),
             callee: start,
-            field_start: 0,
-            field_end: 0,
+            field_start: 0u64 as +Trapping,
+            field_end: 0u64 as +Trapping,
             start: begin,
-            arm_start: 0,
-            pattern: 0,
+            arm_start: 0u64 as +Trapping,
+            pattern: 0u64 as +Trapping,
             pattern_kind: ArmPatternKind::Wildcard,
             range_start: has_start,
             range_inclusive: inclusive
@@ -1918,11 +1918,11 @@ machine presence(present: bool) -> u64 in Trapping {
     }
 
     machine one() -> u64 in Trapping {
-        1
+        1u64 as +Trapping
     }
 
     machine zero() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -1999,7 +1999,7 @@ crashes Trap
     }
 
     machine outermost() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -2052,8 +2052,8 @@ machine match_frame(
         operator_base: frame.operator_base,
         pending_base: frame.pending_base,
         callee: subject,
-        field_start: 0,
-        field_end: 0,
+        field_start: 0u64 as +Trapping,
+        field_end: 0u64 as +Trapping,
         start: start,
         arm_start: frame.arm_start,
         pattern: frame.pattern,
@@ -2068,11 +2068,11 @@ machine match_arm_frame(frame: ExpressionFrame, arm_start: u64 in Trapping) -> E
         operator_base: frame.operator_base,
         pending_base: frame.pending_base,
         callee: frame.callee,
-        field_start: 0,
-        field_end: 0,
+        field_start: 0u64 as +Trapping,
+        field_end: 0u64 as +Trapping,
         start: frame.start,
         arm_start: arm_start,
-        pattern: 0,
+        pattern: 0u64 as +Trapping,
         pattern_kind: ArmPatternKind::Wildcard
     }
 }
@@ -2084,8 +2084,8 @@ machine match_value_frame(frame: ExpressionFrame, kind: ArmPatternKind, pattern:
         operator_base: frame.operator_base,
         pending_base: frame.pending_base,
         callee: frame.callee,
-        field_start: 0,
-        field_end: 0,
+        field_start: 0u64 as +Trapping,
+        field_end: 0u64 as +Trapping,
         start: frame.start,
         arm_start: frame.arm_start,
         pattern: pattern,
@@ -2100,10 +2100,10 @@ machine match_arm_row(parser: &Parser, frame: ExpressionFrame, value: u64 in Tra
         has_rest: false,
         kind: frame.pattern_kind,
         pattern: frame.pattern,
-        first_field: 0,
-        field_count: 0,
+        first_field: 0u64 as +Trapping,
+        field_count: 0u64 as +Trapping,
         has_guard: false,
-        guard: 0,
+        guard: 0u64 as +Trapping,
         target_kind: ArmTargetKind::Value,
         target: value,
         source_span: parser_source_span(parser, frame.arm_start, end)
@@ -2440,7 +2440,7 @@ crashes Trap
 machine static_arguments_ahead(parser: &Parser, input: &TokenStream) -> bool
 crashes Trap
 {
-    transition { _ -> scan(input, parser.cursor + 1, 1) }
+    transition { _ -> scan(input, parser.cursor + 1, 1u64 as +Trapping) }
 
     machine scan(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition index < input.token_count {

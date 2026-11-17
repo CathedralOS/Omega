@@ -42,8 +42,8 @@ crashes Trap
     }
 
     machine boolean(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, base: u64 in Trapping) -> bool {
-        let holds: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, true, 0);
-        let fails: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, false, 0);
+        let holds: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, true, 0u64 as +Trapping);
+        let fails: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, false, 0u64 as +Trapping);
         let covered: bool = base == typer.output.boolean && holds && fails;
         transition { _ -> answer(covered) }
     }
@@ -52,7 +52,7 @@ crashes Trap
     machine data(syntax: &SyntaxTrees, resolution: &NameResolution, range: ArmRange, item: u64 in Trapping) -> bool {
         let declared: DataItem = syntax_trees_data_item(syntax, item);
         transition declared.case_count > 0 {
-            true -> case(syntax, resolution, range, declared, 0)
+            true -> case(syntax, resolution, range, declared, 0u64 as +Trapping)
             _ -> answer(false)
         }
     }
@@ -86,7 +86,7 @@ crashes Trap
 machine closing_arm(syntax: &SyntaxTrees, range: ArmRange) -> bool
 crashes Trap
 {
-    transition { _ -> arm(syntax, range, 0) }
+    transition { _ -> arm(syntax, range, 0u64 as +Trapping) }
 
     machine arm(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         transition offset < range.count {
@@ -138,7 +138,7 @@ machine arm_present(
 ) -> bool
 crashes Trap
 {
-    transition { _ -> arm(syntax, resolution, range, kind, flag, data_case, 0) }
+    transition { _ -> arm(syntax, resolution, range, kind, flag, data_case, 0u64 as +Trapping) }
 
     machine arm(
         syntax: &SyntaxTrees,
@@ -236,7 +236,7 @@ crashes Trap
 machine tests_a_field(syntax: &SyntaxTrees, arm: TransitionArm) -> bool
 crashes Trap
 {
-    transition { _ -> field(syntax, arm, 0) }
+    transition { _ -> field(syntax, arm, 0u64 as +Trapping) }
 
     machine field(syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) -> bool {
         transition offset < arm.field_count {
@@ -262,7 +262,7 @@ crashes Trap
 machine typer_named_case(binding: ValueBinding) -> u64 in Trapping {
     transition binding {
         ValueBinding::DataCase { item, data_case } -> found(data_case + 1)
-        _ -> found(0)
+        _ -> found(0u64 as +Trapping)
     }
 
     machine found(handle: u64 in Trapping) -> u64 in Trapping {
@@ -275,7 +275,7 @@ machine typer_named_case(binding: ValueBinding) -> u64 in Trapping {
 machine opposed_guards(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange) -> bool
 crashes Trap
 {
-    transition { _ -> first(typer, sources, syntax, range, 0) }
+    transition { _ -> first(typer, sources, syntax, range, 0u64 as +Trapping) }
 
     machine first(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         transition offset < range.count {
@@ -289,7 +289,7 @@ crashes Trap
         let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
         transition arm.kind == ArmPatternKind::Guard && pattern.kind == ExpressionKind::Binary
             && pattern.operator == OperatorKind::Equal {
-            true -> second(typer, sources, syntax, range, offset, pattern, 0)
+            true -> second(typer, sources, syntax, range, offset, pattern, 0u64 as +Trapping)
             _ -> first(typer, sources, syntax, range, offset + 1)
         }
     }
@@ -534,7 +534,7 @@ crashes Trap
     }
 
     machine uncompared() -> BooleanComparison {
-        BooleanComparison { compared: false, subject: 0, value: false }
+        BooleanComparison { compared: false, subject: 0u64 as +Trapping, value: false }
     }
 }
 
@@ -551,7 +551,7 @@ crashes Trap
     let right: Expression = syntax_trees_expression(syntax, right_root);
     let last: u64 in Trapping = left_root - left.first_row;
     transition last == right_root - right.first_row {
-        true -> node(typer, sources, syntax, left.first_row, right.first_row, 0, last)
+        true -> node(typer, sources, syntax, left.first_row, right.first_row, 0u64 as +Trapping, last)
         _ -> answer(false)
     }
 
@@ -606,7 +606,7 @@ crashes Trap
     ) -> bool {
         transition left.kind {
             ExpressionKind::Name -> spelled(sources, left.name.source_span, right.name.source_span)
-            ExpressionKind::Path -> path(sources, syntax, left, right, 0)
+            ExpressionKind::Path -> path(sources, syntax, left, right, 0u64 as +Trapping)
             ExpressionKind::Integer -> valued(typer, left_handle, right_handle)
             ExpressionKind::Boolean -> answer(true)
             ExpressionKind::Field -> field(sources, left_low, right_low, left, right)

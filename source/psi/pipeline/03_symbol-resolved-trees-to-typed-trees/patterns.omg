@@ -9,13 +9,13 @@ public machine validate_pattern_fields(
 crashes Trap
 {
     transition typer.output.accepted && arm.has_fields {
-        true -> field(typer, sources, syntax, arm, expected, 0)
+        true -> field(typer, sources, syntax, arm, expected, 0u64 as +Trapping)
         _ -> done()
     }
 
     machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < arm.field_count {
-            true -> prior(typer, sources, syntax, arm, expected, offset, 0)
+            true -> prior(typer, sources, syntax, arm, expected, offset, 0u64 as +Trapping)
             _ -> complete(typer, syntax, arm, expected)
         }
     }

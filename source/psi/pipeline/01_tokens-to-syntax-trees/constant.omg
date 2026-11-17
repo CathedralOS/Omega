@@ -13,8 +13,8 @@ crashes Trap
     parser.declaration_start = item_start;
     parser.declaration_is_public = is_public;
     parser.declaration_has_owner = false;
-    parser.declaration_owner_start = 0;
-    parser.declaration_owner_end = 0;
+    parser.declaration_owner_start = 0u64 as +Trapping;
+    parser.declaration_owner_end = 0u64 as +Trapping;
     transition parser.output.constant_count < 512 {
         true -> keyword(parser, input)
         _ -> reject(parser, input, ParseDiagnosticCode::ConstantCapacityExceeded)
@@ -68,8 +68,13 @@ crashes Trap
     machine constant_type(parser: &mut Parser, input: &TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConstantType);
         transition parser.output.accepted {
-            true -> equals(parser, input, parser.type_result)
+            true -> capture_constant_type(parser, input)
             _ -> done()
+        }
+
+        machine capture_constant_type(parser: &mut Parser, input: &TokenStream) {
+            let captured_constant_type: u64 in Trapping = parser.type_result;
+            transition { _ -> equals(parser, input, captured_constant_type) }
         }
     }
 
@@ -84,8 +89,13 @@ crashes Trap
     machine initializer(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
         transition parser.output.accepted {
-            true -> end(parser, input, type_reference, parser.expression_result)
+            true -> capture_constant_initializer_expression(parser, input, type_reference)
             _ -> done()
+        }
+
+        machine capture_constant_initializer_expression(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
+            let captured_initializer_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> end(parser, input, type_reference, captured_initializer_expression) }
         }
     }
 

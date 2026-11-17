@@ -49,7 +49,7 @@ crashes Trap
     }
 
     machine none() -> CallClauses {
-        CallClauses { first_clause: 0, clause_count: 0, first_parameter: 0, parameter_count: 0, has_return_type: false, return_type: 0 }
+        CallClauses { first_clause: 0u64 as +Trapping, clause_count: 0u64 as +Trapping, first_parameter: 0u64 as +Trapping, parameter_count: 0u64 as +Trapping, has_return_type: false, return_type: 0u64 as +Trapping }
     }
 }
 
@@ -234,7 +234,7 @@ crashes Trap
     machine next(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause {
         transition index < end {
             true -> clause(syntax, typing, index, end, kind)
-            _ -> found(end, 0, false)
+            _ -> found(end, 0u64 as +Trapping, false)
         }
     }
 

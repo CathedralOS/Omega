@@ -42,7 +42,7 @@ crashes Trap
         let floor_tighter: bool = bound_at_most(below, interval.floor);
         let ceiling: Bound = pick(ceiling_tighter, above, interval.ceiling);
         let floor: Bound = pick(floor_tighter, below, interval.floor);
-        let related: Value = Value { place: 0, known: false, subject: 0, offset: interval.offset, ceiling: ceiling, floor: floor };
+        let related: Value = Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: interval.offset, ceiling: ceiling, floor: floor };
         let linear: Value = offset_difference(left, right, related);
         let result: Value = policy_result(checker, expression, row, linear, CheckDiagnosticCode::ArithmeticOverflow, checking);
         result
@@ -148,14 +148,14 @@ crashes Trap
     }
 
     machine boolean() -> Value {
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
-        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
-        Value { place: 0, known: false, subject: 0, offset: zero.offset, ceiling: one.ceiling, floor: zero.floor }
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
+        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1u64 as +Wrapping });
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: zero.offset, ceiling: one.ceiling, floor: zero.floor }
     }
 
     machine converted(checker: &mut Checker, expression: Expression, row: TypeRow, source: Value, checking: bool) -> Value {
         let fits: bool = value_within(source, row.builtin);
-        let kept: Value = Value { place: 0, known: source.known, subject: source.subject, offset: source.offset, ceiling: source.ceiling, floor: source.floor };
+        let kept: Value = Value { place: 0u64 as +Trapping, known: source.known, subject: source.subject, offset: source.offset, ceiling: source.ceiling, floor: source.floor };
         transition fits || !checking {
             true -> exact(kept, row, fits)
             _ -> rejected(checker, expression, row)
@@ -254,7 +254,7 @@ crashes Trap
     machine saturated_range(row: TypeRow, result: Value) -> Value {
         let clamped: Value = value_clamped(result, row.builtin);
         let unknown: Value = value_unknown();
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: clamped.ceiling, floor: clamped.floor }
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: clamped.ceiling, floor: clamped.floor }
     }
 
     machine unproven(checker: &mut Checker, expression: Expression, row: TypeRow, code: CheckDiagnosticCode, checking: bool) -> Value {
@@ -315,7 +315,7 @@ crashes Trap
     let width: u64 in Trapping = checker_width(row.builtin);
     let magnitude: u64 in Wrapping = width as u64 in Wrapping;
     let bits: Value = value_constant(ExactInteger { negative: false, magnitude: magnitude });
-    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
     let below: bool = proves_less(checker, count, bits);
     let above: bool = proves_at_most(checker, zero, count);
     transition (below && above) || row.domain == DomainBinding::Wrapping {
@@ -351,13 +351,13 @@ crashes Trap
 // The bit width of a fixed-integer carrier.
 public machine checker_width(builtin: BuiltinType) -> u64 in Trapping {
     transition builtin {
-        BuiltinType::I8 -> bits(8)
-        BuiltinType::U8 -> bits(8)
-        BuiltinType::I16 -> bits(16)
-        BuiltinType::U16 -> bits(16)
-        BuiltinType::I32 -> bits(32)
-        BuiltinType::U32 -> bits(32)
-        _ -> bits(64)
+        BuiltinType::I8 -> bits(8u64 as +Trapping)
+        BuiltinType::U8 -> bits(8u64 as +Trapping)
+        BuiltinType::I16 -> bits(16u64 as +Trapping)
+        BuiltinType::U16 -> bits(16u64 as +Trapping)
+        BuiltinType::I32 -> bits(32u64 as +Trapping)
+        BuiltinType::U32 -> bits(32u64 as +Trapping)
+        _ -> bits(64u64 as +Trapping)
     }
 
     machine bits(count: u64 in Trapping) -> u64 in Trapping {

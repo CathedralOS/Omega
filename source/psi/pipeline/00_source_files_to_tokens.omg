@@ -30,8 +30,8 @@ data DecodedScalar [copy] {
 public machine lexer_initialize(lexer: &mut Lexer, source_id: u32 in Trapping) {
     source_unit_clear(&mut lexer.source, SourceId { value: source_id });
     token_stream_clear(&mut lexer.output, SourceId { value: source_id });
-    lexer.cursor = 0;
-    lexer.literal_magnitude = 0;
+    lexer.cursor = 0u64 as +Trapping;
+    lexer.literal_magnitude = 0u64 as +Wrapping;
     lexer.literal_exact = true;
 }
 
@@ -318,7 +318,7 @@ machine is_identifier_continue(scalar: u32 in Trapping) -> bool {
 }
 
 machine validate_utf8(lexer: &mut Lexer) {
-    lexer.cursor = 0;
+    lexer.cursor = 0u64 as +Trapping;
     transition { _ -> step(lexer) }
 
     machine step(lexer: &mut Lexer) {
@@ -402,7 +402,7 @@ machine token_equals(lexer: &mut Lexer, candidate: &[u8]) -> bool {
     let start: u64 in Trapping = lexer.token_start;
     let end: u64 in Trapping = lexer.token_end;
     transition end - start == candidate.len {
-        true -> scan(lexer, start, candidate, 0)
+        true -> scan(lexer, start, candidate, 0u64 as +Trapping)
         _ -> false
     }
 
@@ -572,7 +572,7 @@ machine lex_line_comment(lexer: &mut Lexer) {
 machine lex_block_comment(lexer: &mut Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.cursor = lexer.cursor + 2;
-    transition { _ -> scan(lexer, 1) }
+    transition { _ -> scan(lexer, 1u64 as +Trapping) }
 
     machine scan(lexer: &mut Lexer, depth: u64 in Trapping) {
         transition lexer.cursor < lexer.source.length {
@@ -645,7 +645,7 @@ machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping {
     machine lower_yes(byte: u32 in Trapping) -> u32 in Trapping { byte - 87 }
     machine upper(byte: u32 in Trapping) -> u32 in Trapping { transition byte >= 65 && byte <= 70 { true -> upper_yes(byte) _ -> none() } }
     machine upper_yes(byte: u32 in Trapping) -> u32 in Trapping { byte - 55 }
-    machine none() -> u32 in Trapping { 4294967295 }
+    machine none() -> u32 in Trapping { 4294967295u32 as +Trapping }
 }
 
 // Append the source bytes `start..end` to the decoded stream.
@@ -841,10 +841,10 @@ machine lexer_accumulate_digit(lexer: &mut Lexer, base: NumericBase, byte: u32 i
     let value: u64 in Wrapping = lexer_digit_value(byte);
     let room: u64 in Wrapping = 18446744073709551615 - value;
     transition base {
-        NumericBase::Binary -> fold(lexer, 2, value, room / 2)
-        NumericBase::Octal -> fold(lexer, 8, value, room / 8)
-        NumericBase::Decimal -> fold(lexer, 10, value, room / 10)
-        NumericBase::Hexadecimal -> fold(lexer, 16, value, room / 16)
+        NumericBase::Binary -> fold(lexer, 2u64 as +Wrapping, value, room / 2)
+        NumericBase::Octal -> fold(lexer, 8u64 as +Wrapping, value, room / 8)
+        NumericBase::Decimal -> fold(lexer, 10u64 as +Wrapping, value, room / 10)
+        NumericBase::Hexadecimal -> fold(lexer, 16u64 as +Wrapping, value, room / 16)
     }
     // `magnitude * radix + value` fits exactly when `magnitude <= limit`.
     machine fold(lexer: &mut Lexer, radix: u64 in Wrapping, value: u64 in Wrapping, limit: u64 in Wrapping) {
@@ -1015,7 +1015,7 @@ machine dot_starts_float(lexer: &mut Lexer) -> bool {
 machine lex_number(lexer: &mut Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
-    lexer.literal_magnitude = 0;
+    lexer.literal_magnitude = 0u64 as +Wrapping;
     lexer.literal_exact = true;
     let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
     transition source_byte == 46 {
@@ -1060,7 +1060,7 @@ machine lex_number(lexer: &mut Lexer) {
     // Consume the base marker, then the digits it selects.
     machine based_digits(lexer: &mut Lexer, base: NumericBase) {
         lexer.cursor = lexer.cursor + 1;
-        lexer.literal_magnitude = 0;
+        lexer.literal_magnitude = 0u64 as +Wrapping;
         let saw_digit: bool = consume_digits(lexer, base);
         let empty_digits: bool = !saw_digit;
         transition { _ -> finish_integer(lexer, base, empty_digits) }
@@ -1167,7 +1167,7 @@ machine lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
     let byte0: u32 in Trapping = first_byte as u32 in Trapping;
     let index1: u64 in Trapping = lexer.cursor + 1;
     let index2: u64 in Trapping = lexer.cursor + 2;
-    transition index1 < lexer.source.length { true -> second(lexer, scalar_width, byte0, index1, index2) _ -> classify(lexer, scalar_width, byte0, 4294967295, 4294967295) }
+    transition index1 < lexer.source.length { true -> second(lexer, scalar_width, byte0, index1, index2) _ -> classify(lexer, scalar_width, byte0, 4294967295u32 as +Trapping, 4294967295u32 as +Trapping) }
     machine second(
         lexer: &mut Lexer,
         scalar_width: u64 in Trapping,
@@ -1177,7 +1177,7 @@ machine lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
     ) {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
         let byte1: u32 in Trapping = source_byte as u32 in Trapping;
-        transition index2 < lexer.source.length { true -> third(lexer, scalar_width, byte0, byte1, index2) _ -> classify(lexer, scalar_width, byte0, byte1, 4294967295) }
+        transition index2 < lexer.source.length { true -> third(lexer, scalar_width, byte0, byte1, index2) _ -> classify(lexer, scalar_width, byte0, byte1, 4294967295u32 as +Trapping) }
     }
     machine third(
         lexer: &mut Lexer,
@@ -1247,47 +1247,47 @@ machine lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
     machine asterisk(lexer: &mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> asterisk_equal(lexer) _ -> single_asterisk(lexer) } }
     machine slash(lexer: &mut Lexer, byte1: u32 in Trapping) { transition byte1 == 61 { true -> slash_equal(lexer) _ -> single_slash(lexer) } }
 
-    machine single_ampersand(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Ampersand, 1); }
-    machine and_and(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::AndAnd, 2); }
-    machine single_apostrophe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Apostrophe, 1); }
-    machine arrow(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Arrow, 2); }
-    machine single_asterisk(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Asterisk, 1); }
-    machine single_caret(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Caret, 1); }
-    machine single_colon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Colon, 1); }
-    machine colon_colon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::ColonColon, 2); }
-    machine single_comma(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Comma, 1); }
-    machine single_dot(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Dot, 1); }
-    machine dotdot_plain(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDot, 2); }
-    machine dotdot_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDotEqual, 3); }
-    machine single_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Equal, 1); }
-    machine equal_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::EqualEqual, 2); }
-    machine single_exclamation(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Exclamation, 1); }
-    machine exclamation_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2); }
-    machine single_greater(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Greater, 1); }
-    machine greater_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2); }
-    machine single_hash(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Hash, 1); }
-    machine single_left_brace(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBrace, 1); }
-    machine single_left_bracket(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBracket, 1); }
-    machine single_left_paren(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftParen, 1); }
-    machine single_less(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Less, 1); }
-    machine less_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessEqual, 2); }
-    machine less_less(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessLess, 2); }
-    machine single_minus(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Minus, 1); }
-    machine minus_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::MinusEqual, 2); }
-    machine single_percent(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Percent, 1); }
-    machine percent_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PercentEqual, 2); }
-    machine single_pipe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Pipe, 1); }
-    machine pipe_pipe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PipePipe, 2); }
-    machine single_plus(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Plus, 1); }
-    machine plus_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PlusEqual, 2); }
-    machine asterisk_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::AsteriskEqual, 2); }
-    machine slash_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::SlashEqual, 2); }
-    machine single_right_brace(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBrace, 1); }
-    machine single_right_bracket(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBracket, 1); }
-    machine single_right_paren(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightParen, 1); }
-    machine single_semicolon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Semicolon, 1); }
-    machine single_slash(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Slash, 1); }
-    machine single_tilde(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Tilde, 1); }
+    machine single_ampersand(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Ampersand, 1u64 as +Trapping); }
+    machine and_and(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::AndAnd, 2u64 as +Trapping); }
+    machine single_apostrophe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Apostrophe, 1u64 as +Trapping); }
+    machine arrow(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Arrow, 2u64 as +Trapping); }
+    machine single_asterisk(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Asterisk, 1u64 as +Trapping); }
+    machine single_caret(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Caret, 1u64 as +Trapping); }
+    machine single_colon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Colon, 1u64 as +Trapping); }
+    machine colon_colon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::ColonColon, 2u64 as +Trapping); }
+    machine single_comma(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Comma, 1u64 as +Trapping); }
+    machine single_dot(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Dot, 1u64 as +Trapping); }
+    machine dotdot_plain(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDot, 2u64 as +Trapping); }
+    machine dotdot_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::DotDotEqual, 3u64 as +Trapping); }
+    machine single_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Equal, 1u64 as +Trapping); }
+    machine equal_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::EqualEqual, 2u64 as +Trapping); }
+    machine single_exclamation(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Exclamation, 1u64 as +Trapping); }
+    machine exclamation_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2u64 as +Trapping); }
+    machine single_greater(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Greater, 1u64 as +Trapping); }
+    machine greater_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2u64 as +Trapping); }
+    machine single_hash(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Hash, 1u64 as +Trapping); }
+    machine single_left_brace(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBrace, 1u64 as +Trapping); }
+    machine single_left_bracket(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftBracket, 1u64 as +Trapping); }
+    machine single_left_paren(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LeftParen, 1u64 as +Trapping); }
+    machine single_less(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Less, 1u64 as +Trapping); }
+    machine less_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessEqual, 2u64 as +Trapping); }
+    machine less_less(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::LessLess, 2u64 as +Trapping); }
+    machine single_minus(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Minus, 1u64 as +Trapping); }
+    machine minus_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::MinusEqual, 2u64 as +Trapping); }
+    machine single_percent(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Percent, 1u64 as +Trapping); }
+    machine percent_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PercentEqual, 2u64 as +Trapping); }
+    machine single_pipe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Pipe, 1u64 as +Trapping); }
+    machine pipe_pipe(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PipePipe, 2u64 as +Trapping); }
+    machine single_plus(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Plus, 1u64 as +Trapping); }
+    machine plus_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::PlusEqual, 2u64 as +Trapping); }
+    machine asterisk_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::AsteriskEqual, 2u64 as +Trapping); }
+    machine slash_equal(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::SlashEqual, 2u64 as +Trapping); }
+    machine single_right_brace(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBrace, 1u64 as +Trapping); }
+    machine single_right_bracket(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightBracket, 1u64 as +Trapping); }
+    machine single_right_paren(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::RightParen, 1u64 as +Trapping); }
+    machine single_semicolon(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Semicolon, 1u64 as +Trapping); }
+    machine single_slash(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Slash, 1u64 as +Trapping); }
+    machine single_tilde(lexer: &mut Lexer) { emit_punctuation(lexer, PunctuationKind::Tilde, 1u64 as +Trapping); }
     machine unsupported(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
         let start: u64 in Trapping = lexer.token_start;
         let end: u64 in Trapping = lexer.token_start + scalar_width;
@@ -1443,7 +1443,7 @@ crashes Trap
         true -> begin(lexer)
         _ -> done()
     }
-    machine begin(lexer: &mut Lexer) { lexer.cursor = 0; transition { _ -> scan(lexer) } }
+    machine begin(lexer: &mut Lexer) { lexer.cursor = 0u64 as +Trapping; transition { _ -> scan(lexer) } }
     machine scan(lexer: &mut Lexer) {
         transition lexer.cursor < lexer.source.length {
             true -> token(lexer)

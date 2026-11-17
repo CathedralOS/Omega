@@ -9,7 +9,7 @@ crashes Trap
     let first_member: u64 in Trapping = parser.output.member_count as u64 in Trapping;
     expect_name(parser, input, missing);
     transition parser.output.accepted {
-        true -> member(parser, input, first_member, parser.name_start)
+        true -> capture_name_path_start(parser, input, first_member)
         _ -> done()
     }
 
@@ -62,4 +62,9 @@ crashes Trap
     }
 
     machine done() {}
+
+    machine capture_name_path_start(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping) {
+        let captured_member_start: u64 in Trapping = parser.name_start;
+        transition { _ -> member(parser, input, first_member, captured_member_start) }
+    }
 }

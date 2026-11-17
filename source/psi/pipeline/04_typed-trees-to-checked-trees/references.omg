@@ -22,7 +22,7 @@
 public machine storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> node(checker, syntax, typing, handle, 0) }
+    transition { _ -> node(checker, syntax, typing, handle, 0u64 as +Trapping) }
 
     machine node(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let value: Value = value_at(checker, handle);
@@ -52,7 +52,7 @@ crashes Trap
     }
 
     machine unknown() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -112,7 +112,7 @@ crashes Trap
     }
 
     machine local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, declaration, 0u64 as +Trapping, type_handle);
         // Replaying a condition through this binding would now read the
         // replacement referent. Existing captured references keep theirs.
         forget_aliases(checker, place);
@@ -195,7 +195,7 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -206,7 +206,7 @@ crashes Trap
 public machine written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> node(checker, syntax, resolution, typing, handle, 0) }
+    transition { _ -> node(checker, syntax, resolution, typing, handle, 0u64 as +Trapping) }
 
     machine node(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let value: Value = value_at(checker, handle);
@@ -247,7 +247,7 @@ crashes Trap
     }
 
     machine local(checker: &Checker, statement: u64 in Trapping) -> u64 in Trapping {
-        let place: u64 in Trapping = find_place(checker, PlaceKind::Local, statement, 0);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Local, statement, 0u64 as +Trapping);
         let footprint: u64 in Trapping = local_footprint(checker, place);
         footprint
     }
@@ -257,7 +257,7 @@ crashes Trap
     }
 
     machine unknown() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -418,7 +418,7 @@ crashes Trap
     }
 
     machine scalar_referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let referent: u64 in Trapping = checker_place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
+        let referent: u64 in Trapping = checker_place(checker, typing, PlaceKind::Referent, 0u64 as +Trapping, place, type_handle);
         let value: Value = place_value(checker, referent);
         value
     }

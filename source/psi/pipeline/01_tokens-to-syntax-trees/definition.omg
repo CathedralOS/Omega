@@ -71,15 +71,20 @@ crashes Trap
     machine result_type(parser: &mut Parser, input: &TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDefinitionType);
         transition parser.output.accepted {
-            true -> body(parser, input, parser.type_result)
+            true -> capture_definition_type(parser, input)
             _ -> done()
+        }
+
+        machine capture_definition_type(parser: &mut Parser, input: &TokenStream) {
+            let captured_type: u64 in Trapping = parser.type_result;
+            transition { _ -> body(parser, input, captured_type) }
         }
     }
 
     // An assumption ends at its signature; a checked definition owes a term.
     machine body(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping) {
         transition parser.declaration_is_boundary {
-            true -> end(parser, input, result, false, 0)
+            true -> end(parser, input, result, false, 0u64 as +Trapping)
             _ -> equals(parser, input, result)
         }
     }
@@ -95,8 +100,13 @@ crashes Trap
     machine term(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
         transition parser.output.accepted {
-            true -> end(parser, input, result, true, parser.expression_result)
+            true -> capture_definition_term_expression(parser, input, result)
             _ -> done()
+        }
+
+        machine capture_definition_term_expression(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping) {
+            let captured_term_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> end(parser, input, result, true, captured_term_expression) }
         }
     }
 

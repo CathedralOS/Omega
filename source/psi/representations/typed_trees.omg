@@ -467,7 +467,7 @@ crashes Trap
     }
 
     machine integral() -> u64 in Trapping {
-        1
+        1u64 as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -646,13 +646,13 @@ public machine type_row_of(kind: TypeKind) -> TypeRow {
         kind: kind,
         builtin: BuiltinType::Bool,
         domain: DomainBinding::Unqualified,
-        domain_item: 0,
-        item: 0,
+        domain_item: 0u64 as +Trapping,
+        item: 0u64 as +Trapping,
         access: ReferenceAccess::Shared,
-        inner: 0,
-        length: 0,
-        first_argument: 0,
-        argument_count: 0
+        inner: 0u64 as +Trapping,
+        length: 0u64 as +Trapping,
+        first_argument: 0u64 as +Trapping,
+        argument_count: 0u64 as +Trapping
     }
 }
 
@@ -717,7 +717,7 @@ crashes Trap
 public machine type_table_intern(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> scan(table, row, 1) }
+    transition { _ -> scan(table, row, 1u64 as +Trapping) }
 
     machine scan(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition index < table.row_count {
@@ -770,7 +770,7 @@ crashes Trap
     }
 
     machine full() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -787,7 +787,7 @@ crashes Trap
         && left.inner == right.inner
         && left.length == right.length
         && left.argument_count == right.argument_count {
-        true -> arguments(table, left, right, 0)
+        true -> arguments(table, left, right, 0u64 as +Trapping)
         _ -> different()
     }
 
@@ -820,7 +820,7 @@ crashes Trap
 public machine type_row_carrier(row: TypeRow) -> TypeRow {
     let mut carrier: TypeRow = row;
     carrier.domain = DomainBinding::Unqualified;
-    carrier.domain_item = 0;
+    carrier.domain_item = 0u64 as +Trapping;
     carrier
 }
 
@@ -834,7 +834,7 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(&typing.types, handle);
     transition row.kind == TypeKind::Reference {
-        true -> inner(typing, row.inner, 0)
+        true -> inner(typing, row.inner, 0u64 as +Trapping)
         _ -> result(handle)
     }
 
@@ -906,23 +906,23 @@ crashes Trap
 public machine carrier_width(row: TypeRow) -> u64 in Trapping {
     transition row.kind == TypeKind::Builtin {
         true -> builtin(row.builtin)
-        _ -> width(0)
+        _ -> width(0u64 as +Trapping)
     }
 
     machine builtin(builtin: BuiltinType) -> u64 in Trapping {
         transition builtin {
-            BuiltinType::Bool -> width(1)
-            BuiltinType::U8 -> width(1)
-            BuiltinType::I8 -> width(1)
-            BuiltinType::U16 -> width(2)
-            BuiltinType::I16 -> width(2)
-            BuiltinType::U32 -> width(4)
-            BuiltinType::I32 -> width(4)
-            BuiltinType::F32 -> width(4)
-            BuiltinType::U64 -> width(8)
-            BuiltinType::I64 -> width(8)
-            BuiltinType::F64 -> width(8)
-            _ -> width(0)
+            BuiltinType::Bool -> width(1u64 as +Trapping)
+            BuiltinType::U8 -> width(1u64 as +Trapping)
+            BuiltinType::I8 -> width(1u64 as +Trapping)
+            BuiltinType::U16 -> width(2u64 as +Trapping)
+            BuiltinType::I16 -> width(2u64 as +Trapping)
+            BuiltinType::U32 -> width(4u64 as +Trapping)
+            BuiltinType::I32 -> width(4u64 as +Trapping)
+            BuiltinType::F32 -> width(4u64 as +Trapping)
+            BuiltinType::U64 -> width(8u64 as +Trapping)
+            BuiltinType::I64 -> width(8u64 as +Trapping)
+            BuiltinType::F64 -> width(8u64 as +Trapping)
+            _ -> width(0u64 as +Trapping)
         }
     }
 

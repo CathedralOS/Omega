@@ -33,7 +33,7 @@ crashes Trap
 machine shape_depth(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> level(typer, handle, 0) }
+    transition { _ -> level(typer, handle, 0u64 as +Trapping) }
 
     machine level(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(&typer.output.types, handle);
@@ -73,7 +73,7 @@ crashes Trap
 machine landing_scalar(typer: &Typer, destination: u64 in Trapping, unlanded: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> level(typer, destination, unlanded, 0) }
+    transition { _ -> level(typer, destination, unlanded, 0u64 as +Trapping) }
 
     machine level(typer: &Typer, wanted: u64 in Trapping, shape: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let shape_row: TypeRow = type_table_row(&typer.output.types, shape);
@@ -88,7 +88,7 @@ crashes Trap
         transition wanted_row.kind == TypeKind::Array && wanted_row.length == shape_row.length
             && wanted_row.domain == DomainBinding::Unqualified {
             true -> level(typer, wanted_row.inner, shape_row.inner, depth + 1)
-            _ -> found(0)
+            _ -> found(0u64 as +Trapping)
         }
     }
 
@@ -127,7 +127,7 @@ crashes Trap
         let joining: bool = unlanded_join_type(typer, handle_type);
         let values: JoinedValues = joined_values(expression);
         transition joining && (expression.kind == ExpressionKind::Match || expression.kind == ExpressionKind::Array) {
-            true -> value(typer, syntax, wanted, low, handle, values, 0)
+            true -> value(typer, syntax, wanted, low, handle, values, 0u64 as +Trapping)
             _ -> next(typer, syntax, wanted, low, handle)
         }
     }
@@ -246,7 +246,7 @@ crashes Trap
         let concrete: u64 in Trapping = peeled(typer, destination, levels);
         set_expression_type(&mut typer.output, handle, concrete);
         let values: JoinedValues = joined_values(expression);
-        transition { _ -> value(typer, syntax, destination, scalar, depth, low, handle, values, 0) }
+        transition { _ -> value(typer, syntax, destination, scalar, depth, low, handle, values, 0u64 as +Trapping) }
     }
 
     machine next(
@@ -326,7 +326,7 @@ crashes Trap
 machine lesser_depth(depth: u64 in Trapping, own: u64 in Trapping) -> u64 in Trapping {
     transition depth >= own {
         true -> found(depth - own)
-        _ -> found(0)
+        _ -> found(0u64 as +Trapping)
     }
 
     machine found(levels: u64 in Trapping) -> u64 in Trapping {

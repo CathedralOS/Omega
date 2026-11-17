@@ -23,12 +23,12 @@
 public machine check_declaration_forms(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> root(resolver, syntax, 0) }
+    transition { _ -> root(resolver, syntax, 0u64 as +Trapping) }
 
     machine root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count && resolver.output.accepted {
             true -> root_kind(resolver, syntax, index)
-            _ -> machine_at(resolver, syntax, 0)
+            _ -> machine_at(resolver, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -119,7 +119,7 @@ crashes Trap
 machine check_binder_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool)
 crashes Trap
 {
-    transition { _ -> next(resolver, syntax, first, count, admit_evidence, 0) }
+    transition { _ -> next(resolver, syntax, first, count, admit_evidence, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         transition offset < count {
@@ -168,13 +168,13 @@ crashes Trap
     // unsupported (wiki/spec/language/generics.md, Static machine binder
     // categories).
     machine contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
-        transition { _ -> contract(resolver, syntax, item, 0) }
+        transition { _ -> contract(resolver, syntax, item, 0u64 as +Trapping) }
     }
 
     machine contract(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> shaped(resolver, syntax, item, offset)
-            _ -> generic(resolver, syntax, item, 0)
+            _ -> generic(resolver, syntax, item, 0u64 as +Trapping)
         }
     }
 

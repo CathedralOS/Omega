@@ -10,7 +10,7 @@
 public machine bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
@@ -39,8 +39,8 @@ crashes Trap
 
     machine data_home(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem, data: u64 in Trapping) {
         let declared: DataItem = syntax_trees_data_item(syntax, data);
-        let machine_unit: u64 in Trapping = entry.name.source_span.source.value as u64 in Trapping;
-        let data_unit: u64 in Trapping = declared.name.source_span.source.value as u64 in Trapping;
+        let machine_unit: u64 in Trapping = entry.name.source_span.source.value as -Trapping as u64 +Trapping;
+        let data_unit: u64 in Trapping = declared.name.source_span.source.value as -Trapping as u64 +Trapping;
         let own: bool = resolver_same_package(sources, machine_unit, data_unit);
         transition own {
             true -> homed(resolver, sources, syntax, index, entry, data)
@@ -80,7 +80,7 @@ machine earlier_operator_shape(
 ) -> bool
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, handle, token, data, 0) }
+    transition { _ -> next(resolver, sources, syntax, handle, token, data, 0u64 as +Trapping) }
 
     machine next(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
         transition earlier < handle {

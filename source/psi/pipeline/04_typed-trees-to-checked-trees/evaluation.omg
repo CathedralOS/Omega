@@ -16,21 +16,21 @@ public data Value [copy] {
 
 public machine value_unknown() -> Value {
     Value {
-        place: 0,
+        place: 0u64 as +Trapping,
         known: false,
-        subject: 0,
-        offset: ExactInteger { negative: false, magnitude: 0 },
-        ceiling: Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } },
-        floor: Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        subject: 0u64 as +Trapping,
+        offset: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping },
+        ceiling: Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } },
+        floor: Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
 public machine value_constant(value: ExactInteger) -> Value {
     let negated: ExactInteger = exact_integer_negate(value);
     Value {
-        place: 0,
+        place: 0u64 as +Trapping,
         known: true,
-        subject: 0,
+        subject: 0u64 as +Trapping,
         offset: value,
         ceiling: Bound { finite: true, value: value },
         floor: Bound { finite: true, value: negated }
@@ -45,12 +45,12 @@ public machine value_truth(flag: bool) -> Value {
     }
 
     machine one() -> Value {
-        let value: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
+        let value: Value = value_constant(ExactInteger { negative: false, magnitude: 1u64 as +Wrapping });
         value
     }
 
     machine zero() -> Value {
-        let value: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let value: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
         value
     }
 }
@@ -62,9 +62,9 @@ public machine value_carrier(builtin: BuiltinType) -> Value {
     let negated: ExactInteger = exact_integer_negate(least);
     let unknown: Value = value_unknown();
     Value {
-        place: 0,
+        place: 0u64 as +Trapping,
         known: false,
-        subject: 0,
+        subject: 0u64 as +Trapping,
         offset: unknown.offset,
         ceiling: Bound { finite: true, value: greatest },
         floor: Bound { finite: true, value: negated }
@@ -103,7 +103,7 @@ public machine value_clamped(value: Value, builtin: BuiltinType) -> Value {
 // The interval of a value, without its place or term.
 public machine value_interval(value: Value) -> Value {
     let unknown: Value = value_unknown();
-    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: value.ceiling, floor: value.floor }
+    Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: value.ceiling, floor: value.floor }
 }
 
 // The least interval holding both values' (a floor is stored negated, so
@@ -114,7 +114,7 @@ public machine value_hull(left: Value, right: Value) -> Value {
     let ceiling: Bound = pick(left_ceiling, left.ceiling, right.ceiling);
     let floor: Bound = pick(left_floor, left.floor, right.floor);
     let unknown: Value = value_unknown();
-    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+    Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
 }
 
 machine pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
@@ -132,8 +132,8 @@ machine pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
 public machine term_value(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping, offset: ExactInteger) -> Value
 crashes Trap
 {
-    let upper: Bound = zone_bound(&checker.zone, 0, subject);
-    let lower: Bound = zone_bound(&checker.zone, subject, 0);
+    let upper: Bound = zone_bound(&checker.zone, 0u64 as +Trapping, subject);
+    let lower: Bound = zone_bound(&checker.zone, subject, 0u64 as +Trapping);
     let shift: Bound = exactly(offset);
     let negated: ExactInteger = exact_integer_negate(offset);
     let unshift: Bound = exactly(negated);
@@ -203,7 +203,7 @@ crashes Trap
 
     machine carried(value: Value, row: TypeRow) -> Value {
         let range: Value = value_carrier(row.builtin);
-        Value { place: value.place, known: false, subject: 0, offset: range.offset, ceiling: range.ceiling, floor: range.floor }
+        Value { place: value.place, known: false, subject: 0u64 as +Trapping, offset: range.offset, ceiling: range.ceiling, floor: range.floor }
     }
 
     machine answer(value: Value) -> Value {
@@ -216,7 +216,7 @@ crashes Trap
 public machine checker_read_type(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> layer(typing, handle, handle, 0) }
+    transition { _ -> layer(typing, handle, handle, 0u64 as +Trapping) }
 
     machine layer(typing: &Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(&typing.types, current);
@@ -272,12 +272,12 @@ public machine value_sum(left: Value, right: Value) -> Value {
     let ceiling: Bound = bound_add(left.ceiling, right.ceiling);
     let floor: Bound = bound_add(left.floor, right.floor);
     let unknown: Value = value_unknown();
-    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+    Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
 }
 
 public machine value_negation(value: Value) -> Value {
     let unknown: Value = value_unknown();
-    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: value.floor, floor: value.ceiling }
+    Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: value.floor, floor: value.ceiling }
 }
 
 public machine value_difference(left: Value, right: Value) -> Value {
@@ -310,7 +310,7 @@ public machine value_product(left: Value, right: Value) -> Value {
         let ceiling_finite: bool = left.ceiling.finite && right.ceiling.finite && upper.valid;
         let ceiling: Bound = Bound { finite: ceiling_finite, value: upper.value };
         let floor: Bound = Bound { finite: lower.valid, value: negated };
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
     machine unbounded() -> Value {
@@ -335,7 +335,7 @@ public machine value_quotient(left: Value, right: Value) -> Value {
         let ceiling: Bound = divided_ceiling(left.ceiling, least_divisor);
         let least_left: Bound = value_least(left);
         let floor: Bound = divided_floor(least_left.value.magnitude, right.ceiling);
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
     machine unbounded() -> Value {
@@ -355,7 +355,7 @@ machine divided_ceiling(ceiling: Bound, divisor: u64 in Wrapping) -> Bound {
     }
 
     machine unbounded() -> Bound {
-        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -372,7 +372,7 @@ machine divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
     }
 
     machine zero() -> Bound {
-        Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } }
+        Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -433,17 +433,17 @@ public machine value_remainder(left: Value, right: Value) -> Value {
         let divisor_bound: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
         let tighter: bool = bound_at_most(left.ceiling, divisor_bound);
         let ceiling: Bound = pick(tighter, left.ceiling, divisor_bound);
-        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
     // At least the divisor's negated bound, stored negated as the floor.
     machine signed(below_divisor: u64 in Wrapping, nonpositive: bool) -> Value {
         let unknown: Value = value_unknown();
-        let zero: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
+        let zero: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         let magnitude: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
         let ceiling: Bound = pick(nonpositive, zero, magnitude);
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: magnitude }
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: magnitude }
     }
 
     machine unbounded() -> Value {
@@ -465,8 +465,8 @@ public machine value_conjunction(left: Value, right: Value) -> Value {
         let unknown: Value = value_unknown();
         let tighter: bool = bound_at_most(left.ceiling, right.ceiling);
         let ceiling: Bound = pick(tighter, left.ceiling, right.ceiling);
-        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: ceiling, floor: floor }
     }
 
     machine unbounded() -> Value {
@@ -501,8 +501,8 @@ public machine value_shifted_right(left: Value, right: Value) -> Value {
 
     machine bounded(left: Value) -> Value {
         let unknown: Value = value_unknown();
-        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
-        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: left.ceiling, floor: floor }
+        let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: left.ceiling, floor: floor }
     }
 
     machine unbounded() -> Value {
@@ -536,7 +536,7 @@ public machine offset_sum(left: Value, right: Value, interval: Value) -> Value {
     }
 
     machine linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
-        Value { place: 0, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
+        Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
     }
 
     machine plain(interval: Value) -> Value {
@@ -561,7 +561,7 @@ public machine offset_difference(left: Value, right: Value, interval: Value) -> 
     }
 
     machine linear(subject: u64 in Trapping, offset: ExactInteger, interval: Value) -> Value {
-        Value { place: 0, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
+        Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: offset, ceiling: interval.ceiling, floor: interval.floor }
     }
 
     machine plain(interval: Value) -> Value {
@@ -588,7 +588,7 @@ crashes Trap
     }
 
     machine unbounded() -> Bound {
-        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -597,7 +597,7 @@ crashes Trap
 public machine proves_less(checker: &Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
-    let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
+    let below: ExactInteger = ExactInteger { negative: true, magnitude: 1u64 as +Wrapping };
     let wanted: Bound = exactly(below);
     let related: Bound = difference_bound(checker, right, left);
     let through_zone: bool = bound_at_most(related, wanted);
@@ -610,7 +610,7 @@ crashes Trap
 public machine proves_at_most(checker: &Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
-    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
     let wanted: Bound = exactly(zero);
     let related: Bound = difference_bound(checker, right, left);
     let through_zone: bool = bound_at_most(related, wanted);
@@ -621,8 +621,8 @@ crashes Trap
 
 // Whether the value is never zero.
 public machine proves_nonzero(checker: &Checker, value: Value) -> bool {
-    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
-    let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
+    let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
+    let below: ExactInteger = ExactInteger { negative: true, magnitude: 1u64 as +Wrapping };
     let positive_wanted: Bound = exactly(below);
     let positive: bool = bound_at_most(value.floor, positive_wanted);
     let negative: bool = bound_at_most(value.ceiling, positive_wanted);
@@ -632,7 +632,7 @@ public machine proves_nonzero(checker: &Checker, value: Value) -> bool {
 // A value known only as a place, such as a record or a reference.
 public machine at_place(place: u64 in Trapping) -> Value {
     let unknown: Value = value_unknown();
-    Value { place: place, known: false, subject: 0, offset: unknown.offset, ceiling: unknown.ceiling, floor: unknown.floor }
+    Value { place: place, known: false, subject: 0u64 as +Trapping, offset: unknown.offset, ceiling: unknown.ceiling, floor: unknown.floor }
 }
 
 // A value known only by its type: a fixed integer's carrier range, a

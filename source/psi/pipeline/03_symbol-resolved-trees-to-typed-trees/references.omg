@@ -7,7 +7,7 @@ public machine type_references(typer: &mut Typer, sources: &SourceSet, syntax: &
 crashes Trap
 {
     typer.output.reference_count = syntax.type_reference_count;
-    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next(typer, sources, syntax, resolution, 0u64 as +Trapping) }
 
     machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < typer.output.reference_count && index < 65536 && typer.output.accepted {
@@ -43,13 +43,13 @@ crashes Trap
     // arguments' rows intern as ever. Every argument must occupy the slot
     // of its declared kind, in the order the trait wrote its telescope.
     machine trait_application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
-        set_reference_type(&mut typer.output, index, 0);
+        set_reference_type(&mut typer.output, index, 0u64 as +Trapping);
         check_trait_telescope(typer, syntax, resolution, index, item);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
     machine application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
-        set_reference_type(&mut typer.output, index, 0);
+        set_reference_type(&mut typer.output, index, 0u64 as +Trapping);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
@@ -118,7 +118,7 @@ crashes Trap
     ) {
         let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
         transition reference.argument_count == expected {
-            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0)
+            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0u64 as +Trapping)
             _ -> arity_rejected(typer, reference)
         }
     }
@@ -379,7 +379,7 @@ machine applied_parameter_count(syntax: &SyntaxTrees, item: u64 in Trapping) -> 
 crashes Trap
 {
     let data_item: DataItem = syntax_trees_data_item(syntax, item);
-    transition { _ -> count(syntax, data_item, 0, 0) }
+    transition { _ -> count(syntax, data_item, 0u64 as +Trapping, 0u64 as +Trapping) }
 
     machine count(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
         transition offset < data_item.generic_parameter_count {
@@ -450,7 +450,7 @@ public machine collection_qualifier(domain: DomainBinding) -> bool {
 public machine trait_slot_argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> parent(syntax, resolution, row, 0) }
+    transition { _ -> parent(syntax, resolution, row, 0u64 as +Trapping) }
 
     machine parent(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.type_reference_count {
@@ -469,7 +469,7 @@ crashes Trap
 
     machine arguments(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         let reference: TypeReference = syntax_trees_type_reference(syntax, index);
-        transition { _ -> argument(syntax, resolution, row, index, reference, 0) }
+        transition { _ -> argument(syntax, resolution, row, index, reference, 0u64 as +Trapping) }
     }
 
     machine argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
@@ -500,7 +500,7 @@ crashes Trap
 machine runtime_binder_count(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(syntax, first, count, 0, 0) }
+    transition { _ -> next(syntax, first, count, 0u64 as +Trapping, 0u64 as +Trapping) }
 
     machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
@@ -613,7 +613,7 @@ crashes Trap
     let declared: TraitItem = trait_item(syntax, item);
     let expected: u64 in Trapping = runtime_binder_count(syntax, declared.first_generic_parameter, declared.generic_parameter_count);
     transition reference.argument_count == expected {
-        true -> parameter(typer, syntax, resolution, declared, reference, 0, 0)
+        true -> parameter(typer, syntax, resolution, declared, reference, 0u64 as +Trapping, 0u64 as +Trapping)
         _ -> count_rejected(typer, reference)
     }
 

@@ -7,7 +7,7 @@
 public machine project_slots(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing)
 crashes Trap
 {
-    transition { _ -> next_machine(checker, syntax, typing, 0) }
+    transition { _ -> next_machine(checker, syntax, typing, 0u64 as +Trapping) }
 
     machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count {
@@ -33,7 +33,7 @@ crashes Trap
     ) {
         transition item.has_return_type {
             true -> typed_return(checker, syntax, typing, index, item)
-            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+            _ -> parameters(checker, syntax, typing, index, item, 0u64 as +Trapping, 0u64 as +Trapping, 0u64 as +Trapping, false, false, 0u64 as +Trapping)
         }
     }
 
@@ -47,8 +47,8 @@ crashes Trap
         let handle: u64 in Trapping = reference_type(typing, item.return_type);
         let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind == TypeKind::Reference {
-            true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner)
-            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+            true -> parameters(checker, syntax, typing, index, item, 0u64 as +Trapping, 0u64 as +Trapping, 0u64 as +Trapping, false, true, row.inner)
+            _ -> parameters(checker, syntax, typing, index, item, 0u64 as +Trapping, 0u64 as +Trapping, 0u64 as +Trapping, false, false, 0u64 as +Trapping)
         }
     }
 

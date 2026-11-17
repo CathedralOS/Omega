@@ -251,7 +251,7 @@ crashes Trap
         let expression: Expression = syntax_trees_expression(syntax, index);
         let declared: DataItem = syntax_trees_data_item(syntax, item);
         let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
-        transition { _ -> argument(typer, syntax, item, expression, declared, first, 0) }
+        transition { _ -> argument(typer, syntax, item, expression, declared, first, 0u64 as +Trapping) }
 
         machine argument(typer: &mut Typer, syntax: &SyntaxTrees, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
             transition offset < declared.generic_parameter_count {
@@ -273,7 +273,7 @@ crashes Trap
         }
 
         machine zero() -> u64 in Trapping {
-            0
+            0u64 as +Trapping
         }
 
         machine applied(typer: &mut Typer, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping) -> u64 in Trapping {
@@ -367,7 +367,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -412,13 +412,13 @@ crashes Trap
 
     machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let item: DataItem = syntax_trees_data_item(syntax, row.item);
-        transition { _ -> candidate(typer, sources, syntax, index, expression, row, item, 0) }
+        transition { _ -> candidate(typer, sources, syntax, index, expression, row, item, 0u64 as +Trapping) }
     }
 
     machine candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.field_count {
             true -> compare(typer, sources, syntax, index, expression, row, item, offset)
-            _ -> payload_case(typer, sources, syntax, index, expression, row, item, 0)
+            _ -> payload_case(typer, sources, syntax, index, expression, row, item, 0u64 as +Trapping)
         }
     }
 
@@ -433,7 +433,7 @@ crashes Trap
 
     machine payload_open(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         let declared: DataCase = syntax_trees_data_case(syntax, item.first_case + offset);
-        transition { _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, 0) }
+        transition { _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, 0u64 as +Trapping) }
     }
 
     machine payload_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
@@ -643,7 +643,7 @@ crashes Trap
     let integer: bool = integer_type(typer, typed);
     transition integer {
         true -> qualified(typer, syntax, endpoint, typed)
-        _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
+        _ -> capture_endpoint_anonymity(typer, syntax, endpoint, typed)
     }
 
     machine qualified(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, typed: u64 in Trapping) {
@@ -680,6 +680,11 @@ crashes Trap
     }
 
     machine done() {}
+
+    machine capture_endpoint_anonymity(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, typed: u64 in Trapping) {
+        let captured_anonymous: bool = typed == typer.output.anonymous;
+        transition { _ -> other(typer, syntax, endpoint, captured_anonymous) }
+    }
 }
 
 // A store meets the selected element's own type, a loaned name's referent,
@@ -982,7 +987,7 @@ crashes Trap
 public machine through_shared(typer: &Typer, syntax: &SyntaxTrees, index: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> step(typer, syntax, index, 0) }
+    transition { _ -> step(typer, syntax, index, 0u64 as +Trapping) }
 
     machine step(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, walked: u64 in Trapping) -> bool {
         let expression: Expression = syntax_trees_expression(syntax, handle);
@@ -1548,7 +1553,7 @@ crashes Trap
     machine data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
         let item: DataItem = syntax_trees_data_item(syntax, row.item);
         transition item.field_count == 0 && item.case_count > 0 {
-            true -> cases(syntax, item, 0)
+            true -> cases(syntax, item, 0u64 as +Trapping)
             _ -> no()
         }
     }
@@ -1780,7 +1785,7 @@ crashes Trap
     machine result(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
         let mut qualified: TypeRow = row;
         qualified.domain = domain;
-        qualified.domain_item = 0 as u64 +Trapping;
+        qualified.domain_item = 0u64 as +Trapping;
         let inner: u64 in Trapping = typer_intern(typer, qualified, expression.source_span);
         transition outer.kind == TypeKind::Reference {
             true -> reference(typer, index, expression, outer, inner)

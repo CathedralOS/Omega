@@ -18,8 +18,8 @@ public data TerminationClause [copy] {
 public machine checker_termination_clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem) -> TerminationClause
 crashes Trap
 {
-    let none: TerminationClause = TerminationClause { promised: false, promise: 0, ranked: false, handle: 0 };
-    transition { _ -> next(syntax, resolution, item, 0, none) }
+    let none: TerminationClause = TerminationClause { promised: false, promise: 0u64 as +Trapping, ranked: false, handle: 0u64 as +Trapping };
+    transition { _ -> next(syntax, resolution, item, 0u64 as +Trapping, none) }
 
     machine next(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause) -> TerminationClause {
         transition offset < item.clause_count {
@@ -74,7 +74,7 @@ crashes Trap
 
     machine declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool {
         let item: MachineItem = machine_item(syntax, handle);
-        transition { _ -> next(syntax, item, 0) }
+        transition { _ -> next(syntax, item, 0u64 as +Trapping) }
     }
 
     machine next(syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) -> bool {
@@ -189,7 +189,7 @@ crashes Trap
 
     machine distance(checker: &Checker, rank: RankBounds, bounds: RankBounds, range: Expression) -> bool {
         let produced_rank: Value = value_difference(rank.second, rank.first);
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
         let floor: bool = proves_at_most(checker, bounds.first, zero)
             || proves_at_most(checker, bounds.first, produced_rank);
         let at_most: bool = proves_at_most(checker, produced_rank, bounds.second)
@@ -276,7 +276,7 @@ public machine capture_source(checker: &mut Checker, syntax: &SyntaxTrees, resol
 crashes Trap
 {
     checker.argument_count = item.parameter_count;
-    transition { _ -> entry(checker, item, 0) }
+    transition { _ -> entry(checker, item, 0u64 as +Trapping) }
 
     machine entry(checker: &mut Checker, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.parameter_count && offset < 64 {
@@ -286,7 +286,7 @@ crashes Trap
     }
 
     machine own(checker: &mut Checker, item: MachineItem, offset: u64 in Trapping) {
-        let place: u64 in Trapping = find_place(checker, PlaceKind::Parameter, item.first_parameter + offset, 0);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Parameter, item.first_parameter + offset, 0u64 as +Trapping);
         let value: Value = place_value(checker, place);
         set_argument(checker, offset, value);
         transition { _ -> entry(checker, item, offset + 1) }
@@ -388,14 +388,14 @@ crashes Trap
         checker.context_first = checker.context_count;
         checker.substituting = true;
         checker.argument_first = measure.first_parameter;
-        checker.argument_count = 1;
+        checker.argument_count = 1u64 as +Trapping;
         // The body computes a rank over naturals: its arithmetic is exact
         // here as in its own check (arithmetic.omg).
         checker.exact_body = true;
-        set_argument(checker, 0, subject);
+        set_argument(checker, 0u64 as +Trapping, subject);
         evaluate_fact_run(checker, syntax, resolution, typing, root, low);
         let value: Value = value_at(checker, root);
-        set_argument(checker, 0, saved);
+        set_argument(checker, 0u64 as +Trapping, saved);
         checker.exact_body = exact;
         checker.substituting = substituting;
         checker.argument_first = first;
@@ -455,11 +455,11 @@ public machine settle_termination(checker: &mut Checker, syntax: &SyntaxTrees, r
 crashes Trap
 {
     let certified: bool = certify_ranking(&mut checker.invocations);
-    transition { _ -> clear(checker, syntax, resolution, 0, certified) }
+    transition { _ -> clear(checker, syntax, resolution, 0u64 as +Trapping, certified) }
     machine clear(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, certified: bool) {
         transition index < checker.invocations.node_count && index < 10240 {
             true -> cleared(checker, syntax, resolution, index, certified)
-            false -> ordered(checker, syntax, resolution, 0)
+            false -> ordered(checker, syntax, resolution, 0u64 as +Trapping)
         }
     }
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, certified: bool)
@@ -473,7 +473,7 @@ crashes Trap
     machine ordered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping) {
         transition offset < checker.invocations.order_count && offset < 10240 {
             true -> node(checker, syntax, resolution, offset)
-            false -> validate(checker, syntax, resolution, 0)
+            false -> validate(checker, syntax, resolution, 0u64 as +Trapping)
         }
     }
     machine node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping)

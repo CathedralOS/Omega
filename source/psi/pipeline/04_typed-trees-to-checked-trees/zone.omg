@@ -16,7 +16,7 @@ public data Bound [copy] {
 }
 
 public machine bound_none() -> Bound {
-    Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+    Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
 }
 
 public machine exactly(value: ExactInteger) -> Bound {
@@ -52,11 +52,11 @@ public machine bound_add(left: Bound, right: Bound) -> Bound {
     }
 
     machine least() -> Bound {
-        Bound { finite: true, value: ExactInteger { negative: true, magnitude: 18446744073709551615 } }
+        Bound { finite: true, value: ExactInteger { negative: true, magnitude: 18446744073709551615u64 as +Wrapping } }
     }
 
     machine unbounded() -> Bound {
-        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -111,7 +111,7 @@ crashes Trap
     machine cleared(zone: &mut Zone, count: u64 in Trapping) {
         zone.count = count as u64;
         zone.infeasible = false;
-        transition { _ -> entry(zone, 0) }
+        transition { _ -> entry(zone, 0u64 as +Trapping) }
     }
 
     machine entry(zone: &mut Zone, index: u64 in Trapping) {
@@ -135,14 +135,14 @@ crashes Trap
     machine diagonal(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
     machine unbounded(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
@@ -251,7 +251,7 @@ crashes Trap
     machine feasible(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, contradictory: bool) {
         transition contradictory {
             true -> infeasible(zone)
-            _ -> row(zone, from, to, bound, 0)
+            _ -> row(zone, from, to, bound, 0u64 as +Trapping)
         }
     }
 
@@ -269,7 +269,7 @@ crashes Trap
     machine through(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         let into: Bound = zone_bound(zone, first, from);
         let through: Bound = bound_add(into, bound);
-        transition { _ -> column(zone, from, to, bound, through, first, 0) }
+        transition { _ -> column(zone, from, to, bound, through, first, 0u64 as +Trapping) }
     }
 
     machine column(
@@ -314,7 +314,7 @@ crashes Trap
 public machine zone_forget(zone: &mut Zone, subject: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> other(zone, subject, 0) }
+    transition { _ -> other(zone, subject, 0u64 as +Trapping) }
 
     machine other(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index < zone.count {
@@ -382,14 +382,14 @@ crashes Trap
     machine reachable(zone: &mut Zone, other: &Zone) -> bool {
         transition zone.infeasible {
             true -> replaced(zone, other)
-            _ -> entry(zone, other, 0, false)
+            _ -> entry(zone, other, 0u64 as +Trapping, false)
         }
     }
 
     machine replaced(zone: &mut Zone, other: &Zone) -> bool {
         zone.infeasible = false;
         zone.count = other.count;
-        transition { _ -> copy(zone, other, 0) }
+        transition { _ -> copy(zone, other, 0u64 as +Trapping) }
     }
 
     machine copy(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool {
@@ -455,7 +455,7 @@ crashes Trap
 {
     transition before.infeasible || zone.infeasible {
         true -> done()
-        _ -> entry(zone, before, 0)
+        _ -> entry(zone, before, 0u64 as +Trapping)
     }
 
     machine entry(zone: &mut Zone, before: &Zone, index: u64 in Trapping) {
@@ -480,7 +480,7 @@ crashes Trap
     machine drop(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, before, index + 1) }
     }
 

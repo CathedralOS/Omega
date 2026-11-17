@@ -182,7 +182,7 @@ crashes Trap
     machine transition_statement(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping) {
         transition statement.has_value {
             true -> subject(typer, sources, syntax, resolution, statement, result)
-            _ -> arms(typer, sources, syntax, resolution, statement, result, 0)
+            _ -> arms(typer, sources, syntax, resolution, statement, result, 0u64 as +Trapping)
         }
     }
 
@@ -201,7 +201,7 @@ crashes Trap
     }
 
     machine arms(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping, subject_type: u64 in Trapping) {
-        type_arms(typer, sources, syntax, resolution, statement, result, subject_type, 0);
+        type_arms(typer, sources, syntax, resolution, statement, result, subject_type, 0u64 as +Trapping);
         transition typer.output.accepted {
             true -> coverage(typer, sources, syntax, resolution, statement, subject_type)
             _ -> done()
@@ -379,7 +379,7 @@ crashes Trap
         data_case: u64 in Trapping
     ) {
         let declared: DataItem = syntax_trees_data_item(syntax, subject_row.item);
-        transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, 0) }
+        transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, 0u64 as +Trapping) }
     }
 
     machine fields(
@@ -584,7 +584,7 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 

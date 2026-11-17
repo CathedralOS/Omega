@@ -42,8 +42,13 @@ crashes Trap
         let total: u64 in Trapping =
             (parser.output.clause_count as u64 in Trapping) + (parser.header_clause_count as u64 in Trapping);
         transition total <= 2048 {
-            true -> stage_clause(parser, input, parser.clause_first)
+            true -> capture_first_header_clause(parser, input)
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
+        }
+
+        machine capture_first_header_clause(parser: &mut Parser, input: &TokenStream) {
+            let captured_first_clause: u64 in Trapping = parser.clause_first;
+            transition { _ -> stage_clause(parser, input, captured_first_clause) }
         }
     }
 
@@ -115,7 +120,7 @@ crashes Trap
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
             true -> generic_parameters(parser, input)
-            _ -> signature(parser, input, 0)
+            _ -> signature(parser, input, 0u64 as +Trapping)
         }
     }
 
@@ -296,7 +301,7 @@ machine header_child_first(parser: &Parser, count: u64 in Trapping) -> u64 in Tr
         _ -> present(parser)
     }
 
-    machine empty() -> u64 in Trapping { 0 }
+    machine empty() -> u64 in Trapping { 0u64 as +Trapping }
     machine present(parser: &Parser) -> u64 in Trapping {
         parser.output.contract_count as u64 in Trapping
     }
@@ -319,10 +324,10 @@ machine callable_contract(
         parameter_count: parser.signature_parameter_count,
         has_return_type: parser.signature_has_return_type,
         return_type: parser.signature_return_type,
-        first_clause: 0,
-        clause_count: 0,
-        first_contract: 0,
-        contract_count: 0,
+        first_clause: 0u64 as +Trapping,
+        clause_count: 0u64 as +Trapping,
+        first_contract: 0u64 as +Trapping,
+        contract_count: 0u64 as +Trapping,
         source_span: parser_source_span(parser, start, parser.token_end)
     }
 }
@@ -346,8 +351,9 @@ crashes Trap
 machine replace_header_frame(parser: &mut Parser, frame: CallableHeaderFrame)
 crashes Trap
 {
-    transition parser.header_depth > 0 {
-        true -> replace(parser, frame, parser.header_depth - 1)
+    let captured_header_depth: u64 = parser.header_depth;
+    transition captured_header_depth > 0 {
+        true -> replace(parser, frame, captured_header_depth - 1)
         _ -> invalid()
     }
     machine replace(parser: &mut Parser, frame: CallableHeaderFrame, index: u64)

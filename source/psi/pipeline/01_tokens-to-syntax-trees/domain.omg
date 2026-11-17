@@ -26,10 +26,10 @@ crashes Trap
         take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.declaration_first_argument = parser.output.type_argument_count as u64 in Trapping;
-        parser.declaration_argument_count = 0;
+        parser.declaration_argument_count = 0u64 as +Trapping;
         parser.declaration_has_subject = false;
-        parser.declaration_subject_start = 0;
-        parser.declaration_subject_end = 0;
+        parser.declaration_subject_start = 0u64 as +Trapping;
+        parser.declaration_subject_end = 0u64 as +Trapping;
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input)
@@ -58,8 +58,13 @@ crashes Trap
     machine bracketed_carrier(parser: &mut Parser, input: &TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDomainCarrier);
         transition parser.output.accepted {
-            true -> separator(parser, input, parser.type_result)
+            true -> capture_domain_carrier_type(parser, input)
             _ -> done()
+        }
+
+        machine capture_domain_carrier_type(parser: &mut Parser, input: &TokenStream) {
+            let captured_carrier_type: u64 in Trapping = parser.type_result;
+            transition { _ -> separator(parser, input, captured_carrier_type) }
         }
     }
 
@@ -146,7 +151,7 @@ crashes Trap
     machine alias_open(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
         parser.declaration_first_clause = parser.output.clause_count as u64 in Trapping;
-        parser.declaration_clause_count = 0;
+        parser.declaration_clause_count = 0u64 as +Trapping;
         transition { _ -> constituent(parser, input) }
     }
 
@@ -260,9 +265,10 @@ crashes Trap
     machine retain(parser: &mut Parser, is_alias: bool) {
         let path_end: u64 in Trapping = parser.output.name_path_count as u64 in Trapping;
         let path_count: u64 in Trapping = path_end - parser.declaration_first_path;
+        let captured_first_path: u64 in Trapping = parser.declaration_first_path;
         transition is_alias {
-            true -> retained(parser, true, path_end, 0, parser.declaration_first_path, path_count)
-            _ -> retained(parser, false, parser.declaration_first_path, path_count, path_end, 0)
+            true -> retained(parser, true, path_end, 0u64 as +Trapping, captured_first_path, path_count)
+            _ -> retained(parser, false, captured_first_path, path_count, path_end, 0u64 as +Trapping)
         }
     }
 

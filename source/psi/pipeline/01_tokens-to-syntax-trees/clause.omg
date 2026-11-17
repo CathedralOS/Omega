@@ -134,7 +134,7 @@ crashes Trap
     // conformance.
     machine satisfied_trait(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         parser.clause_first_argument = parser.output.type_argument_count as u64 in Trapping;
-        parser.clause_argument_count = 0;
+        parser.clause_argument_count = 0u64 as +Trapping;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedSatisfiesTrait);
         transition parser.output.accepted {
             true -> satisfied_member(parser, input, owner)
@@ -180,8 +180,13 @@ crashes Trap
 
     machine satisfied_complete(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, named: bool) {
         transition named {
-            true -> satisfied_requirement(parser, input, owner, parser.name_end)
+            true -> capture_satisfied_requirement_end(parser, input, owner)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedSatisfiedRequirement)
+        }
+
+        machine capture_satisfied_requirement_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_requirement_end: u64 in Trapping = parser.name_end;
+            transition { _ -> satisfied_requirement(parser, input, owner, captured_requirement_end) }
         }
     }
 
@@ -227,8 +232,13 @@ crashes Trap
     machine satisfied_requirement(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping) {
         let labelled: bool = at_keyword(parser, input, KeywordKind::As);
         transition owner == ClauseOwner::Contract {
-            true -> satisfaction(parser, input, owner, satisfies_clause(parser, end))
+            true -> capture_satisfaction_clause(parser, input, owner, end)
             _ -> satisfied_label(parser, input, owner, end, labelled)
+        }
+
+        machine capture_satisfaction_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping) {
+            let captured_satisfaction_clause: Clause = satisfies_clause(parser, end);
+            transition { _ -> satisfaction(parser, input, owner, captured_satisfaction_clause) }
         }
     }
 
@@ -287,12 +297,17 @@ crashes Trap
     // which a refinement, narrowing only the promise, never carries.
     machine termination(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         parser.clause_first_argument = parser.output.argument_count as u64 in Trapping;
-        parser.clause_argument_count = 0;
+        parser.clause_argument_count = 0u64 as +Trapping;
         parser.ranked_subject_count = 0;
         let ranked: bool = at_word(parser, input, "by");
         transition ranked {
             true -> ranked_witness(parser, input, owner)
-            _ -> termination_close(parser, input, owner, parser_termination_clause(parser, false, 0))
+            _ -> capture_unranked_termination_clause(parser, input, owner)
+        }
+
+        machine capture_unranked_termination_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_unranked_clause: Clause = parser_termination_clause(parser, false, 0u64 as +Trapping);
+            transition { _ -> termination_close(parser, input, owner, captured_unranked_clause) }
         }
     }
 
@@ -316,8 +331,13 @@ crashes Trap
     machine subject(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationSubject, false, false);
         transition parser.output.accepted {
-            true -> subject_retained(parser, input, owner, parser.expression_result)
+            true -> capture_termination_subject_expression(parser, input, owner)
             _ -> done()
+        }
+
+        machine capture_termination_subject_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_subject_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> subject_retained(parser, input, owner, captured_subject_expression) }
         }
     }
 
@@ -339,8 +359,13 @@ crashes Trap
     machine listed_subject(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationSubject, false, false);
         transition parser.output.accepted {
-            true -> listed_subject_staged(parser, input, owner, parser.expression_result)
+            true -> capture_listed_subject_expression(parser, input, owner)
             _ -> done()
+        }
+
+        machine capture_listed_subject_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_listed_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> listed_subject_staged(parser, input, owner, captured_listed_expression) }
         }
     }
 
@@ -380,8 +405,13 @@ crashes Trap
 
     machine unviewed(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         transition parser.output.accepted {
-            true -> termination_end(parser, input, owner, parser_termination_clause(parser, false, 0))
+            true -> capture_unviewed_termination_clause(parser, input, owner)
             _ -> done()
+        }
+
+        machine capture_unviewed_termination_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_unviewed_clause: Clause = parser_termination_clause(parser, false, 0u64 as +Trapping);
+            transition { _ -> termination_end(parser, input, owner, captured_unviewed_clause) }
         }
     }
 
@@ -391,8 +421,13 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationView, false, false);
         transition parser.output.accepted {
-            true -> view_shape(parser, input, owner, parser.expression_result)
+            true -> capture_termination_view_expression(parser, input, owner)
             _ -> done()
+        }
+
+        machine capture_termination_view_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+            let captured_view_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> view_shape(parser, input, owner, captured_view_expression) }
         }
     }
 
@@ -402,8 +437,13 @@ crashes Trap
         let named: bool = names_declaration(expression.kind);
         let called: bool = expression.kind == ExpressionKind::Call && names_declaration(callee.kind);
         transition named || called {
-            true -> termination_end(parser, input, owner, parser_termination_clause(parser, true, view))
+            true -> capture_viewed_termination_clause(parser, input, owner, view)
             _ -> reject_at(parser, ParseDiagnosticCode::ExpectedTerminationView, expression.source_span)
+        }
+
+        machine capture_viewed_termination_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, view: u64 in Trapping) {
+            let captured_viewed_clause: Clause = parser_termination_clause(parser, true, view);
+            transition { _ -> termination_end(parser, input, owner, captured_viewed_clause) }
         }
     }
 
@@ -424,8 +464,13 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
         transition parser.output.accepted {
-            true -> rank_range_dots(parser, input, owner, clause, parser.expression_result)
+            true -> capture_rank_lower_expression(parser, input, owner, clause)
             _ -> done()
+        }
+
+        machine capture_rank_lower_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
+            let captured_lower_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> rank_range_dots(parser, input, owner, clause, captured_lower_expression) }
         }
     }
 
@@ -442,28 +487,33 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
         transition parser.output.accepted {
-            true -> rank_range_node(parser, input, owner, clause, lower, inclusive, parser.expression_result)
+            true -> capture_rank_upper_expression(parser, input, owner, clause, lower, inclusive)
             _ -> done()
+        }
+
+        machine capture_rank_upper_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping, inclusive: bool) {
+            let captured_upper_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> rank_range_node(parser, input, owner, clause, lower, inclusive, captured_upper_expression) }
         }
     }
 
     machine rank_range_node(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping, inclusive: bool, upper: u64 in Trapping) {
         let start: Expression = syntax_trees_expression(&parser.output, lower);
         let handle: u64 in Trapping = parser.output.expression_count as u64 in Trapping;
-        let name: IdentifierSpan = identifier_span(parser, 0, 0);
+        let name: IdentifierSpan = identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping);
         let span: SourceSpan = parser_source_span(parser, start.source_span.span.start, parser.token_end);
         let node: Expression = Expression {
             kind: ExpressionKind::Range,
             operator: OperatorKind::None,
             left: lower,
             right: upper,
-            first: 1,
-            count: 1,
+            first: 1u64 as +Trapping,
+            count: 1u64 as +Trapping,
             flag: inclusive,
             name: name,
-            type_reference: 0,
-            first_row: 0,
-            literal: 0,
+            type_reference: 0u64 as +Trapping,
+            first_row: 0u64 as +Trapping,
+            literal: 0u64 as +Trapping,
             source_span: span
         };
         emit_expression(parser, input, node);
@@ -536,7 +586,8 @@ crashes Trap
     }
 
     machine reaches_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        transition { _ -> member_clause(parser, input, owner, ClauseKind::Reaches, parser.token_end) }
+        let captured_end: u64 in Trapping = parser.token_end;
+        transition { _ -> member_clause(parser, input, owner, ClauseKind::Reaches, captured_end) }
     }
 
     // A refinement may narrow an axis with an explicit Boolean. Either form
@@ -561,15 +612,20 @@ crashes Trap
     machine axis_parsed(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRefinementAxis, false, false);
         transition parser.output.accepted {
-            true -> axis_stated(parser, input, owner, kind, parser.expression_result)
+            true -> capture_clause_axis_expression(parser, input, owner, kind)
             _ -> done()
+        }
+
+        machine capture_clause_axis_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+            let captured_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> axis_stated(parser, input, owner, kind, captured_expression) }
         }
     }
 
     machine axis_stated(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, value: u64 in Trapping) {
         let stated: Clause = clause_row(parser, kind, parser.token_end);
-        transition { _ -> store(parser, input, owner,
-            with_clause_expression(parser, stated, value, parser.token_end)) }
+        let captured_clause: Clause = with_clause_expression(parser, stated, value, parser.token_end);
+        transition { _ -> store(parser, input, owner, captured_clause) }
     }
 
     machine service_separator_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
@@ -596,7 +652,8 @@ crashes Trap
     }
 
     machine operational_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        transition { _ -> member_clause(parser, input, owner, kind, parser.token_end) }
+        let captured_end: u64 in Trapping = parser.token_end;
+        transition { _ -> member_clause(parser, input, owner, kind, captured_end) }
     }
 
     // Reaches, invokes and the operational clauses keep their members range.
@@ -651,8 +708,13 @@ crashes Trap
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedClauseFact, false, true);
         parser.expression_allow_subject = false;
         transition parser.output.accepted {
-            true -> fact_retained(parser, input, owner, kind, parser.expression_result)
+            true -> capture_clause_fact_expression(parser, input, owner, kind)
             _ -> done()
+        }
+
+        machine capture_clause_fact_expression(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+            let captured_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> fact_retained(parser, input, owner, kind, captured_expression) }
         }
     }
 
@@ -932,14 +994,14 @@ machine clause_row(parser: &Parser, kind: ClauseKind, end: u64 in Trapping) -> C
         first_member: parser.clause_first_member,
         member_count: (parser.output.member_count as u64 in Trapping) - parser.clause_first_member,
         cause: CrashCause::Trap,
-        expression: 0,
+        expression: 0u64 as +Trapping,
         has_expression: false,
-        first_argument: 0,
-        argument_count: 0,
+        first_argument: 0u64 as +Trapping,
+        argument_count: 0u64 as +Trapping,
         has_label: false,
-        label: identifier_span(parser, 0, 0),
+        label: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_range: false,
-        range: 0,
+        range: 0u64 as +Trapping,
         source_span: parser_source_span(parser, parser.clause_start, end)
     }
 }
@@ -947,17 +1009,17 @@ machine clause_row(parser: &Parser, kind: ClauseKind, end: u64 in Trapping) -> C
 machine crash_clause_row(parser: &Parser, cause: CrashCause) -> Clause {
     Clause {
         kind: ClauseKind::Crashes,
-        first_member: 0,
-        member_count: 0,
+        first_member: 0u64 as +Trapping,
+        member_count: 0u64 as +Trapping,
         cause: cause,
-        expression: 0,
+        expression: 0u64 as +Trapping,
         has_expression: false,
-        first_argument: 0,
-        argument_count: 0,
+        first_argument: 0u64 as +Trapping,
+        argument_count: 0u64 as +Trapping,
         has_label: false,
-        label: identifier_span(parser, 0, 0),
+        label: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_range: false,
-        range: 0,
+        range: 0u64 as +Trapping,
         source_span: parser_source_span(parser, parser.clause_start, parser.token_end)
     }
 }
@@ -965,17 +1027,17 @@ machine crash_clause_row(parser: &Parser, cause: CrashCause) -> Clause {
 machine fact_clause_row(parser: &Parser, kind: ClauseKind, fact: u64 in Trapping, end: u64 in Trapping) -> Clause {
     Clause {
         kind: kind,
-        first_member: 0,
-        member_count: 0,
+        first_member: 0u64 as +Trapping,
+        member_count: 0u64 as +Trapping,
         cause: CrashCause::Trap,
         expression: fact,
         has_expression: true,
-        first_argument: 0,
-        argument_count: 0,
+        first_argument: 0u64 as +Trapping,
+        argument_count: 0u64 as +Trapping,
         has_label: false,
-        label: identifier_span(parser, 0, 0),
+        label: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_range: false,
-        range: 0,
+        range: 0u64 as +Trapping,
         source_span: parser_source_span(parser, parser.clause_start, end)
     }
 }
@@ -988,14 +1050,14 @@ machine satisfies_clause(parser: &Parser, end: u64 in Trapping) -> Clause {
         first_member: parser.clause_first_member,
         member_count: (parser.output.member_count as u64 in Trapping) - parser.clause_first_member,
         cause: CrashCause::Trap,
-        expression: 0,
+        expression: 0u64 as +Trapping,
         has_expression: false,
         first_argument: parser.clause_first_argument,
         argument_count: parser.clause_argument_count,
         has_label: false,
-        label: identifier_span(parser, 0, 0),
+        label: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_range: false,
-        range: 0,
+        range: 0u64 as +Trapping,
         source_span: parser_source_span(parser, parser.clause_start, end)
     }
 }
@@ -1004,17 +1066,17 @@ machine satisfies_clause(parser: &Parser, end: u64 in Trapping) -> Clause {
 machine parser_termination_clause(parser: &Parser, viewed: bool, view: u64 in Trapping) -> Clause {
     Clause {
         kind: ClauseKind::Terminates,
-        first_member: 0,
-        member_count: 0,
+        first_member: 0u64 as +Trapping,
+        member_count: 0u64 as +Trapping,
         cause: CrashCause::Trap,
         expression: view,
         has_expression: viewed,
         first_argument: parser.clause_first_argument,
         argument_count: parser.clause_argument_count,
         has_label: false,
-        label: identifier_span(parser, 0, 0),
+        label: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_range: false,
-        range: 0,
+        range: 0u64 as +Trapping,
         source_span: parser_source_span(parser, parser.clause_start, parser.clause_start)
     }
 }
@@ -1117,7 +1179,7 @@ crashes Trap
 {
     parser.clause_first_argument = parser.output.argument_count as u64 in Trapping;
     parser.clause_argument_count = parser.ranked_subject_count as u64 in Trapping;
-    transition { _ -> next(parser, input, 0) }
+    transition { _ -> next(parser, input, 0u64 as +Trapping) }
 
     machine next(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
         transition cursor < parser.ranked_subject_count && cursor < 8 {

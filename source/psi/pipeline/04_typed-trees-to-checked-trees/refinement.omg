@@ -61,7 +61,7 @@ crashes Trap
         // One arbitrary complete value of the actual public result type.
         // Both contracts describe it; neither its body nor a caller value
         // supplies a stronger equation. The namespace exists only here.
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::ContractResult, 0, 0, result_type);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::ContractResult, 0u64 as +Trapping, 0u64 as +Trapping, result_type);
         checker.returned = reference_value(checker, typing, place);
         checker.returning = true;
         let assumed: bool = decide_bound_facts(checker, syntax, resolution, typing, given, arguments, ClauseKind::Ensures, false);
@@ -87,7 +87,7 @@ crashes Trap
     arguments.count = required.parameter_count;
     arguments.valid = required.parameter_count <= 64;
     transition arguments.valid {
-        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0)
+        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0u64 as +Trapping)
         _ -> {}
     }
     machine parameters(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, required: CallClauses, arguments: &mut ArgumentValues, offset: u64 in Trapping) {
@@ -125,22 +125,22 @@ crashes Trap
     checker.exact_body = false;
     checker.walking = 0;
     checker.assumption_count = 0;
-    checker.tree_base = 0;
-    checker.tree_low = 0;
-    checker.tree_size = 0;
+    checker.tree_base = 0u64 as +Trapping;
+    checker.tree_low = 0u64 as +Trapping;
+    checker.tree_size = 0u64 as +Trapping;
     checker.context_first = 0;
-    checker.argument_first = 0;
-    checker.argument_count = 0;
-    checker.field_first = 0;
+    checker.argument_first = 0u64 as +Trapping;
+    checker.argument_count = 0u64 as +Trapping;
+    checker.field_first = 0u64 as +Trapping;
     checker.returned = value_unknown();
     checker.subject = value_unknown();
-    checker.subject_roster = 0;
+    checker.subject_roster = 0u64 as +Trapping;
     checker.collecting_completion = false;
     checker.completion_seen = false;
     checker.completion_value = value_unknown();
     checker.trap_route = false;
     checker.abort_route = false;
-    transition { _ -> next(checker, 0) }
+    transition { _ -> next(checker, 0u64 as +Trapping) }
     machine next(checker: &mut Checker, offset: u64 in Trapping) {
         transition offset < 4096 {
             true -> clear(checker, offset)
@@ -161,7 +161,7 @@ crashes Trap
 machine retire_refinement_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, 0) }
+    transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, 0u64 as +Trapping) }
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues, offset: u64 in Trapping) {
         transition arguments.valid && offset < arguments.count && offset < 64 {
             true -> parameter(checker, syntax, typing, required, given, selected, arguments, offset)

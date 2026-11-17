@@ -72,12 +72,12 @@ crashes Trap
 {
     transition statement.has_value {
         true -> subject(checker, syntax, resolution, statement, index)
-        _ -> arm(checker, syntax, resolution, statement, index, 0)
+        _ -> arm(checker, syntax, resolution, statement, index, 0u64 as +Trapping)
     }
 
     machine subject(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, index: u64 in Trapping) {
         record_tree_uses(checker, syntax, resolution, statement.value, index);
-        transition { _ -> arm(checker, syntax, resolution, statement, index, 0) }
+        transition { _ -> arm(checker, syntax, resolution, statement, index, 0u64 as +Trapping) }
     }
 
     machine arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, index: u64 in Trapping, offset: u64 in Trapping) {
@@ -337,7 +337,7 @@ machine copy_holder_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolutio
 crashes Trap
 {
     transition lender > 0 {
-        true -> next(checker, syntax, resolution, typing, handle, holder, lender, 0, checker.ownership.loan_count)
+        true -> next(checker, syntax, resolution, typing, handle, holder, lender, 0u64 as +Trapping, checker.ownership.loan_count)
         _ -> answer(false)
     }
 
@@ -421,7 +421,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -459,7 +459,7 @@ crashes Trap
     }
 
     machine referent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
-        let place: u64 in Trapping = find_place(checker, PlaceKind::Local, declaration, 0);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Local, declaration, 0u64 as +Trapping);
         let origin: u64 in Trapping = local_origin(checker, place);
         transition origin > 0 {
             true -> origin_holder(checker, syntax, resolution, typing, statement, origin)
@@ -481,7 +481,7 @@ crashes Trap
     }
 
     machine done() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -501,7 +501,7 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -515,7 +515,7 @@ crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
     transition expression.kind == ExpressionKind::Call && checker.output.machine_accepted {
-        true -> argument(checker, syntax, resolution, typing, expression, 0)
+        true -> argument(checker, syntax, resolution, typing, expression, 0u64 as +Trapping)
         _ -> done()
     }
 
@@ -548,7 +548,7 @@ crashes Trap
 
     machine replaced(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, holder: u64 in Trapping) {
         let previous_count: u64 = checker.ownership.loan_count;
-        lend_arguments(checker, syntax, resolution, typing, expression, offset, holder, 0);
+        lend_arguments(checker, syntax, resolution, typing, expression, offset, holder, 0u64 as +Trapping);
         replace_loan_holder(&mut checker.ownership, holder, previous_count);
         transition { _ -> argument(checker, syntax, resolution, typing, expression, offset + 1) }
     }
@@ -634,7 +634,7 @@ crashes Trap
 public machine replace_loan_holder(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64)
 crashes Trap
 {
-    transition { _ -> next(ownership, holder, previous_count, 0, 0) }
+    transition { _ -> next(ownership, holder, previous_count, 0u64 as +Trapping, 0u64 as +Trapping) }
 
     machine next(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping) {
         transition index < ownership.loan_count && index < 64 && written < 64 {
@@ -764,7 +764,7 @@ crashes Trap
     let mut handles: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     let mut offsets: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     handles[0] = handle;
-    transition { _ -> visit(syntax, typing, &mut handles, &mut offsets, 0) }
+    transition { _ -> visit(syntax, typing, &mut handles, &mut offsets, 0u64 as +Trapping) }
 
     machine visit(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
     requires depth < 9
@@ -869,7 +869,7 @@ crashes Trap
 {
     let root: u64 in Trapping = path_root(syntax, resolution, typing, handle, true);
     transition root > 0 && checker.ownership.loan_count > 0 {
-        true -> next(checker, syntax, resolution, typing, handle, excludes, root, 0)
+        true -> next(checker, syntax, resolution, typing, handle, excludes, root, 0u64 as +Trapping)
         _ -> done()
     }
 
@@ -1037,7 +1037,7 @@ machine carrier_owns_loan(checker: &Checker, holder: u64 in Trapping) -> bool
 crashes Trap
 {
     transition holder > 0 {
-        true -> next(checker, holder, 0)
+        true -> next(checker, holder, 0u64 as +Trapping)
         _ -> answer(false)
     }
 
@@ -1110,12 +1110,12 @@ crashes Trap
 public machine use_slot(ownership: &Ownership, key: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(ownership, key, 0) }
+    transition { _ -> next(ownership, key, 0u64 as +Trapping) }
 
     machine next(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < ownership.use_count && index < 128 {
             true -> entry(ownership, key, index)
-            _ -> answer(0)
+            _ -> answer(0u64 as +Trapping)
         }
     }
 
@@ -1141,13 +1141,13 @@ crashes Trap
     let slot: u64 in Trapping = use_slot(ownership, key);
     transition slot > 0 && slot <= 128 {
         true -> read(ownership, slot - 1)
-        _ -> answer(0)
+        _ -> answer(0u64 as +Trapping)
     }
 
     machine read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping {
         transition index < 128 {
             true -> indexed(ownership, index)
-            _ -> answer(0)
+            _ -> answer(0u64 as +Trapping)
         }
     }
 

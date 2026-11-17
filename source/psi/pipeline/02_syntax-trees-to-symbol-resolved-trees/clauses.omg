@@ -12,7 +12,7 @@
 public machine bind_clause_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
@@ -23,7 +23,7 @@ crashes Trap
 
     machine machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
-        transition { _ -> next_clause(resolver, sources, syntax, index, item, 0) }
+        transition { _ -> next_clause(resolver, sources, syntax, index, item, 0u64 as +Trapping) }
     }
 
     machine next_clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
@@ -95,7 +95,7 @@ machine bind_satisfied_requirement(
 crashes Trap
 {
     let scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, machine);
-    transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, 0) }
+    transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, 0u64 as +Trapping) }
 
     machine argument(
         resolver: &mut Resolver,
@@ -199,7 +199,7 @@ crashes Trap
     // The payload sees the machine's binders and constants, not its
     // parameters.
     machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, clause: Clause) {
-        let scope: NameScope = fact_scope(true, machine, 0, 0, ValueBinding::NotAName);
+        let scope: NameScope = fact_scope(true, machine, 0u64 as +Trapping, 0u64 as +Trapping, ValueBinding::NotAName);
         bind_tree(resolver, sources, syntax, scope, clause.expression);
     }
 
@@ -226,14 +226,14 @@ crashes Trap
 {
     transition clause.has_range {
         true -> range(resolver, sources, syntax, scope, handle, clause)
-        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0)
+        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0u64 as +Trapping)
     }
 
     // The rank range's endpoints bind as the subjects do
     // (wiki/spec/language/termination.md#ranking).
     machine range(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
         bind_tree(resolver, sources, syntax, scope, clause.range);
-        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0) }
+        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0u64 as +Trapping) }
     }
 
     machine subject(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {

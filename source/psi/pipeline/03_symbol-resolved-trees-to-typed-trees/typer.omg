@@ -96,21 +96,21 @@ crashes Trap
     typer.output.boolean = boolean;
     typer.output.anonymous = anonymous;
     typer.output.anonymous_float = anonymous_float;
-    transition { _ -> expression(typer, 0) }
+    transition { _ -> expression(typer, 0u64 as +Trapping) }
 
     machine expression(typer: &mut Typer, index: u64 in Trapping) {
         transition index < typer.output.expression_count {
             true -> clear_expression(typer, index)
-            _ -> binder(typer, 0)
+            _ -> binder(typer, 0u64 as +Trapping)
         }
     }
 
     machine clear_expression(typer: &mut Typer, index: u64 in Trapping) {
-        set_expression_type(&mut typer.output, index, 0);
+        set_expression_type(&mut typer.output, index, 0u64 as +Trapping);
         set_selection(&mut typer.output, index, Selection::None);
         set_adaptation(&mut typer.output, index, Adaptation::None);
-        typing_set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
-        set_roster(&mut typer.output, index, 0);
+        typing_set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
+        set_roster(&mut typer.output, index, 0u64 as +Trapping);
         mark_typed(typer, index, false);
         transition { _ -> expression(typer, index + 1) }
     }
@@ -118,12 +118,12 @@ crashes Trap
     machine binder(typer: &mut Typer, index: u64 in Trapping) {
         transition index < typer.output.binder_count {
             true -> clear_binder(typer, index)
-            _ -> construct(typer, 0)
+            _ -> construct(typer, 0u64 as +Trapping)
         }
     }
 
     machine clear_binder(typer: &mut Typer, index: u64 in Trapping) {
-        set_binder_type(&mut typer.output, index, 0);
+        set_binder_type(&mut typer.output, index, 0u64 as +Trapping);
         set_binder_member(&mut typer.output, index, MemberTarget::Unknown);
         transition { _ -> binder(typer, index + 1) }
     }
@@ -148,7 +148,7 @@ crashes Trap
 machine type_constants(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
-    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next(typer, sources, syntax, resolution, 0u64 as +Trapping) }
 
     machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.constant_count && typer.output.accepted {
@@ -180,7 +180,7 @@ crashes Trap
 machine type_bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
-    transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next_machine(typer, sources, syntax, resolution, 0u64 as +Trapping) }
 
     machine next_machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
@@ -294,7 +294,7 @@ crashes Trap
 
     machine full(typer: &mut Typer, source_span: SourceSpan) -> u64 in Trapping {
         typing_reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
-        transition { _ -> result(0) }
+        transition { _ -> result(0u64 as +Trapping) }
     }
 
     machine result(handle: u64 in Trapping) -> u64 in Trapping {

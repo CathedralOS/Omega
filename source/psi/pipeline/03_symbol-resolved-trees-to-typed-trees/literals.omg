@@ -49,7 +49,7 @@ crashes Trap
     }
 
     machine invalid() -> LiteralValue {
-        LiteralValue { valid: false, has_suffix: false, suffix: BuiltinType::U64, magnitude: 0 }
+        LiteralValue { valid: false, has_suffix: false, suffix: BuiltinType::U64, magnitude: 0u64 as +Wrapping }
     }
 }
 
@@ -66,8 +66,8 @@ public machine quoted_roster(sources: &SourceSet, span: SourceSpan) -> u64 in Tr
 crashes Trap
 {
     transition span.span.start + 2 <= span.span.end {
-        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0, 128, 191, true, true, true, false)
-        _ -> finished(0, true, true, true, false)
+        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, true, true, true, false)
+        _ -> finished(0u64 as +Trapping, true, true, true, false)
     }
 
     machine next(
@@ -126,7 +126,10 @@ crashes Trap
         let kind: u8 = source_set_byte_or_nul(sources, span.source, index + 1);
         let first: u8 = source_set_byte_or_nul(sources, span.source, index + 2);
         let second: u8 = source_set_byte_or_nul(sources, span.source, index + 3);
-        let hex: u64 in Trapping = hex_value(first) * 16 + hex_value(second);
+        let first_hex: u64 in Trapping = hex_value(first);
+        let shifted_hex: u64 in Trapping = first_hex * 16;
+        let second_hex: u64 in Trapping = hex_value(second);
+        let hex: u64 in Trapping = shifted_hex + second_hex;
         let simple: u64 in Trapping = typer_escape_byte(kind);
         transition kind == 120 {
             true -> decoded(sources, span, index + 4, end, hex, pending, low, high, utf8, nul_free, ascii, any)
@@ -170,62 +173,62 @@ crashes Trap
         ascii: bool
     ) -> u64 in Trapping {
         let fits: bool = value >= low && value <= high;
-        transition { _ -> next(sources, span, index, end, pending - 1, 128, 191, utf8 && fits, nul_free, ascii, true) }
+        transition { _ -> next(sources, span, index, end, pending - 1, 128u64 as +Trapping, 191u64 as +Trapping, utf8 && fits, nul_free, ascii, true) }
     }
 
     machine lead(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value < 128 {
-            true -> next(sources, span, index, end, 0, 128, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 0u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> two(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine two(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value >= 194 && value <= 223 {
-            true -> next(sources, span, index, end, 1, 128, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 1u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> three(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine three(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 224 {
-            true -> next(sources, span, index, end, 2, 160, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 2u64 as +Trapping, 160u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> three_plain(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine three_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition (value >= 225 && value <= 236) || value == 238 || value == 239 {
-            true -> next(sources, span, index, end, 2, 128, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 2u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> three_surrogate(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine three_surrogate(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 237 {
-            true -> next(sources, span, index, end, 2, 128, 159, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 2u64 as +Trapping, 128u64 as +Trapping, 159u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> four(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine four(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 240 {
-            true -> next(sources, span, index, end, 3, 144, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 3u64 as +Trapping, 144u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> four_plain(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine four_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value >= 241 && value <= 243 {
-            true -> next(sources, span, index, end, 3, 128, 191, utf8, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 3u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, utf8, nul_free, ascii, true)
             _ -> four_last(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
     machine four_last(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 244 {
-            true -> next(sources, span, index, end, 3, 128, 143, utf8, nul_free, ascii, true)
-            _ -> next(sources, span, index, end, 0, 128, 191, false, nul_free, ascii, true)
+            true -> next(sources, span, index, end, 3u64 as +Trapping, 128u64 as +Trapping, 143u64 as +Trapping, utf8, nul_free, ascii, true)
+            _ -> next(sources, span, index, end, 0u64 as +Trapping, 128u64 as +Trapping, 191u64 as +Trapping, false, nul_free, ascii, true)
         }
     }
 
@@ -240,8 +243,8 @@ machine roster_bits(utf8: bool, nul_free: bool, ascii: bool, any: bool) -> u64 i
 crashes Trap
 {
     transition utf8 {
-        true -> nul(1, nul_free, ascii, any)
-        _ -> nul(0, nul_free, ascii, any)
+        true -> nul(1u64 as +Trapping, nul_free, ascii, any)
+        _ -> nul(0u64 as +Trapping, nul_free, ascii, any)
     }
 
     machine nul(bits: u64 in Trapping, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
@@ -275,10 +278,10 @@ machine typer_escape_byte(kind: u8) -> u64 in Trapping
 crashes Trap
 {
     transition kind {
-        110 -> answer(10)
-        114 -> answer(13)
-        116 -> answer(9)
-        48 -> answer(0)
+        110 -> answer(10u64 as +Trapping)
+        114 -> answer(13u64 as +Trapping)
+        116 -> answer(9u64 as +Trapping)
+        48 -> answer(0u64 as +Trapping)
         _ -> answer(kind as u64 in Trapping)
     }
 
@@ -307,7 +310,7 @@ crashes Trap
     machine upper(value: u64 in Trapping) -> u64 in Trapping {
         transition value >= 65 && value <= 70 {
             true -> answer(value - 55)
-            _ -> answer(0)
+            _ -> answer(0u64 as +Trapping)
         }
     }
 
@@ -320,8 +323,8 @@ public machine quoted_length(sources: &SourceSet, span: SourceSpan) -> u64 in Tr
 crashes Trap
 {
     transition span.span.start + 2 <= span.span.end {
-        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0)
-        _ -> answer(0)
+        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0u64 as +Trapping)
+        _ -> answer(0u64 as +Trapping)
     }
 
     machine next(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {

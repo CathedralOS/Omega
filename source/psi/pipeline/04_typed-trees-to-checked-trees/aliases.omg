@@ -123,14 +123,14 @@ public machine alias_condition(checker: &Checker, place: u64 in Trapping) -> u64
 crashes Trap
 {
     transition place > 0 {
-        true -> next(checker, place, 0)
-        _ -> answer(0)
+        true -> next(checker, place, 0u64 as +Trapping)
+        _ -> answer(0u64 as +Trapping)
     }
 
     machine next(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, index)
-            _ -> answer(0)
+            _ -> answer(0u64 as +Trapping)
         }
     }
 
@@ -156,7 +156,7 @@ crashes Trap
 machine add_alias(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping)
 crashes Trap
 {
-    drop_aliases(checker, place, 0);
+    drop_aliases(checker, place, 0u64 as +Trapping);
     transition checker.aliases.count < 16 {
         true -> write(checker, place, condition, checker.aliases.count)
         _ -> done()
@@ -187,7 +187,7 @@ crashes Trap
 machine drop_aliases(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, place, older, 0) }
+    transition { _ -> next(checker, place, older, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.aliases.count && index < 16 {
@@ -260,7 +260,7 @@ crashes Trap
     }
     machine reachable(table: &mut AliasTable, other: &AliasTable, current_live: bool) {
         transition current_live {
-            true -> next(table, other, 0)
+            true -> next(table, other, 0u64 as +Trapping)
             _ -> copied(table, other)
         }
     }
@@ -282,7 +282,7 @@ crashes Trap
     {
         let place: u64 = table.places[index];
         let condition: u64 = table.conditions[index];
-        transition { _ -> find(table, other, index, place, condition, 0) }
+        transition { _ -> find(table, other, index, place, condition, 0u64 as +Trapping) }
     }
     machine find(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
         transition offset < other.count && offset < 16 {

@@ -6,7 +6,7 @@
 public machine check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
@@ -42,7 +42,7 @@ crashes Trap
     machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         let binding: ValueBinding = data_name(sources, syntax, declared.owner.source_span);
         transition binding {
-            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0)
+            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0u64 as +Trapping)
             _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
         }
     }
@@ -57,7 +57,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < declared.component_count && resolver.output.accepted {
-            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0)
+            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0u64 as +Trapping)
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }

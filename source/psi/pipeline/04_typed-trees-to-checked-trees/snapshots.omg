@@ -71,7 +71,7 @@ public machine snapshot_operands(
 )
 crashes Trap
 {
-    transition { _ -> own(checker, syntax, typing, expression, lender, write, 0) }
+    transition { _ -> own(checker, syntax, typing, expression, lender, write, 0u64 as +Trapping) }
 
     machine own(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let count: u64 in Trapping = operand_count(expression);
@@ -201,17 +201,17 @@ crashes Trap
     // read - captured <= 0. Every operand reading that subject at this call
     // shares the snapshot.
     machine captured(checker: &mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping, subject: u64 in Trapping) {
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         let unknown: Value = value_unknown();
-        let own: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
-        let read: Value = Value { place: 0, known: true, subject: value.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let own: Value = Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let read: Value = Value { place: 0u64 as +Trapping, known: true, subject: value.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         zone_forget(&mut checker.zone, subject);
         constrain_difference(checker, own, read, zero);
         constrain_difference(checker, read, own, zero);
         let exact: bool = value.place > 0 && value.offset.magnitude == 0;
         transition exact {
             true -> moved(checker, handle, value, snapshot, subject)
-            _ -> moved(checker, handle, value, 0, subject)
+            _ -> moved(checker, handle, value, 0u64 as +Trapping, subject)
         }
     }
 
@@ -246,11 +246,11 @@ crashes Trap
     machine fields(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping) {
         forget_place(checker, typing, snapshot);
         copy_fields(checker, typing, snapshot, value.place);
-        checker_set_value(checker, handle, Value { place: snapshot, known: value.known, subject: 0, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
+        checker_set_value(checker, handle, Value { place: snapshot, known: value.known, subject: 0u64 as +Trapping, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
     machine unplaced(checker: &mut Checker, handle: u64 in Trapping, value: Value) {
-        checker_set_value(checker, handle, Value { place: 0, known: false, subject: 0, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
+        checker_set_value(checker, handle, Value { place: 0u64 as +Trapping, known: false, subject: 0u64 as +Trapping, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
     machine done() {}
@@ -303,7 +303,7 @@ crashes Trap
     }
 
     machine snapshotted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
-        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
+        let write: WriteFootprint = WriteFootprint { place: place, callee: 0u64 as +Trapping, whole: true };
         snapshot_node(checker, typing, handle, root, write);
         let saved: Value = value_at(checker, handle);
         copy_alias(checker, value.place, saved.place);
@@ -330,7 +330,7 @@ crashes Trap
         false -> {}
     }
     machine captured(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping) {
-        let write: WriteFootprint = WriteFootprint { place: destination, callee: 0, whole: true };
+        let write: WriteFootprint = WriteFootprint { place: destination, callee: 0u64 as +Trapping, whole: true };
         snapshot_tree(checker, syntax, typing, root, root, write);
     }
 }

@@ -386,7 +386,7 @@ reaches Console
 crashes Trap
 blocks
 {
-    transition { _ -> block next(typing_harness, 0, 0, 1) }
+    transition { _ -> block next(typing_harness, 0u64 as +Trapping, 0u64 as +Trapping, 1u64 as +Trapping) }
 
     machine next(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
@@ -408,7 +408,7 @@ blocks
     }
 
     machine ended() -> HarnessWord {
-        HarnessWord { value: 0, complete: false }
+        HarnessWord { value: 0u64 as +Trapping, complete: false }
     }
 }
 
@@ -479,10 +479,10 @@ crashes Trap
     write_byte(typing_harness, 80);
     write_byte(typing_harness, 49);
     write_byte(typing_harness, 0);
-    write_u64(typing_harness, 1);
+    write_u64(typing_harness, 1u64 as +Trapping);
     write_diagnostic(typing_harness, output);
     write_u64(typing_harness, output.types.row_count as u64 in Trapping);
-    transition { _ -> row(typing_harness, output, syntax, 0) }
+    transition { _ -> row(typing_harness, output, syntax, 0u64 as +Trapping) }
 
     machine row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.types.row_count {
@@ -498,7 +498,7 @@ crashes Trap
 
     machine arguments(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         write_u64(typing_harness, output.types.argument_count as u64 in Trapping);
-        transition { _ -> argument(typing_harness, output, syntax, 0) }
+        transition { _ -> argument(typing_harness, output, syntax, 0u64 as +Trapping) }
     }
 
     machine argument(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -516,7 +516,7 @@ crashes Trap
 
     machine expressions(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         write_u64(typing_harness, output.expression_count as u64 in Trapping);
-        transition { _ -> expression(typing_harness, output, syntax, 0) }
+        transition { _ -> expression(typing_harness, output, syntax, 0u64 as +Trapping) }
     }
 
     machine expression(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -534,7 +534,7 @@ crashes Trap
 
     machine binders(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         write_u64(typing_harness, output.binder_count as u64 in Trapping);
-        transition { _ -> binder(typing_harness, output, syntax, 0) }
+        transition { _ -> binder(typing_harness, output, syntax, 0u64 as +Trapping) }
     }
 
     machine binder(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -608,7 +608,7 @@ reaches Console
 crashes Trap
 {
     let expression: Expression = psi::syntax_trees_expression(syntax, index);
-    write_u64(typing_harness, expression.source_span.source.value as u64 in Trapping);
+    write_u64(typing_harness, expression.source_span.source.value as -Trapping as u64 +Trapping);
     write_u64(typing_harness, expression.source_span.span.start);
     write_u64(typing_harness, expression.source_span.span.end);
 }
@@ -617,10 +617,10 @@ crashes Trap
 // 5 machine binder. Tag 2 is unassigned and the decoder rejects it.
 machine write_selection(typing_harness: &mut TypingHarness, selection: Selection) reaches Console {
     transition selection {
-        Selection::None -> write(typing_harness, 0, 0)
+        Selection::None -> write(typing_harness, 0, 0u64 as +Trapping)
         Selection::Machine { handle } -> write(typing_harness, 1, handle)
         Selection::Field { field } -> write(typing_harness, 3, field)
-        Selection::Length -> write(typing_harness, 4, 0)
+        Selection::Length -> write(typing_harness, 4, 0u64 as +Trapping)
         Selection::Binder { parameter } -> write(typing_harness, 5, parameter)
     }
 
@@ -787,20 +787,20 @@ machine diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
     }
 }
 machine write_source_span(typing_harness: &mut TypingHarness, source_span: SourceSpan) reaches Console {
-    write_u64(typing_harness, source_span.source.value as u64 in Trapping);
+    write_u64(typing_harness, source_span.source.value as -Trapping as u64 +Trapping);
     write_u64(typing_harness, source_span.span.start);
     write_u64(typing_harness, source_span.span.end);
 }
 
 machine write_u64(typing_harness: &mut TypingHarness, value: u64 in Trapping) reaches Console {
-    write_byte(typing_harness, (value % 256) as u8);
-    write_byte(typing_harness, (value / 256 % 256) as u8);
-    write_byte(typing_harness, (value / 65536 % 256) as u8);
-    write_byte(typing_harness, (value / 16777216 % 256) as u8);
-    write_byte(typing_harness, (value / 4294967296 % 256) as u8);
-    write_byte(typing_harness, (value / 1099511627776 % 256) as u8);
-    write_byte(typing_harness, (value / 281474976710656 % 256) as u8);
-    write_byte(typing_harness, (value / 72057594037927936 % 256) as u8);
+    write_byte(typing_harness, (value % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 256 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 65536 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 16777216 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 4294967296 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 1099511627776 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 281474976710656 % 256) as -Trapping as u8);
+    write_byte(typing_harness, (value / 72057594037927936 % 256) as -Trapping as u8);
 }
 
 machine write_byte(typing_harness: &mut TypingHarness, value: u8) reaches Console {

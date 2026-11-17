@@ -76,8 +76,8 @@ crashes Trap
 
     machine proved(checker: &mut Checker, expression: Expression, place: u64 in Trapping) {
         let referent: Value = place_value(checker, place);
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
-        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
+        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1u64 as +Wrapping });
         let at_least_zero: bool = proves_at_most(checker, zero, referent);
         let at_most_one: bool = proves_at_most(checker, referent, one);
         transition at_least_zero && at_most_one {

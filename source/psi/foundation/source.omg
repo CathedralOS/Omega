@@ -161,6 +161,8 @@ public data DependencyRow [copy] {
 // through the set. Units, module paths, package names and aliases share
 // bounded arenas; the request's graph validation, not this set, rejects
 // duplicate aliases of one requester and scope.
+// Arena carriers are plain. Integer entries and coordinates carry their own
+// arithmetic policies; record entries retain the policies of their fields.
 public data SourceSet
 requires
     unit_count <= 512,
@@ -169,17 +171,17 @@ requires
     package_count <= 64,
     dependency_count <= 256,
 {
-    bytes: [u8; 4194304] in Trapping;
+    bytes: [u8 in Trapping; 4194304];
     byte_count: u64;
-    path_bytes: [u8; 16384] in Trapping;
+    path_bytes: [u8 in Trapping; 16384];
     path_byte_count: u64;
-    units: [SourceRange; 512] in Trapping;
-    paths: [SourceRange; 512] in Trapping;
-    unit_packages: [u64; 512] in Trapping;
+    units: [SourceRange; 512];
+    paths: [SourceRange; 512];
+    unit_packages: [u64 in Trapping; 512];
     unit_count: u64;
-    packages: [PackageRow; 64] in Trapping;
+    packages: [PackageRow; 64];
     package_count: u64;
-    dependencies: [DependencyRow; 256] in Trapping;
+    dependencies: [DependencyRow; 256];
     dependency_count: u64;
 }
 
@@ -212,7 +214,7 @@ crashes Trap
 
     machine path(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, module_path: &ModulePath) -> bool {
         let path: SourceRange = store_name(sources, module_path);
-        transition { _ -> bytes(sources, unit, package, path, 0) }
+        transition { _ -> bytes(sources, unit, package, path, 0u64 as +Trapping) }
     }
 
     machine bytes(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
@@ -377,7 +379,7 @@ crashes Trap
 machine store_name(sources: &mut SourceSet, name: &ModulePath) -> SourceRange
 crashes Trap
 {
-    transition { _ -> next(sources, name, 0) }
+    transition { _ -> next(sources, name, 0u64 as +Trapping) }
 
     machine next(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping) -> SourceRange {
         transition index < name.length {
@@ -430,7 +432,7 @@ crashes Trap
 public machine source_set_byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
 crashes Trap
 {
-    let unit: u64 in Trapping = source.value as u64 in Trapping;
+    let unit: u64 in Trapping = source.value as -Trapping as u64 +Trapping;
     transition unit < sources.unit_count {
         true -> unit_range(sources, unit, index)
         _ -> absent()
@@ -473,7 +475,7 @@ public machine spans_equal(sources: &SourceSet, left: SourceSpan, right: SourceS
 crashes Trap
 {
     transition left.span.end - left.span.start == right.span.end - right.span.start {
-        true -> scan(sources, left, right, 0)
+        true -> scan(sources, left, right, 0u64 as +Trapping)
         _ -> different()
     }
 
@@ -507,7 +509,7 @@ public machine span_spells(sources: &SourceSet, span: SourceSpan, spelling: &[u8
 crashes Trap
 {
     transition span.span.end - span.span.start == spelling.len {
-        true -> scan(sources, span, spelling, 0)
+        true -> scan(sources, span, spelling, 0u64 as +Trapping)
         _ -> different()
     }
 
@@ -587,7 +589,7 @@ public machine path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -603,7 +605,7 @@ public machine unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 i
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -619,7 +621,7 @@ public machine package_row(sources: &SourceSet, package: u64 in Trapping) -> Pac
     }
 
     machine none() -> PackageRow {
-        PackageRow { name: SourceRange { start: 0, length: 0 }, toolchain: false }
+        PackageRow { name: SourceRange { start: 0u64 as +Trapping, length: 0u64 as +Trapping }, toolchain: false }
     }
 }
 
@@ -637,10 +639,10 @@ public machine dependency_row(sources: &SourceSet, index: u64 in Trapping) -> De
 
     machine none() -> DependencyRow {
         DependencyRow {
-            requester: 64,
+            requester: 64u64 as +Trapping,
             scope: DependencyScope::Build,
-            alias: SourceRange { start: 0, length: 0 },
-            target: 0
+            alias: SourceRange { start: 0u64 as +Trapping, length: 0u64 as +Trapping },
+            target: 0u64 as +Trapping
         }
     }
 }
@@ -651,7 +653,7 @@ public machine span_names(sources: &SourceSet, span: SourceSpan, name: SourceRan
 crashes Trap
 {
     transition span.span.end - span.span.start == name.length {
-        true -> scan(sources, span, name, 0)
+        true -> scan(sources, span, name, 0u64 as +Trapping)
         _ -> different()
     }
 

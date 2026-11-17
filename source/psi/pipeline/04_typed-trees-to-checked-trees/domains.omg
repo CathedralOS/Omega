@@ -72,7 +72,7 @@ crashes Trap
 
     machine sweep(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         checker.domains_pending = false;
-        transition { _ -> next(checker, syntax, resolution, typing, 0) }
+        transition { _ -> next(checker, syntax, resolution, typing, 0u64 as +Trapping) }
     }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
@@ -108,7 +108,7 @@ crashes Trap
         checker.fields_parent = field.parent;
         let assumed: bool = decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
-        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0) }
+        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0u64 as +Trapping) }
     }
 
     // The facts hold of the established value on every path: a zone saved
@@ -147,7 +147,7 @@ public machine checker_established(checker: &Checker, syntax: &SyntaxTrees, plac
 crashes Trap
 {
     transition place > 0 {
-        true -> climb(checker, syntax, place, 0)
+        true -> climb(checker, syntax, place, 0u64 as +Trapping)
         _ -> no()
     }
 
@@ -313,7 +313,7 @@ crashes Trap
 public machine reopen_domains(checker: &mut Checker, place: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, place, 0) }
+    transition { _ -> next(checker, place, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, place: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.place_count {
@@ -391,7 +391,7 @@ crashes Trap
     let selected: DataCase = selected_case(syntax, has_case, data_case);
     let total: u64 in Trapping = item.field_count + selected.payload_field_count;
     transition total <= 64 {
-        true -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0)
+        true -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0u64 as +Trapping)
         _ -> unproved()
     }
 
@@ -410,7 +410,7 @@ crashes Trap
     ) -> bool {
         transition slot < total {
             true -> zeroed(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, slot)
-            _ -> written(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0)
+            _ -> written(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0u64 as +Trapping)
         }
     }
 
@@ -427,7 +427,7 @@ crashes Trap
         total: u64 in Trapping,
         slot: u64 in Trapping
     ) -> bool {
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
         set_argument(checker, slot, zero);
         transition { _ -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, slot + 1) }
     }
@@ -538,10 +538,10 @@ crashes Trap
 
     machine none(syntax: &SyntaxTrees) -> DataCase {
         let mut empty: DataCase;
-        empty.first_payload_field = 0;
-        empty.payload_field_count = 0;
-        empty.first_clause = 0;
-        empty.clause_count = 0;
+        empty.first_payload_field = 0u64 as +Trapping;
+        empty.payload_field_count = 0u64 as +Trapping;
+        empty.first_clause = 0u64 as +Trapping;
+        empty.clause_count = 0u64 as +Trapping;
         empty
     }
 }
@@ -577,6 +577,6 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        18446744073709551615
+        18446744073709551615u64 as +Trapping
     }
 }

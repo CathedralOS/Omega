@@ -31,7 +31,7 @@ crashes Trap
 public machine reference_view_backing(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(checker, place, 0) }
+    transition { _ -> next(checker, place, 0u64 as +Trapping) }
     machine next(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         transition place > 0 && place <= 256 && depth < 256 {
             true -> inspect(checker, place, depth)
@@ -125,7 +125,7 @@ machine same_reference_origin(left: ReferenceOrigin, right: ReferenceOrigin) -> 
 public machine incoming_reference_field(checker: &Checker, parent: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(checker, parent, 0) }
+    transition { _ -> next(checker, parent, 0u64 as +Trapping) }
     machine next(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition place > 0 && depth < 256 {
             true -> inspect(checker, place, depth)
@@ -183,7 +183,7 @@ crashes Trap
 public machine owned_below(checker: &Checker, typing: &Typing, root: u64 in Trapping, child: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(checker, typing, root, child, 0) }
+    transition { _ -> next(checker, typing, root, child, 0u64 as +Trapping) }
     machine next(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current > 0 && root > 0 && depth < 256 {
             true -> inspect(checker, typing, root, current, depth)
@@ -234,7 +234,7 @@ crashes Trap
 machine forget_reference_storage(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, include_root: bool)
 crashes Trap
 {
-    transition { _ -> next(checker, typing, root, include_root, 0) }
+    transition { _ -> next(checker, typing, root, include_root, 0u64 as +Trapping) }
     machine next(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping) {
         transition index < checker.place_count && index < 256 {
             true -> inspect(checker, typing, root, include_root, index)
@@ -261,9 +261,9 @@ crashes Trap
 public machine clear_reference_origins(checker: &mut Checker)
 crashes Trap
 {
-    checker.reference_view_count = 0;
-    checker.reference_backing_count = 0;
-    transition { _ -> next(checker, 0) }
+    checker.reference_view_count = 0u64 as +Trapping;
+    checker.reference_backing_count = 0u64 as +Trapping;
+    transition { _ -> next(checker, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, index: u64 in Trapping) {
         transition index < 256 {

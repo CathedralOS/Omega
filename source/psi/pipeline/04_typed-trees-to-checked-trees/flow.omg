@@ -832,7 +832,7 @@ crashes Trap
         checking: bool
     ) {
         let type_handle: u64 in Trapping = reference_type(typing, statement.type_reference);
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, index, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, index, 0u64 as +Trapping, type_handle);
         transition statement.has_value {
             true -> initialized(checker, syntax, resolution, typing, statement, place, type_handle, checking)
             _ -> done()
@@ -1179,15 +1179,15 @@ crashes Trap
 
     // subject <= ceiling and -subject <= floor (the floor is stored negated).
     machine ranged(checker: &mut Checker, subject: u64 in Trapping, value: Value) {
-        constrain(&mut checker.zone, 0, subject, value.ceiling);
-        constrain(&mut checker.zone, subject, 0, value.floor);
+        constrain(&mut checker.zone, 0u64 as +Trapping, subject, value.ceiling);
+        constrain(&mut checker.zone, subject, 0u64 as +Trapping, value.floor);
     }
 
     // subject - value <= 0 and value - subject <= 0.
     machine bound(checker: &mut Checker, subject: u64 in Trapping, value: Value) {
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         let unknown: Value = value_unknown();
-        let own: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let own: Value = Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         constrain_difference(checker, own, value, zero);
         constrain_difference(checker, value, own, zero);
     }
@@ -1233,9 +1233,9 @@ crashes Trap
         checking: bool
     ) {
         let captured: CapturedSubject = capture_subject(checker, syntax, typing, statement.value, statement.has_value);
-        let saved: bool = save_zone(checker, 0);
+        let saved: bool = save_zone(checker, 0u64 as +Trapping);
         transition saved {
-            true -> arm(checker, syntax, resolution, typing, statement, 0, checking, captured)
+            true -> arm(checker, syntax, resolution, typing, statement, 0u64 as +Trapping, checking, captured)
             _ -> overflow(checker, statement, captured.floor)
         }
     }
@@ -1425,7 +1425,7 @@ crashes Trap
 
     machine equal(checker: &mut Checker, subject: u64 in Trapping, pattern: Value) {
         let subject_value: Value = value_at(checker, subject);
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         constrain_difference(checker, subject_value, pattern, zero);
         constrain_difference(checker, pattern, subject_value, zero);
     }

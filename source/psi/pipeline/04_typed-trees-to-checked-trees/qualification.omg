@@ -41,7 +41,7 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -113,7 +113,7 @@ crashes Trap
 public machine routes_to(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(resolution, item, machine, 0) }
+    transition { _ -> next(resolution, item, machine, 0u64 as +Trapping) }
 
     machine next(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < item.route_count {
@@ -321,7 +321,7 @@ public machine require_argument_qualifications(
 crashes Trap
 {
     let count: u64 in Trapping = operand_count(call);
-    transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, 0) }
+    transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, 0u64 as +Trapping) }
 
     machine next(
         checker: &mut Checker,
@@ -383,7 +383,7 @@ public machine assume_parameter_qualifications(
 )
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, 0) }
+    transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < parameter_count {
@@ -395,7 +395,7 @@ crashes Trap
     machine formal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         let parameter: Parameter = syntax_trees_parameter(syntax, first_parameter + offset);
         let type_handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
-        let place: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + offset, 0);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + offset, 0u64 as +Trapping);
         let value: Value = place_value(checker, place);
         assume_qualification(checker, syntax, resolution, typing, type_handle, value);
         transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, offset + 1) }

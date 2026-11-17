@@ -93,7 +93,7 @@ crashes Trap
 
     machine boundary_end(parser: &mut Parser, input: &TokenStream) {
         parser.data_first_clause = parser.output.clause_count as u64 in Trapping;
-        parser.data_clause_count = 0;
+        parser.data_clause_count = 0u64 as +Trapping;
         expect_punctuation(parser, input, PunctuationKind::Semicolon,
             ParseDiagnosticCode::ExpectedBoundaryDataEnd
         );
@@ -231,8 +231,13 @@ crashes Trap
     machine field_type(parser: &mut Parser, input: &TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataFieldType);
         transition parser.output.accepted {
-            true -> field_end(parser, input, parser.type_result)
+            true -> capture_field_type(parser, input)
             _ -> done()
+        }
+
+        machine capture_field_type(parser: &mut Parser, input: &TokenStream) {
+            let captured_type: u64 in Trapping = parser.type_result;
+            transition { _ -> field_end(parser, input, captured_type) }
         }
     }
 
@@ -384,8 +389,14 @@ crashes Trap
     machine payload_name(parser: &mut Parser, input: &TokenStream, field_start: u64 in Trapping) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadField);
         transition parser.output.accepted {
-            true -> payload_marker(parser, input, field_start, parser.name_start, parser.name_end)
+            true -> capture_payload_name_span(parser, input, field_start)
             _ -> done()
+        }
+
+        machine capture_payload_name_span(parser: &mut Parser, input: &TokenStream, field_start: u64 in Trapping) {
+            let captured_start: u64 in Trapping = parser.name_start;
+            let captured_end: u64 in Trapping = parser.name_end;
+            transition { _ -> payload_marker(parser, input, field_start, captured_start, captured_end) }
         }
     }
 
@@ -429,8 +440,13 @@ crashes Trap
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadFieldType);
         parser.payload_field_start = field_start;
         transition parser.output.accepted {
-            true -> payload_separator(parser, input, start, end, parser.type_result)
+            true -> capture_payload_type(parser, input, start, end)
             _ -> done()
+        }
+
+        machine capture_payload_type(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+            let captured_type: u64 in Trapping = parser.type_result;
+            transition { _ -> payload_separator(parser, input, start, end, captured_type) }
         }
     }
 
@@ -458,7 +474,8 @@ crashes Trap
         type_reference: u64 in Trapping
     ) {
         take_current(parser, input);
-        transition { _ -> payload_stored(parser, input, start, end, type_reference, parser.token_end, true) }
+        let captured_end: u64 in Trapping = parser.token_end;
+        transition { _ -> payload_stored(parser, input, start, end, type_reference, captured_end, true) }
     }
 
     machine payload_last(
@@ -470,8 +487,13 @@ crashes Trap
     ) {
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition close {
-            true -> payload_stored(parser, input, start, end, type_reference, parser.type_end, false)
+            true -> capture_payload_type_end(parser, input, start, end, type_reference)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd)
+        }
+
+        machine capture_payload_type_end(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping, type_reference: u64 in Trapping) {
+            let captured_end: u64 in Trapping = parser.type_end;
+            transition { _ -> payload_stored(parser, input, start, end, type_reference, captured_end, false) }
         }
     }
 
@@ -799,9 +821,9 @@ machine parse_stable_identity(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.identity_present = false;
-    parser.identity_start = 0;
-    parser.identity_end = 0;
-    parser.identity_literal = 0;
+    parser.identity_start = 0u64 as +Trapping;
+    parser.identity_end = 0u64 as +Trapping;
+    parser.identity_literal = 0u64 as +Trapping;
     let numbered: bool = at_punctuation(parser, input, PunctuationKind::Hash);
     transition numbered {
         true -> hash(parser, input)

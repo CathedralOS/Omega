@@ -26,9 +26,9 @@ public machine forget_exclusive_referents(checker: &mut Checker, syntax: &Syntax
 crashes Trap
 {
     let mut writes: ReferenceWrites;
-    writes.count = 0;
-    writes.view_count = 0;
-    writes.view_head = 0;
+    writes.count = 0u64 as +Trapping;
+    writes.view_count = 0u64 as +Trapping;
+    writes.view_head = 0u64 as +Trapping;
     writes.end = checker.place_count as u64 in Trapping;
     open_reference_writes(&mut writes);
     enqueue_reference_write(&mut writes, root);
@@ -40,7 +40,7 @@ crashes Trap
 machine open_reference_writes(writes: &mut ReferenceWrites)
 crashes Trap
 {
-    transition { _ -> next(writes, 0) }
+    transition { _ -> next(writes, 0u64 as +Trapping) }
     machine next(writes: &mut ReferenceWrites, index: u64 in Trapping) {
         transition index < 256 { true -> clear(writes, index) false -> {} }
     }
@@ -85,10 +85,10 @@ crashes Trap
 machine collect_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, writes, release, 0) }
+    transition { _ -> next(checker, syntax, typing, writes, release, 0u64 as +Trapping) }
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
         transition head < writes.count && head < 256 {
-            true -> scan(checker, syntax, typing, writes, release, head, 0)
+            true -> scan(checker, syntax, typing, writes, release, head, 0u64 as +Trapping)
             false -> views(checker, syntax, typing, writes, release, head)
         }
     }
@@ -241,7 +241,7 @@ crashes Trap
     {
         let view: ReferenceView = checker.reference_views[index];
         transition view.count > 0 {
-            true -> next(checker, syntax, writes, release, view, 0)
+            true -> next(checker, syntax, writes, release, view, 0u64 as +Trapping)
             false -> unknown(checker, syntax, writes, release)
         }
     }
@@ -275,7 +275,7 @@ crashes Trap
 machine apply_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, writes, release, true, 0) }
+    transition { _ -> next(checker, syntax, typing, writes, release, true, 0u64 as +Trapping) }
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping) {
         transition index < writes.end && index < 256 {
             true -> inspect(checker, syntax, typing, writes, release, snapshotting, index)
@@ -290,7 +290,7 @@ crashes Trap
     }
     machine finished(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
         transition snapshotting {
-            true -> next(checker, syntax, typing, writes, release, false, 0)
+            true -> next(checker, syntax, typing, writes, release, false, 0u64 as +Trapping)
             false -> {}
         }
     }
@@ -325,7 +325,7 @@ crashes Trap
     }
     machine observed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping) {
         checker.write_epoch = checker.write_epoch + 1;
-        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
+        let write: WriteFootprint = WriteFootprint { place: place, callee: 0u64 as +Trapping, whole: true };
         snapshot_operands(checker, syntax, typing, expression, lender, write);
     }
     machine retire(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool) {

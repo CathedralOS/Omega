@@ -48,8 +48,13 @@ crashes Trap
         let start: u64 in Trapping = parser.token_start;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
-            true -> retain(parser, input, parser_generic_parameter(parser, GenericParameterKind::Lifetime, start))
+            true -> capture_lifetime_parameter(parser, input, start)
             _ -> done()
+        }
+
+        machine capture_lifetime_parameter(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+            let captured_parameter: GenericParameter = parser_generic_parameter(parser, GenericParameterKind::Lifetime, start);
+            transition { _ -> retain(parser, input, captured_parameter) }
         }
     }
 
@@ -83,8 +88,13 @@ crashes Trap
         let start: u64 in Trapping = parser.token_start;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
-            true -> binder_named(parser, input, parser_generic_parameter(parser, kind, start))
+            true -> capture_binder_parameter(parser, input, kind, start)
             _ -> done()
+        }
+
+        machine capture_binder_parameter(parser: &mut Parser, input: &TokenStream, kind: GenericParameterKind, start: u64 in Trapping) {
+            let captured_parameter: GenericParameter = parser_generic_parameter(parser, kind, start);
+            transition { _ -> binder_named(parser, input, captured_parameter) }
         }
     }
 
@@ -145,8 +155,13 @@ crashes Trap
         take_current(parser, input);
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedEvidenceTrait);
         transition parser.output.accepted {
-            true -> retain(parser, input, with_generic_type(parser, parameter, parser.type_result))
+            true -> capture_evidence_parameter(parser, input, parameter)
             _ -> done()
+        }
+
+        machine capture_evidence_parameter(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
+            let captured_parameter: GenericParameter = with_generic_type(parser, parameter, parser.type_result);
+            transition { _ -> retain(parser, input, captured_parameter) }
         }
     }
 
@@ -165,8 +180,13 @@ crashes Trap
     machine typed(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedGenericParameterType);
         transition parser.output.accepted {
-            true -> bounds(parser, input, with_generic_type(parser, parameter, parser.type_result))
+            true -> capture_typed_parameter(parser, input, parameter)
             _ -> done()
+        }
+
+        machine capture_typed_parameter(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
+            let captured_parameter: GenericParameter = with_generic_type(parser, parameter, parser.type_result);
+            transition { _ -> bounds(parser, input, captured_parameter) }
         }
     }
 
@@ -181,8 +201,13 @@ crashes Trap
     machine bounds_list(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
         parse_properties(parser, input);
         transition parser.output.accepted {
-            true -> retain(parser, input, with_generic_bounds(parser, parameter, parser.property_multiplicity))
+            true -> capture_parameter_bounds(parser, input, parameter)
             _ -> done()
+        }
+
+        machine capture_parameter_bounds(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
+            let captured_parameter: GenericParameter = with_generic_bounds(parser, parameter, parser.property_multiplicity);
+            transition { _ -> retain(parser, input, captured_parameter) }
         }
     }
 
@@ -241,7 +266,7 @@ machine parser_generic_parameter(parser: &Parser, kind: GenericParameterKind, st
         kind: kind,
         name: identifier_span(parser, parser.name_start, parser.name_end),
         has_type_reference: false,
-        type_reference: 0,
+        type_reference: 0u64 as +Trapping,
         bounds: DataMultiplicity::Affine,
         source_span: parser_source_span(parser, start, parser.token_end)
     }

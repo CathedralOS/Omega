@@ -15,9 +15,9 @@ crashes Trap
 {
     rank.valid = false;
     rank.view = RankingView::Default;
-    rank.measure = 0;
-    rank.count = 0;
-    transition { _ -> next(rank, 0) }
+    rank.measure = 0u64 as +Trapping;
+    rank.count = 0u64 as +Trapping;
+    transition { _ -> next(rank, 0u64 as +Trapping) }
     machine next(rank: &mut NormalizedRank, index: u64 in Trapping) {
         transition index < 64 { true -> clear(rank, index) false -> {} }
     }
@@ -69,7 +69,7 @@ crashes Trap
     }
     machine single(checker: &Checker, written: Clause, first: Value, rank: &mut NormalizedRank) {
         rank.values[0] = first;
-        rank.count = 1;
+        rank.count = 1u64 as +Trapping;
         rank.valid = written.argument_count == 1;
     }
     machine slice(checker: &mut Checker, typing: &Typing, written: Clause, first: Value, rank: &mut NormalizedRank) {
@@ -79,7 +79,7 @@ crashes Trap
         }
     }
     machine length(checker: &mut Checker, typing: &Typing, written: Clause, first: Value, rank: &mut NormalizedRank) {
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Length, 0, first.place, 0);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Length, 0u64 as +Trapping, first.place, 0u64 as +Trapping);
         let value: Value = reference_value(checker, typing, place);
         transition { _ -> single(checker, written, value, rank) }
     }
@@ -109,7 +109,7 @@ crashes Trap
     machine distance(checker: &Checker, first: Value, second: Value, rank: &mut NormalizedRank) {
         rank.values[0] = first;
         rank.values[1] = second;
-        rank.count = 2;
+        rank.count = 2u64 as +Trapping;
         rank.valid = true;
     }
     machine measured(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause, written: Clause, first: Value, rank: &mut NormalizedRank) {
@@ -123,7 +123,7 @@ crashes Trap
     }
     machine measure_kind(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
         transition measure.component_count > 0 {
-            true -> components(checker, syntax, resolution, typing, measure, first, rank, 0)
+            true -> components(checker, syntax, resolution, typing, measure, first, rank, 0u64 as +Trapping)
             false -> computed(checker, syntax, resolution, typing, measure, written, first, rank)
         }
     }
@@ -150,7 +150,7 @@ crashes Trap
 public machine natural_rank_value(checker: &Checker, value: Value) -> bool
 crashes Trap
 {
-    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0u64 as +Wrapping });
     proves_at_most(checker, zero, value)
 }
 
@@ -158,7 +158,7 @@ public machine snapshot_rank(checker: &mut Checker, typing: &Typing, rank: &mut 
 crashes Trap
 {
     transition rank.valid && rank.count <= 64 {
-        true -> component(checker, typing, rank, 0)
+        true -> component(checker, typing, rank, 0u64 as +Trapping)
         false -> {}
     }
     machine component(checker: &mut Checker, typing: &Typing, rank: &mut NormalizedRank, index: u64 in Trapping) {
@@ -171,7 +171,7 @@ crashes Trap
     requires index < 64
     {
         let value: Value = rank.values[index];
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::RankEntry, index, 0, 0);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::RankEntry, index, 0u64 as +Trapping, 0u64 as +Trapping);
         initialize_place(checker, typing, place, value);
         let captured: Value = place_value(checker, place);
         rank.values[index] = captured;
@@ -193,7 +193,7 @@ crashes Trap
         transition before.view {
             RankingView::BoundedDistance -> distance(checker, before, after)
             RankingView::IncreasingTo -> distance(checker, before, after)
-            _ -> component(checker, before, after, 0)
+            _ -> component(checker, before, after, 0u64 as +Trapping)
         }
     }
     machine component(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank, index: u64 in Trapping) -> u64 in Trapping {
@@ -266,8 +266,8 @@ crashes Trap
     machine ranged(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, clause: Clause) {
         let bounds: RankBounds = rank_bounds(checker, syntax, resolution, typing, item, clause);
         install_domains(checker, syntax, resolution, typing);
-        let lower: Value = snapshot_rank_bound(checker, typing, bounds.first, 64);
-        let upper: Value = snapshot_rank_bound(checker, typing, bounds.second, 65);
+        let lower: Value = snapshot_rank_bound(checker, typing, bounds.first, 64u64 as +Trapping);
+        let upper: Value = snapshot_rank_bound(checker, typing, bounds.second, 65u64 as +Trapping);
         checker.entry_rank_bounds = RankBounds { first: lower, second: upper };
         checker.entry_rank_has_range = true;
         let within: bool = normalized_rank_within(checker, syntax, &checker.entry_rank, checker.entry_rank_bounds, clause);
@@ -285,7 +285,7 @@ crashes Trap
 machine snapshot_rank_bound(checker: &mut Checker, typing: &Typing, value: Value, coordinate: u64 in Trapping) -> Value
 crashes Trap
 {
-    let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::RankEntry, coordinate, 0, 0);
+    let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::RankEntry, coordinate, 0u64 as +Trapping, 0u64 as +Trapping);
     initialize_place(checker, typing, place, value);
     place_value(checker, place)
 }
@@ -333,7 +333,7 @@ crashes Trap
         let termination: TerminationClause = checker_termination_clause(syntax, resolution, item);
         transition termination.ranked {
             true -> witnessed(checker, syntax, resolution, typing, expression, call, item, termination, internal)
-            false -> observed(checker, expression, internal, 0)
+            false -> observed(checker, expression, internal, 0u64 as +Trapping)
         }
     }
     machine witnessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, call: Expression, item: MachineItem, termination: TerminationClause, internal: bool) {
@@ -365,7 +365,7 @@ crashes Trap
     let supplied: u64 in Trapping = operand_count(call);
     checker.argument_count = count;
     transition supplied == count && count <= 64 {
-        true -> next(checker, syntax, call, count, 0)
+        true -> next(checker, syntax, call, count, 0u64 as +Trapping)
         false -> false
     }
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, call: Expression, count: u64 in Trapping, index: u64 in Trapping) -> bool {
@@ -425,7 +425,7 @@ machine validate_rank_values(checker: &Checker, rank: &mut NormalizedRank)
 crashes Trap
 {
     transition rank.valid && rank.count > 0 && rank.count <= 64 {
-        true -> component(checker, rank, 0)
+        true -> component(checker, rank, 0u64 as +Trapping)
         false -> invalid(rank)
     }
     machine component(checker: &Checker, rank: &mut NormalizedRank, index: u64 in Trapping) {

@@ -13,12 +13,12 @@
 public machine place_machines(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> root(resolver, syntax, 0) }
+    transition { _ -> root(resolver, syntax, 0u64 as +Trapping) }
 
     machine root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> root_owner(resolver, syntax, index)
-            _ -> traits(resolver, syntax, 0)
+            _ -> traits(resolver, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -26,7 +26,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         set_machine_owner(resolver, index, MachineOwner {
             container: item.container,
-            item: 0,
+            item: 0u64 as +Trapping,
             has_owner: item.has_owner,
             owner: item.owner
         });
@@ -36,7 +36,7 @@ crashes Trap
     machine traits(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count {
             true -> trait_members(resolver, syntax, index)
-            _ -> conformances(resolver, syntax, 0)
+            _ -> conformances(resolver, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -93,7 +93,7 @@ machine resolver_trait_container(is_refinement: bool) -> MachineContainer {
 machine place_members(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
-    transition { _ -> next(resolver, syntax, first, count, owner, 0) }
+    transition { _ -> next(resolver, syntax, first, count, owner, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         transition offset < count {
@@ -239,7 +239,7 @@ public machine trait_member_named(sources: &SourceSet, syntax: &SyntaxTrees, tra
 crashes Trap
 {
     let item: TraitItem = trait_item(syntax, trait_index);
-    transition { _ -> next(sources, syntax, item, name, 0) }
+    transition { _ -> next(sources, syntax, item, name, 0u64 as +Trapping) }
 
     machine next(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         transition offset < item.machine_count {
@@ -348,7 +348,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, parent);
         let named: bool = spans_equal(sources, item.name.source_span, owner);
         transition named {
-            true -> child(sources, syntax, parent, name, 0)
+            true -> child(sources, syntax, parent, name, 0u64 as +Trapping)
             false -> outer(sources, syntax, item.parent, owner, name)
         }
     }

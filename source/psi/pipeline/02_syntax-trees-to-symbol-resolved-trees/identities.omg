@@ -40,7 +40,7 @@ public data IdentityValue [copy] {
 public machine check_stable_identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_data(resolver, sources, syntax, 0) }
+    transition { _ -> next_data(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.data_count && resolver.output.accepted {
@@ -52,7 +52,7 @@ crashes Trap
     machine declaration(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: DataItem = syntax_trees_data_item(syntax, index);
         transition item.field_count > 0 && item.case_count > 0 {
-            true -> mixed_retirements(resolver, sources, syntax, index, item, 0)
+            true -> mixed_retirements(resolver, sources, syntax, index, item, 0u64 as +Trapping)
             _ -> fields(resolver, sources, syntax, index, item)
         }
     }
@@ -105,7 +105,7 @@ crashes Trap
             count: item.case_count,
             owner: index
         });
-        transition { _ -> payload(resolver, sources, syntax, index, item, 0) }
+        transition { _ -> payload(resolver, sources, syntax, index, item, 0u64 as +Trapping) }
     }
 
     machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
@@ -137,21 +137,21 @@ crashes Trap
 {
     let retired: bool = identity_scope_has_retirements(syntax, scope);
     transition retired {
-        true -> member_at(resolver, sources, syntax, scope, 0)
-        _ -> numbered(resolver, sources, syntax, scope, 0)
+        true -> member_at(resolver, sources, syntax, scope, 0u64 as +Trapping)
+        _ -> numbered(resolver, sources, syntax, scope, 0u64 as +Trapping)
     }
 
     machine numbered(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) {
         transition offset < scope.count {
             true -> numbered_member(resolver, sources, syntax, scope, offset)
-            _ -> retired_at(resolver, sources, syntax, scope, 0)
+            _ -> retired_at(resolver, sources, syntax, scope, 0u64 as +Trapping)
         }
     }
 
     machine numbered_member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) {
         let member: MemberIdentity = resolver_member_identity(syntax, scope, offset);
         transition member.has_identity {
-            true -> member_at(resolver, sources, syntax, scope, 0)
+            true -> member_at(resolver, sources, syntax, scope, 0u64 as +Trapping)
             _ -> numbered(resolver, sources, syntax, scope, offset + 1)
         }
     }
@@ -159,7 +159,7 @@ crashes Trap
     machine member_at(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) {
         transition offset < scope.count {
             true -> member(resolver, sources, syntax, scope, offset)
-            _ -> retired_at(resolver, sources, syntax, scope, 0)
+            _ -> retired_at(resolver, sources, syntax, scope, 0u64 as +Trapping)
         }
     }
 
@@ -174,7 +174,7 @@ crashes Trap
     machine value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping, identity: MemberIdentity) {
         let decoded: IdentityValue = identity_value(syntax, identity.has_identity, identity.identity_literal);
         transition decoded.valid {
-            true -> prior(resolver, sources, syntax, scope, offset, identity, decoded.value, 0)
+            true -> prior(resolver, sources, syntax, scope, offset, identity, decoded.value, 0u64 as +Trapping)
             _ -> reject(resolver, ResolveDiagnosticCode::InvalidStableIdentity, identity.identity)
         }
     }
@@ -239,7 +239,7 @@ crashes Trap
     {
         let decoded: IdentityValue = identity_value(syntax, true, retired.identity_literal);
         transition decoded.valid {
-            true -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded.value, 0)
+            true -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded.value, 0u64 as +Trapping)
             _ -> reject(resolver, ResolveDiagnosticCode::InvalidStableIdentity, retired.identity)
         }
     }
@@ -250,7 +250,7 @@ crashes Trap
     {
         transition live < scope.count {
             true -> retired_compare_live(resolver, sources, syntax, scope, offset, retired, decoded, live)
-            _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, 0)
+            _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, 0u64 as +Trapping)
         }
     }
 
@@ -356,7 +356,7 @@ crashes Trap
     }
 
     machine invalid() -> IdentityValue {
-        IdentityValue { valid: false, value: 0 }
+        IdentityValue { valid: false, value: 0u64 as +Trapping }
     }
 }
 
@@ -364,7 +364,7 @@ crashes Trap
 machine identity_scope_has_retirements(syntax: &SyntaxTrees, scope: IdentityScope) -> bool
 crashes Trap
 {
-    transition { _ -> next(syntax, scope, 0) }
+    transition { _ -> next(syntax, scope, 0u64 as +Trapping) }
     machine next(syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) -> bool {
         transition offset < syntax.retired_identity_count {
             true -> inspect(syntax, scope, offset)

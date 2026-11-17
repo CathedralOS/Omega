@@ -1,5 +1,5 @@
 machine initialize_cursor(parser: &mut Parser) {
-    parser.cursor = 0;
+    parser.cursor = 0u64 as +Trapping;
     parser.current_index = 0;
     parser.current_present = false;
 }
@@ -9,7 +9,7 @@ machine initialize_cursor(parser: &mut Parser) {
 machine load_current(parser: &mut Parser, input: &TokenStream) {
     parser.current_present = false;
     transition parser.cursor < input.token_count {
-        true -> array_bound(parser, parser.cursor as u64)
+        true -> capture_current_cursor(parser)
         _ -> absent(parser)
     }
 
@@ -29,6 +29,11 @@ machine load_current(parser: &mut Parser, input: &TokenStream) {
 
     machine absent(parser: &mut Parser) {
         parser.current_present = false;
+    }
+
+    machine capture_current_cursor(parser: &mut Parser) {
+        let captured_cursor: u64 = parser.cursor as -Trapping;
+        transition { _ -> array_bound(parser, captured_cursor) }
     }
 }
 
@@ -215,7 +220,7 @@ crashes Trap
 
     machine full(parser: &mut Parser, input: &TokenStream) -> u64 in Trapping {
         reject_current(parser, input, ParseDiagnosticCode::IntegerLiteralCapacityExceeded);
-        0
+        0u64 as +Trapping
     }
 
     machine other(parser: &mut Parser, input: &TokenStream) -> u64 in Trapping {
@@ -511,7 +516,7 @@ crashes Trap
     machine opened(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
         transition token.kind {
-            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1u64 as +Trapping)
             _ -> absent()
         }
     }
@@ -579,7 +584,7 @@ machine decoded_spells(input: &TokenStream, start: u64 in Trapping, length: u64 
 crashes Trap
 {
     transition length == spelling.len {
-        true -> compare(input, start, spelling, 0)
+        true -> compare(input, start, spelling, 0u64 as +Trapping)
         _ -> absent()
     }
 

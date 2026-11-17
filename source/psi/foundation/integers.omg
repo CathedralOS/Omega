@@ -56,7 +56,7 @@ public machine exact_integer_add(left: ExactInteger, right: ExactInteger) -> Exa
     }
 
     machine overflow() -> ExactResult {
-        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -87,11 +87,11 @@ public machine exact_integer_multiply(left: ExactInteger, right: ExactInteger) -
     }
 
     machine zero() -> ExactResult {
-        ExactResult { valid: true, value: ExactInteger { negative: false, magnitude: 0 } }
+        ExactResult { valid: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 
     machine overflow() -> ExactResult {
-        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -118,7 +118,7 @@ public machine exact_integer_divide(left: ExactInteger, right: ExactInteger) -> 
     }
 
     machine inexact() -> ExactResult {
-        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } }
     }
 }
 
@@ -148,10 +148,10 @@ public machine exact_integer_at_most(left: ExactInteger, right: ExactInteger) ->
 // The least value of a fixed-integer carrier; zero for any other type.
 public machine minimum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
-        BuiltinType::I8 -> negative(128)
-        BuiltinType::I16 -> negative(32768)
-        BuiltinType::I32 -> negative(2147483648)
-        BuiltinType::I64 -> negative(9223372036854775808)
+        BuiltinType::I8 -> negative(128u64 as +Wrapping)
+        BuiltinType::I16 -> negative(32768u64 as +Wrapping)
+        BuiltinType::I32 -> negative(2147483648u64 as +Wrapping)
+        BuiltinType::I64 -> negative(9223372036854775808u64 as +Wrapping)
         _ -> unsigned()
     }
 
@@ -160,7 +160,7 @@ public machine minimum(builtin: BuiltinType) -> ExactInteger {
     }
 
     machine unsigned() -> ExactInteger {
-        ExactInteger { negative: false, magnitude: 0 }
+        ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }
     }
 }
 
@@ -168,16 +168,16 @@ public machine minimum(builtin: BuiltinType) -> ExactInteger {
 // is 1, false 0); zero for any other type.
 public machine maximum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
-        BuiltinType::Bool -> positive(1)
-        BuiltinType::I8 -> positive(127)
-        BuiltinType::I16 -> positive(32767)
-        BuiltinType::I32 -> positive(2147483647)
-        BuiltinType::I64 -> positive(9223372036854775807)
-        BuiltinType::U8 -> positive(255)
-        BuiltinType::U16 -> positive(65535)
-        BuiltinType::U32 -> positive(4294967295)
-        BuiltinType::U64 -> positive(18446744073709551615)
-        _ -> positive(0)
+        BuiltinType::Bool -> positive(1u64 as +Wrapping)
+        BuiltinType::I8 -> positive(127u64 as +Wrapping)
+        BuiltinType::I16 -> positive(32767u64 as +Wrapping)
+        BuiltinType::I32 -> positive(2147483647u64 as +Wrapping)
+        BuiltinType::I64 -> positive(9223372036854775807u64 as +Wrapping)
+        BuiltinType::U8 -> positive(255u64 as +Wrapping)
+        BuiltinType::U16 -> positive(65535u64 as +Wrapping)
+        BuiltinType::U32 -> positive(4294967295u64 as +Wrapping)
+        BuiltinType::U64 -> positive(18446744073709551615u64 as +Wrapping)
+        _ -> positive(0u64 as +Wrapping)
     }
 
     machine positive(magnitude: u64 in Wrapping) -> ExactInteger {
@@ -314,7 +314,7 @@ public data RationalResult [copy] {
 }
 
 public machine rational_of(value: ExactInteger) -> Rational {
-    Rational { numerator: value, denominator: 1 }
+    Rational { numerator: value, denominator: 1u64 as +Wrapping }
 }
 
 // The greatest common divisor of two magnitudes, at least one nonzero.
@@ -369,11 +369,11 @@ public machine rational_reduced(numerator: ExactInteger, denominator: u64 in Wra
     }
 
     machine zero() -> RationalResult {
-        RationalResult { valid: true, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+        RationalResult { valid: true, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }, denominator: 1u64 as +Wrapping } }
     }
 
     machine invalid() -> RationalResult {
-        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }, denominator: 1u64 as +Wrapping } }
     }
 }
 
@@ -394,7 +394,7 @@ public machine rational_add(left: Rational, right: Rational) -> RationalResult {
     }
 
     machine invalid() -> RationalResult {
-        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }, denominator: 1u64 as +Wrapping } }
     }
 }
 
@@ -419,7 +419,7 @@ public machine rational_multiply(left: Rational, right: Rational) -> RationalRes
     }
 
     machine invalid() -> RationalResult {
-        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }, denominator: 1u64 as +Wrapping } }
     }
 }
 
@@ -440,6 +440,6 @@ public machine rational_divide(left: Rational, right: Rational) -> RationalResul
     }
 
     machine invalid() -> RationalResult {
-        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping }, denominator: 1u64 as +Wrapping } }
     }
 }

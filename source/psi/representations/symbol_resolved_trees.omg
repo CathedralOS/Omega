@@ -311,8 +311,8 @@ public machine name_resolution_clear(resolution: &mut NameResolution, source: So
     resolution.accepted = true;
     resolution.diagnostic.code = ResolveDiagnosticCode::None;
     resolution.diagnostic.source_span.source = source;
-    resolution.diagnostic.source_span.span.start = 0;
-    resolution.diagnostic.source_span.span.end = 0;
+    resolution.diagnostic.source_span.span.start = 0u64 as +Trapping;
+    resolution.diagnostic.source_span.span.end = 0u64 as +Trapping;
 }
 
 public machine name_resolution_reject(
@@ -392,7 +392,7 @@ public machine binder_contract(resolution: &NameResolution, parameter: u64 in Tr
     }
 
     machine none() -> BinderContract {
-        BinderContract { present: false, contract: 0 }
+        BinderContract { present: false, contract: 0u64 as +Trapping }
     }
 }
 
@@ -652,7 +652,7 @@ public machine ranking_measure(resolution: &NameResolution, clause: u64 in Trapp
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -688,7 +688,7 @@ public machine component_field(resolution: &NameResolution, member: u64 in Trapp
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 

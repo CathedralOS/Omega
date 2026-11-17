@@ -15,12 +15,12 @@
 public machine bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine(resolver, sources, syntax, index)
-            _ -> next_data(resolver, sources, syntax, 0)
+            _ -> next_data(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -30,7 +30,7 @@ crashes Trap
         bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, ClauseKind::Requires);
         let returning: NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::ReturnedValue { machine: index });
         bind_clause_facts(resolver, sources, syntax, returning, item.first_clause, item.clause_count, ClauseKind::Ensures);
-        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
+        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0u64 as +Trapping) }
     }
 
     // A callable contract's facts name its own parameters and result.
@@ -53,7 +53,7 @@ crashes Trap
     machine next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.data_count && resolver.output.accepted {
             true -> data(resolver, sources, syntax, index)
-            _ -> next_domain(resolver, sources, syntax, 0)
+            _ -> next_domain(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
 
@@ -96,15 +96,15 @@ machine fact_scope(
         machine: machine,
         first_parameter: first_parameter,
         parameter_count: parameter_count,
-        first_statement: 0,
-        visible_statement_end: 0,
-        first_binder: 0,
-        binder_count: 0,
+        first_statement: 0u64 as +Trapping,
+        visible_statement_end: 0u64 as +Trapping,
+        first_binder: 0u64 as +Trapping,
+        binder_count: 0u64 as +Trapping,
         result_binding: result_binding,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0u64 as +Trapping,
         names_subject: false,
-        subject_domain: 0
+        subject_domain: 0u64 as +Trapping
     }
 }
 
@@ -112,16 +112,16 @@ machine fact_scope(
 machine subject_scope(domain: u64 in Trapping) -> NameScope {
     NameScope {
         has_machine: false,
-        machine: 0,
-        first_parameter: 0,
-        parameter_count: 0,
-        first_statement: 0,
-        visible_statement_end: 0,
-        first_binder: 0,
-        binder_count: 0,
+        machine: 0u64 as +Trapping,
+        first_parameter: 0u64 as +Trapping,
+        parameter_count: 0u64 as +Trapping,
+        first_statement: 0u64 as +Trapping,
+        visible_statement_end: 0u64 as +Trapping,
+        first_binder: 0u64 as +Trapping,
+        binder_count: 0u64 as +Trapping,
         result_binding: ValueBinding::NotAName,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0u64 as +Trapping,
         names_subject: true,
         subject_domain: domain
     }
@@ -297,7 +297,7 @@ crashes Trap
     }
 
     machine path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
-        let scope: NameScope = fact_scope(false, 0, 0, 0, ValueBinding::NotAName);
+        let scope: NameScope = fact_scope(false, 0u64 as +Trapping, 0u64 as +Trapping, 0u64 as +Trapping, ValueBinding::NotAName);
         let binding: ValueBinding = name_binding(&resolver.output, sources, syntax, scope, expression, role);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
@@ -359,13 +359,13 @@ crashes Trap
     let subject: bool = span_spells(sources, name, "self");
     transition subject {
         true -> found(ValueBinding::DataSubject { item: item_index })
-        _ -> field(sources, syntax, item, name, 0)
+        _ -> field(sources, syntax, item, name, 0u64 as +Trapping)
     }
 
     machine field(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < item.field_count {
             true -> field_named(sources, syntax, item, name, offset)
-            _ -> binder(sources, syntax, item, name, 0)
+            _ -> binder(sources, syntax, item, name, 0u64 as +Trapping)
         }
     }
 

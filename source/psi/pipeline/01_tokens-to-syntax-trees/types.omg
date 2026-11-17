@@ -102,7 +102,7 @@ crashes Trap
     }
 
     machine lifetime_only(parser: &mut Parser) {
-        parser.type_result = 0;
+        parser.type_result = 0u64 as +Trapping;
         parser.type_lifetime_argument = true;
     }
 
@@ -131,7 +131,7 @@ crashes Trap
         take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
         let tick: bool = at_punctuation(parser, input, PunctuationKind::Apostrophe);
-        let none: IdentifierSpan = identifier_span(parser, 0, 0);
+        let none: IdentifierSpan = identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping);
         transition tick {
             true -> reference_lifetime(parser, input, start, code)
             _ -> reference_access(parser, input, start, code, false, none)
@@ -183,10 +183,9 @@ crashes Trap
     machine array_open(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
+        let captured_frame: TypeFrame = type_frame(parser, TypeFrameKind::Array, ReferenceAccess::Shared, start);
         transition {
-            _ -> push(parser, input, type_frame(parser, TypeFrameKind::Array, ReferenceAccess::Shared, start),
-                ParseDiagnosticCode::ExpectedArrayElementType
-            )
+            _ -> push(parser, input, captured_frame, ParseDiagnosticCode::ExpectedArrayElementType)
         }
     }
 
@@ -217,8 +216,13 @@ crashes Trap
     machine name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         expect_name(parser, input, code);
         transition parser.output.accepted {
-            true -> path(parser, input, parser.name_start)
+            true -> capture_type_path_start(parser, input)
             _ -> done()
+        }
+
+        machine capture_type_path_start(parser: &mut Parser, input: &TokenStream) {
+            let captured_start: u64 in Trapping = parser.name_start;
+            transition { _ -> path(parser, input, captured_start) }
         }
     }
 
@@ -277,8 +281,13 @@ crashes Trap
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
         transition parser.output.accepted {
-            true -> domain_path(parser, input, row, parser.name_start, parser.name_start)
+            true -> capture_domain_path_start(parser, input, row)
             _ -> done()
+        }
+
+        machine capture_domain_path_start(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
+            let captured_start: u64 in Trapping = parser.name_start;
+            transition { _ -> domain_path(parser, input, row, captured_start, captured_start) }
         }
     }
 
@@ -287,8 +296,13 @@ crashes Trap
     machine domain_path(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         let separated: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition separated {
-            true -> domain_member(parser, input, row, start, parser.name_end)
+            true -> capture_domain_member_end(parser, input, row, start)
             _ -> qualified(parser, input, row, start, owner_end)
+        }
+
+        machine capture_domain_member_end(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+            let captured_end: u64 in Trapping = parser.name_end;
+            transition { _ -> domain_member(parser, input, row, start, captured_end) }
         }
     }
 
@@ -346,8 +360,8 @@ crashes Trap
 
     machine reference_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
         pop_type_frame(parser);
-        let row: TypeReference = type_row(parser, TypeReferenceKind::Reference, frame.start, parser.type_end, 0, 0);
-        let reference: TypeReference = with_children(row, frame.first_row, parser.type_result, 0);
+        let row: TypeReference = type_row(parser, TypeReferenceKind::Reference, frame.start, parser.type_end, 0u64 as +Trapping, 0u64 as +Trapping);
+        let reference: TypeReference = with_children(row, frame.first_row, parser.type_result, 0u64 as +Trapping);
         let accessed: TypeReference = with_access(reference, frame.access);
         let tagged: TypeReference = with_lifetime(accessed, frame.has_lifetime, frame.lifetime);
         transition { _ -> append(parser, input, tagged) }
@@ -377,8 +391,8 @@ crashes Trap
     machine slice(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         pop_type_frame(parser);
         let row: TypeReference = type_row(parser, TypeReferenceKind::Slice,
-            frame.start, parser.token_end, 0, 0);
-        transition { _ -> domain(parser, input, with_children(row, frame.first_row, element, 0)) }
+            frame.start, parser.token_end, 0u64 as +Trapping, 0u64 as +Trapping);
+        transition { _ -> domain(parser, input, with_children(row, frame.first_row, element, 0u64 as +Trapping)) }
     }
 
     // The length is its own `Literal` or `Named` row, appended before the
@@ -403,7 +417,7 @@ crashes Trap
     machine length_name(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedArrayLength);
         transition parser.output.accepted {
-            true -> length_row(parser, input, frame, element, TypeReferenceKind::Named, 0)
+            true -> length_row(parser, input, frame, element, TypeReferenceKind::Named, 0u64 as +Trapping)
             _ -> done()
         }
     }
@@ -450,7 +464,7 @@ crashes Trap
     ) {
         pop_type_frame(parser);
         let row: TypeReference = type_row(parser, TypeReferenceKind::Array,
-            frame.start, parser.token_end, 0, 0);
+            frame.start, parser.token_end, 0u64 as +Trapping, 0u64 as +Trapping);
         transition { _ -> domain(parser, input, with_children(row, frame.first_row, element, length)) }
     }
 
@@ -482,8 +496,13 @@ crashes Trap
             ParseDiagnosticCode::ExpectedStaticArgumentEnd
         );
         transition parser.output.accepted {
-            true -> applied(parser, input, frame, parser.token_end)
+            true -> capture_applied_type_end(parser, input, frame)
             _ -> done()
+        }
+
+        machine capture_applied_type_end(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+            let captured_end: u64 in Trapping = parser.token_end;
+            transition { _ -> applied(parser, input, frame, captured_end) }
         }
     }
 
@@ -507,7 +526,7 @@ crashes Trap
     machine applied_row(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, end: u64 in Trapping) {
         let row: TypeReference = type_row(parser, TypeReferenceKind::Named,
             frame.start, end, frame.start, frame.name_end);
-        let applied: TypeReference = with_children(row, frame.first_row, 0, 0);
+        let applied: TypeReference = with_children(row, frame.first_row, 0u64 as +Trapping, 0u64 as +Trapping);
         let argued: TypeReference = with_arguments(applied, parser.committed_type_first, parser.committed_type_count);
         let tagged: TypeReference = with_lifetimes(argued, parser.committed_lifetime_first, parser.committed_lifetime_count);
         transition { _ -> domain(parser, input, tagged) }
@@ -534,7 +553,7 @@ machine type_frame(
         first_argument: parser.pending_type_argument_count as u64 in Trapping,
         first_row: parser.output.type_reference_count as u64 in Trapping,
         has_lifetime: false,
-        lifetime: identifier_span(parser, 0, 0),
+        lifetime: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         first_lifetime: parser.pending_type_lifetime_count as u64 in Trapping
     }
 }
@@ -596,19 +615,19 @@ machine type_row(
         kind: kind,
         name: identifier_span(parser, name_start, name_end),
         has_domain: false,
-        domain: identifier_span(parser, 0, 0),
+        domain: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         has_domain_owner: false,
-        domain_owner: identifier_span(parser, 0, 0),
+        domain_owner: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
         access: ReferenceAccess::Shared,
-        inner: 0,
-        length: 0,
-        first_argument: 0,
-        argument_count: 0,
+        inner: 0u64 as +Trapping,
+        length: 0u64 as +Trapping,
+        first_argument: 0u64 as +Trapping,
+        argument_count: 0u64 as +Trapping,
         has_lifetime: false,
-        lifetime: identifier_span(parser, 0, 0),
-        first_lifetime: 0,
-        lifetime_count: 0,
-        literal: 0,
+        lifetime: identifier_span(parser, 0u64 as +Trapping, 0u64 as +Trapping),
+        first_lifetime: 0u64 as +Trapping,
+        lifetime_count: 0u64 as +Trapping,
+        literal: 0u64 as +Trapping,
         first_row: parser.output.type_reference_count as u64 in Trapping,
         source_span: parser_source_span(parser, start, end)
     }

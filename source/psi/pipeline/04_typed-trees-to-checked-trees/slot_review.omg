@@ -10,12 +10,12 @@ public machine prepare(review: &mut SlotReview) {}
 public machine admits(review: &SlotReview, checks: &Checks) -> bool
 crashes Trap
 {
-    transition { _ -> origins(review, checks, 0) }
+    transition { _ -> origins(review, checks, 0u64 as +Trapping) }
 
     machine origins(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_origin_count && index < 64 {
             true -> origin(review, checks, index)
-            _ -> qualifications(review, checks, 0)
+            _ -> qualifications(review, checks, 0u64 as +Trapping)
         }
     }
 
@@ -56,14 +56,14 @@ crashes Trap
 
     machine paired(review: &SlotReview, checks: &Checks) -> bool {
         transition checks.slot_qualification_count > 0 && checks.slot_origin_count > 0 {
-            true -> seek(review, checks, 0)
+            true -> seek(review, checks, 0u64 as +Trapping)
             _ -> admit()
         }
     }
 
     machine seek(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_qualification_count {
-            true -> find(review, checks, index, 0)
+            true -> find(review, checks, index, 0u64 as +Trapping)
             _ -> admit()
         }
     }

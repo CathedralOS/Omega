@@ -38,7 +38,7 @@ public data ImportTarget [copy] {
 public machine check_imports(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0u64 as +Trapping) }
 
     machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.use_count {
@@ -50,7 +50,7 @@ crashes Trap
     machine import(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let use_item: UseItem = syntax_trees_use_item(syntax, index);
         let target: ImportTarget = import_target(sources, syntax, use_item);
-        let named: bool = names_some_unit(sources, syntax, use_item, target, 0);
+        let named: bool = names_some_unit(sources, syntax, use_item, target, 0u64 as +Trapping);
         transition named {
             true -> next(resolver, sources, syntax, index + 1)
             _ -> unresolved(resolver, sources, syntax, use_item, target)
@@ -76,10 +76,10 @@ crashes Trap
 public machine import_target(sources: &SourceSet, syntax: &SyntaxTrees, use_item: UseItem) -> ImportTarget
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as u64 in Trapping);
+    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
     let mounted: bool = names_toolchain_mount(sources, syntax, use_item);
     transition mounted {
-        true -> toolchain(sources, 0)
+        true -> toolchain(sources, 0u64 as +Trapping)
         _ -> first(sources, syntax, use_item, requester)
     }
 
@@ -93,7 +93,7 @@ crashes Trap
     machine toolchain_candidate(sources: &SourceSet, package: u64 in Trapping) -> ImportTarget {
         let row: PackageRow = package_row(sources, package);
         transition row.toolchain {
-            true -> selected(package, 3)
+            true -> selected(package, 3u64 as +Trapping)
             _ -> toolchain(sources, package + 1)
         }
     }
@@ -101,7 +101,7 @@ crashes Trap
     machine first(sources: &SourceSet, syntax: &SyntaxTrees, use_item: UseItem, requester: u64 in Trapping) -> ImportTarget {
         let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
         let spelling: SourceSpan = member.source_span;
-        transition { _ -> alias(sources, requester, spelling, 0) }
+        transition { _ -> alias(sources, requester, spelling, 0u64 as +Trapping) }
     }
 
     machine alias(sources: &SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> ImportTarget {
@@ -115,7 +115,7 @@ crashes Trap
         let edge: DependencyRow = dependency_row(sources, index);
         let named: bool = edge_names(sources, edge, requester, DependencyScope::Product, spelling);
         transition named {
-            true -> selected(edge.target, 1)
+            true -> selected(edge.target, 1u64 as +Trapping)
             _ -> alias(sources, requester, spelling, index + 1)
         }
     }
@@ -124,8 +124,8 @@ crashes Trap
         let row: PackageRow = package_row(sources, requester);
         let named: bool = span_names(sources, spelling, row.name);
         transition named {
-            true -> selected(requester, 1)
-            _ -> selected(requester, 0)
+            true -> selected(requester, 1u64 as +Trapping)
+            _ -> selected(requester, 0u64 as +Trapping)
         }
     }
 
@@ -134,7 +134,7 @@ crashes Trap
     }
 
     machine missing() -> ImportTarget {
-        ImportTarget { found: false, package: 0, selector_count: 0 }
+        ImportTarget { found: false, package: 0u64 as +Trapping, selector_count: 0u64 as +Trapping }
     }
 }
 
@@ -144,7 +144,7 @@ machine names_toolchain_mount(sources: &SourceSet, syntax: &SyntaxTrees, use_ite
 crashes Trap
 {
     transition use_item.member_count >= 3 {
-        true -> member(sources, syntax, use_item, 0)
+        true -> member(sources, syntax, use_item, 0u64 as +Trapping)
         _ -> no()
     }
 
@@ -207,18 +207,18 @@ crashes Trap
 machine undeclared_dependency(sources: &SourceSet, syntax: &SyntaxTrees, use_item: UseItem, target: ImportTarget) -> bool
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as u64 in Trapping);
+    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
     let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
     let spelling: SourceSpan = member.source_span;
     transition target.found && target.selector_count == 0 {
-        true -> named_package(sources, requester, spelling, 0)
+        true -> named_package(sources, requester, spelling, 0u64 as +Trapping)
         _ -> no()
     }
 
     machine named_package(sources: &SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
         transition index < sources.package_count {
             true -> package_candidate(sources, requester, spelling, index)
-            _ -> build_alias(sources, requester, spelling, 0)
+            _ -> build_alias(sources, requester, spelling, 0u64 as +Trapping)
         }
     }
 
@@ -302,8 +302,8 @@ crashes Trap
 public machine resolver_visible(sources: &SourceSet, syntax: &SyntaxTrees, from: SourceId, declared: SourceId, is_public: bool) -> bool
 crashes Trap
 {
-    let from_unit: u64 in Trapping = from.value as u64 in Trapping;
-    let declared_unit: u64 in Trapping = declared.value as u64 in Trapping;
+    let from_unit: u64 in Trapping = from.value as -Trapping as u64 +Trapping;
+    let declared_unit: u64 in Trapping = declared.value as -Trapping as u64 +Trapping;
     let same_module: bool = resolver_same_module(sources, from_unit, declared_unit);
     let same_package: bool = resolver_same_package(sources, from_unit, declared_unit);
     transition from_unit == declared_unit || same_module {
@@ -313,7 +313,7 @@ crashes Trap
 
     machine exposed(sources: &SourceSet, syntax: &SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, open: bool) -> bool {
         transition open {
-            true -> imported(sources, syntax, from, declared_unit, 0)
+            true -> imported(sources, syntax, from, declared_unit, 0u64 as +Trapping)
             _ -> unseen()
         }
     }
@@ -373,7 +373,7 @@ crashes Trap
     let right_length: u64 in Trapping = path_length(sources, right);
     let same_package: bool = resolver_same_package(sources, left, right);
     transition same_package && left_length == right_length {
-        true -> compare(sources, left, right, left_length, 0)
+        true -> compare(sources, left, right, left_length, 0u64 as +Trapping)
         _ -> different()
     }
 
@@ -417,7 +417,7 @@ crashes Trap
     let length: u64 in Trapping = path_length(sources, unit);
     let package: u64 in Trapping = unit_package(sources, unit);
     transition target.found && package == target.package && target.selector_count < use_item.member_count {
-        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0)
+        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0u64 as +Trapping)
         _ -> different()
     }
 
@@ -434,7 +434,7 @@ crashes Trap
         let spelling: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member + member);
         let width: u64 in Trapping = spelling.source_span.span.end - spelling.source_span.span.start;
         transition position + width <= length {
-            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0)
+            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0u64 as +Trapping)
             _ -> different()
         }
     }
@@ -622,7 +622,7 @@ public machine declared_named(
 crashes Trap
 {
     let count: u64 in Trapping = declaration_count(syntax, kind);
-    transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0) }
+    transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0u64 as +Trapping) }
 
     machine next(
         sources: &SourceSet,
@@ -732,7 +732,7 @@ public machine machine_named(
 ) -> Lookup
 crashes Trap
 {
-    transition { _ -> next(resolution, sources, syntax, owned, owner, name, 0) }
+    transition { _ -> next(resolution, sources, syntax, owned, owner, name, 0u64 as +Trapping) }
 
     machine next(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.machine_count {
@@ -782,8 +782,8 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
-        let overload: bool = resolver_same_module(sources, family.value as u64 in Trapping,
-            item.name.source_span.source.value as u64 in Trapping);
+        let overload: bool = resolver_same_module(sources, family.value as -Trapping as u64 +Trapping,
+            item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition visible && !overload {
             true -> ambiguous()
             _ -> rival(resolution, sources, syntax, owned, owner, name, found, family, index + 1)
@@ -829,7 +829,7 @@ crashes Trap
 public machine measure_named(sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, owner, name, 0) }
+    transition { _ -> next(sources, syntax, owner, name, 0u64 as +Trapping) }
 
     machine next(sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
         transition index < syntax.machine_count {
@@ -854,7 +854,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 

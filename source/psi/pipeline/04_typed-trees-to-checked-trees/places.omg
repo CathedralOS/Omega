@@ -101,7 +101,7 @@ crashes Trap
     checker.aliases.count = 0;
     checker.pending_count = 0;
     clear_reference_origins(checker);
-    zone_open(&mut checker.zone, 64);
+    zone_open(&mut checker.zone, 64u64 as +Trapping);
 }
 
 // The place `kind`/`handle` under `parent`, entered on first use. Zero when
@@ -116,7 +116,7 @@ public machine checker_place(
 ) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> search(checker, typing, kind, handle, parent, type_handle, 0) }
+    transition { _ -> search(checker, typing, kind, handle, parent, type_handle, 0u64 as +Trapping) }
 
     machine search(
         checker: &mut Checker,
@@ -192,7 +192,7 @@ crashes Trap
         parent: u64 in Trapping,
         type_handle: u64 in Trapping
     ) -> u64 in Trapping {
-        let place: Place = Place { kind: kind, handle: handle, parent: parent, type_handle: type_handle, subject: 0 };
+        let place: Place = Place { kind: kind, handle: handle, parent: parent, type_handle: type_handle, subject: 0u64 as +Trapping };
         transition { _ -> stored(checker, place) }
     }
 
@@ -254,7 +254,7 @@ crashes Trap
     // A full table loses the place; the body rejects once it ends.
     machine full(checker: &mut Checker) -> u64 in Trapping {
         checker.overflowed = true;
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -282,7 +282,7 @@ crashes Trap
 public machine find_place(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> search(checker, kind, handle, parent, 0) }
+    transition { _ -> search(checker, kind, handle, parent, 0u64 as +Trapping) }
 
     machine search(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.place_count {
@@ -305,7 +305,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -339,9 +339,9 @@ crashes Trap
     let floor: ExactInteger = exact_integer_negate(least);
     let upper: Bound = exactly(greatest);
     let lower: Bound = exactly(floor);
-    constrain(&mut checker.zone, 0, subject, upper);
-    constrain(&mut checker.zone, subject, 0, lower);
-    transition { _ -> saved(checker, subject, upper, lower, 0) }
+    constrain(&mut checker.zone, 0u64 as +Trapping, subject, upper);
+    constrain(&mut checker.zone, subject, 0u64 as +Trapping, lower);
+    transition { _ -> saved(checker, subject, upper, lower, 0u64 as +Trapping) }
 
     // The range is a fact of the place's type, so it holds on every path:
     // a zone saved before the place was entered (an open `&&`/`||` context
@@ -357,8 +357,8 @@ crashes Trap
     requires index < 8
     {
         checker.merged = checker.saved[index];
-        constrain(&mut checker.merged, 0, subject, upper);
-        constrain(&mut checker.merged, subject, 0, lower);
+        constrain(&mut checker.merged, 0u64 as +Trapping, subject, upper);
+        constrain(&mut checker.merged, subject, 0u64 as +Trapping, lower);
         checker.saved[index] = checker.merged;
         transition { _ -> saved(checker, subject, upper, lower, index + 1) }
     }
@@ -373,7 +373,7 @@ crashes Trap
 public machine restore_ranges(checker: &mut Checker, typing: &Typing)
 crashes Trap
 {
-    transition { _ -> next(checker, typing, 0) }
+    transition { _ -> next(checker, typing, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
         transition index < checker.place_count {
@@ -450,7 +450,7 @@ crashes Trap
 {
     forget_pending(checker, typing, place);
     forget_aliases(checker, place);
-    transition { _ -> next(checker, typing, place, contents, 0) }
+    transition { _ -> next(checker, typing, place, contents, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         transition index < checker.place_count {
@@ -514,7 +514,7 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 
@@ -522,7 +522,7 @@ crashes Trap
 public machine checker_within(checker: &Checker, inner: u64 in Trapping, outer: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> step(checker, inner, outer, 0) }
+    transition { _ -> step(checker, inner, outer, 0u64 as +Trapping) }
 
     machine step(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current == outer {
@@ -674,7 +674,7 @@ crashes Trap
     }
 
     machine rooted(checker: &mut Checker, typing: &Typing, kind: PlaceKind, binding: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let place: u64 in Trapping = checker_place(checker, typing, kind, binding, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, kind, binding, 0u64 as +Trapping, type_handle);
         let value: Value = reference_value(checker, typing, place);
         value
     }
@@ -737,7 +737,7 @@ crashes Trap
         let collection: TypeRow = collection_row(typing, expression.left);
         transition collection.kind == TypeKind::Array {
             true -> fixed(typing, collection)
-            _ -> member(checker, typing, PlaceKind::Length, 0, parent, type_handle, row)
+            _ -> member(checker, typing, PlaceKind::Length, 0u64 as +Trapping, parent, type_handle, row)
         }
     }
 
@@ -796,7 +796,7 @@ crashes Trap
     }
 
     machine term(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping) -> Value {
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         let value: Value = term_value(checker, place, subject, zero);
         value
     }
@@ -817,7 +817,7 @@ public machine subject_place(checker: &Checker, subject: u64 in Trapping) -> u64
 crashes Trap
 {
     transition subject > 0 {
-        true -> next(checker, subject, 0)
+        true -> next(checker, subject, 0u64 as +Trapping)
         _ -> absent()
     }
 
@@ -841,7 +841,7 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0u64 as +Trapping
     }
 }
 // A record bound from another place takes that place's known paths: each
@@ -855,7 +855,7 @@ crashes Trap
     copy_pending(checker, typing, target, source);
     let end: u64 in Trapping = checker.place_count as u64 in Trapping;
     transition target > 0 && source > 0 && target != source {
-        true -> next(checker, typing, target, source, 0, end)
+        true -> next(checker, typing, target, source, 0u64 as +Trapping, end)
         _ -> done()
     }
 
@@ -869,7 +869,7 @@ crashes Trap
 
     machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         let entry: Place = place_at(checker, index);
-        let path: ArrivalPath = path_below(checker, source, index + 1, 0);
+        let path: ArrivalPath = path_below(checker, source, index + 1, 0u64 as +Trapping);
         let owned: bool = owned_below(checker, typing, source, index + 1);
         transition path.depth > 0 && owned {
             true -> typed(checker, typing, target, source, index, end, entry, path)
@@ -909,10 +909,10 @@ crashes Trap
     // copy - source <= 0 and source - copy <= 0.
     machine equated(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, copy: u64 in Trapping) {
         let copied: Place = place_at(checker, copy - 1);
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         let unknown: Value = value_unknown();
-        let original: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
-        let duplicate: Value = Value { place: 0, known: true, subject: copied.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let original: Value = Value { place: 0u64 as +Trapping, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
+        let duplicate: Value = Value { place: 0u64 as +Trapping, known: true, subject: copied.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         transition copied.subject > 0 {
             true -> related(checker, typing, target, source, index, end, original, duplicate)
             _ -> next(checker, typing, target, source, index + 1, end)
@@ -920,7 +920,7 @@ crashes Trap
     }
 
     machine related(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, original: Value, duplicate: Value) {
-        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0u64 as +Wrapping };
         constrain_difference(checker, original, duplicate, zero);
         constrain_difference(checker, duplicate, original, zero);
         transition { _ -> next(checker, typing, target, source, index + 1, end) }

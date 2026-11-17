@@ -44,7 +44,7 @@ crashes Trap
 {
     let mut ordered: ArrivalPath = path;
     ordered.depth = count;
-    transition { _ -> swap(ordered, 0, count) }
+    transition { _ -> swap(ordered, 0u64 as +Trapping, count) }
 
     machine swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
         transition low * 2 + 1 < count {
@@ -196,9 +196,9 @@ crashes Trap
 public machine path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
-    let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
-    let none: ArrivalPath = ArrivalPath { parameter: parameter, depth: 0, step0: empty, step1: empty, step2: empty, step3: empty };
-    transition { _ -> climb(checker, outer, inner, none, 0) }
+    let empty: ArrivalStep = ArrivalStep { length: false, field: 0u64 as +Trapping, type_handle: 0u64 as +Trapping };
+    let none: ArrivalPath = ArrivalPath { parameter: parameter, depth: 0u64 as +Trapping, step0: empty, step1: empty, step2: empty, step3: empty };
+    transition { _ -> climb(checker, outer, inner, none, 0u64 as +Trapping) }
 
     // Collect steps upward from `current`, deepest last: the step at
     // `count` from the bottom is written at index `count` and reversed at
@@ -232,7 +232,7 @@ crashes Trap
 
     machine outside(path: ArrivalPath) -> ArrivalPath {
         let mut none: ArrivalPath = path;
-        none.depth = 0;
+        none.depth = 0u64 as +Trapping;
         none
     }
 }
@@ -240,7 +240,7 @@ crashes Trap
 // Whether two paths name the same place below the same parameter.
 machine same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     transition first.parameter == second.parameter && first.depth == second.depth {
-        true -> steps(first, second, 0)
+        true -> steps(first, second, 0u64 as +Trapping)
         _ -> no()
     }
 
@@ -275,12 +275,12 @@ public machine path_index(checker: &Checker, offset: u64 in Trapping, path: Arri
 crashes Trap
 {
     let count: u64 in Trapping = path_count(checker, offset);
-    transition { _ -> search(checker, offset, path, count, 0) }
+    transition { _ -> search(checker, offset, path, count, 0u64 as +Trapping) }
 
     machine search(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < count && index < 40 {
             true -> compare(checker, offset, path, count, index)
-            _ -> found(40)
+            _ -> found(40u64 as +Trapping)
         }
     }
 
@@ -327,7 +327,7 @@ public machine enter_paths(checker: &mut Checker, typing: &Typing, offset: u64 i
 crashes Trap
 {
     let count: u64 in Trapping = path_count(checker, offset);
-    transition { _ -> next(checker, typing, offset, first_parameter, count, 0, true) }
+    transition { _ -> next(checker, typing, offset, first_parameter, count, 0u64 as +Trapping, true) }
 
     machine next(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         transition index < count && index < 40 {
@@ -339,7 +339,7 @@ crashes Trap
     machine path(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         let path: ArrivalPath = arrival_path(checker, offset, index);
         let expected: u64 in Trapping = checker.subject_count as u64 in Trapping;
-        let root: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
+        let root: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0u64 as +Trapping);
         let place: u64 in Trapping = enter_path(checker, typing, root, path);
         let entry: Place = place_or_absent(checker, place);
         let numbered: bool = place > 0 && entry.subject == expected;
@@ -356,7 +356,7 @@ crashes Trap
 public machine enter_path(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> step(checker, typing, root, path, 0) }
+    transition { _ -> step(checker, typing, root, path, 0u64 as +Trapping) }
 
     machine step(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         transition current > 0 && index < path.depth && index < 4 {
@@ -403,7 +403,7 @@ crashes Trap
     }
 
     machine absent() -> Place {
-        Place { kind: PlaceKind::Parameter, handle: 0, parent: 0, type_handle: 0, subject: 0 }
+        Place { kind: PlaceKind::Parameter, handle: 0u64 as +Trapping, parent: 0u64 as +Trapping, type_handle: 0u64 as +Trapping, subject: 0u64 as +Trapping }
     }
 }
 
@@ -422,7 +422,7 @@ public machine project_paths(
 ) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, 0) }
+    transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, 0u64 as +Trapping) }
 
     machine clear(
         checker: &mut Checker,
@@ -436,7 +436,7 @@ crashes Trap
     ) -> u64 in Trapping {
         transition slot < 40 && first_subject + slot < 64 {
             true -> cleared(checker, syntax, typing, expression, item, offset, first_subject, slot)
-            _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, 0)
+            _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, 0u64 as +Trapping)
         }
     }
 
@@ -502,7 +502,7 @@ crashes Trap
         root: u64 in Trapping
     ) -> u64 in Trapping {
         settle_pending(checker, typing, root);
-        transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0) }
+        transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0u64 as +Trapping) }
     }
 
     // Each subject place of the body below the argument's place.
@@ -588,7 +588,7 @@ crashes Trap
         let count: u64 in Trapping = first_subject + paths;
         transition count <= 64 {
             true -> total(count)
-            _ -> total(64)
+            _ -> total(64u64 as +Trapping)
         }
     }
 

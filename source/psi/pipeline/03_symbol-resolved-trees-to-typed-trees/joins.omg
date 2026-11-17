@@ -13,12 +13,12 @@
 public machine fixed_join(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> value(typer, syntax, values, 0) }
+    transition { _ -> value(typer, syntax, values, 0u64 as +Trapping) }
 
     machine value(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < values.count {
             true -> candidate(typer, syntax, values, offset)
-            _ -> found(0)
+            _ -> found(0u64 as +Trapping)
         }
     }
 
@@ -42,7 +42,7 @@ crashes Trap
 public machine admit_joined(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> value(typer, syntax, values, result_type, 0) }
+    transition { _ -> value(typer, syntax, values, result_type, 0u64 as +Trapping) }
 
     machine value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < values.count && typer.output.accepted {
@@ -104,7 +104,7 @@ crashes Trap
 {
     let choice_row: TypeRow = type_row_of(TypeKind::AnonymousChoice);
     let choice: u64 in Trapping = type_table_intern(&mut typer.output.types, choice_row);
-    transition { _ -> value(typer, syntax, values, choice, 0, 0) }
+    transition { _ -> value(typer, syntax, values, choice, 0u64 as +Trapping, 0u64 as +Trapping) }
 
     machine value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
         transition offset < values.count {
@@ -141,7 +141,7 @@ crashes Trap
     }
 
     machine finished(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, shape: u64 in Trapping) -> UnlandedJoin {
-        let first: u64 in Trapping = joined_value(syntax, values, 0);
+        let first: u64 in Trapping = joined_value(syntax, values, 0u64 as +Trapping);
         let first_type: u64 in Trapping = typing_expression_type(&typer.output, first);
         transition shape > 0 {
             true -> joined(shape)
@@ -150,11 +150,11 @@ crashes Trap
     }
 
     machine joined(handle: u64 in Trapping) -> UnlandedJoin {
-        UnlandedJoin { joined: handle, mismatch: 0 }
+        UnlandedJoin { joined: handle, mismatch: 0u64 as +Trapping }
     }
 
     machine mismatched(handle: u64 in Trapping) -> UnlandedJoin {
-        UnlandedJoin { joined: 0, mismatch: handle + 1 }
+        UnlandedJoin { joined: 0u64 as +Trapping, mismatch: handle + 1 }
     }
 }
 
@@ -166,7 +166,7 @@ machine scalar_or_array(row: TypeRow, handle: u64 in Trapping, choice: u64 in Tr
         TypeKind::AnonymousInteger -> shaped(choice)
         TypeKind::AnonymousFloat -> shaped(choice)
         TypeKind::AnonymousChoice -> shaped(choice)
-        _ -> shaped(0)
+        _ -> shaped(0u64 as +Trapping)
     }
 
     machine shaped(shape: u64 in Trapping) -> u64 in Trapping {

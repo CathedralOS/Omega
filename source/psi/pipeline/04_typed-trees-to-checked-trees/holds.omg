@@ -37,7 +37,7 @@ crashes Trap
         let selection: Selection = typing_selection(typing, handle);
         let first_parameter: u64 in Trapping = callee_parameters(syntax, selection);
         let terminal: bool = terminal_call(checker, handle);
-        transition { _ -> earlier(checker, syntax, resolution, typing, expression, terminal, first_parameter, 0) }
+        transition { _ -> earlier(checker, syntax, resolution, typing, expression, terminal, first_parameter, 0u64 as +Trapping) }
     }
 
     machine earlier(
@@ -513,7 +513,7 @@ crashes Trap
 {
     transition selection {
         Selection::Machine { handle } -> machine_parameters(syntax, handle)
-        _ -> answer(0)
+        _ -> answer(0u64 as +Trapping)
     }
 
     machine machine_parameters(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
@@ -564,11 +564,11 @@ crashes Trap
 public machine initialize_terminal_calls(checker: &mut Checker, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> clear(checker, syntax, 0) }
+    transition { _ -> clear(checker, syntax, 0u64 as +Trapping) }
     machine clear(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.expression_count && index < 131072 {
             true -> cleared(checker, syntax, index)
-            false -> arm(checker, syntax, 0)
+            false -> arm(checker, syntax, 0u64 as +Trapping)
         }
     }
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
@@ -633,7 +633,7 @@ crashes Trap
     }
     machine dispatch(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         transition expression.kind == ExpressionKind::Match {
-            true -> alternative(checker, syntax, index, expression, 0)
+            true -> alternative(checker, syntax, index, expression, 0u64 as +Trapping)
             false -> propagate(checker, syntax, index)
         }
     }

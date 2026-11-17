@@ -75,18 +75,18 @@ crashes Trap
     graph.sealed = false;
     graph.node_count = nodes;
     graph.expression_count = expressions;
-    graph.edge_count = 0;
-    graph.order_count = 0;
-    graph.component_count = 0;
-    graph.work_count = 0;
+    graph.edge_count = 0u64 as +Trapping;
+    graph.order_count = 0u64 as +Trapping;
+    graph.component_count = 0u64 as +Trapping;
+    graph.work_count = 0u64 as +Trapping;
     transition graph.complete {
-        true -> node(graph, nodes, expressions, 0)
+        true -> node(graph, nodes, expressions, 0u64 as +Trapping)
         false -> done()
     }
     machine node(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping, index: u64 in Trapping) {
         transition index < nodes && index < 10240 {
             true -> clear_node(graph, nodes, expressions, index)
-            false -> expression(graph, expressions, 0)
+            false -> expression(graph, expressions, 0u64 as +Trapping)
         }
     }
     machine clear_node(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping, index: u64 in Trapping)
@@ -157,7 +157,7 @@ crashes Trap
     machine destination(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool {
         transition target {
             InvocationTarget::Machine { machine } -> concrete(graph, owner, expression, target, machine)
-            InvocationTarget::Binder { parameter } -> publish(graph, owner, expression, target, 0)
+            InvocationTarget::Binder { parameter } -> publish(graph, owner, expression, target, 0u64 as +Trapping)
         }
     }
     machine concrete(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, machine: u64 in Trapping) -> bool {
@@ -215,9 +215,9 @@ public machine invocation_graph_seal(graph: &mut InvocationGraph) -> bool
 crashes Trap
 {
     graph.sealed = true;
-    graph.work_count = 0;
+    graph.work_count = 0u64 as +Trapping;
     transition graph.complete {
-        true -> root(graph, 0)
+        true -> root(graph, 0u64 as +Trapping)
         false -> false
     }
     machine root(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool {
@@ -241,7 +241,7 @@ crashes Trap
         graph.visited[node] = true;
         graph.work_nodes[0] = node as u64;
         graph.work_edges[0] = first as u64;
-        graph.work_count = 1;
+        graph.work_count = 1u64 as +Trapping;
         transition { _ -> depth(graph, node + 1) }
     }
     machine depth(graph: &mut InvocationGraph, next_root: u64 in Trapping) -> bool {
@@ -369,8 +369,8 @@ crashes Trap
     }
     machine identified(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping) -> bool {
         graph.component_count = identity;
-        graph.work_count = 0;
-        transition { _ -> claim(graph, next_component, node, identity, 0) }
+        graph.work_count = 0u64 as +Trapping;
+        transition { _ -> claim(graph, next_component, node, identity, 0u64 as +Trapping) }
     }
     machine claim(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping, next_edge: u64 in Trapping) -> bool {
         transition node < 10240 && identity > 0 && identity <= 10240 && graph.work_count < 10240 {
@@ -541,12 +541,12 @@ crashes Trap
 public machine certify_ranking(graph: &mut InvocationGraph) -> bool
 crashes Trap
 {
-    graph.work_count = 0;
-    transition { _ -> initialize(graph, 0) }
+    graph.work_count = 0u64 as +Trapping;
+    transition { _ -> initialize(graph, 0u64 as +Trapping) }
     machine initialize(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
         transition node < graph.node_count && node < 10240 {
             true -> initialized(graph, node)
-            false -> edges(graph, 0)
+            false -> edges(graph, 0u64 as +Trapping)
         }
     }
     machine initialized(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
@@ -561,7 +561,7 @@ crashes Trap
     machine edges(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool {
         transition index < graph.edge_count && index < 32768 {
             true -> edge(graph, index)
-            false -> roots(graph, 0)
+            false -> roots(graph, 0u64 as +Trapping)
         }
     }
     machine edge(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool
@@ -610,7 +610,7 @@ crashes Trap
     machine roots(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
         transition node < graph.node_count && node < 10240 {
             true -> root(graph, node)
-            false -> dequeue(graph, 0)
+            false -> dequeue(graph, 0u64 as +Trapping)
         }
     }
     machine root(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
@@ -631,7 +631,7 @@ crashes Trap
     machine dequeue(graph: &mut InvocationGraph, cursor: u64 in Trapping) -> bool {
         transition cursor < graph.work_count && cursor < 10240 {
             true -> queued(graph, cursor)
-            false -> remaining(graph, 0)
+            false -> remaining(graph, 0u64 as +Trapping)
         }
     }
     machine queued(graph: &mut InvocationGraph, cursor: u64 in Trapping) -> bool

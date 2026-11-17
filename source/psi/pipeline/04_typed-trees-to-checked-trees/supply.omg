@@ -5,7 +5,7 @@
 public machine check_supply(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
-    transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
+    transition { _ -> next_machine(checker, syntax, resolution, typing, 0u64 as +Trapping) }
 
     machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
@@ -17,7 +17,7 @@ crashes Trap
     machine machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         open_machine(&mut checker.output);
         let item: MachineItem = machine_item(syntax, index);
-        transition { _ -> next_clause(checker, syntax, resolution, typing, index, item, 0) }
+        transition { _ -> next_clause(checker, syntax, resolution, typing, index, item, 0u64 as +Trapping) }
     }
 
     machine next_clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
@@ -107,7 +107,7 @@ crashes Trap
 machine check_supplied_calls(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, caller: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, resolution, typing, caller, 0) }
+    transition { _ -> next(checker, syntax, resolution, typing, caller, 0u64 as +Trapping) }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, caller: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.supplied_count && index < 1024 && checker.output.machine_accepted {
@@ -145,7 +145,7 @@ crashes Trap
     let applied: Expression = syntax_trees_expression(syntax, expression.left);
     let item: MachineItem = machine_item(syntax, callee);
     transition applied.kind == ExpressionKind::Apply {
-        true -> binder(checker, syntax, resolution, typing, applied, item, callee, 0, 0)
+        true -> binder(checker, syntax, resolution, typing, applied, item, callee, 0u64 as +Trapping, 0u64 as +Trapping)
         _ -> done()
     }
 

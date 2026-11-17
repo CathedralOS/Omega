@@ -82,15 +82,20 @@ crashes Trap
 
     machine primitive_body(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
-        transition { _ -> retain_capacity(parser, input, PropositionBody::Primitive, 0, 0) }
+        transition { _ -> retain_capacity(parser, input, PropositionBody::Primitive, 0u64 as +Trapping, 0u64 as +Trapping) }
     }
 
     machine evidence_body(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedPropositionEvidence);
         transition parser.output.accepted {
-            true -> end(parser, input, PropositionBody::Evidence, parser.type_result, 0)
+            true -> capture_proposition_evidence_type(parser, input)
             _ -> done()
+        }
+
+        machine capture_proposition_evidence_type(parser: &mut Parser, input: &TokenStream) {
+            let captured_type: u64 in Trapping = parser.type_result;
+            transition { _ -> end(parser, input, PropositionBody::Evidence, captured_type, 0u64 as +Trapping) }
         }
     }
 
@@ -98,8 +103,13 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false, true);
         transition parser.output.accepted {
-            true -> end(parser, input, PropositionBody::Transparent, 0, parser.expression_result)
+            true -> capture_proposition_fact_expression(parser, input)
             _ -> done()
+        }
+
+        machine capture_proposition_fact_expression(parser: &mut Parser, input: &TokenStream) {
+            let captured_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> end(parser, input, PropositionBody::Transparent, 0u64 as +Trapping, captured_expression) }
         }
     }
 
