@@ -18,14 +18,29 @@ planning workspace beside the code, not part of it.
 | [plans/](plans/) | Migration plans. Each names a destination for every crate it covers and orders the moves as PRs that each end in a deletion. |
 | [evidence/scripts/](evidence/scripts/) | The scanners that produce the evidence. |
 | [evidence/data/](evidence/data/) | Their output, with the source revision it was taken at. |
-| [artifacts/](artifacts/) | Sources for the published pages. Each page uses the Omega design system. |
+| [artifacts/](artifacts/) | Sources for the generated pages. |
+| [pages/](pages/) | Every page as a static HTML file. Open one in any browser; no tools or accounts needed. |
+| [design/](design/) | The portable design kit: rules, tokens, fonts and a page template any model can use. |
+| [AGENTS.md](AGENTS.md) | Instructions for any agent working here (Codex and other GPT agents read it automatically). |
 
-## Published pages
+## Pages
 
-| Page | Source | What it shows |
-| --- | --- | --- |
-| [Omega pipeline map](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P) | [artifacts/pipeline-map/](artifacts/pipeline-map/) | The whole compiler as one linear pipeline, with today's reach-arounds as an overlay. |
-| [Foundation and backend plan](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) | [artifacts/foundation-backend-plan/](artifacts/foundation-backend-plan/) | Where every crate in `foundation/` and `backend/` goes, in what order. |
+Every page lives in [pages/](pages/) as a static HTML file. The online copies
+are the same pages published as Claude artifacts.
+
+| Page | File | Online copy | Source | What it shows |
+| --- | --- | --- | --- | --- |
+| Omega pipeline map | [pages/pipeline-map.html](pages/pipeline-map.html) | [link](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P) | [artifacts/pipeline-map/](artifacts/pipeline-map/) | The whole compiler as one linear pipeline, with today's reach-arounds as an overlay. |
+| Foundation and backend plan | [pages/foundation-backend-plan.html](pages/foundation-backend-plan.html) | [link](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) | [artifacts/foundation-backend-plan/](artifacts/foundation-backend-plan/) | Where every crate in `foundation/` and `backend/` goes, in what order. |
+
+## Working with any model
+
+Nothing here needs Claude's tools. A page is a static HTML file that links
+[design/tokens.css](design/tokens.css), so GPT, Codex or any other agent can
+read the evidence, edit a plan, and write or change a page with ordinary file
+edits. Start from [design/page-template.html](design/page-template.html) and
+follow [design/README.md](design/README.md). [AGENTS.md](AGENTS.md) holds the
+working rules; Codex reads it automatically when it works in this folder.
 
 ## Evidence: how to reproduce it
 
@@ -55,14 +70,13 @@ claims *unverified*.
 ## Rebuilding the pages
 
 ```bash
-python3 atlas/artifacts/pipeline-map/build_map.py
 python3 -m pip install markdown==3.7   # once, for the plan page
-python3 atlas/artifacts/foundation-backend-plan/build_fplan.py
+python3 atlas/build_pages.py
 ```
 
-Each writes `out/index.html` beside its script (ignored by git). The pages load
-the Omega Serif fonts from the published design system, so a local preview
-falls back to Georgia.
+`build_pages.py` runs each builder in `artifacts/` and writes the result to
+`pages/<name>.html`, with fonts loaded from `design/fonts/`. Commit the
+regenerated pages with the change that caused them.
 
 ## Rules for working here
 

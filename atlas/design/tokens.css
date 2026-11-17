@@ -1,0 +1,59 @@
+/*
+ * Omega design tokens, portable copy. Link this file from any page in
+ * atlas/pages/ as ../design/tokens.css. The values match the Omega design
+ * system (tokens.json beside this file is the source); change them there
+ * first, then here.
+ *
+ * Two themes: Limestone (light, default) and Ink (dark). The dark values
+ * apply when the reader's system prefers dark, unless the page sets
+ * data-theme="light"; data-theme="dark" forces them.
+ */
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+
+:root {
+  /* Color: Limestone */
+  --ground: #e6e2d9;      /* page background */
+  --surface: #f2efe8;     /* panels, code, inputs, figures */
+  --ink: #1c1d1f;         /* text and solid marks; realized (Omega) fills */
+  --ink-muted: #55534e;   /* secondary text, labels, control borders */
+  --rule: #a9a49a;        /* decorative hairlines only */
+  --checked: #275f53;     /* proven, passing, closed; focus ring */
+  --on-checked: #f2efe8;
+  --trap: #a63a24;        /* traps, rejections, reach-arounds; keep small */
+  --on-trap: #f2efe8;
+
+  /* Type */
+  --font-serif: "Omega Serif", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --type-display: 300 56px/62px var(--font-serif);
+  --type-heading: 500 32px/40px var(--font-serif);
+  --type-subheading: 500 20px/28px var(--font-serif);
+  --type-body: 400 17px/28px var(--font-serif);
+  --type-label: 500 13px/18px var(--font-serif);   /* letter-spacing: 0.02em */
+  --type-code: 400 14px/22px var(--font-mono);
+
+  /* Space: each step doubles */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 16px;  --space-4: 32px;  --space-5: 64px;
+
+  /* Shape */
+  --radius-stone: 0;      /* every block, tile and panel */
+  --radius-chamfer: 2px;  /* buttons and inputs only */
+  --radius-arch: 9999px;  /* top corners only: pips and section markers */
+  --border-hairline: 1px; /* in --rule, between sections */
+  --border-control: 2px;  /* control edges and outlined (Psi) shapes */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+    --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+  --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719;
+  color-scheme: dark;
+}
