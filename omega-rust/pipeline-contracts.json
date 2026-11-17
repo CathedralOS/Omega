@@ -1,0 +1,678 @@
+{
+  "items": [
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:semantic_vocabulary :: compiler_evaluation :: DeclarationCustody#1",
+      "kind": "definition",
+      "meaning": "Authenticated declaration identity for an entry schema.",
+      "producer": "02 portable publication",
+      "signature": "17675badaf00f11df4b4a7f602b05821323cae9bc0cf491ef1a19b823d43936a"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:std :: sync :: Arc#1",
+      "kind": "definition",
+      "meaning": "Shared ownership of immutable published code and evidence.",
+      "producer": "02 portable publication",
+      "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "struct:PublishedProgram#1",
+      "kind": "carried_record",
+      "meaning": "Canonical program, evidence, provenance and entry declaration custody handed to native planning.",
+      "producer": "02 portable publication",
+      "signature": "41b6be43d918f950285908ab7872e68f1c7be5f919d843547e428096b277ee10"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "PublishedProgram::field:artifact#1",
+      "kind": "carried_record",
+      "meaning": "Canonical Psi artifact issued for the executable program.",
+      "producer": "02 portable publication",
+      "signature": "ee5f218d8d37ddafe17c6ee0a6b09a00393a0eeecb6831a8e42f495609a5fb7c"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "PublishedProgram::field:evidence#1",
+      "kind": "carried_record",
+      "meaning": "Optional existing evidence seals associated with the canonical artifact.",
+      "producer": "02 portable publication",
+      "signature": "a051c67203cfdc9380e9a9b9ae0c5a70da2ad65e28200fc5c17e11033ad274f8"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "PublishedProgram::field:provenance#1",
+      "kind": "carried_record",
+      "meaning": "Machine-to-source provenance for the published program.",
+      "producer": "02 portable publication",
+      "signature": "cae44430378640526cf88ca6a38e8ae1b9d551c64e65d6c5f69cbc94f33b3306"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "PublishedProgram::field:entry_custody#1",
+      "kind": "carried_record",
+      "meaning": "Exact entry declaration and its checked custody result, including refusal.",
+      "producer": "02 portable publication",
+      "signature": "c8a17a1bd404f96a104bf1ab34ea1b50d4452a6bfb18f2770cb61b4ac8314f7f"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::implementation#1",
+      "kind": "producer",
+      "meaning": "Canonical program, evidence, provenance and entry declaration custody handed to native planning.",
+      "producer": "02 portable publication",
+      "signature": "6c623f3f3d16bf8de5e397fafe298fbde7cba1f23857f64c0f9fcf04741d3796"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::method:from_source#1",
+      "kind": "producer",
+      "meaning": "Projects authenticated entry custody from the accepted program while source selections are available.",
+      "producer": "02 portable publication",
+      "signature": "72a6e81b5ae01039d8d9bce8a8d7c4cc5c5e56cad663277be8b7100231aa927c"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::method:artifact#1",
+      "kind": "carried_record",
+      "meaning": "Canonical Psi artifact issued for the executable program.",
+      "producer": "02 portable publication",
+      "signature": "eec80ea36bd5335c1fa9e2a9fcb503b8a46eb75e097798aaa3ac76973d3ff33f"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::method:evidence#1",
+      "kind": "carried_record",
+      "meaning": "Optional existing evidence seals associated with the canonical artifact.",
+      "producer": "02 portable publication",
+      "signature": "86d11fb919138e028b8c954b1694e41819ee1c04f921153ab6b62aa80a154dcb"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::method:machine_provenance#1",
+      "kind": "carried_record",
+      "meaning": "Machine-to-source provenance for the published program.",
+      "producer": "02 portable publication",
+      "signature": "65cbae6e666c625a7fdb4a2fcad13871a57df943f2f4adbd38f173b7be4d44ef"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:PublishedProgram::method:entry_schema_custody#1",
+      "kind": "carried_record",
+      "meaning": "Retrieves the custody or stored refusal for an exact entry schema.",
+      "producer": "02 portable publication",
+      "signature": "0b2b231a3ea2593c8dc6d8fcdfea9f1936c473f4358cef3e0b6e6467d56e309a"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "struct:ExecutablePackageInputs#1",
+      "kind": "carried_record",
+      "meaning": "Package dependency and binding records copied from checked source custody.",
+      "producer": "02 portable publication",
+      "signature": "95f1b6ba882a0174602230d2a25d6a7da10c84cf9ebeba9a1c0ff4b935767c7b"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "ExecutablePackageInputs::field:dependency_closure#1",
+      "kind": "carried_record",
+      "meaning": "Optional acquired package dependency closure for this product.",
+      "producer": "02 portable publication",
+      "signature": "adff538371c4a0cd971569e6c8eea395f300d7fc577159860addc37bcde613a6"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "ExecutablePackageInputs::field:accepted_semantic_bindings#1",
+      "kind": "carried_record",
+      "meaning": "Checked semantic binding and evidence for each selected package application.",
+      "producer": "02 portable publication",
+      "signature": "396c40bc64644015f62427ad66fff486ab957923c7ffb7abf661971357eea09f"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ExecutablePackageInputs::implementation#1",
+      "kind": "producer",
+      "meaning": "Package dependency and binding records copied from checked source custody.",
+      "producer": "02 portable publication",
+      "signature": "1afdbc0d217f1aec40bf86b33f5b946b2e1649908c05048c1e5bef23e5bec237"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ExecutablePackageInputs::method:from_checked#1",
+      "kind": "producer",
+      "meaning": "Copies dependency and binding records for this exact checked source set.",
+      "producer": "02 portable publication",
+      "signature": "f9fdcaca864988b2ae86ba26cb35a19f85f99de11fa7c7444256cf91e6076f2f"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ExecutablePackageInputs::method:dependency_closure#1",
+      "kind": "carried_record",
+      "meaning": "Optional acquired package dependency closure for this product.",
+      "producer": "02 portable publication",
+      "signature": "90ddf164fa78c120c76a8557145c04f89ce6659acd9dfc07cef69d10ada30466"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ExecutablePackageInputs::method:accepted_semantic_binding#1",
+      "kind": "carried_record",
+      "meaning": "Returns the accepted binding and evidence only for its exact package and declaration.",
+      "producer": "02 portable publication",
+      "signature": "4f5b0358f06c57462dbd47247c5b2c246ee7ed82e847c450d2c5d7f05a7ae29d"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Reported refusal when portable publication fails.",
+      "producer": "02 portable publication",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:optimization :: PsiOptimizationSelections#1",
+      "kind": "definition",
+      "meaning": "Optimizer operations authorized for portable publication.",
+      "producer": "02 portable publication",
+      "signature": "91e4691793836cb8c08f70610dcaf9cc26384509bc6df1978a8722cdb5693aa9"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:source_compiler :: SourcePublication#1",
+      "kind": "definition",
+      "meaning": "Source publication policy used to issue the accepted product.",
+      "producer": "02 portable publication",
+      "signature": "11926903d9a47ad2ca2d311ef18f50e873cd33890279bf2db848a68519128801"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:source_compiler :: { PortableTerminalProgram , PsiCompilationObserver }#1",
+      "kind": "definition",
+      "meaning": "The source owner’s accepted portable program and compilation observer.",
+      "producer": "02 portable publication",
+      "signature": "7a5bfabf782ad0386fd0d1e1d0b644b35a4f00855422936214125ca92285b70d"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "struct:ProductCodeSource#1",
+      "kind": "carried_record",
+      "meaning": "Input borrowed by portable publication while the source owner is still live.",
+      "producer": "02 portable publication",
+      "signature": "948d7266d4d3d8afbea5bffba0e2baf8719596eebb98b64d080ab163bcbb08a5"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "ProductCodeSource::field:publication#1",
+      "kind": "carried_record",
+      "meaning": "Source publication policy and its accepted input, borrowed while sealing.",
+      "producer": "02 portable publication",
+      "signature": "fdcf8d9e6fde92bc10a2a2827c00f7badfc1dfa6ff003e399e93355c81c686db"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "ProductCodeSource::field:sources#1",
+      "kind": "carried_record",
+      "meaning": "Checked package custody borrowed while preparing this product.",
+      "producer": "02 portable publication",
+      "signature": "3457840c15925bc0acd970c696e7b23f1aa6402e93a9902b4982d844f00986b3"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ProductCodeSource < 'a >::implementation#1",
+      "kind": "producer",
+      "meaning": "Input borrowed by portable publication while the source owner is still live.",
+      "producer": "02 portable publication",
+      "signature": "cf0335bc596d45aadbd3da34c75f178002c2cafd6b9f4b49879f15d5067a73fc"
+    },
+    {
+      "consumers": [
+        "native compiler",
+        "products"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "impl:ProductCodeSource < 'a >::method:publish#1",
+      "kind": "producer",
+      "meaning": "Asks the source owner for the executable publication under the requested optimization selections.",
+      "producer": "02 portable publication",
+      "signature": "3dbb1fdf8a6ac95c5ea7a41182a71164e297e0ace57dd0ea1119a33b26b5245a"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "use:verified_optimization_input :: publication :: SemanticEmissionFacts#1",
+      "kind": "definition",
+      "meaning": "Projected semantic emission facts for the retained body.",
+      "producer": "04 physical program planning",
+      "signature": "d3aea7c011a9c8673884b257e714d842dd4dc671e9bd6192606e79858ae03bf3"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "struct:EmissionFacts#1",
+      "kind": "carried_record",
+      "meaning": "Physical publication and verification facts carried beyond register allocation.",
+      "producer": "04 physical program planning",
+      "signature": "55bf8a2325a6ddc39fd211d17fc6adbb9497432ad0d4ddf215a1c152be81dc15"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:termination#1",
+      "kind": "carried_record",
+      "meaning": "Whether the retained body meets its termination obligations.",
+      "producer": "04 physical program planning",
+      "signature": "bfd113f5eebe61710c71e8db8fb601cfb5dab5a66c596d42b41b14bc5129889d"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:faults#1",
+      "kind": "carried_record",
+      "meaning": "Checked physical origins of potential faults, or the refusal to establish them.",
+      "producer": "04 physical program planning",
+      "signature": "2eb708320925f54d971495a5466808f02b8e07375496e3f92b7aa0bec024ae2d"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:cpu#1",
+      "kind": "carried_record",
+      "meaning": "Physical CPU operation origins retained for runtime and image checks.",
+      "producer": "04 physical program planning",
+      "signature": "95963cf372040b7553847ac507e28b5358547cf2aad5dc2d65b004f0e07ac30f"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:internal_calls#1",
+      "kind": "carried_record",
+      "meaning": "Internal call contracts and correspondence to physical call sites.",
+      "producer": "04 physical program planning",
+      "signature": "4120b82526a7d2d195ff5a0d3d01fd84c0744b2755f71eb75c8dadb5b55c06bf"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:boundary_settlements#1",
+      "kind": "carried_record",
+      "meaning": "Resolved boundary uses and the physical sites to which they apply.",
+      "producer": "04 physical program planning",
+      "signature": "4d040108b4f5c9d80d39cc2335fbeb1cac1f26986a348293ddcd1cb16b5d1d0e"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:contracts#1",
+      "kind": "carried_record",
+      "meaning": "Shared immutable contracts established at instruction selection.",
+      "producer": "04 physical program planning",
+      "signature": "d566aed204677fb39e77d7cd4b2487e4033ad820f1e9af17a558d1625ceb7552"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:port_writes#1",
+      "kind": "carried_record",
+      "meaning": "Authorized port-write correspondence or its unresolved error.",
+      "producer": "04 physical program planning",
+      "signature": "09cc84c0f0cb4efd888998c6ba154970105092e1fa2cc81a665b6fdbbfdf3b15"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:temporary_stack#1",
+      "kind": "carried_record",
+      "meaning": "Temporary stack use per physical function.",
+      "producer": "04 physical program planning",
+      "signature": "950924d1fc26f680af7227700c8e982ba37fc6a390c9c746fcae819088ed0326"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:semantic#1",
+      "kind": "carried_record",
+      "meaning": "Projected semantic emission facts for the retained body.",
+      "producer": "04 physical program planning",
+      "signature": "adeced9c113b3791e35ef6a156bcfdc43235e5103194c9f3bcda9f99c671cc83"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:stack#1",
+      "kind": "carried_record",
+      "meaning": "Frame and call contributions used to establish physical stack demand.",
+      "producer": "04 physical program planning",
+      "signature": "f055d057f028b77d7a9affa983fa02fff1c503a710f428b7f91bb520e54364c0"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:calls#1",
+      "kind": "carried_record",
+      "meaning": "Correspondence of physical calls with their semantic origins.",
+      "producer": "04 physical program planning",
+      "signature": "9adcadd25d029e98fb27b2cfa8ec787e5897bd571f5802ecf87f6cbeb6bdd3e8"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:image_origins#1",
+      "kind": "carried_record",
+      "meaning": "Image-address references and their provenance or the recorded refusal.",
+      "producer": "04 physical program planning",
+      "signature": "9a953d0bb78861d8fad3258ff56d71c94d0e029e5010a3ef261d265321c179e9"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "EmissionFacts::field:foreign_calls#1",
+      "kind": "carried_record",
+      "meaning": "Settled foreign-call plans and their correspondence to physical sites.",
+      "producer": "04 physical program planning",
+      "signature": "33d60978b08b2589ecbe8634aa7a7e7cb878b83fd14f02f174976c1f752d8ee0"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::implementation#1",
+      "kind": "carried_record",
+      "meaning": "Borrows the retained semantic facts from the physical emission record.",
+      "producer": "04 physical program planning",
+      "signature": "e798b603c76ce52746ae9e763791f045f6efdc99c5bb4c9fe46c68b51eaf5dfd"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::alias:Target#1",
+      "kind": "definition",
+      "meaning": "The projection exposes only the retained semantic emission facts.",
+      "producer": "04 physical program planning",
+      "signature": "1f926b3b26baf7e6a31d98539ca5566f2baa5d0a6deeeb85529a1bbe3db0dcfa"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::method:deref#1",
+      "kind": "carried_record",
+      "meaning": "Borrows the retained semantic facts from the physical emission record.",
+      "producer": "04 physical program planning",
+      "signature": "69c210d06a79419d5352edf09a8833e48e95b027e38d75f09940ee92fd3cd3bc"
+    },
+    {
+      "consumers": [
+        "native compiler callback planning"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "function:handler_planning_order#1",
+      "kind": "producer",
+      "meaning": "Orders installed handlers before their installers and rejects cyclic resource demand.",
+      "producer": "04 physical program planning",
+      "signature": "06a24aafcd44b4200ae8daa2d027a3bf4d9548017ee0667fda103c8953a429c5"
+    },
+    {
+      "consumers": [
+        "native compiler callback planning"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "handler_planning_order::enum:State#1",
+      "kind": "definition",
+      "meaning": "The unseen, active and finished states for one installation in the dependency walk.",
+      "producer": "04 physical program planning",
+      "signature": "77735717358860aa74283351300fd69b5cd6ec34b082b7a4bf8aa4f94d4a3e6e"
+    },
+    {
+      "consumers": [
+        "physical planning unit tests"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "module:tests#1",
+      "kind": "test_support",
+      "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
+      "producer": "04 physical program planning",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+    },
+    {
+      "consumers": [
+        "physical planning unit tests"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "tests::use:super :: handler_planning_order#1",
+      "kind": "test_support",
+      "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
+      "producer": "04 physical program planning",
+      "signature": "9297b7fda8a572fbfd9725cd00caa5f42623c9cb19852b690472624a0903bd68"
+    },
+    {
+      "consumers": [
+        "physical planning unit tests"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "tests::function:shared_handlers_precede_each_installer_and_ordinary_callbacks_follow_root#1",
+      "kind": "test_support",
+      "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
+      "producer": "04 physical program planning",
+      "signature": "788e3b26e6e907135ec1729522def82ddc770fbd583ac4829798abc040ee262a"
+    },
+    {
+      "consumers": [
+        "physical planning unit tests"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
+      "item": "tests::function:nested_installations_use_bounded_heap_work#1",
+      "kind": "test_support",
+      "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
+      "producer": "04 physical program planning",
+      "signature": "4b233793cb33731fd97c87a6aaf38a07e03ec3c7e8270564eadcda3cecd9f96a"
+    }
+  ],
+  "roots": [
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "definition"
+      ],
+      "path": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "definition",
+        "producer"
+      ],
+      "path": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs"
+    },
+    {
+      "allowed_kinds": [
+        "definition",
+        "producer",
+        "test_support"
+      ],
+      "path": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs"
+    }
+  ],
+  "version": 1
+}

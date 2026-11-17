@@ -4,6 +4,8 @@
 //! target-specific edges, excluding dev-dependencies for production boundaries)
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
+mod linear_pipeline;
+
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -12,10 +14,9 @@ use std::process::Command;
 
 pub const NATIVE_ROOT: &str = "omega-rust/omega/compilation/native-compiler";
 pub const PROVIDER_SELECTION_ROOT: &str =
-    "omega-rust/omega/compilation/realization/provider-selection";
+    "omega-rust/omega/compilation/verification/provider-correspondence";
 pub const PROVIDER_ADMISSION_ROOT: &str =
-    "omega-rust/omega/compilation/realization/provider-admission";
-pub const TRUST_ROOT: &str = "omega-rust/omega/compilation/realization/trust-model";
+    "omega-rust/omega/compilation/verification/provider-admission";
 pub const RUNTIME_ROOT: &str = "omega-rust/omega/interpreter/terminal-runtime";
 pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str =
     "omega-rust/omega/interpreter/native-provider-runtime";
@@ -26,12 +27,31 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     PROVIDER_ADMISSION_ROOT,
     "omega-rust/omega/compilation/pipeline",
     "omega-rust/omega/compilation/representations",
-    "omega-rust/omega/compilation/backend",
-    "omega-rust/omega/foundation",
+    "omega-rust/omega/compilation/target-description",
+    "omega-rust/omega/compilation/verification",
+    "omega-rust/omega/host-support/platform-custody",
     "omega-rust/psi/foundation",
-    "omega-rust/psi/compilation/representations/terminal-psi",
-    "omega-rust/psi/compilation/terminal-installation",
+    "omega-rust/psi/evaluation",
+    "omega-rust/psi/interpreter",
+    "omega-rust/psi/runtime",
     "omega-rust/psi/compilation/proof-admission",
+    "omega-rust/psi/compilation/access-admission",
+    "omega-rust/psi/compilation/terminal-installation",
+    "omega-rust/psi/compilation/layout-planning",
+    "omega-rust/psi/compilation/representations/terminal-psi",
+    "omega-rust/psi/compilation/representations/access-vocabulary",
+    "omega-rust/psi/compilation/representations/application-identity",
+    "omega-rust/psi/compilation/representations/declaration-contracts",
+    "omega-rust/psi/compilation/representations/declaration-identity",
+    "omega-rust/psi/compilation/representations/extent-contracts",
+    "omega-rust/psi/compilation/representations/numeric-literals",
+    "omega-rust/psi/compilation/representations/optimization-policy",
+    "omega-rust/psi/compilation/representations/scalar-values",
+    "omega-rust/psi/compilation/representations/schema-reflection",
+    "omega-rust/psi/compilation/representations/semantic-vocabulary",
+    "omega-rust/psi/compilation/representations/source-effects",
+    "omega-rust/psi/compilation/representations/source-vocabulary",
+    "omega-rust/psi/compilation/representations/storage-layout",
 ];
 
 const PSI: &str = "omega-rust/psi";
@@ -44,55 +64,24 @@ const PRODUCTS: &str = "omega-rust/omega/compilation/products";
 const BUILD_EVALUATION: &str = "omega-rust/omega/build-system/build-settings";
 const BUILD_COORDINATOR: &str = "omega-rust/omega/build-system/orchestration";
 const CLI_APPLICATION: &str = "omega-rust/omega/application";
-const TRUST_MODEL: &str = "omega-rust/omega/compilation/realization/trust-model";
 const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
-const PSI_FACADE: &str = "omega-rust/psi/compilation/pipeline/01_source-compilation";
-const TERMINAL_PRODUCTION: &str = "omega-rust/psi/compilation/terminal-production";
-const PROVIDER_PLANNING: &str = "omega-rust/omega/compilation/realization/provider-planning";
-
-const PSI_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
-    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
-    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
-];
-
-// The final stage checks Terminal Psi; every earlier stage processes source.
-// Derive the source and parser subsets from the stage catalog so a separate
-// source roster cannot accidentally omit the lexer or parser from facade rules.
-const SOURCE_STAGES: &[&str] = PSI_STAGES.split_at(PSI_STAGES.len() - 1).0;
-const PARSER_STAGES: &[&str] = SOURCE_STAGES.split_at(2).0;
-
+#[cfg(test)]
+const PSI_FACADE: &str = linear_pipeline::STAGES[1];
+const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
 const OMEGA_COMPILATION: &[&str] = &[
+    NATIVE_ROOT,
+    PROVIDER_ADMISSION_ROOT,
+    PROVIDER_SELECTION_ROOT,
     "omega-rust/omega/compilation/pipeline",
-    "omega-rust/omega/compilation/backend",
     "omega-rust/omega/compilation/representations",
-    "omega-rust/omega/compilation/realization",
+    "omega-rust/omega/compilation/target-description",
+    "omega-rust/omega/compilation/verification",
 ];
-
 const SOURCE_SIDE_PSI: &[&str] = &[
-    "omega-rust/psi/compilation/representations/syntax-trees",
-    "omega-rust/psi/compilation/representations/symbol-resolved-trees",
-    "omega-rust/psi/compilation/representations/typed-trees",
     PSI_PIPELINE,
-    PSI_FACADE,
-    "omega-rust/psi/compilation/build-time-evaluation",
-    "omega-rust/psi/interpreter",
-];
-
-const OMEGA_STAGES: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations",
-    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
-    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
-    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/06_native-encoding",
-    "omega-rust/omega/compilation/pipeline/07_native-layout",
+    "omega-rust/psi/compilation/representations/source-admission",
+    "omega-rust/psi/compilation/representations/syntax-trees",
+    "omega-rust/psi/compilation/representations/tokens",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,34 +89,6 @@ pub struct Allowance {
     pub owner: &'static str,
     pub dependency: &'static str,
 }
-
-const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
-    owner: PROVIDER_PLANNING,
-    dependency: "omega-rust/psi/compilation/build-time-evaluation",
-}];
-
-/// Libraries that still call into a numbered Omega stage instead of reading the
-/// representation the driver hands them. Each row is a reach around the one
-/// native pipeline: emission rereads an earlier stage's output beside the
-/// final machine form, or runs a stage's helper itself. Remove a row when its
-/// edge goes; the stale-allowance check refuses a row whose edge is gone, so
-/// the list can only shrink. Never add a row.
-const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
-    // Object replay and validation rerun stage 02 preparation and stage 03
-    // geometry helpers on the earlier program an audit request retains.
-    Allowance {
-        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
-        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
-    },
-    Allowance {
-        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
-        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
-    },
-    Allowance {
-        owner: "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
-        dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
-    },
-];
 
 pub struct Rule {
     pub owners: Vec<&'static str>,
@@ -184,155 +145,113 @@ fn normalize_relative(root: &Path, target: &Path) -> Result<String, String> {
 }
 
 pub fn forbidden_rules() -> Vec<Rule> {
-    let mut rules = vec![
-        Rule {
-            owners: vec![PSI],
-            forbidden: vec![OMEGA],
-            reason: "Psi must not depend on Omega",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![CLI_APPLICATION],
-            forbidden: vec![PSI_PIPELINE, OMEGA_PIPELINE],
-            reason: "application operations call compiler facades, not numbered transforms",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![BUILD_COORDINATOR],
-            forbidden: vec![
-                PSI_PIPELINE,
-                OMEGA_PIPELINE,
-                "omega-rust/psi/compilation/representations/syntax-trees",
-                "omega-rust/psi/compilation/representations/typed-trees",
-                PROVIDER_PLANNING,
-            ],
-            reason: "Build reaches the language through product facades, not stages or representations",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![PRODUCT_COORDINATOR],
-            forbidden: vec![OMEGA_PIPELINE, TERMINAL_PRODUCTION],
-            reason: "the product coordinator does not run native stages or wrap Terminal production",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![PRODUCT_COORDINATOR, PRODUCTS, BUILD_EVALUATION],
-            forbidden: SOURCE_STAGES.to_vec(),
-            reason: "product consumers call the Psi facade and do not assemble source stages",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![
-                "omega-rust/omega/packages/package-compilation",
-                "omega-rust/omega/packages/build-declarations",
-                PACKAGE_MANAGER,
-            ],
-            forbidden: PARSER_STAGES.to_vec(),
-            reason: "package consumers receive parsed sources and do not run the lexer or parser",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![PACKAGE_MANAGER],
-            forbidden: vec![
-                "omega-rust/omega/compilation/representations/component-description",
-                PROVIDER_PLANNING,
-                "omega-rust/psi/foundation/flow-effects",
-                "omega-rust/psi/foundation/symbols",
-            ],
-            reason: "package custody and review do no checking, provider planning or product production",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![REVIEW_EVIDENCE],
-            forbidden: vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
-            reason: "review evidence capture sits below package policy and the compiler",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![TRUST_MODEL],
-            forbidden: vec![
-                "omega-rust/psi/compilation/build-time-evaluation",
-                "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-                "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
-                "omega-rust/psi/compilation/terminal-installation",
-                "omega-rust/psi/compilation/representations/terminal-psi",
-                "omega-rust/omega/compilation/target-description/target",
-                "omega-rust/psi/foundation/semantic-vocabulary",
-            ],
-            reason: "trust admission does not reconstruct grants from source or target owners",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![TERMINAL_PRODUCTION],
-            forbidden: vec!["omega-rust/psi/compilation/build-time-evaluation"],
-            reason: "Terminal production sits below compile-time evaluation, which calls it",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: OMEGA_COMPILATION.to_vec(),
-            forbidden: SOURCE_SIDE_PSI.to_vec(),
-            reason: "Omega cannot depend on source IRs, source checkers or interpreters (pipeline.md \"Public contracts\"); consume Terminal Psi and Build rows",
-            except_owners: vec![],
-            allowed: FIREWALL_ALLOWANCES.to_vec(),
-        },
-    ];
-    // The native driver is the only production caller of the numbered Omega
-    // stages, so the stages run once, in order, as one pipeline. A library
-    // that needs a stage's result reads the representation the driver hands
-    // it; stage-to-stage edges have their own rule below.
-    rules.push(Rule {
-        owners: vec!["omega-rust"],
-        forbidden: OMEGA_STAGES.to_vec(),
-        reason: "only the native driver runs Omega stages (pipeline.md \"Two drivers, one pass\"); read the representation the driver hands you",
-        except_owners: vec![NATIVE_ROOT, OMEGA_PIPELINE],
-        allowed: STAGE_CALL_ALLOWANCES.to_vec(),
-    });
-    // Instruction selection is handed the execution plan stage 02 prepared.
-    // The abstract program, the optimization unit and its fact tables, and the
-    // sealed module's codec are what that plan was prepared from; selection
-    // must not be able to name them. Leaf vocabulary those forms share lives
-    // in representations/native-vocabulary, below all of them.
-    rules.push(Rule {
-        owners: vec![OMEGA_STAGES[3]],
-        forbidden: vec![
-            "omega-rust/omega/compilation/representations/abstract-operations",
-            "omega-rust/psi/compilation/representations/terminal-psi/codec",
-        ],
-        reason: "instruction selection reads the prepared execution plan, not the abstract program, the optimization unit or the sealed module (omega-rust/pipeline.md); carry what selection needs in the plan",
+    use linear_pipeline::STAGES;
+    let rule = |owners, forbidden, reason| Rule {
+        owners,
+        forbidden,
+        reason,
         except_owners: vec![],
         allowed: vec![],
-    });
-    // Typing and Terminal stages consume representation-owned handoffs; their
-    // drivers, not adjacent stages, coordinate deferred work.
-    for (owners, stages) in [
-        (&PSI_STAGES[3..4], PSI_STAGES),
-        (&PSI_STAGES[5..], PSI_STAGES),
-        (OMEGA_STAGES, OMEGA_STAGES),
-    ] {
-        for &owner in owners {
-            rules.push(Rule {
-            owners: vec![owner],
-            forbidden: stages
-                .iter()
-                .copied()
-                .filter(|&other| other != owner)
-                .collect(),
-            reason: "stages cannot call adjacent stages to reconstruct missing input facts (pipeline.md \"Public contracts\"); put the shared representation in compilation/representations",
-            except_owners: vec![],
-            allowed: FIREWALL_ALLOWANCES.to_vec(),
-        });
-        }
+    };
+    let mut rules = vec![
+        rule(
+            vec![CLI_APPLICATION],
+            vec![PSI_PIPELINE, OMEGA_PIPELINE],
+            "the CLI enters through project orchestration",
+        ),
+        rule(
+            vec![BUILD_COORDINATOR, BUILD_EVALUATION],
+            vec![
+                OMEGA_PIPELINE,
+                FRONTEND_OPERATIONS[0],
+                FRONTEND_OPERATIONS[1],
+            ],
+            "Build uses the product and source entry points",
+        ),
+        rule(
+            vec![PRODUCT_COORDINATOR],
+            vec![
+                STAGES[3], STAGES[4], STAGES[5], STAGES[6], STAGES[7], STAGES[8], STAGES[9],
+            ],
+            "the native driver orders target compilation",
+        ),
+        rule(
+            vec![
+                PRODUCT_COORDINATOR,
+                PRODUCTS,
+                BUILD_EVALUATION,
+                PACKAGE_MANAGER,
+                "omega-rust/omega/packages/package-compilation",
+                "omega-rust/omega/packages/build-declarations",
+            ],
+            FRONTEND_OPERATIONS.to_vec(),
+            "source consumers activate checked files through the streaming source owner",
+        ),
+        rule(
+            vec![REVIEW_EVIDENCE],
+            vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
+            "review evidence is captured independently of package policy and compilation",
+        ),
+        Rule {
+            except_owners: vec![STAGES[2]],
+            ..rule(
+                OMEGA_COMPILATION.to_vec(),
+                SOURCE_SIDE_PSI.to_vec(),
+                "native compilation consumes canonical Psi and admitted inputs",
+            )
+        },
+        rule(
+            vec![PROVIDER_SELECTION_ROOT],
+            vec![PSI_PIPELINE, NATIVE_ROOT],
+            "provider correspondence compares admitted declarations",
+        ),
+    ];
+    // Portable publication takes the accepted source result and ends that
+    // ownership. Other native phases may never import a source operation.
+    rules.push(rule(
+        vec![STAGES[2]],
+        FRONTEND_OPERATIONS.to_vec(),
+        "portable publication takes the accepted source result",
+    ));
+    rules.push(rule(
+        vec![PACKAGE_MANAGER],
+        STAGES.to_vec(),
+        "package management does not execute compiler stages",
+    ));
+    for stage in 3..=9 {
+        let mut external = rule(
+            vec!["omega-rust"],
+            vec![STAGES[stage]],
+            "only the native driver and the neighboring phase may consume native stage APIs",
+        );
+        external.except_owners.extend([
+            NATIVE_ROOT,
+            STAGES[stage],
+            STAGES[stage + 1],
+            "omega-rust/omega/compilation/verification",
+        ]);
+        rules.push(external);
     }
+    rules.push(rule(
+        vec![STAGES[4]],
+        vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
+        "physical planning reads the retained target operations",
+    ));
+    rules.push(rule(
+        vec![FRONTEND_OPERATIONS[0]],
+        vec![FRONTEND_OPERATIONS[1], linear_pipeline::FRONTEND[3]],
+        "the lexer produces tokens",
+    ));
+    rules.push(rule(
+        vec![FRONTEND_OPERATIONS[1]],
+        vec![FRONTEND_OPERATIONS[0]],
+        "the parser consumes token streams",
+    ));
+    rules.push(rule(
+        vec!["omega-rust/psi/compilation/representations/terminal-psi/check-tables"],
+        vec![PSI_PIPELINE],
+        "checker records cannot depend on a source producer",
+    ));
     rules
 }
 
@@ -415,7 +334,7 @@ pub fn stale_allowance_violations(
             ));
         } else if !edges.contains(&(allowed.owner.to_owned(), allowed.dependency.to_owned())) {
             violations.push(format!(
-                "{} -> {}: edge removed; delete its row from FIREWALL_ALLOWANCES so it cannot return",
+                "{} -> {}: edge removed; remove the obsolete allowance",
                 allowed.owner, allowed.dependency
             ));
         }
@@ -439,7 +358,6 @@ const STAGE_02_WORKING_FORM: &str =
 /// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/representations/bound-installations",
-    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
@@ -448,9 +366,6 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
     "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
-    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
     "omega-rust/omega/compilation/pipeline/06_native-encoding",
     "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
@@ -470,9 +385,6 @@ const AFTER_SELECTION: &[&str] = &[
     "omega-rust/omega/compilation/representations/register-homes",
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
-    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
     "omega-rust/omega/compilation/pipeline/06_native-encoding",
     "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
@@ -488,7 +400,6 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/bound-installations",
-    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/native-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
@@ -498,9 +409,6 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
     "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
-    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
     "omega-rust/omega/compilation/pipeline/06_native-encoding",
     "omega-rust/omega/compilation/pipeline/07_native-layout",
 ];
@@ -725,7 +633,7 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// The crate that defines the validator, and the one production caller: the
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
+    "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/preparation/",
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
 ];
 
@@ -740,7 +648,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 /// Stage 02 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
+    "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/",
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
 ];
 
@@ -835,9 +743,9 @@ fn call_violations_in(
 /// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout/src/function_realization.rs",
-        "stage_function_frame",
-        2,
+        "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/lib.rs",
+        "plan_physical_program",
+        3,
     ),
     (
         "omega-rust/omega/compilation/pipeline/06_native-encoding/src/lib.rs",
@@ -845,29 +753,24 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/06_native-encoding/src/lib.rs",
+        "omega-rust/omega/compilation/verification/encoding-admission/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
     (
         "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
-        "stage_optimized_resolved_selected_form_layout",
-        1,
+        "layout_program",
+        3,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
+        "omega-rust/omega/compilation/verification/encoding-admission/src/layout/mod.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
-        "execute_resolved_layout_optimization",
-        3,
-    ),
-    (
         "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout/src/function_realization.rs",
         "assemble_fixed_frame_realization",
-        1,
+        2,
     ),
 ];
 
@@ -983,7 +886,7 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
 pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
-        "omega-rust/omega/compilation/backend",
+        "omega-rust/omega/compilation/pipeline/09_image-construction",
         &["execution_plan", "pre_physical_manifest("],
         &[
             "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
@@ -1064,7 +967,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     let check_all = || -> Result<Vec<String>, String> {
-        let mut violations = representation_spelling_violations(&root);
+        let mut violations = linear_pipeline::violations(&metadata)?;
+        violations.extend(representation_spelling_violations(&root));
         violations.extend(crate::boundary_contracts::violations(
             &root,
             &root.join("omega-rust/pipeline-contracts.json"),
@@ -1111,12 +1015,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             PROVIDER_SELECTION_ROOT,
             provider_selection_owners,
         )?);
-        let mut trust_owners = vec![TRUST_ROOT];
-        trust_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
-        violations.extend(dependency_violations(&metadata, TRUST_ROOT, &trust_owners)?);
+        // Native planning now owns trust reconstruction as a private operation.
+        violations.extend(dependency_violations(
+            &metadata,
+            linear_pipeline::STAGES[3],
+            provider_selection_owners,
+        )?);
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
             NATIVE_PROVIDER_RUNTIME_ROOT,
+            "omega-rust/omega/host-support/bounded-process",
             "omega-rust/psi/interpreter",
         ];
         runtime_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
@@ -1125,7 +1033,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             RUNTIME_ROOT,
             &runtime_owners,
         )?);
-        let mut native_provider_owners = vec![NATIVE_PROVIDER_RUNTIME_ROOT];
+        let mut native_provider_owners = vec![
+            NATIVE_PROVIDER_RUNTIME_ROOT,
+            "omega-rust/omega/host-support/bounded-process",
+        ];
         native_provider_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
         violations.extend(dependency_violations(
             &metadata,
@@ -1181,9 +1092,13 @@ mod tests {
     #[test]
     fn facade_boundaries_follow_dependency_paths_not_source_or_alias_spelling() {
         for (owner, stage, facade) in [
-            (CLI_APPLICATION, PSI_STAGES[0], BUILD_COORDINATOR),
-            (BUILD_COORDINATOR, OMEGA_STAGES[0], PRODUCT_COORDINATOR),
-            (PRODUCT_COORDINATOR, PSI_STAGES[0], PSI_FACADE),
+            (CLI_APPLICATION, FRONTEND_OPERATIONS[0], BUILD_COORDINATOR),
+            (
+                BUILD_COORDINATOR,
+                linear_pipeline::STAGES[3],
+                PRODUCT_COORDINATOR,
+            ),
+            (PRODUCT_COORDINATOR, FRONTEND_OPERATIONS[0], PSI_FACADE),
         ] {
             for (dependency, kind, permitted) in [
                 (stage, None, false),
@@ -1212,28 +1127,29 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        const LIBRARY: &str = "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout";
+        const LIBRARY: &str =
+            "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout";
         const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
         for (owner, dependency, kind, permitted) in [
-            (NATIVE_ROOT, OMEGA_STAGES[9], None, true),
-            (LIBRARY, OMEGA_STAGES[3], None, false),
-            (LIBRARY, OMEGA_STAGES[3], Some("build"), false),
-            (LIBRARY, OMEGA_STAGES[3], Some("dev"), true),
-            (PACKAGES, OMEGA_STAGES[0], None, false),
+            (NATIVE_ROOT, linear_pipeline::STAGES[9], None, true),
+            (LIBRARY, linear_pipeline::STAGES[4], None, false),
+            (LIBRARY, linear_pipeline::STAGES[4], Some("build"), false),
+            (LIBRARY, linear_pipeline::STAGES[4], Some("dev"), true),
+            (PACKAGES, linear_pipeline::STAGES[3], None, false),
             (
                 LIBRARY,
-                "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+                "omega-rust/omega/compilation/pipeline/03_native-program-planning/runtime-provisions",
                 None,
                 false,
             ),
             // Machine emission reads stage 09's output as a representation.
-            (LIBRARY, OMEGA_STAGES[9], None, false),
-            // A row of the shrinking allowance list stays permitted.
+            (LIBRARY, linear_pipeline::STAGES[9], None, false),
+            // Image writers must not reach back to select instructions.
             (
                 "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
-                OMEGA_STAGES[3],
+                linear_pipeline::STAGES[4],
                 None,
-                true,
+                false,
             ),
         ] {
             let metadata = Metadata {
@@ -1253,10 +1169,18 @@ mod tests {
     #[test]
     fn shared_receipt_consumers_preserve_stage_boundaries() {
         for (owner, dependency, permitted) in [
-            (OMEGA_STAGES[1], OMEGA_STAGES[0], false),
-            (OMEGA_STAGES[2], OMEGA_STAGES[0], false),
-            (OMEGA_STAGES[2], OMEGA_STAGES[1], false),
-            (OMEGA_STAGES[3], OMEGA_STAGES[0], false),
+            (linear_pipeline::STAGES[4], linear_pipeline::STAGES[3], true),
+            (
+                linear_pipeline::STAGES[5],
+                linear_pipeline::STAGES[3],
+                false,
+            ),
+            (linear_pipeline::STAGES[5], linear_pipeline::STAGES[4], true),
+            (
+                linear_pipeline::STAGES[6],
+                linear_pipeline::STAGES[3],
+                false,
+            ),
         ] {
             let metadata = Metadata {
                 workspace_root: "/repo".to_owned(),
@@ -1499,7 +1423,8 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image = "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
+        let image =
+            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
         let files = [
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1621,7 +1546,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    OMEGA_STAGES[3],
+                    linear_pipeline::STAGES[4],
                     &[("dependency", dependency, kind)],
                 )],
             };
@@ -1636,48 +1561,41 @@ mod tests {
     }
 
     #[test]
-    fn typing_consumes_shared_data_not_its_resolution_producer() {
-        for (dependency, kind, permitted) in [
-            (PSI_STAGES[2], None, false),
-            (PSI_STAGES[2], Some("dev"), true),
+    fn streams_tokens_without_importing_the_other_operation() {
+        for (owner, input, forbidden) in [
             (
-                "omega-rust/psi/compilation/representations/symbol-resolved-trees",
-                None,
-                true,
+                FRONTEND_OPERATIONS[0],
+                linear_pipeline::FRONTEND[2],
+                FRONTEND_OPERATIONS[1],
             ),
-        ] {
-            let metadata = Metadata {
-                workspace_root: "/repo".to_owned(),
-                packages: vec![pkg("typing", PSI_STAGES[3], &[("input", dependency, kind)])],
-            };
-            let violations =
-                forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
-            assert_eq!(violations.is_empty(), permitted, "{violations:?}");
-        }
-    }
-
-    #[test]
-    fn terminal_checking_consumes_shared_data_not_its_source_producer() {
-        for (dependency, kind, permitted) in [
-            (PSI_STAGES[5], None, false),
-            (PSI_STAGES[5], Some("dev"), true),
+            (
+                FRONTEND_OPERATIONS[1],
+                linear_pipeline::FRONTEND[2],
+                FRONTEND_OPERATIONS[0],
+            ),
             (
                 "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
-                None,
-                true,
+                "omega-rust/psi/compilation/representations/semantic-vocabulary",
+                PSI_FACADE,
             ),
         ] {
-            let metadata = Metadata {
-                workspace_root: "/repo".to_owned(),
-                packages: vec![pkg(
-                    "checker",
-                    PSI_STAGES[6],
-                    &[("input", dependency, kind)],
-                )],
-            };
-            let violations =
-                forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
-            assert_eq!(violations.is_empty(), permitted, "{violations:?}");
+            for (dependency, kind, permitted) in [
+                (input, None, true),
+                (forbidden, None, false),
+                (forbidden, Some("dev"), true),
+            ] {
+                let metadata = Metadata {
+                    workspace_root: "/repo".into(),
+                    packages: vec![pkg("consumer", owner, &[("input", dependency, kind)])],
+                };
+                let violations =
+                    forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
+                assert_eq!(
+                    violations.is_empty(),
+                    permitted,
+                    "{owner} -> {dependency}: {violations:?}"
+                );
+            }
         }
     }
 
