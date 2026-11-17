@@ -168,6 +168,7 @@ mod product {
                 Self::Declaration(request) => matches!(
                     request.operation,
                     super::BuildOperation::ProviderSelection
+                        | super::BuildOperation::RepresentationSelection
                         | super::BuildOperation::NativeBinding
                         | super::BuildOperation::ServiceExclusion
                         | super::BuildOperation::BoundaryAcceptance

@@ -10,7 +10,6 @@
 
 use diagnostics::Diagnostic;
 use language_core::inline_assembly::AsmAuthorityAdmission;
-use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 use typed_trees::{FrozenTypedTrees, TypedTrees};
 
 /// One step of typed preparation and the name its refusals carry.
@@ -47,7 +46,6 @@ pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
     deferred_layout_applications: &'request [typed_trees::types::TypeReferenceHandle],
     asm_authority: Option<AsmAuthorityAdmission>,
-    opaque_representation_selections: &'request [OpaqueRepresentationSelection],
     wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
 }
 
@@ -57,7 +55,6 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: false,
             deferred_layout_applications: &[],
             asm_authority: None,
-            opaque_representation_selections: &[],
             wire_compatibility_demands: &[],
         }
     }
@@ -87,24 +84,17 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: self.admits_pending_inputs,
             deferred_layout_applications: self.deferred_layout_applications.to_vec(),
             asm_authority: self.asm_authority,
-            opaque_representation_selections: self.opaque_representation_selections.to_vec(),
             wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
         }
     }
 
-    /// The three kinds of requested work have no pass yet. Each was served by
-    /// the deleted checker (layout evaluation, representation admission, wire
-    /// compatibility), so none may be dropped and the program presented as
-    /// prepared.
+    /// Deferred layouts and wire compatibility still need dedicated passes.
+    /// Dropping either request would publish an incompletely prepared product.
     fn require_served(&self) -> Result<(), Vec<Diagnostic>> {
         let unserved = [
             (
                 !self.deferred_layout_applications.is_empty(),
                 "deferred layout applications",
-            ),
-            (
-                !self.opaque_representation_selections.is_empty(),
-                "opaque representation selections",
             ),
             (
                 !self.wire_compatibility_demands.is_empty(),
@@ -129,7 +119,6 @@ pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     asm_authority: Option<AsmAuthorityAdmission>,
-    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
 }
 

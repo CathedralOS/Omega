@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Tools and verification</h1>
       <p class="lede">Repository commands, gates, and the difference between a source check and an execution result.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/tools.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/tools.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -666,52 +666,52 @@ shared mechanisms named above. Follow the command's actual dispatcher and owner.
 <h2 id="one-shipped-route-inspecting-a-saved-psi-artifact">One shipped route: inspecting a saved Psi artifact</h2>
 <pre><code class="language-sh">omega psi inspect --artifact program.psi &lt; /dev/null
 </code></pre>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority."><svg viewBox="0.00 0.00 1062.00 69.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority." style="min-width:1062px">
-<title>Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.</title><defs><marker id="tools-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="tools-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="tools-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="tools-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 60.36)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority."><svg viewBox="0.00 0.00 1131.28 67.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority." style="min-width:1131px">
+<title>Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.</title><defs><marker id="tools-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="tools-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="tools-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="tools-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 58.64)">
 <title>atlas</title>
 
 <g id="tools-diagram-1-node1" class="node around" data-node="A">
 <title>A</title>
-<polygon points="141.18,-51.06 0,-51.06 0,-0.66 141.18,-0.66 141.18,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="70.59" y="-21.76">CLI artifact request</text>
+<polygon points="150,-50 0,-50 0,0 150,0 150,-50" />
+<text text-anchor="middle" x="75" y="-21.6">CLI artifact request</text>
 </g>
 
 <g id="tools-diagram-1-node2" class="node around" data-node="B">
 <title>B</title>
-<polygon points="410.86,-51.06 277.93,-51.06 277.93,-0.66 410.86,-0.66 410.86,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="344.39" y="-21.76">Bounded file read</text>
+<polygon points="439,-50 296,-50 296,0 439,0 439,-50" />
+<text text-anchor="middle" x="367.5" y="-21.6">Bounded file read</text>
 </g>
 
 <g id="tools-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
 <title>A-&gt;B</title>
-<path d="M141.59,-25.86C183.58,-25.86 236.66,-25.86 277.84,-25.86" marker-end="url(#tools-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="209.55" y="-30.21">request artifact</text>
+<path d="M150.06,-25C194.77,-25 251.45,-25 295.58,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="223" y="-28.4">request artifact</text>
 </g>
 
 <g id="tools-diagram-1-node3" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="676.79,-51.72 546.86,-51.72 546.86,0 676.79,0 676.79,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="611.83" y="-30.01">Canonical artifact</text>
-<text xml:space="preserve" text-anchor="middle" x="611.83" y="-13.51">decoder</text>
+<polygon points="721,-50 583,-50 583,0 721,0 721,-50" />
+<text text-anchor="middle" x="652" y="-28.6">Canonical artifact</text>
+<text text-anchor="middle" x="652" y="-14.6">decoder</text>
 </g>
 
 <g id="tools-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
 <title>B-&gt;C</title>
-<path d="M411.35,-25.86C452.65,-25.86 505.61,-25.86 546.59,-25.86" marker-end="url(#tools-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="478.86" y="-30.21">bounded bytes</text>
+<path d="M439.06,-25C483.02,-25 539.29,-25 582.8,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="511" y="-28.4">bounded bytes</text>
 </g>
 
 <g id="tools-diagram-1-node4" class="node psi" data-node="D">
 <title>D</title>
-<polygon points="1044.72,-51.72 855.54,-51.72 855.54,0 1044.72,0 1044.72,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="950.13" y="-30.01">Semantic module summary</text>
-<text xml:space="preserve" text-anchor="middle" x="950.13" y="-13.51">and fingerprint</text>
+<polygon points="1114,-50 913,-50 913,0 1114,0 1114,-50" />
+<text text-anchor="middle" x="1013.5" y="-28.6">Semantic module summary</text>
+<text text-anchor="middle" x="1013.5" y="-14.6">and fingerprint</text>
 </g>
 
 <g id="tools-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
 <title>C-&gt;D</title>
-<path d="M677.27,-25.86C727.72,-25.86 798.6,-25.86 855.33,-25.86" marker-end="url(#tools-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="766.16" y="-30.21">decode and summarize</text>
+<path d="M721.04,-25C775.19,-25 851.74,-25 912.8,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="817" y="-28.4">decode and summarize</text>
 </g>
 </g>
 </svg></div><figcaption>Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -784,7 +784,7 @@ owner's README is outside this documentation slice.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;

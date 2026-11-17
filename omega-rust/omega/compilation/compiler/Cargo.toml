@@ -212,6 +212,10 @@ path = "tests/lowered_route_publication.rs"
 name = "program_entry_product"
 path = "tests/program_entry_product.rs"
 
+[[test]]
+name = "opaque_representation"
+path = "tests/opaque_representation.rs"
+
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
 [[test]]
