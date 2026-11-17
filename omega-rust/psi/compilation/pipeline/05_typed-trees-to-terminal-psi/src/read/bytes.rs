@@ -788,8 +788,11 @@ impl Program<'_> {
             return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: carrier.is_shared_readable_view(),
+            multiplicity: if carrier.is_shared_readable_view() {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             cleanup: None,
             identity,
             shape: StorageShape::ByteSequence(carrier),
@@ -916,8 +919,7 @@ impl Program<'_> {
             return row;
         }
         let row = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             // This text labels the structural type; it names no declaration.
             // Exact literal contents and origin belong to its producer below.

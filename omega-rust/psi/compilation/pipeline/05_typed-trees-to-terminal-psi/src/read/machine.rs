@@ -3649,7 +3649,7 @@ impl<'t> Program<'t> {
                     crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
-                            if !self.agrees(expression.result, result) {
+                            if !self.agrees(expression.result, Some(result)) {
                                 return Err(self.mistyped(
                                     id,
                                     expression.source,

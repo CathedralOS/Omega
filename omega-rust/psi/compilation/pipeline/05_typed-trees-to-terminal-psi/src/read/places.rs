@@ -414,21 +414,8 @@ impl Program<'_> {
         {
             return Err(unserved("copy data with an owned field"));
         }
-        let owns_linear_claim = data.properties.multiplicity
-            == language_semantics::Multiplicity::Linear
-            || declared
-                .iter()
-                .chain(case_types.iter().flat_map(|case| &case.fields))
-                .any(|field| match field.value_type {
-                    ValueType::Record(child, _, _) => self
-                        .records
-                        .get(child)
-                        .is_some_and(|record| record.owns_linear_claim),
-                    _ => false,
-                });
         let record: StructuralTypeId = self.records.push(RecordType {
-            owns_linear_claim,
-            copyable,
+            multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
             shape: if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
@@ -1270,7 +1257,7 @@ impl Program<'_> {
             }
             let field_type = declared[position];
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
-            if !self.agrees(operand.result, field_type) {
+            if !self.agrees(operand.result, Some(field_type)) {
                 return Err(self.mistyped(
                     id,
                     operand.source,
@@ -1607,7 +1594,7 @@ fn record_shape_for<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
-    purpose: super::storage_metadata::TypePurpose,
+    _purpose: super::storage_metadata::TypePurpose,
     members: arena::RootRows<'m, DataMember>,
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
@@ -1635,13 +1622,8 @@ fn record_shape_for<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Descriptor mode may retain a linear claim's geometry. Executable
-    // linear disposition and carry still need their own checked projections.
-    if data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        && purpose == super::storage_metadata::TypePurpose::Value
-    {
-        return unserved("data with custody");
-    }
+    // Multiplicity describes the carrier. The ordinary ownership walk emits
+    // claim transport; Psi 06 independently reconstructs whether it is valid.
     if data.properties.carry.is_some() {
         return unserved("data with a carry policy");
     }
@@ -1890,9 +1872,9 @@ fn copy_field_is_unrestricted(
     match field {
         // A policy changes no payload: the integer copies as its carrier does.
         ValueType::Scalar(..) => true,
-        ValueType::Record(record, _, _) => {
-            records.get(record).is_some_and(|record| record.copyable)
-        }
+        ValueType::Record(record, _, _) => records
+            .get(record)
+            .is_some_and(|record| record.is_copyable()),
         ValueType::Rigid(_) => false,
     }
 }
@@ -1911,8 +1893,7 @@ mod tests {
     fn copy_permission_does_not_hide_an_owned_nested_record() {
         let mut records = semantic_vocabulary::IdTable::default();
         let owned = records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Owned".into(),
             shape: crate::StorageShape::Record(Vec::new()),
@@ -1923,7 +1904,8 @@ mod tests {
             ValueType::record(owned),
             &records
         ));
-        records.get_mut(owned).unwrap().copyable = true;
+        records.get_mut(owned).unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
         assert!(copy_field_is_unrestricted(
             ValueType::record(owned),
             &records
@@ -1982,10 +1964,7 @@ mod tests {
         assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 7] = [
-            ("type data with custody", |data, _| {
-                data.properties.multiplicity = language_semantics::Multiplicity::Linear;
-            }),
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 6] = [
             ("type generic data", |data, _| {
                 data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
             }),

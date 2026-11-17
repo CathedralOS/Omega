@@ -558,3 +558,65 @@ machine build_entry() { let value: u8 = nested(0u8); }
     executed_source(guarded);
     rejected_source(&guarded.replace("requires value <= 254", "requires true"));
 }
+
+#[test]
+fn mathematical_domain_predicates_follow_construction_and_replacement_values() {
+    const SOURCE: &str = r#"
+domain u32::Small requires embed(self) + 1 <= 8;
+data Reading { number: u32; }
+domain Reading::Limited requires embed(self.number) + 1 <= 8;
+data Cell { before: u32; value: u32 in Small; reading: Reading in Limited; after: u32; }
+machine keep(value: u32 in Small) -> u32 in Small { value }
+machine tag(value: Reading) -> Reading in Limited
+requires embed(value.number) + 1 <= 8
+{ value as +Limited }
+machine build_entry() {
+    let first: u32 in Small = 3u32 as +Small;
+    let mut cell: Cell = Cell {
+        before: 41u32, value: first,
+        reading: tag(Reading { number: 3u32 }), after: 73u32
+    };
+    cell.value = keep(6u32 as +Small);
+    cell.reading.number = 6u32;
+    let plain: Reading = cell.reading as -Limited;
+    let saved: u32 in Small = keep(cell.value);
+    transition cell.before == 41u32 && cell.after == 73u32
+        && plain.number == 6u32 && (saved as -Small) == 6u32 {
+        true -> done()
+        false -> failed()
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
+"#;
+    executed_source(SOURCE);
+
+    // The earlier valid record contents cannot justify its domain after
+    // this plain scalar write: the owner must prove the new field's bound.
+    let invalid = SOURCE.replace("cell.reading.number = 6u32", "cell.reading.number = 8u32");
+    let verdict = source_result(&invalid);
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "the replacement must fail its stored domain requirement: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_mathematical_domain_cannot_form_its_own_embedded_partial_operand() {
+    let verdict = source_result(
+        r#"
+domain u32::Impossible requires embed(self - 1u32) >= 0;
+machine build_entry() {}
+"#,
+    );
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("a mathematical comparison cannot authorize its embedded subtraction: {verdict:?}");
+    };
+    assert!(
+        violations.iter().any(|row| row.statement.contains(
+            "scalar domain: contract arithmetic is not proved total before its condition"
+        )),
+        "{violations:?}",
+    );
+}

@@ -1721,7 +1721,7 @@ pub(crate) mod abi_storage_tests {
                         identity: identities.intern(&format!("storage-{ordinal}")),
                         quotient_carrier: None,
                         owns_linear_claim: false,
-                        copyable: true,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
                         nominal_cleanup: None,

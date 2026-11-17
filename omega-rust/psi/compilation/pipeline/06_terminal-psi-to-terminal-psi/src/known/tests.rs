@@ -300,3 +300,43 @@ fn transported_branch_literals_capture_only_equations_available_before_the_conse
         .is_err()
     );
 }
+
+#[test]
+fn known_definitions_preserve_offset_value_identities() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let first = ValueId::new(1_000_000).unwrap();
+    let second = ValueId::new(1_000_001).unwrap();
+    let values = IdTable::from_rows([first, second].into_iter().enumerate().map(
+        |(position, id)| {
+            (
+                id,
+                ValueRow {
+                    scalar_type,
+                    origin: ValueOrigin::MachineParameter {
+                        position: position as u32,
+                    },
+                    rigid: None,
+                },
+            )
+        },
+    ))
+    .unwrap();
+    let equation = Proposition::Equal(
+        ScalarTerm::value(second, scalar_type),
+        ScalarTerm::integer(integer, IntegerValue::Unsigned(17)).unwrap(),
+    );
+    let context =
+        PropositionContext::from_value_types([(first, scalar_type), (second, scalar_type)])
+            .unwrap();
+    let known = Known::new(&context, std::slice::from_ref(&equation), &[], &values);
+    assert_eq!(
+        known.definitions.keys().collect::<Vec<_>>(),
+        [first, second]
+    );
+    assert_eq!(known.definitions.get(first), Some(&None));
+    assert_eq!(known.definitions.get(second), Some(&Some(0)));
+    assert_eq!(known.definitions.get(ValueId::new(1).unwrap()), None);
+    check_all(&known, &context, std::slice::from_ref(&equation), &[]);
+}

@@ -429,11 +429,7 @@ impl Program<'_> {
             }
         };
         crate::operational::boundary(&mut target);
-        let agreed = match (target.result, result) {
-            (Some(actual), Some(expected)) => self.agrees(Some(actual), expected),
-            (actual, expected) => actual == expected,
-        };
-        if !agreed {
+        if !self.agrees(target.result, result) {
             return Err(self.mistyped(
                 id,
                 target.source,

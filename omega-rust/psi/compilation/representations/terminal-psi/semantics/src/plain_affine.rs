@@ -5,6 +5,10 @@
 //! definitions remain a separate analysis. The producer uses the resulting
 //! edge schedule; a checker reconstructs it from the same unsealed operations.
 
+#[path = "plain_affine_claims.rs"]
+mod claims;
+pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, EdgeId, IdSet, OperationId, PlaceId,
     StructuralTypeId,
@@ -87,6 +91,7 @@ pub struct Plan {
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
     pub reference_ends: Vec<ReferenceEnd>,
+    pub claims: Option<ClaimsPlan>,
 }
 
 #[derive(Debug)]
@@ -331,6 +336,7 @@ struct State {
     // Establishment order of the currently allocated owned homes. Normal-edge
     // disposal walks this frontier, not every root ever produced by the body.
     active: Vec<PlaceId>,
+    claims: claims::ClaimsState,
 }
 
 impl State {
@@ -375,7 +381,11 @@ impl State {
                 "affine homes established in different orders at a reconvergence",
             ));
         }
-        Ok(State { regions, active })
+        Ok(State {
+            regions,
+            active,
+            claims: self.claims.meet(&other.claims)?,
+        })
     }
 }
 
@@ -396,6 +406,7 @@ struct Residence {
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
     types: &'a [StructuralTypeDeclaration],
+    dispositions: Vec<Option<bool>>,
     roots: Vec<Option<Root>>,
     borrowed_headers: Vec<PlaceId>,
     unavailable: Vec<Unavailable>,
@@ -411,6 +422,7 @@ struct Analysis<'a> {
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
     reference_candidates: Option<&'a crate::reference_ends::Candidates>,
     reference_ends: Vec<ReferenceEnd>,
+    claim_flow: Option<claims::Flow<'a>>,
 }
 
 /// The inline array whose established contents a retained runtime selector
@@ -555,7 +567,8 @@ fn reference_backing_uses(
                         subject: DescriptorLocation {
                             root: slot.root,
                             path: slot.path[..position].to_vec(),
-                        },
+                        }
+                        .into(),
                         case: *case,
                     };
                     if references.case_feasibility(graph.id, *at, &predicate)
@@ -683,7 +696,7 @@ fn live_entries(
 /// Selected owned consumers require the module-aware entry point. Conserved
 /// claims and borrowed extraction retain their independent contracts.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, false, None, None)
+    analyze(machine, types, false, None, None, None)
 }
 
 /// Resolve destructive reference paths with the same descriptor graph as
@@ -693,7 +706,14 @@ pub fn plan_in(
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
     let machine = module_machine(module, identity)?;
-    analyze(machine, &module.structural_types, false, Some(module), None)
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        None,
+        None,
+    )
 }
 
 /// Resolve dead descriptor candidates against the same exact ownership frontier
@@ -711,6 +731,7 @@ pub fn plan_reference_ends(
         false,
         Some(module),
         Some(candidates),
+        None,
     )
 }
 
@@ -721,7 +742,7 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    verify_schedule(machine, analyze(machine, types, true, None, None)?)
+    verify_schedule(machine, analyze(machine, types, true, None, None, None)?)
 }
 
 /// The receiving checker reconstructs both the exact backing and its schedule.
@@ -732,8 +753,57 @@ pub fn verify_in(
     let machine = module_machine(module, identity)?;
     verify_schedule(
         machine,
-        analyze(machine, &module.structural_types, true, Some(module), None)?,
+        analyze(
+            machine,
+            &module.structural_types,
+            true,
+            Some(module),
+            None,
+            None,
+        )?,
     )
+}
+
+/// Emit logical claim rows from the same ownership walk that plans storage.
+pub fn plan_claims_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<ClaimsPlan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        None,
+        Some(claims::Mode::Publish),
+    )?
+    .claims
+    .ok_or(Error::malformed("claim producer lost its plan"))
+}
+/// Receiving retains authenticated declaration names and reconstructs every
+/// move/call/return without taking the supplied transfer rows as evidence.
+pub fn verify_claims_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<ClaimsPlan, Error> {
+    let machine = module_machine(module, identity)?;
+    let plan = analyze(
+        machine,
+        &module.structural_types,
+        true,
+        Some(module),
+        None,
+        Some(claims::Mode::Verify),
+    )?;
+    if let Some(unavailable) = plan.unavailable.first() {
+        return Err(
+            Error::unsupported("claim transport observes unavailable owned storage")
+                .at(unavailable.site),
+        );
+    }
+    plan.claims
+        .ok_or(Error::malformed("claim receiver lost its plan"))
 }
 
 fn module_machine(
@@ -820,12 +890,10 @@ pub fn declared_multiplicity(
     access: StructuralAccess,
 ) -> terminal_psi::StructuralMultiplicity {
     use terminal_psi::StructuralMultiplicity;
-    if declaration.copyable || access != StructuralAccess::Owned {
+    if access != StructuralAccess::Owned {
         StructuralMultiplicity::Unrestricted
-    } else if declaration.owns_linear_claim {
-        StructuralMultiplicity::Linear
     } else {
-        StructuralMultiplicity::Affine
+        declaration.multiplicity
     }
 }
 
@@ -907,8 +975,9 @@ fn prepare_disposition(
     }
     visiting[raw] = true;
     let declaration = &types[raw];
-    let supported = if declaration.owns_linear_claim
-        || declaration.copyable && declaration.nominal_cleanup.is_some()
+    let supported = if declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || declaration.owns_linear_claim
+        || declaration.is_copyable() && declaration.nominal_cleanup.is_some()
     {
         false
     } else if let Some(selection) = &declaration.nominal_cleanup {
@@ -963,13 +1032,23 @@ fn analyze(
     bound_output: bool,
     module: Option<&terminal_psi::TerminalModule>,
     reference_candidates: Option<&crate::reference_ends::Candidates>,
+    claim_mode: Option<claims::Mode>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
-    // A generic requirement is a check-form signature, not an executable
-    // activation. Its caller still transfers each argument normally.
+    // A requirement has no activation to walk, but its signature still owns
+    // exact claim rows. Prepare or verify those without inventing a body.
     if machine.blocks.is_empty() {
-        return Ok(Plan::default());
+        let claims = claim_mode
+            .map(|mode| {
+                let (flow, _) = claims::Flow::new(machine, types, mode)?;
+                flow.finish(machine)
+            })
+            .transpose()?;
+        return Ok(Plan {
+            claims,
+            ..Plan::default()
+        });
     }
     // A parent's permission cannot erase the custody of its represented
     // children. Check direct dependencies once; no recursive rescanning is
@@ -1003,10 +1082,11 @@ fn analyze(
             let child = types
                 .get(index(child.get())?)
                 .ok_or(Error::malformed("nested type is outside the catalog"))?;
-            if declaration.copyable && !child.copyable
-                || declaration.no_code_affine_cleanup && !child.no_code_affine_cleanup
+            if declaration.is_copyable() && !child.is_copyable()
+                || declaration.no_code_affine_cleanup
+                    && (!child.no_code_affine_cleanup
+                        || child.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
                 || declaration.descriptor_cleanup && !child.descriptor_cleanup
-                || !declaration.owns_linear_claim && child.owns_linear_claim
             {
                 return Err(Error::malformed(
                     "parent type permissions erase a nested ownership obligation",
@@ -1071,7 +1151,7 @@ fn analyze(
             && types
                 .get(index(parameter.structural_type.get())?)
                 .is_some_and(|declaration| {
-                    declaration.copyable
+                    declaration.is_copyable()
                         && matches!(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::Reference {
@@ -1130,7 +1210,7 @@ fn analyze(
                     || !declaration.is_some_and(|declaration| matches!(declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference { access, .. }
                             if access != StructuralAccess::Owned
-                                && (!declaration.copyable || access == StructuralAccess::SharedBorrow)))
+                                && (!declaration.is_copyable() || access == StructuralAccess::SharedBorrow)))
                 {
                     return Err(Error::malformed(
                         "permission result has no exact reference producer declaration",
@@ -1247,7 +1327,7 @@ fn analyze(
             ))?;
         if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
             && (!declaration.shape.is_shared_readable_byte_view()
-                || !declaration.copyable
+                || !declaration.is_copyable()
                 || declaration.owns_linear_claim)
         {
             return Err(Error::malformed(
@@ -1277,7 +1357,7 @@ fn analyze(
         }
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
-        let tracked = !declaration.copyable
+        let tracked = !declaration.is_copyable()
             || declaration.nominal_cleanup.is_some()
             || terminal_psi::structural_type_contains_reference_by(
                 |id| terminal_psi::find_structural_type(types, id),
@@ -1289,7 +1369,7 @@ fn analyze(
 
         if owned
             && !tracked
-            && declaration.copyable
+            && declaration.is_copyable()
             && declaration.no_code_affine_cleanup
             && declaration.descriptor_cleanup
         {
@@ -1326,13 +1406,6 @@ fn analyze(
             &mut active_dispositions,
         )?;
     }
-    for root in roots.iter().flatten().filter(|root| root.affine) {
-        if dispositions[index(root.structural_type.get())?] != Some(true) {
-            return Err(Error::unsupported(
-                "affine storage with nontrivial disposition",
-            ));
-        }
-    }
     // Access is independent of whether the referent has affine contents.
     // Check every successor telescope before the copyable-storage fast path.
     for block in &machine.blocks {
@@ -1349,7 +1422,7 @@ fn analyze(
         }
     }
     // Copy permission does not erase an explicitly destructive window.
-    if roots.iter().all(Option::is_none) && !has_borrowed_windows {
+    if roots.iter().all(Option::is_none) && !has_borrowed_windows && claim_mode.is_none() {
         return Ok(Plan {
             copyable_owned_roots,
             ..Plan::default()
@@ -1382,7 +1455,18 @@ fn analyze(
             PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let initial = State { regions, active };
+    let (claim_flow, initial_claims) = match claim_mode {
+        Some(mode) => {
+            let (flow, state) = claims::Flow::new(machine, types, mode)?;
+            (Some(flow), state)
+        }
+        None => (None, claims::ClaimsState::default()),
+    };
+    let initial = State {
+        regions,
+        active,
+        claims: initial_claims,
+    };
     let first = index(machine.entry.get())?;
     if first >= machine.blocks.len() {
         return Err(Error::malformed("entry block is outside the machine"));
@@ -1429,6 +1513,7 @@ fn analyze(
     let mut analysis = Analysis {
         module,
         types,
+        dispositions,
         roots,
         borrowed_headers,
         unavailable: Vec::new(),
@@ -1441,6 +1526,7 @@ fn analyze(
         position: None,
         reference_candidates,
         reference_ends: Vec::new(),
+        claim_flow,
     };
     if needs_backing {
         analysis.prepare_residences(
@@ -1485,6 +1571,9 @@ fn analyze(
     let mut cleanup = Vec::new();
     for block in &machine.blocks {
         let Some(state) = entering[index(block.id.get())?].clone() else {
+            if let Some(flow) = &mut analysis.claim_flow {
+                flow.unreachable_block(block);
+            }
             continue;
         };
         for arrival in analysis.walk(
@@ -1517,6 +1606,10 @@ fn analyze(
         stores: analysis.stores,
         unavailable: analysis.unavailable,
         reference_ends: analysis.reference_ends,
+        claims: analysis
+            .claim_flow
+            .map(|flow| flow.finish(machine))
+            .transpose()?,
     })
 }
 
@@ -1860,8 +1953,9 @@ impl Analysis<'_> {
     }
 
     /// Walks one block from `state` and returns its normal edges, each with
-    /// the frontier it carries and the disposals it performs. A root the
-    /// successor does not read again is disposed of on the edge. With
+    /// the frontier it carries and the disposals it performs. An unread root
+    /// is disposed of only when its remaining value permits implicit cleanup;
+    /// other obligations remain live across internal edges. With
     /// `entering`, the fixpoint's frontiers, a root the successor reads but
     /// does not own is disposed of too: another arrival transferred it.
     fn walk(
@@ -1933,6 +2027,10 @@ impl Analysis<'_> {
                 .next()
                 .ok_or(Error::malformed("terminator has no edge"))?,
         );
+        if let Some(flow) = &mut self.claim_flow {
+            flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
+                .map_err(|error| error.at(site))?;
+        }
         // A reference dead before a dispatch ends there, not on each case
         // edge: the dispatch reads the subject storage, which the reference
         // may have lent, so the loan must be returned before it does. A
@@ -2045,6 +2143,9 @@ impl Analysis<'_> {
             } else {
                 state.clone()
             };
+            if let Some(flow) = &self.claim_flow {
+                flow.select_case(&mut outgoing.claims, &block.terminator, edge)?;
+            }
             let successor = targets
                 .binary_search_by_key(&edge, |(edge, _, _)| *edge)
                 .ok()
@@ -2169,11 +2270,18 @@ impl Analysis<'_> {
                     });
                     let read_there = pinned || needed.is_some_and(|needed| needed.contains(place));
                     let there = owned_there.map(|there| there.regions[raw].as_ref());
-                    if read_there && there.is_none_or(|there| there.is_some()) {
+                    let still_owed = !read_there
+                        && target.is_some()
+                        && self
+                            .needs_explicit_disposition(place, region)
+                            .map_err(|error| error.at(Site::Edge(edge)))?;
+                    if (read_there || still_owed) && there.is_none_or(|there| there.is_some()) {
                         if let Some(Some(there)) = there
                             && there != region
                         {
-                            let discards = self.equalize(place, region, there, residual_budget)?;
+                            let discards = self
+                                .equalize(place, region, there, residual_budget)
+                                .map_err(|error| error.at(Site::Edge(edge)))?;
                             for action in &discards {
                                 self.restore_reference_leaves(
                                     &outgoing,
@@ -2190,7 +2298,9 @@ impl Analysis<'_> {
                         }
                         retained.push(place);
                     } else {
-                        let disposal = self.dispose(place, region, residual_budget)?;
+                        let disposal = self
+                            .dispose(place, region, residual_budget)
+                            .map_err(|error| error.at(Site::Edge(edge)))?;
                         for action in &disposal {
                             if !matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                                 self.restore_reference_leaves(
@@ -2252,6 +2362,9 @@ impl Analysis<'_> {
                     }
                 }
             }
+            if let Some(flow) = &mut self.claim_flow {
+                flow.cleanup(&outgoing.claims, edge, supplied, entering.is_some())?;
+            }
             if let Some(target) = target {
                 self.establish_successor(machine, &mut outgoing, target)
                     .map_err(|error| error.at(Site::Edge(edge)))?;
@@ -2277,6 +2390,9 @@ impl Analysis<'_> {
         target: semantic_vocabulary::BlockId,
         arguments: &[StructuralArgument],
     ) -> Result<(), Error> {
+        if let Some(flow) = &mut self.claim_flow {
+            flow.successor(&mut state.claims, machine, target, arguments)?;
+        }
         let target = machine
             .blocks
             .get(index(target.get())?)
@@ -2400,6 +2516,15 @@ impl Analysis<'_> {
     ) -> Result<(), Error> {
         use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
+        if let Some(flow) = &mut self.claim_flow {
+            flow.operation(
+                &mut state.claims,
+                operation,
+                self.types,
+                &self.roots,
+                settled,
+            )?;
+        }
         if let Op::DecomposeStructuralValue { subject } = &operation.kind {
             if operation.result != terminal_psi::OperationResult::Unit {
                 return Err(Error::malformed(
@@ -2448,7 +2573,7 @@ impl Analysis<'_> {
         if let Op::StructuralLeafCopy { source, path } = &operation.kind
             && let Some(root) = self.root(*source)?
             && crate::canonical_static_projection(self.types.iter(), root.structural_type, path)
-                .is_some_and(|(_, declaration)| !declaration.copyable)
+                .is_some_and(|(_, declaration)| !declaration.is_copyable())
         {
             return Err(Error::malformed("a leaf copy duplicates an affine region"));
         }
@@ -2826,7 +2951,7 @@ impl Analysis<'_> {
                 }
             }
             kind => {
-                for argument in kind.structural_arguments() {
+                for argument in terminal_psi::call_structural_arguments(kind) {
                     self.argument(state, argument, site, true)?;
                 }
             }
@@ -2997,6 +3122,24 @@ impl Analysis<'_> {
         Ok(())
     }
 
+    /// Unread storage still owes its value unless ordinary cleanup is allowed
+    /// or every component has moved out of an unclaimed home. Retiring that
+    /// empty home grants no disposition of a surviving value or root claim.
+    fn needs_explicit_disposition(&self, place: PlaceId, region: &Region) -> Result<bool, Error> {
+        let info = self
+            .root(place)?
+            .ok_or(Error::malformed("missing affine owner"))?;
+        if info.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && self.can_dispose(info.structural_type)?
+        {
+            return Ok(false);
+        }
+        let declaration = &self.types[index(info.structural_type.get())?];
+        Ok(declaration.owns_linear_claim
+            || region.whole
+            || !self.vacant_region(place, region, &[])?)
+    }
+
     fn dispose(
         &self,
         place: PlaceId,
@@ -3008,6 +3151,16 @@ impl Analysis<'_> {
             .root(place)?
             .ok_or(Error::malformed("missing affine owner"))?;
         let declaration = &self.types[index(info.structural_type.get())?];
+        if self.needs_explicit_disposition(place, region)? {
+            return Err(Error::unsupported(
+                "normal edge cannot implicitly dispose storage without an authorized disposition",
+            ));
+        }
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !self.can_dispose(info.structural_type)?
+        {
+            return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+        }
         if region.contains_partition(&[])
             || declaration.nominal_cleanup.is_some()
             || !declaration.no_code_affine_cleanup
@@ -3105,6 +3258,16 @@ impl Analysis<'_> {
                 "a partially rebuilt home at a reconvergence",
             ));
         }
+        if held == joined {
+            return Ok(Vec::new());
+        }
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !self.can_dispose(info.structural_type)?
+        {
+            return Err(Error::unsupported(
+                "reconvergence cannot implicitly dispose storage without an authorized disposition",
+            ));
+        }
         let missing = |region: &Region| {
             let mut paths = Vec::new();
             region.vacancies(&mut Vec::new(), &mut paths);
@@ -3184,6 +3347,14 @@ impl Analysis<'_> {
                 )
             })
             .collect())
+    }
+
+    fn can_dispose(&self, ty: StructuralTypeId) -> Result<bool, Error> {
+        self.dispositions
+            .get(index(ty.get())?)
+            .copied()
+            .flatten()
+            .ok_or(Error::malformed("disposition type was not prepared"))
     }
 
     fn root(&self, root: PlaceId) -> Result<Option<&Root>, Error> {
@@ -3626,6 +3797,463 @@ mod tests {
         }
     }
 
+    fn transfer_only_types(linear: bool) -> [StructuralTypeDeclaration; 3] {
+        let mut types = reconvergence_types();
+        for declaration in &mut types {
+            declaration.owns_linear_claim = linear && declaration.id == id(3);
+            declaration.multiplicity = if linear {
+                terminal_psi::StructuralMultiplicity::Linear
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            };
+            declaration.no_code_affine_cleanup = false;
+            declaration.descriptor_cleanup = false;
+        }
+        types
+    }
+
+    fn returning_relay(linear: bool) -> TerminalMachine {
+        use terminal_psi::{
+            EntryClaim, StructuralMultiplicity, StructuralPlaceDeclaration,
+            StructuralResultClaimBinding, StructuralResultDeclaration, TerminalMachineResult,
+            Terminator,
+        };
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+        );
+        let multiplicity = if linear {
+            StructuralMultiplicity::Linear
+        } else {
+            StructuralMultiplicity::Affine
+        };
+        machine.contract.structural_parameters[0].multiplicity = multiplicity;
+        machine.blocks[1].structural_parameters[0].multiplicity = multiplicity;
+        machine.contract.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: id(3),
+            structural_type: id(3),
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: Vec::new(),
+        });
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: id(3),
+            kind: StructuralPlaceKind::Result,
+        });
+        let returned_claims = if linear {
+            machine.contract.entry_claims.push(EntryClaim {
+                claim: id(1),
+                input: id(1),
+                path: Vec::new(),
+            });
+            machine.block_entry_claims.push(EntryClaim {
+                claim: id(2),
+                input: id(2),
+                path: Vec::new(),
+            });
+            vec![StructuralResultClaimBinding {
+                claim: id(2),
+                path: Vec::new(),
+            }]
+        } else {
+            Vec::new()
+        };
+        machine.blocks[1].terminator = Terminator::ReturnStructural {
+            edge: id(2),
+            source: id(2),
+            returned_claims,
+            cleanup_actions: Vec::new(),
+        };
+        machine
+    }
+
+    #[test]
+    fn declared_multiplicity_does_not_infer_an_intrinsic_root_claim() {
+        use terminal_psi::StructuralMultiplicity as M;
+        let mut declaration = reconvergence_types()[2].clone();
+        for multiplicity in [M::Unrestricted, M::Affine, M::Linear] {
+            declaration.multiplicity = multiplicity;
+            declaration.owns_linear_claim = false;
+            assert_eq!(
+                declared_multiplicity(&declaration, StructuralAccess::Owned),
+                multiplicity
+            );
+            assert_eq!(declaration.is_copyable(), multiplicity == M::Unrestricted);
+            assert_eq!(
+                declared_multiplicity(&declaration, StructuralAccess::SharedBorrow),
+                M::Unrestricted
+            );
+        }
+        declaration.owns_linear_claim = true;
+        assert_eq!(
+            declared_multiplicity(&declaration, StructuralAccess::Owned),
+            M::Linear
+        );
+    }
+
+    #[test]
+    fn affine_parents_retain_exact_linear_siblings_and_active_case_claims() {
+        let mut types = transfer_only_types(false);
+        types[2].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        types[2].owns_linear_claim = true;
+        let claim_types = crate::owned_structure::ClaimTypes::new(&types).unwrap();
+        let siblings = [field_argument(3).path, field_argument(4).path];
+        crate::owned_structure::validate_intrinsic_claim_roots(&types).unwrap();
+        crate::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            id(2),
+            &[],
+            siblings.iter().map(Vec::as_slice),
+            &|_, _| false,
+        )
+        .unwrap();
+        let bindings = siblings
+            .iter()
+            .enumerate()
+            .map(|(index, path)| terminal_psi::StructuralResultClaimBinding {
+                claim: id(index as u64 + 1),
+                path: path.clone(),
+            })
+            .collect::<Vec<_>>();
+        crate::validate_result_claim_catalog(types.iter(), id(2), &bindings, [bindings.as_slice()])
+            .unwrap();
+        crate::validate_result_claim_catalog(
+            types.iter().rev(),
+            id(2),
+            &bindings,
+            [bindings.as_slice()],
+        )
+        .unwrap();
+        assert_eq!(
+            crate::validate_result_claim_catalog(
+                types.iter().chain(std::iter::once(&types[0])),
+                id(2),
+                &bindings,
+                [bindings.as_slice()],
+            ),
+            Err(crate::ResultClaimCatalogError::NonStaticOwnedPath)
+        );
+        let collapsed = [terminal_psi::StructuralResultClaimBinding {
+            claim: id(9),
+            path: Vec::new(),
+        }];
+        assert_eq!(
+            crate::validate_result_claim_catalog(
+                types.iter(),
+                id(2),
+                &collapsed,
+                [collapsed.as_slice()]
+            ),
+            Err(crate::ResultClaimCatalogError::TypedFrontierMismatch)
+        );
+        assert!(
+            crate::owned_structure::validate_complete_claim_frontier(
+                &claim_types,
+                id(2),
+                &[],
+                [siblings[0].as_slice()],
+                &|_, _| false
+            )
+            .is_err()
+        );
+        let fields = types[1].shape.direct_fields().unwrap().to_vec();
+        types[1].shape = StructuralTypeShape::Sum {
+            cases: vec![
+                terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: id(1),
+                    identity: terminal_psi::TerminalIdentityIndex(8),
+                    fields: vec![fields[0].clone()],
+                },
+                terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: id(2),
+                    identity: terminal_psi::TerminalIdentityIndex(9),
+                    fields: Vec::new(),
+                },
+            ],
+        };
+        let claim_types = crate::owned_structure::ClaimTypes::new(&types).unwrap();
+        let active = vec![StructuralPathSegment::Case(id(1)), siblings[0][0].clone()];
+        let guarded = [terminal_psi::StructuralResultClaimBinding {
+            claim: id(1),
+            path: active.clone(),
+        }];
+        crate::validate_result_claim_catalog(
+            types.iter(),
+            id(2),
+            &guarded,
+            [guarded.as_slice(), &[]],
+        )
+        .unwrap();
+        assert_eq!(
+            crate::validate_result_claim_catalog(types.iter(), id(2), &[], [&[][..]]),
+            Err(crate::ResultClaimCatalogError::TypedFrontierMismatch)
+        );
+        crate::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            id(2),
+            &[],
+            [active.as_slice()],
+            &|_, case| case == id(1),
+        )
+        .unwrap();
+        crate::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            id(2),
+            &[],
+            std::iter::empty(),
+            &|_, case| case == id(2),
+        )
+        .unwrap();
+        assert!(
+            crate::owned_structure::validate_complete_claim_frontier(
+                &claim_types,
+                id(2),
+                &[],
+                [active.as_slice()],
+                &|_, case| case == id(2)
+            )
+            .is_err()
+        );
+        types[1].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        types[1].owns_linear_claim = true;
+        assert!(
+            crate::owned_structure::validate_intrinsic_claim_roots(&types).is_err(),
+            "an inactive payload cannot justify collapsing possible child claims into a root"
+        );
+    }
+
+    #[test]
+    fn complete_linear_and_nondroppable_values_can_relay_and_return_without_cleanup() {
+        for linear in [false, true] {
+            let types = transfer_only_types(linear);
+            let machine = returning_relay(linear);
+            let planned = verify(&machine, &types).unwrap();
+            assert!(planned.unavailable.is_empty());
+            assert!(planned.cleanup.is_empty());
+            if linear {
+                // The region planner neither issues nor settles these claims.
+                // The ordinary claim owner checks their edge/return transport.
+                assert_eq!(machine.entry_claims[0].claim, id(1));
+                assert_eq!(machine.block_entry_claims[0].claim, id(2));
+                let terminal_psi::Terminator::ReturnStructural {
+                    returned_claims, ..
+                } = &machine.blocks[1].terminator
+                else {
+                    unreachable!()
+                };
+                assert_eq!(returned_claims[0].claim, id(2));
+            }
+        }
+    }
+
+    #[test]
+    fn a_complete_linear_call_transfers_custody_once_without_implicit_disposal() {
+        use terminal_psi::{ClaimTransfer, Operation, OperationKind, OperationResult, Terminator};
+        let types = transfer_only_types(true);
+        let mut machine = returning_relay(true);
+        machine.contract.result = terminal_psi::TerminalMachineResult::Unit;
+        assert!(matches!(
+            machine.structural_places.pop().unwrap().kind,
+            StructuralPlaceKind::Result
+        ));
+        let call = Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::Owned,
+                )],
+                claim_transfers: vec![ClaimTransfer {
+                    claim: id(2),
+                    argument_index: 0,
+                    path: Vec::new(),
+                }],
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        machine.blocks[1].operations.push(call.clone());
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        let planned = verify(&machine, &types).unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert!(planned.cleanup.is_empty());
+        let mut duplicate = call;
+        duplicate.id = id(2);
+        machine.blocks[1].operations.push(duplicate);
+        assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+    }
+
+    #[test]
+    fn an_unread_linear_value_survives_an_internal_edge_to_a_crash() {
+        use terminal_psi::{EntryClaim, StructuralMultiplicity, Terminator};
+        let types = transfer_only_types(true);
+        let mut machine = transferring(&[id(3)], &[], Vec::new());
+        machine.contract.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+        machine.contract.entry_claims.push(EntryClaim {
+            claim: id(1),
+            input: id(1),
+            path: Vec::new(),
+        });
+        machine.blocks[1].terminator = Terminator::Crash {
+            edge: id(2),
+            cause: terminal_psi::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        for mode in [None, Some(claims::Mode::Verify)] {
+            let planned = analyze(&machine, &types, true, None, None, mode).unwrap();
+            assert!(planned.cleanup.is_empty(), "abandonment is not disposal");
+            assert!(planned.unavailable.is_empty());
+            assert_eq!(planned.claims.is_some(), mode.is_some());
+        }
+
+        // Only the target's outcome changes. A normal return must account
+        // for the same declared value and its still-live entry claim.
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        for mode in [None, Some(claims::Mode::Verify)] {
+            let error = analyze(&machine, &types, true, None, None, mode).unwrap_err();
+            assert_eq!(error.site(), Some(Site::Edge(id(2))));
+            let expected = if mode.is_some() {
+                "a normal return leaves an untransferred logical claim"
+            } else {
+                "normal edge cannot implicitly dispose storage without an authorized disposition"
+            };
+            assert!(matches!(error, Error::Unsupported { detail, .. } if detail == expected));
+        }
+    }
+
+    #[test]
+    fn a_normal_return_cannot_forget_a_transfer_only_value() {
+        for linear in [false, true] {
+            let types = transfer_only_types(linear);
+            let mut machine = returning_relay(linear);
+            machine.contract.result = terminal_psi::TerminalMachineResult::Unit;
+            assert!(matches!(
+                machine.structural_places.pop().unwrap().kind,
+                StructuralPlaceKind::Result
+            ));
+            machine.blocks[1].terminator = terminal_psi::Terminator::ReturnUnit {
+                edge: id(2),
+                cleanup_actions: Vec::new(),
+            };
+            assert!(matches!(
+                plan(&machine, &types),
+                Err(Error::Unsupported {
+                    detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                    ..
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn partial_moves_cannot_retire_an_intrinsic_linear_claim_even_after_all_fields_move() {
+        use terminal_psi::{EntryClaim, StructuralMultiplicity};
+        let mut types = transfer_only_types(true);
+        types[1].owns_linear_claim = true;
+        types[2].owns_linear_claim = false;
+        types[2].multiplicity = StructuralMultiplicity::Affine;
+        for fields in [
+            vec![field_argument(3)],
+            vec![field_argument(3), field_argument(4)],
+        ] {
+            let destinations = vec![id(3); fields.len()];
+            let mut machine = transferring(&[id(2)], &destinations, fields);
+            machine.contract.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+            machine.contract.entry_claims.push(EntryClaim {
+                claim: id(1),
+                input: id(1),
+                path: Vec::new(),
+            });
+            for parameter in &mut machine.blocks[1].structural_parameters {
+                parameter.multiplicity = StructuralMultiplicity::Affine;
+            }
+            assert!(
+                matches!(
+                    plan(&machine, &types),
+                    Err(Error::Unsupported {
+                        detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                        ..
+                    })
+                ),
+                "moving fields cannot settle the independent root obligation"
+            );
+        }
+    }
+
+    #[test]
+    fn a_join_cannot_discard_a_live_transfer_only_residual() {
+        let types = transfer_only_types(true);
+        let mut analysis = owned_analysis(&types);
+        analysis.dispositions.fill(Some(false));
+        let held = Region::new(true);
+        let mut joined = held.clone();
+        joined.set(&[Segment::Field(id(1))], false);
+        assert!(
+            analysis
+                .equalize(id(1), &held, &held, 0)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            analysis.equalize(id(1), &held, &joined, 1),
+            Err(Error::Unsupported {
+                detail: "reconvergence cannot implicitly dispose storage without an authorized disposition",
+                ..
+            })
+        ));
+        assert!(analysis.dispose(id(1), &joined, 1).is_err());
+    }
+
+    #[test]
+    fn only_an_empty_nondroppable_home_can_retire_without_disposing_a_value() {
+        let types = transfer_only_types(false);
+        let mut analysis = owned_analysis(&types);
+        analysis.dispositions.fill(Some(false));
+        let mut region = Region::new(true);
+        assert!(analysis.dispose(id(1), &region, 0).is_err());
+        region.set(&[Segment::Field(id(1))], false);
+        assert!(analysis.dispose(id(1), &region, 0).is_err());
+        region.set(&[Segment::Field(id(2))], false);
+        assert_eq!(
+            analysis.dispose(id(1), &region, 0).unwrap(),
+            vec![TerminalAffineCleanupAction::RetireHome(id(1))]
+        );
+        analysis.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        // The value has moved completely. Ending its empty home is not an
+        // implicit discard of a linear value or a discharge of a claim.
+        assert_eq!(
+            analysis.dispose(id(1), &region, 0).unwrap(),
+            vec![TerminalAffineCleanupAction::RetireHome(id(1))]
+        );
+        let mut intrinsic_types = transfer_only_types(false);
+        intrinsic_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        intrinsic_types[0].owns_linear_claim = true;
+        crate::owned_structure::validate_intrinsic_claim_roots(&intrinsic_types)
+            .expect("the outer value owns a claim independently of its affine fields");
+        let mut intrinsic = owned_analysis(&intrinsic_types);
+        intrinsic.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        intrinsic.dispositions.fill(Some(false));
+        assert!(intrinsic.dispose(id(1), &region, 0).is_err());
+    }
+
     #[test]
     fn successor_values_are_captured_before_source_cleanup_and_destination_binding() {
         use terminal_psi::Terminator;
@@ -3742,6 +4370,91 @@ mod tests {
             cleanup_actions: Vec::new(),
         };
         machine
+    }
+
+    #[test]
+    fn bodyless_requirements_keep_their_exact_parameter_claims() {
+        let types = transfer_only_types(true);
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+        );
+        machine.blocks.clear();
+        machine.block_entry_claims.clear();
+        machine.structural_places.truncate(1);
+        machine.contract.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        let plan = analyze(
+            &machine,
+            &types,
+            false,
+            None,
+            None,
+            Some(claims::Mode::Publish),
+        )
+        .unwrap()
+        .claims
+        .expect("a bodyless signature still has a claim plan");
+        assert_eq!(plan.entry_claims.len(), 1);
+        plan.install(&mut machine).unwrap();
+        let verified = analyze(
+            &machine,
+            &types,
+            true,
+            None,
+            None,
+            Some(claims::Mode::Verify),
+        )
+        .unwrap();
+        assert!(verified.claims.is_some());
+        assert!(machine.blocks.is_empty());
+
+        machine.contract.entry_claims.clear();
+        assert!(
+            analyze(
+                &machine,
+                &types,
+                true,
+                None,
+                None,
+                Some(claims::Mode::Verify)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_borrowed_successor_preserves_the_sources_exact_logical_claim() {
+        let types = transfer_only_types(true);
+        let argument = StructuralArgument::whole(id(1), StructuralAccess::Owned);
+        let mut machine = transferring(&[id(3)], &[id(3)], vec![argument.clone()]);
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        machine.blocks[1].structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
+        let (mut flow, mut state) =
+            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+        let original = state.clone();
+        flow.successor(&mut state, &machine, id(2), std::slice::from_ref(&argument))
+            .unwrap();
+        assert_eq!(
+            state, original,
+            "a loan does not transfer its owner's claim"
+        );
+        assert!(flow.plan.block_entry_claims.is_empty());
+
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::Owned;
+        let (mut flow, mut state) =
+            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+        flow.successor(&mut state, &machine, id(2), &[argument])
+            .unwrap();
+        assert_eq!(state.live().count(), 1);
+        let destination = state.live().next().unwrap();
+        assert_eq!(destination.place, id(2));
+        assert_ne!(
+            destination.identity,
+            original.live().next().unwrap().identity
+        );
     }
 
     #[test]
@@ -3928,7 +4641,11 @@ mod tests {
             let mut types = reconvergence_types();
             // Use one empty record so copy permission has no nested premise.
             for declaration in &mut types {
-                declaration.copyable = copyable;
+                declaration.multiplicity = if copyable {
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                } else {
+                    terminal_psi::StructuralMultiplicity::Affine
+                };
             }
             let original = borrowed_backedge(StructuralAccess::SharedBorrow);
             assert!(verify(&original, &types).unwrap().unavailable.is_empty());
@@ -4165,11 +4882,13 @@ mod tests {
         assert!(
             State {
                 regions: vec![Some(region)],
-                active: active.clone()
+                active: active.clone(),
+                claims: Default::default(),
             }
             .meet(&State {
                 regions: vec![Some(Region::new(true))],
-                active
+                active,
+                claims: Default::default(),
             })
             .is_err()
         );
@@ -4243,7 +4962,7 @@ mod tests {
             id: StructuralTypeId::new(raw).unwrap(),
             identity: TerminalIdentityIndex(raw as u32),
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             nominal_cleanup: None,
@@ -4266,6 +4985,7 @@ mod tests {
         Analysis {
             module: None,
             types,
+            dispositions: vec![Some(true); types.len()],
             borrowed_headers: Vec::new(),
             roots: vec![Some(Root {
                 structural_type: StructuralTypeId::new(1).unwrap(),
@@ -4286,6 +5006,7 @@ mod tests {
             position: None,
             reference_candidates: None,
             reference_ends: Vec::new(),
+            claim_flow: None,
         }
     }
 
@@ -4323,6 +5044,7 @@ mod tests {
         let state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let result = analysis.walk(&machine, block, state, &[], false, None);
         assert!(matches!(result, Err(Error::Unsupported {
@@ -4347,6 +5069,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let release = Operation::unsuspended(
             OperationId::new(1).unwrap(),
@@ -4385,6 +5108,7 @@ mod tests {
         let mut borrowed_state = State {
             regions: vec![Some(Region::new(true))],
             active: Vec::new(),
+            claims: Default::default(),
         };
         let before = borrowed_state.clone();
         assert!(matches!(
@@ -4436,6 +5160,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let before = state.clone();
         analysis
@@ -4490,6 +5215,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let mut argument = StructuralArgument {
             place,

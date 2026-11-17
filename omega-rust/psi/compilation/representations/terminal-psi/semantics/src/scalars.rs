@@ -2525,7 +2525,7 @@ pub(crate) mod scalar_observations {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 shape,

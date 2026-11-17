@@ -75,7 +75,10 @@ pub fn prove_callable_refinement(
     // as a rejection: this operation has no rejection of its own. The same
     // containment on the entries axis is "Bound the entries of every
     // admitted implementation".
-    if let Some(excess) = crate::ceilings::judge(&witness)?.into_iter().next() {
+    if let Some(excess) = crate::ceilings::judge_declared_rows(&witness)?
+        .into_iter()
+        .next()
+    {
         return Err(crate::refusal(
             RefusalReason::Unsupported,
             excess.machine,

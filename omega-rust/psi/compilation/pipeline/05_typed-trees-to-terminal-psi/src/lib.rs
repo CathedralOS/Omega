@@ -51,6 +51,7 @@ mod callable_formations;
 mod callable_headers;
 mod callables;
 mod calling_publication;
+mod claim_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
@@ -87,12 +88,14 @@ type SharedReading = std::sync::Arc<SharedProgram>;
 fn shared_reading(typed: &TypedTrees) -> SharedReading {
     std::sync::Arc::new(SharedProgram {
         captures: typed_trees::NamedConformanceCaptureIndex::new(typed),
+        exact_toolchain_sources: Default::default(),
         calling_catalogs: Default::default(),
     })
 }
 
 pub(crate) struct SharedProgram {
     pub captures: typed_trees::NamedConformanceCaptureIndex,
+    exact_toolchain_sources: std::sync::OnceLock<Result<Vec<(source::SourceId, [u8; 32])>, String>>,
     /// The service catalog that supplies boundary calling ABIs, one slot per
     /// dependency purpose (`Product`, `Build`). The catalog depends only on
     /// the typed program and that purpose, so the first reading that asks for
@@ -105,6 +108,18 @@ type CallingCatalog =
     Result<std::sync::Arc<typed_trees::service_declarations::PreparedServiceCatalog>, String>;
 
 impl SharedProgram {
+    pub(crate) fn exact_toolchain_sources(
+        &self,
+        typed: &TypedTrees,
+    ) -> Result<&[(source::SourceId, [u8; 32])], &str> {
+        self.exact_toolchain_sources
+            .get_or_init(|| {
+                source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            })
+            .as_deref()
+            .map_err(String::as_str)
+    }
+
     pub(crate) fn calling_catalog(
         &self,
         typed: &TypedTrees,
@@ -122,11 +137,10 @@ impl SharedProgram {
             // authority. The coordinator authenticates the nominated handles
             // against its admitted source registry before constructing the
             // compilation.
-            let sources =
-                source::source_identity::toolchain_source_identities(typed.symbols.source_files())?;
+            let sources = self.exact_toolchain_sources(typed).map_err(str::to_owned)?;
             Ok(std::sync::Arc::new(
                 typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-                    context, &sources,
+                    context, sources,
                 ),
             ))
         })
@@ -1083,18 +1097,19 @@ fn finish_reading_into<'source>(
     for requirement in program.requirements.clone() {
         program.retain_requirement_schema(requirement)?;
     }
-    let services = program.service_map(diagnostic)?;
-    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
-    let policies = (!policies.requests.is_empty()).then_some(policies);
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
-    let descriptions = policies
-        .as_ref()
-        .map(|policies| program.prepare_calling_storage(diagnostic, policies))
+    let descriptions = (!policies.requests.is_empty())
+        .then(|| program.prepare_calling_storage(diagnostic, &policies))
         .transpose()?;
     program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
+    // Header types and clauses may name services and parent contracts.
+    // Build the service list and check all parents after those reads finish.
+    let services = program.service_map(diagnostic)?;
+    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
+    let policies = (!policies.requests.is_empty()).then_some(policies);
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
@@ -1989,6 +2004,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
+    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

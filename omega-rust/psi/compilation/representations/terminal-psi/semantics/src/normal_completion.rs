@@ -28,7 +28,7 @@ pub fn structural_return_carrier_matches(
         && (multiplicity == result.multiplicity
             || (multiplicity == StructuralMultiplicity::Affine
                 && result.multiplicity == StructuralMultiplicity::Unrestricted
-                && source.copyable
+                && source.is_copyable()
                 && !source.owns_linear_claim
                 && matches!(
                     source.shape,
@@ -283,7 +283,7 @@ mod tests {
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,
@@ -366,7 +366,7 @@ mod tests {
     fn whole_discard_requires_an_owned_affine_source() {
         let mut machine = machine();
         let mut types = types();
-        types[0].copyable = false;
+        types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
         let place = machine.structural_parameters[0].place;
         let terminator = Terminator::ReturnUnit {
@@ -387,7 +387,7 @@ mod tests {
         assert_eq!(check(&machine, &types), refused);
 
         machine.structural_parameters[0].access = StructuralAccess::Owned;
-        types[0].copyable = true;
+        types[0].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
         assert_eq!(check(&machine, &types), refused);
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
         assert_eq!(check(&machine, &types), refused);

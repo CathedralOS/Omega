@@ -1521,6 +1521,7 @@ pub(crate) mod identity_context {
                         operand: IndexIdentityArgument::TypeArgument(reference),
                         lexical_owner: owner,
                         binders: &[],
+                        exact_toolchain_sources: &[],
                         lifetime_binders: &[
                             (region(owner), 0),
                             (
@@ -6485,11 +6486,15 @@ pub(crate) mod portable_machine_applications {
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let missing_exact_owner = Cell::new(false);
-        let result = portable_operation_record_value_under_owner_policy(
+        let result = portable_operation_record_value_in_context(
             program,
             symbol,
-            exact_toolchain_sources,
-            &missing_exact_owner,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_owner),
+                ..Default::default()
+            },
         )?;
         if missing_exact_owner.get() {
             return Err("static record lost its exact operand or owner identity".into());
@@ -6497,50 +6502,23 @@ pub(crate) mod portable_machine_applications {
         Ok(result)
     }
 
-    /// Compute a record value for an operand named inside a larger identity.
-    /// The record's toolchain owners follow the enclosing identity's own rule:
-    /// when the enclosing request requires exact toolchain owners, a missing
-    /// one is reported to that request, which then refuses exactly as it does
-    /// for its other names. When it does not require them, the record names
-    /// toolchain declarations with the same plain owner its other names use.
-    /// Every other loss of identity still refuses the record.
+    /// A nested record keeps the enclosing identity's application and lifetime
+    /// scopes and its policy for exact source owners. A portable record request
+    /// above explicitly requires those owners; local comparisons do not add
+    /// that requirement merely by reading a conformance's value.
     pub(crate) fn portable_operation_record_value_in_context(
         program: &TypedTrees,
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        let missing_exact_owner = Cell::new(false);
-        let result = portable_operation_record_value_under_owner_policy(
-            program,
-            symbol,
-            context.exact_toolchain_sources,
-            &missing_exact_owner,
-        )?;
-        if missing_exact_owner.get()
-            && let Some(missing) = context.missing_exact_nominal_owner
-        {
-            missing.set(true);
-        }
-        Ok(result)
-    }
-
-    fn portable_operation_record_value_under_owner_policy(
-        program: &TypedTrees,
-        symbol: SymbolHandle,
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-        missing_exact_owner: &Cell<bool>,
-    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
-            qualification: TypeIdentityQualification::PackageQualified,
-            exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(missing_exact_owner),
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..Default::default()
+            invalid_application: context.invalid_application.or(Some(&invalid)),
+            encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
+            invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
+            ..*context
         };
         let result = projection.record_value(program, symbol, &context)?;
         if let Some(reason) = projection.error.into_inner() {
@@ -6634,11 +6612,7 @@ pub(crate) mod portable_machine_applications {
             }
             self.active.borrow_mut().push(symbol);
             let result = program
-                .canonical_operation_record_value_in_context(
-                    symbol,
-                    context.exact_toolchain_sources,
-                    context,
-                )
+                .canonical_operation_record_value_in_context(symbol, context)
                 .map_err(str::to_owned);
             self.active.borrow_mut().pop();
             if let Err(reason) = &result {
@@ -7399,6 +7373,7 @@ pub(crate) mod static_operand_identity {
         pub lexical_owner: SymbolHandle,
         pub binders: &'a [(SymbolHandle, String)],
         pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     }
 
     impl TypedTrees {
@@ -7547,6 +7522,7 @@ pub(crate) mod static_operand_identity {
                     application_argument_owner: request.lexical_owner,
                     binders: request.binders,
                     lifetime_binders: request.lifetime_binders,
+                    exact_toolchain_sources: request.exact_toolchain_sources,
                     qualification: super::TypeIdentityQualification::PackageQualified,
                     invalid_application: Some(&invalid),
                     encountered_elided_regions: Some(&invalid),

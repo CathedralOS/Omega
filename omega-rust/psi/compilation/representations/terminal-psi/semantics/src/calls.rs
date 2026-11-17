@@ -883,24 +883,23 @@ pub mod closed_conformances {
                     ],
                 )
             };
-            // A machine's semantic declaration names its path together with
-            // its callable signature, so overloads stay distinct. The checked
-            // primitive and requirement must carry exactly that form.
+            let primitive_callable = callable(primitive.1);
+            let requirement_callable = callable(requirement_member);
             HostedProcessExitIdentities {
                 primitive: exact_nominal(primitive, primitive.1),
                 primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
                 primitive_semantic: format!(
                     "toolchain::{}",
-                    callable_declaration_path(primitive.1, &callable(primitive.1))
+                    callable_declaration_path(primitive.1, &primitive_callable)
                 ),
-                primitive_callable: callable(primitive.1),
+                primitive_callable,
                 requirement_owner: exact_nominal(requirement, requirement.1),
                 requirement_member: exact_nominal(requirement, requirement_member),
                 requirement_semantic: format!(
                     "toolchain::{}",
-                    callable_declaration_path(requirement_member, &callable(requirement_member))
+                    callable_declaration_path(requirement_member, &requirement_callable)
                 ),
-                requirement_callable: callable(requirement_member),
+                requirement_callable,
                 parameter,
                 result: result_type,
             }
@@ -3583,7 +3582,7 @@ pub mod evidence_calls {
                 caller.id,
                 use_position,
                 &DescriptorCasePredicate {
-                    subject: DescriptorLocation::whole(result.place),
+                    subject: DescriptorLocation::whole(result.place).into(),
                     case: row.guard.result_case,
                 },
             ) {
@@ -3869,7 +3868,7 @@ pub fn const_array_argument_matches(
         if !identical
             && (actual.declaration_identity != expected.declaration_identity
                 || actual.owns_linear_claim != expected.owns_linear_claim
-                || actual.copyable != expected.copyable
+                || actual.multiplicity != expected.multiplicity
                 || actual.no_code_affine_cleanup != expected.no_code_affine_cleanup
                 || actual.descriptor_cleanup != expected.descriptor_cleanup
                 || actual.nominal_cleanup.is_some()

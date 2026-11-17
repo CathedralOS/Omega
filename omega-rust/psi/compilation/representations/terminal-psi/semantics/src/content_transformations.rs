@@ -2643,7 +2643,7 @@ pub mod domain_preservation {
                 identity: TerminalIdentityIndex(id.get() as u32),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 shape,

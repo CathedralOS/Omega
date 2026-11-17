@@ -6115,7 +6115,7 @@ impl<'a> CallObservations<'_, 'a> {
         &mut self,
         value: ValueId,
         scalar_type: ScalarType,
-        same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
+        same: impl FnMut(ScalarTerm, ScalarTerm) -> bool,
     ) -> Option<ScalarTerm> {
         if self.readable.is_empty() || matches!(scalar_type, ScalarType::Callable(_)) {
             return None;
@@ -6146,11 +6146,66 @@ impl<'a> CallObservations<'_, 'a> {
         value: ValueId,
         scalar_type: ScalarType,
         origin: ValueOrigin,
-        same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
+        mut same: impl FnMut(ScalarTerm, ScalarTerm) -> bool,
     ) -> Option<ScalarTerm> {
-        let recorded = self.observed_place(origin)?;
+        let observed = self.observed_place(origin);
+        if let Some(recorded) = &observed
+            && let Some(term) = self.bind_recorded(value, scalar_type, recorded, &mut same)
+        {
+            return Some(term);
+        }
+        // Where the value was read or stored need not be what this point
+        // passes on. `vr_chk_a` stores `main.plug[main.x]` into `main.t` and
+        // guards it, but the guard's `&&` hands `main` to a later block
+        // through a block formal of its own: the fact names the earlier
+        // read, and the edge passes the later formal. Try each place that
+        // held the value, beneath each whole input this point passes.
+        // `bind_recorded` admits one only where that field holds the value
+        // here; a description is inference, and every arrival proves it.
+        let mut places: Vec<Lineage> = observed.into_iter().collect();
+        places.extend(
+            self.storage
+                .log
+                .iter()
+                .filter(|row| matches!(row.stored, Stored::Value(held) if held == value))
+                .map(|row| row.lineage.clone()),
+        );
+        let wholes: Vec<PlaceId> = self
+            .readable
+            .iter()
+            .filter(|(actual, _)| actual.segments.is_empty())
+            .map(|(actual, _)| actual.root)
+            .collect();
+        let mut candidates = Vec::new();
+        for (position, place) in places.iter().enumerate() {
+            if position > 0 {
+                candidates.push(place.clone());
+            }
+            for &root in &wholes {
+                if root != place.root {
+                    candidates.push(Lineage {
+                        root,
+                        segments: place.segments.clone(),
+                    });
+                }
+            }
+        }
+        candidates
+            .iter()
+            .find_map(|recorded| self.bind_recorded(value, scalar_type, recorded, &mut same))
+    }
+
+    /// `value` as the callee's name for `recorded`, when `recorded` lies in
+    /// an input the callee can read and holds `value` at this point.
+    fn bind_recorded(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+        recorded: &Lineage,
+        same: &mut impl FnMut(ScalarTerm, ScalarTerm) -> bool,
+    ) -> Option<ScalarTerm> {
         let (formal, path, held) =
-            if let Some((formal, path)) = formal_observation_path(&self.readable, &recorded) {
+            if let Some((formal, path)) = formal_observation_path(&self.readable, recorded) {
                 let declaration = &self.callee_formals[formal];
                 let mut actual =
                     extended(self.readable_actual(declaration).ok()?.clone(), &path).ok()?;
@@ -6192,9 +6247,9 @@ impl<'a> CallObservations<'_, 'a> {
                     self.extents = Some(extents);
                 }
                 let extents = self.extents.as_ref()?;
-                let position = extents.partition_point(|(place, _, _)| place < &recorded);
+                let position = extents.partition_point(|(place, _, _)| place < recorded);
                 let (place, formal, held) = extents.get(position)?;
-                if *place != recorded {
+                if place != recorded {
                     return None;
                 }
                 (*formal, Vec::new(), ScalarTerm::value(*held, scalar_type))

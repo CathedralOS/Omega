@@ -1053,6 +1053,57 @@ fn conjuncts(proposition: &Proposition) -> &[Proposition] {
 /// Add the inferred predicate to the contract and mint its obligation at
 /// every real call. Existing clauses retain their obligation identities when
 /// canonical ordering moves their positions.
+/// The part of an inferred condition whose arithmetic forms in the callee's
+/// contract. Nobody wrote the condition, so a conjunct that cannot form (a
+/// product like `pi == e * 26` that arrived without the bound on `e` that
+/// keeps it total) is not the program's error: leave it out. Keeping fewer
+/// conjuncts only gives the body fewer premises, and every arrival still
+/// proves what is kept. Conjuncts are retried while any joins, so a bound
+/// that sorts after the term it protects still admits that term.
+fn formed(
+    elaboration: &Elaboration,
+    callee: MachineId,
+    predicate: Proposition,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Option<Proposition>> {
+    let contract = &terminal_machine(&elaboration.module.machines, callee, callee)?.contract;
+    // A defect in the module itself is still reported, never left out.
+    let forms = |clause: &Proposition, activity: &mut crate::ProofSearchActivity| {
+        let mut proposed = contract.clone();
+        proposed.requires.push(clause.clone());
+        match crate::formation::contract(&elaboration.module, callee, &proposed, activity) {
+            Ok(_) => Ok(true),
+            Err(refusal) if refusal.reason == RefusalReason::ForeignIdentity => Err(refusal),
+            Err(_) => Ok(false),
+        }
+    };
+    if forms(&predicate, activity)? {
+        return Ok(Some(predicate));
+    }
+    let mut pending = conjuncts(&predicate).to_vec();
+    let mut kept = Vec::new();
+    loop {
+        let mut joined = false;
+        let mut waiting = Vec::with_capacity(pending.len());
+        for part in pending {
+            let mut trial = kept.clone();
+            trial.push(part.clone());
+            if forms(&joins::connective(trial, true), activity)? {
+                kept.push(part);
+                joined = true;
+            } else {
+                waiting.push(part);
+            }
+        }
+        pending = waiting;
+        if !joined || pending.is_empty() {
+            break;
+        }
+    }
+    let predicate = joins::connective(kept, true);
+    Ok((predicate != Proposition::Truth).then_some(predicate))
+}
+
 pub(super) fn require(
     elaboration: &mut Elaboration,
     callee: MachineId,
@@ -1062,11 +1113,9 @@ pub(super) fn require(
 ) -> Checked<()> {
     // An inferred condition becomes a premise for later callers in this
     // pass. Its arithmetic must form before publishing that new contract.
-    let mut proposed = terminal_machine(&elaboration.module.machines, callee, callee)?
-        .contract
-        .clone();
-    proposed.requires.push(predicate.clone());
-    crate::formation::contract(&elaboration.module, callee, &proposed, activity)?;
+    let Some(predicate) = formed(elaboration, callee, predicate, activity)? else {
+        return Ok(());
+    };
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

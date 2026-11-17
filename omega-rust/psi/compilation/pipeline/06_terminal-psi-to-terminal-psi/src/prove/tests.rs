@@ -761,6 +761,97 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
 }
 
 #[test]
+fn irrelevant_subtraction_endpoints_do_not_start_sign_searches() {
+    let integer = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [subject, other] = [0, 1].map(|position| {
+        let id = values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let ScalarTerm::Value { id, .. } = subject else {
+        unreachable!();
+    };
+    let three = ScalarTerm::integer(integer, IntegerValue::Signed(3)).unwrap();
+    let difference =
+        ScalarTerm::exact_integer_subtract(integer, other.clone(), subject.clone()).unwrap();
+    let assumptions = [Proposition::LessOrEqual(three, difference)];
+    let mut activity = ProofSearchActivity::default();
+    let bounds =
+        Prover::new(&context, &assumptions, &[], &values, &mut activity).literal_bounds(id);
+    assert_eq!(bounds, (None, None));
+    assert_eq!(activity.sign_queries, 0, "the offset is not the minuend");
+
+    let sum = ScalarTerm::exact_integer_add(integer, subject.clone(), other.clone()).unwrap();
+    let difference = ScalarTerm::exact_integer_subtract(integer, subject.clone(), other).unwrap();
+    let assumptions = [Proposition::LessOrEqual(sum, difference)];
+    let mut activity = ProofSearchActivity::default();
+    let steps = Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject);
+    assert!(
+        steps.is_empty(),
+        "an order step cannot return its starting value"
+    );
+    assert_eq!(
+        activity.sign_queries, 0,
+        "a self-step needs no offset proof"
+    );
+}
+
+#[test]
+fn unsigned_carrier_endpoint_uses_the_existing_checked_primitive() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let goal = Proposition::LessOrEqual(
+        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+        ScalarTerm::value(id, scalar),
+    );
+    let mut activity = ProofSearchActivity::default();
+    let proof = Prover::new(&context, &[], &[], &values, &mut activity)
+        .prove(&goal)
+        .unwrap();
+    assert!(matches!(
+        proof.rule,
+        ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound)
+    ));
+    let accepted = proof_admission::accept_certificate(&context, &goal, &[], &[], &proof).unwrap();
+    assert!(accepted.assumptions.is_empty());
+    assert!(accepted.semantic_axioms.is_empty());
+
+    let signed = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let scalar = ScalarType::Integer(signed);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let goal = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed, IntegerValue::Signed(0)).unwrap(),
+        ScalarTerm::value(id, scalar),
+    );
+    assert!(
+        Prover::new(&context, &[], &[], &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+}
+
+#[test]
 fn contradictory_strict_orders_discharge_an_unrelated_goal_with_an_admitted_certificate() {
     use semantic_vocabulary::{IntegerType, IntegerValue};
     let mut activity = ProofSearchActivity::default();

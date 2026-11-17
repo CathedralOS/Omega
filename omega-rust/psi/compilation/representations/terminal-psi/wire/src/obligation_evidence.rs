@@ -1952,7 +1952,7 @@ mod projection_tests {
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             nominal_cleanup: None,

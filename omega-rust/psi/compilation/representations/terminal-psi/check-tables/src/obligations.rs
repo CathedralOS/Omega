@@ -643,7 +643,7 @@ mod width_inventory_tests {
             id: id(raw),
             identity: terminal_psi::TerminalIdentityIndex::ABSENT,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             nominal_cleanup: None,

@@ -526,6 +526,10 @@ impl<'t> Program<'t> {
                             lexical_owner: *owner,
                             binders: &[],
                             lifetime_binders: &[],
+                            exact_toolchain_sources: self
+                                .shared
+                                .exact_toolchain_sources(self.typed)
+                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
                         },
                     )
                     .ok_or_else(|| {
@@ -733,8 +737,7 @@ mod tests {
     /// through, not replaced), so the type must be a row of the program.
     fn plain_record() -> RecordType {
         RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
@@ -1702,7 +1705,7 @@ mod tests {
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
             }],
-            None,
+            logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();
         let same_input =
@@ -2034,7 +2037,11 @@ mod tests {
         // A projected invocation keeps the same source input at normal
         // completion. Its guarantee is still an obligation of the ordinary
         // call/return body, rather than an entry premise or executable snapshot.
-        let logical = logical_inputs.scope(machine(), None, &[]);
+        let logical = logical_inputs.scope(
+            machine(),
+            logical::MathematicalAddressContext::Binding(None),
+            &[],
+        );
         let completion_scope = ClauseScope {
             logical: Some(logical.normal_return()),
             slots: &[],

@@ -45,6 +45,24 @@ pub fn prepare_replay<'source>(
             &format!("invalid declared scalar qualifications: {error:?}"),
         )
     })?;
+    // Declared linear leaves owe their claims even when the producer omitted
+    // every claim row. Check that premise before following the supplied rows.
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(
+        &elaboration.module.structural_types,
+    )
+    .map_err(|detail| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            detail,
+        )
+    })?;
     // A record formal, result or field in a domain is a contract of the
     // lowered form, judged here before anything is inferred from it.
     terminal_semantics::structural_qualifications::validate_shape(&elaboration.module).map_err(
