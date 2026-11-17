@@ -266,18 +266,17 @@ mod demand {
             {
                 return Err("scalar condition names another evaluation root".into());
             }
-            if observations.value(*application)?.is_some() {
-                if let Err(reason) =
+            if observations.value(*application)?.is_some()
+                && let Err(reason) =
                     observations.entry_result(*application, *machine, *result, *scalar_type)
-                {
-                    if observations.extends_completed_application(*application) {
-                        // A later phase can ask for an additional local result. That
-                        // expanded output request needs a real, separately charged
-                        // execution; an identical completed request never runs again.
-                        job.additional_results = true;
-                    } else {
-                        return Err(reason);
-                    }
+            {
+                if observations.extends_completed_application(*application) {
+                    // A later phase can ask for an additional local result. That
+                    // expanded output request needs a real, separately charged
+                    // execution; an identical completed request never runs again.
+                    job.additional_results = true;
+                } else {
+                    return Err(reason);
                 }
             }
             push_unique(&mut job.results, (*result, *scalar_type));
