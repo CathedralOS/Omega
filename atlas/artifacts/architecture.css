@@ -89,6 +89,14 @@
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
 .overview-edge.request path { stroke-dasharray: 7 5; }
+.overview-edge:not(.main-path) > path:not(.connected-hit) { stroke-dasharray:7 5; stroke-width:1.4; }
+.overview-edge:not(.main-path) > text { visibility:hidden; }
+.overview-edge:not(.main-path).is-selected > text { visibility:visible; }
+.overview-edge.main-path > path:not(.connected-hit) { stroke-width:2.8; stroke-dasharray:none; }
+.overview-edge.main-path:not(.check):not(.attention) > path:not(.connected-hit) { stroke:var(--ink); }
+.connected-group .connected-phase { font:500 17px var(--font-serif); }
+.connected-start { font:500 17px var(--font-serif); fill:var(--ink); }
+.overview-node .overview-note { font:400 14px var(--font-serif); fill:var(--ink-muted); }
 .overview-edge.attention path { stroke: var(--trap); stroke-width: 2.2; stroke-dasharray: 7 5; }
 .overview-edge.check path { stroke: var(--checked); stroke-width: 2.5; }
 .overview-edge.check text,.overview-action.check { fill: var(--checked); }
@@ -105,3 +113,5 @@
 .legend-psi::before,.legend-native::before { content: ''; display: inline-block; width: 20px; height: 10px; margin-right: var(--space-2); border: 2px solid var(--ink-muted); }
 .legend-native::before { background: var(--ink); border-color: var(--ink); }
 .legend-check { color: var(--checked); }
+.overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
+.overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }

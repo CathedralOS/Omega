@@ -90,6 +90,7 @@
   jump.addEventListener('change',()=>{if(jump.value){const n=nodes.get(jump.value);frameConnections(n);inspect(n.id,false,jump);}});
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
     const action=control.dataset.camera;
+    if(action==='start'){clear();start();}
     if(action==='fit')fit();
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
@@ -110,8 +111,6 @@
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&expanded){expanded=false;root.closest('.architecture').classList.remove('is-expanded');root.querySelector('[data-camera="expand"]').textContent='Expand';}});
   mini.addEventListener('click',event=>{const point=mini.createSVGPoint();point.x=event.clientX;point.y=event.clientY;const p=point.matrixTransform(mini.getScreenCTM().inverse());move(viewport.clientWidth/2-p.x*current.k,viewport.clientHeight/2-p.y*current.k,current.k);});
   new ResizeObserver(()=>{svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);move(current.x,current.y,current.k);}).observe(viewport);
-  // Start with readable source labels. Fit whole compiler and the minimap
-  // expose the entire graph without introducing a second representation.
-  const entry=nodes.get('compiler');
-  move(48-entry.x*0.85,64-entry.y*0.85,0.85);
+  function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
+  start();
 })();

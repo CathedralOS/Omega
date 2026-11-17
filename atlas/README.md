@@ -87,7 +87,7 @@ tracked `.rs` files from `src/` and include the backend `target/` source crate.
 
 ## Rebuild all pages
 
-Dependencies: Python 3.10+, Node.js 18+, Bun 1.4.4, Graphviz (`dot` on `PATH`) and Markdown 3.7:
+Dependencies: Python 3.10+, Node.js 18+, Bun 1.4.4, Graphviz (`dot` and `neato` on `PATH`) and Markdown 3.7:
 
 ```bash
 bun install --cwd atlas/artifacts --frozen-lockfile
@@ -169,14 +169,17 @@ accepted code. Extra inputs terminate at the operations that consume them.
 
 Drag to pan, scroll or pinch to zoom, and use Find to reach a component.
 Select a box or arrow to highlight its connections and open pinned source.
-The minimap and Fit whole compiler show where the current view sits. The page
-starts at readable source labels; 100% restores natural-scale type. Expand
+Follow the bold route down from START; phase frames and numbered stages show
+its order. Dashed supporting connections reveal their labels when selected.
+Start returns to Build; the minimap and Fit whole compiler locate the view.
+100% restores natural-scale type. Expand
 keeps the same graph and camera. Arrow keys pan, F fits all, and Escape clears
 selection or closes expansion. Without JavaScript, the same SVG scrolls inside
 its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
-`artifacts/layout.mjs` uses ELK.js to place and route them during the build.
+`artifacts/layout.mjs` uses ELK.js to order the main route and Graphviz `neato`
+to route supporting connections around fixed boxes during the build.
 `artifacts/connected.js` uses D3 Zoom to move the SVG and highlight connections.
 `artifacts/architecture.css` keeps the original fonts, colors, boxes and arrows.
 The stage and supporting-owner records live in `artifacts/whole_map.py`.

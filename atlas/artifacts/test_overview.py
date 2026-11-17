@@ -109,6 +109,40 @@ class OverviewContracts(unittest.TestCase):
                 reached.add(node);pending.extend(neighbors[node]-reached)
         self.assertEqual(reached,set(neighbors))
 
+    def test_the_main_route_starts_at_build_and_runs_down_one_column(self):
+        self.assertEqual(self.model['spine'][0],'build')
+        self.assertEqual(self.model['spine'][-1],'native-run')
+        nodes={n['id']:n for n in self.layout['nodes']}
+        route=[nodes[key] for key in self.model['spine']]
+        centers=[n['x']+n['width']/2 for n in route]
+        self.assertLess(max(centers)-min(centers),0.1)
+        for a,b in zip(route,route[1:]):
+            self.assertLess(a['y']+a['height'],b['y'])
+
+    def test_both_numbered_pipelines_are_complete_and_in_order(self):
+        for prefix,count in (('psi-',7),('native-',10)):
+            expected=[f'{prefix}{i}' for i in range(count)]
+            self.assertEqual([key for key in self.model['spine'] if key in expected],expected)
+        self.assertNotIn('engine',self.model['spine'])
+        self.assertNotIn('policy-eval',self.model['spine'])
+
+    def test_compact_canvas_bounds(self):
+        self.assertLess(self.layout['width'],1800)
+        self.assertLess(self.layout['height'],4000)
+
+    def test_routes_touch_the_named_endpoint_boxes(self):
+        nodes={n['id']:n for n in self.layout['nodes']}
+        for edge in self.layout['edges']:
+            points=[p for section in edge['sections'] for p in section['points']]
+            for key,point in ((edge['start'],points[0]),(edge['end'],points[-1])):
+                node=nodes[key]
+                x,y=point['x'],point['y']
+                self.assertTrue(node['x']-1.2<=x<=node['x']+node['width']+1.2,edge['id'])
+                self.assertTrue(node['y']-1.2<=y<=node['y']+node['height']+1.2,edge['id'])
+                distance=min(abs(x-node['x']),abs(x-node['x']-node['width']),
+                             abs(y-node['y']),abs(y-node['y']-node['height']))
+                self.assertLess(distance,1.2,edge['id'])
+
 
 if __name__ == '__main__':
     unittest.main()
