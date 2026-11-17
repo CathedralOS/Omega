@@ -37,6 +37,8 @@ Cargo runs benchmarks from the package directory; absolute paths avoid changing
 the meaning of an input path. Additional source paths join the input batch. `lex` measures loaded-source
 batch construction and tokenization; `parse` also constructs and drops syntax
 trees. File reads and the complete token fingerprint are outside the timed loop.
+One persistent invocation worker supplies the compiler's large parsing stack;
+worker creation is outside timing.
 Each result reports bytes processed, elapsed time, and a checksum containing the
 fingerprint and consumed token/root counts.
 

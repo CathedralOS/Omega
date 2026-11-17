@@ -8,6 +8,9 @@ use std::time::Instant;
 use typed_trees::provider_declarations::ProviderPlanningContext;
 use typed_trees::service_declarations::projection;
 
+#[path = "../../../tests/support/frontend.rs"]
+mod frontend_fixture;
+
 struct MeasuredAllocator;
 #[global_allocator]
 static ALLOCATOR: MeasuredAllocator = MeasuredAllocator;
@@ -64,8 +67,8 @@ fn typed(text: &str) -> typed_trees::TypedTrees {
             source::DependencyScope::Product,
         )
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
+    let syntax = frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();

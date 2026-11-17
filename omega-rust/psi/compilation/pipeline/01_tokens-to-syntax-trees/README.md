@@ -11,6 +11,8 @@ in the domain entries below.
 pages or need independently reusable units. These are input data, not separate
 execution routes. The compiler sequences `lex` then `parse`; it does not supply
 mutable trees, assemble parsed roots, or duplicate either stage's source loop.
+Invalid page coordinates return a parse error, including identity zero for an
+empty batch. A failed parse returns no syntax pages and leaves its tokens intact.
 
 | Follow this path | It owns |
 | --- | --- |
@@ -55,6 +57,9 @@ partial construction; that is not an external parser operation.
 There are no inline test bodies in production files.
 
 ## Comparing parser designs
+
+The timing harness uses one persistent invocation worker, preserving the large
+parsing stack without timing worker creation for each parse.
 
 The closest fit for discoverability is Clang's named entry and grammar domains.
 The useful part of Rust's layout is also its grammar names, independent of its
