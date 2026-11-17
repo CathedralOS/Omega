@@ -2033,6 +2033,110 @@ mod continuation_storage_tests {
     }
 
     #[test]
+    fn selected_continuation_retains_side_payloads_and_isolates_changes() {
+        use crate::deferred_refusals::DeferredRequest;
+
+        let mut builder = SymbolTableBuilder::new();
+        let owner = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let mut original = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        original.record_deferred_refusal(
+            owner,
+            DeferredRequest::ReceiverCallSelection,
+            source::SourceSpan::default(),
+        );
+        original
+            .authored_service_reach_rows
+            .push(crate::signature::AuthoredServiceReachRow {
+                owner,
+                keyword_source_spans: vec![source::SourceSpan::default()],
+                targets: Vec::new(),
+                installation_bound: false,
+            });
+        assert!(original.applied_domain_applications.insert(
+            crate::domain::AppliedDomainApplication {
+                declaration: owner,
+                identity: language_semantics::SemanticDomainId(1),
+                arguments: Vec::new(),
+                is_closed: true,
+                theory: None,
+            }
+        ));
+        let invocation = original
+            .access_policy_invocations
+            .insert(source::SourceSpan::default());
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(predecessor.symbols.clone());
+        let fork = Arc::get_mut(&mut successor).unwrap();
+
+        assert!(std::ptr::eq(
+            predecessor.deferred_refusals.as_ptr(),
+            fork.deferred_refusals.as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            predecessor.authored_service_reach_rows.as_ptr(),
+            fork.authored_service_reach_rows.as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            predecessor.applied_domain_applications.get(0).unwrap(),
+            fork.applied_domain_applications.get(0).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            predecessor.access_policy_invocations.get(invocation),
+            fork.access_policy_invocations.get(invocation)
+        ));
+
+        fork.record_deferred_refusal(
+            owner,
+            DeferredRequest::UndeclaredCallName,
+            source::SourceSpan::default(),
+        );
+        fork.authored_service_reach_rows[0].installation_bound = true;
+        fork.applied_domain_applications
+            .set_theory(0, Err("new preparation refusal".into()));
+        assert!(fork.access_policy_invocations.free(invocation));
+        let replacement = fork
+            .access_policy_invocations
+            .insert(source::SourceSpan::default());
+
+        assert_eq!(
+            predecessor.deferred_refusal(owner).unwrap().request,
+            DeferredRequest::ReceiverCallSelection
+        );
+        assert_eq!(
+            fork.deferred_refusal(owner).unwrap().request,
+            DeferredRequest::UndeclaredCallName
+        );
+        assert!(!predecessor.authored_service_reach_rows[0].installation_bound);
+        assert!(fork.authored_service_reach_rows[0].installation_bound);
+        assert!(
+            predecessor
+                .applied_domain_applications
+                .get(0)
+                .unwrap()
+                .theory
+                .is_none()
+        );
+        assert!(
+            fork.applied_domain_applications
+                .get(0)
+                .unwrap()
+                .theory
+                .as_ref()
+                .unwrap()
+                .is_err()
+        );
+        assert_eq!(replacement.arena_index(), invocation.arena_index());
+        assert_ne!(replacement.generation(), invocation.generation());
+        assert!(predecessor.access_policy_invocations.is_valid(invocation));
+        assert!(!fork.access_policy_invocations.is_valid(invocation));
+        assert!(!predecessor.access_policy_invocations.is_valid(replacement));
+    }
+
+    #[test]
     fn selected_continuation_shares_callable_children_and_isolates_writes() {
         use crate::name::Identifier;
         use crate::{callable_applications, domain, signature, state};

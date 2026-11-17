@@ -193,6 +193,37 @@ pub(crate) mod callable_identity {
         }
     }
 
+    #[cfg(test)]
+    mod ownership_tests {
+        use super::*;
+
+        #[test]
+        fn callable_fork_retains_side_payloads_until_a_new_identity_is_inserted() {
+            let parts = |name: &str| CallableIdentityParts {
+                path: name.into(),
+                parameters: "parameters".into(),
+                result_dispatch: NormalizedResultDispatchSet::default(),
+            };
+            let original = arena::OwnedInterner::<CallableIdentityTable>::default();
+            let first = original.with_mut(|table| table.intern(parts("first")));
+            let fork = original.clone();
+            let retained = original.with(|table| table.records.as_ptr());
+            assert_eq!(fork.with(|table| table.records.as_ptr()), retained);
+            assert_eq!(fork.with_mut(|table| table.intern(parts("first"))), first);
+            assert_eq!(fork.with(|table| table.records.as_ptr()), retained);
+
+            let second = fork.with_mut(|table| table.intern(parts("second")));
+            assert_ne!(first, second);
+            assert_eq!(original.with(|table| table.records.len()), 1);
+            assert_eq!(fork.with(|table| table.records.len()), 2);
+            assert!(original.with(|table| table.record(second).is_none()));
+            assert_eq!(
+                original.with(|table| table.record(first).unwrap().text.clone()),
+                fork.with(|table| table.record(first).unwrap().text.clone())
+            );
+        }
+    }
+
     impl TypedTrees {
         /// Derives from the supplied signature, then reuses the canonical record.
         /// Callers may supply temporary declarations that are not owned by these
