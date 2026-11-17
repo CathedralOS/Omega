@@ -1,10 +1,18 @@
 # Boundary calling plans
 
-A boundary-trait requirement selects its calling policy. Omega's internal convention
-is compiler-owned and is not selected through this surface. Terminal Psi retains
-target-neutral demand; evaluated target plans travel as
-[realization inputs](../terminal-psi/boundary_calls.md), not target policy inside
-the portable module.
+A boundary-trait requirement selects its calling policy. Terminal Psi retains
+target-neutral demand. The evaluated plan for each target travels as a
+[realization input](../terminal-psi/boundary_calls.md).
+
+<a id="syscall-binding-calling-policy"></a>
+
+## Default calling convention
+
+A boundary requirement with no declared or inherited `Calling<Policy>` uses
+Omega's compiler-owned calling convention for the selected target. To use a
+C ABI, a kernel syscall ABI or another foreign convention, the boundary trait
+must select a package-authored policy through `Calling<Policy>`. Ordinary
+calls between Omega machines remain under compiler control.
 
 ## Authorship and evaluation
 
@@ -177,9 +185,14 @@ derives native backing from exact package-local Build binding intent. A
 `Build::bind<Requirement>(builder, target, locator)` row retains the requirement's
 complete signature and calling-policy application; it needs no source `via`
 clause or synthetic forwarding machine. Literal byte lengths are inferred.
-A locator, syscall number, or target label cannot
-select calling policy. A descendant boundary trait may own a selected inherited
-requirement's schema while the row retains the declaring requirement's identity.
+A locator, syscall number, or target label cannot select calling policy.
+The compiler checks the locator against the evaluated plan. A `Syscall`
+locator requires compatible `SupervisorCall` entry control for that target.
+The compiler therefore rejects a syscall binding for an ordinary Omega call.
+A `DllImport` locator requires a compatible `CallReturn` plan.
+
+A descendant boundary trait may own a selected inherited requirement's schema
+while the row retains the declaring requirement's identity.
 
 All selected import, vtable, and service-table consumers retain the evaluated
 plan through layout and emission. They cannot reselect it from the output target
