@@ -554,6 +554,10 @@ fn source_with_child_telescope(
         Identifier::generated("sized"),
         std::slice::from_ref(&three),
     );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = counted;
     let statement_nodes = program
         .statement_table
         .insert_statements([StatementNode::Call(TableCall {
@@ -1245,7 +1249,110 @@ fn an_application_the_pass_does_not_serve_is_refused_on_its_holder_only() {
         program.deferred_refusal(counted).map(|row| row.request),
         Some(DeferredRequest::StaticApplication)
     );
+    assert_eq!(
+        program.deferred_refusal(counted).unwrap().detail,
+        "a static scalar requires its canonical closed value"
+    );
     assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn scalar_specialization_keeps_the_carrier_refusal_and_open_parameter() {
+    let Source {
+        mut program,
+        byte,
+        sized_state,
+        ..
+    } = source();
+    let sized = program.symbols.get(sized_state).parent;
+    let parameter =
+        program.machine_callable_parameters(program.machine_by_symbol(sized).unwrap())[0].symbol;
+    let carrier = named(&mut program, byte, "u8");
+    let negative = StaticMachineArgument {
+        const_literal: Some(numerics::literals::IntegerLiteral::from_value(-1)),
+        ..StaticMachineArgument::default()
+    };
+    assert!(matches!(
+        super::closed_scalar(&program, carrier, &negative),
+        Err(super::Stop::Unserved(reason)) if reason == "a static integer is outside its declared carrier"
+    ));
+    assert!(matches!(
+        super::closed_scalar(&program, carrier, &argument(parameter, "N")),
+        Ok(super::Scalar::Parameter(symbol)) if symbol == parameter
+    ));
+}
+
+#[test]
+fn a_repeated_template_binder_reports_the_failed_check_before_copying() {
+    let Source {
+        mut program, relay, ..
+    } = source();
+    let position = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == relay.machine)
+        .unwrap();
+    let binder = program.machine_type_parameters(&program.machines()[position])[0].clone();
+    let binders = program
+        .data_type_parameters
+        .insert_many([binder.clone(), binder]);
+    program.machine_mut(position).type_parameters = binders;
+    let symbols = program.symbols.symbols().len();
+    assert!(matches!(
+        super::template(&program, relay.machine),
+        Err(super::Stop::Unserved(reason)) if reason == "a declaration template repeats a callable binder"
+    ));
+    assert_eq!(program.symbols.symbols().len(), symbols);
+}
+
+#[test]
+fn implementation_selection_keeps_the_owned_requirement_lookup_error() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        [
+            (SymbolKind::Machine, SymbolNameRef::Static("owner")),
+            (SymbolKind::Conformance, SymbolNameRef::Static("selected")),
+        ],
+    );
+    let owner = declarations.handle_at(0);
+    let selected = declarations.handle_at(1);
+    let binder = builder
+        .insert_children(
+            owner,
+            [(
+                SymbolKind::ConformanceParameter,
+                SymbolNameRef::Static("Map"),
+            )],
+        )
+        .handle_at(0);
+    builder.insert_children(
+        binder,
+        [(SymbolKind::State, SymbolNameRef::Static("apply"))],
+    );
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    program.push_conformance(typed_trees::trait_definition::Conformance {
+        symbol: selected,
+        ..Default::default()
+    });
+    let selected = argument(selected, "selected");
+    let operand = super::Operand {
+        parameter: binder,
+        identity: super::Identity::Declaration(selected.symbol),
+        value: StaticMachineBindingValue::Conformance(selected.clone()),
+        argument: selected,
+        scalar: None,
+    };
+    // The missing owner record makes the shared lookup return an owned error.
+    assert!(matches!(
+        super::selections(&program, &[operand]),
+        Err(super::Stop::Unserved(std::borrow::Cow::Owned(reason)))
+            if reason == "evidence child lost its declaring bound owner"
+    ));
 }
 
 #[test]
@@ -1556,7 +1663,7 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
             application,
             &different_unused
         ),
-        Err(super::Stop::Unserved(None))
+        Err(super::Stop::Unserved(reason)) if reason == "a captured static argument is open or differs from its selected value"
     ));
 }
 
