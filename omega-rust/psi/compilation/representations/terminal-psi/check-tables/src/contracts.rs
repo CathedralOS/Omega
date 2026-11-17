@@ -31,9 +31,7 @@ pub enum Ceiling {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementCeilings {
     pub reaches: Ceiling,
-    /// A known row keeps callable-formal entries as well as service entries.
-    /// `None` is an open bound, distinct from a checked empty list.
-    pub invokes: Option<Vec<TerminalCallableInvocation>>,
+    pub invokes: Ceiling,
     /// Source-only bounds; None still requires inference, not a false promise.
     pub suspension: Option<bool>,
     pub blocking: Option<bool>,

@@ -911,9 +911,8 @@ fn finish_logical_witness<'source>(
         }
     }
     program.prepare_domain_predicates(entry)?;
-    program.prepare_envelope_policies()?;
-    let services = program.service_map(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
+    let services = program.service_map(entry)?;
     let components = prepare_call_components(&bodies, &mut program.signatures)?;
     let mut witness = lower_program(
         Some(entry),
@@ -961,7 +960,6 @@ fn capture_source_questions(
         &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
-        &program.generic_templates,
     )
     .map_err(|error| Refusal {
         source_span: None,
@@ -1401,34 +1399,20 @@ fn lower_program<'source>(
                 ),
             ));
         }
-        if let Some(source) = declarations {
-            source.abstract_requirement_ceilings(services)?
-        } else {
-            signatures.machines.map(|_, signature| RequirementCeilings {
-                reaches: signature.reaches.clone(),
-                invokes: match &signature.invokes {
-                    crate::Ceiling::Authored(row) => Some(
-                        row.iter()
-                            .copied()
-                            .map(terminal_psi::TerminalCallableInvocation::Service)
-                            .collect(),
-                    ),
-                    crate::Ceiling::Inferred => None,
+        signatures.machines.map(|_, signature| RequirementCeilings {
+            reaches: signature.reaches.clone(),
+            invokes: signature.invokes.clone(),
+            suspension: signature.operational.suspension,
+            blocking: signature.operational.blocking,
+            // The signature reader refuses unsupported progress premises before
+            // lowering. A missing promise remains NoGuarantee, never a body proof.
+            termination: match signature.termination {
+                Termination::Silent => terminal_psi::TerminalCallableTermination::NotGuaranteed,
+                Termination::Promised => terminal_psi::TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
                 },
-                suspension: signature.operational.suspension,
-                blocking: signature.operational.blocking,
-                termination: match signature.termination {
-                    crate::body::Termination::Silent => {
-                        terminal_psi::TerminalCallableTermination::NotGuaranteed
-                    }
-                    crate::body::Termination::Promised => {
-                        terminal_psi::TerminalCallableTermination::Terminates {
-                            premises: Vec::new(),
-                        }
-                    }
-                },
-            })
-        }
+            },
+        })
     };
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
@@ -1676,7 +1660,6 @@ fn lower_program<'source>(
     callables.publish(
         diagnostic,
         signatures.machines,
-        &required_ids,
         &outcomes,
         &declared.records,
         boundaries,

@@ -165,146 +165,22 @@ impl Program<'_> {
         })
     }
 
-    fn machine_envelope_policy(
-        &self,
-        id: MachineId,
-        symbol: symbols::SymbolHandle,
-    ) -> Checked<Policy> {
-        let operational = self
-            .signatures
-            .get(id)
-            .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
-            .operational;
-        Ok(
-            if let Some(machine) = self.typed.machine_by_symbol(symbol) {
-                let authored = self
-                    .typed
-                    .signature_invokes
-                    .span(machine.invokes)
-                    .ok_or_else(|| unavailable(id, "named invocation permission span is stale"))?;
-                let states = self
-                    .typed
-                    .machine_states
-                    .span(machine.states)
-                    .ok_or_else(|| unavailable(id, "named callable has a stale state span"))?;
-                let Some([state]) = states.as_array() else {
-                    return Err(unavailable(
-                        id,
-                        "named callable needs one exact entry state",
-                    ));
-                };
-                let parameters = self
-                    .typed
-                    .state_parameters
-                    .span(state.parameters)
-                    .ok_or_else(|| unavailable(id, "named callable has a stale parameter span"))?;
-                let termination = match &machine.termination_plan.interface {
-                    TerminationInterface::Published(guarantee) => termination(id, guarantee)?,
-                    TerminationInterface::InternalDerived => {
-                        TerminalCallableTermination::NotGuaranteed
-                    }
-                };
-                Policy {
-                    reach: crate::reach::written_ceiling(self.typed, id, symbol)?,
-                    invokes: if !authored.is_empty() {
-                        Some(invocations(self.typed, id, authored, parameters)?)
-                    } else {
-                        None
-                    },
-                    suspends: operational.suspension,
-                    blocks: operational.blocking,
-                    termination,
-                }
-            } else {
-                let envelope = self
-                    .callables
-                    .envelopes
-                    .get(id)
-                    .and_then(Option::as_ref)
-                    .ok_or_else(|| {
-                        unavailable(id, "abstract callable has no retained operational contract")
-                    })?;
-                Policy {
-                    reach: Some(envelope.service_reach.clone()),
-                    invokes: Some(envelope.invocations.clone()),
-                    suspends: Some(envelope.suspends),
-                    blocks: Some(envelope.blocks),
-                    termination: envelope.termination.clone(),
-                }
-            },
-        )
-    }
-
-    /// Abstract calls keep the same header bounds as ordinary bodies. Prepare
-    /// those bounds once before inference, preserving open and empty axes.
-    pub(crate) fn prepare_envelope_policies(&mut self) -> Checked<()> {
-        for position in 0..self.symbols.len() {
-            let id = MachineId::new(position as u64 + 1).expect("nonzero machine identity");
-            while self.declared_envelope_policies.len() <= position {
-                self.declared_envelope_policies.push(None);
-            }
-            if self
-                .declared_envelope_policies
-                .get(id)
-                .is_some_and(Option::is_none)
-            {
-                let symbol = *self.symbols.get(id).ok_or_else(|| {
-                    unavailable(id, "callable policy lost its source declaration")
-                })?;
-                let policy = self.machine_envelope_policy(id, symbol)?;
-                *self
-                    .declared_envelope_policies
-                    .get_mut(id)
-                    .ok_or_else(|| unavailable(id, "callable policy lost its prepared row"))? =
-                    Some(policy);
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn abstract_requirement_ceilings(
-        &self,
-        services: &crate::reach::ServiceMap,
-    ) -> Checked<IdTable<MachineId, terminal_check_tables::contracts::RequirementCeilings>> {
-        let mut rows = IdTable::default();
-        for (id, _) in self.symbols.iter() {
-            let policy = self
-                .declared_envelope_policies
-                .get(id)
-                .and_then(Option::as_ref)
-                .ok_or_else(|| {
-                    unavailable(id, "abstract callable has no prepared source bounds")
-                })?;
-            rows.push(terminal_check_tables::contracts::RequirementCeilings {
-                reaches: match &policy.reach {
-                    Some(row) => crate::Ceiling::Authored(services.row(id, row)?),
-                    None => crate::Ceiling::Inferred,
-                },
-                invokes: policy
-                    .invokes
-                    .as_ref()
-                    .map(|row| services.invocations(id, row))
-                    .transpose()?,
-                suspension: policy.suspends,
-                blocking: policy.blocks,
-                termination: policy.termination.clone(),
-            });
-        }
-        Ok(rows)
-    }
-
     pub(crate) fn finish_operational_envelopes(
         &mut self,
         bodies: &IdTable<MachineId, Body>,
         components: &crate::components::Components,
     ) -> Checked<()> {
-        self.prepare_envelope_policies()?;
         let declaration_policies = self.declaration_policies()?;
-        // Unknown bounds cannot be inferred from an unread requirement body.
-        // Keep them in the generic witness; complete retained bounds can seed
-        // the ordinary inference loop without reading that body.
+        // An abstract requirement can defer its operational contract to a
+        // later application. The generic witness retains that open Signature;
+        // it cannot publish a complete callable envelope or supply descriptors.
+        // A complete retained requirement policy is already sufficient input to
+        // the fixed point below; it does not need a previously inferred envelope.
         if let Some(requirement) = self.requirements.iter().copied().find(|id| {
-            !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+            self.symbols
+                .get(*id)
+                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
+                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
                 && !self
                     .declared_envelope_policies
                     .get(*id)
@@ -339,12 +215,74 @@ impl Program<'_> {
         let mut policies = IdTable::default();
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
-        for (id, _) in self.symbols.iter() {
-            let policy = self
+        for (id, symbol) in self.symbols.iter() {
+            let operational = self
+                .signatures
+                .get(id)
+                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
+                .operational;
+            let policy = if let Some(policy) = self
                 .declared_envelope_policies
                 .get(id)
                 .and_then(Option::as_ref)
-                .ok_or_else(|| unavailable(id, "callable has no prepared source bounds"))?;
+            {
+                policy.clone()
+            } else if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
+                let authored = self
+                    .typed
+                    .signature_invokes
+                    .span(machine.invokes)
+                    .ok_or_else(|| unavailable(id, "named invocation permission span is stale"))?;
+                let states = self
+                    .typed
+                    .machine_states
+                    .span(machine.states)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale state span"))?;
+                let Some([state]) = states.as_array() else {
+                    return Err(unavailable(
+                        id,
+                        "named callable needs one exact entry state",
+                    ));
+                };
+                let parameters = self
+                    .typed
+                    .state_parameters
+                    .span(state.parameters)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale parameter span"))?;
+                let termination = match &machine.termination_plan.interface {
+                    TerminationInterface::Published(guarantee) => termination(id, guarantee)?,
+                    TerminationInterface::InternalDerived => {
+                        TerminalCallableTermination::NotGuaranteed
+                    }
+                };
+                Policy {
+                    reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
+                    invokes: if !authored.is_empty() {
+                        Some(invocations(self.typed, id, authored, parameters)?)
+                    } else {
+                        None
+                    },
+                    suspends: operational.suspension,
+                    blocks: operational.blocking,
+                    termination,
+                }
+            } else {
+                let envelope = self
+                    .callables
+                    .envelopes
+                    .get(id)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| {
+                        unavailable(id, "abstract callable has no retained operational contract")
+                    })?;
+                Policy {
+                    reach: Some(envelope.service_reach.clone()),
+                    invokes: Some(envelope.invocations.clone()),
+                    suspends: Some(envelope.suspends),
+                    blocks: Some(envelope.blocks),
+                    termination: envelope.termination.clone(),
+                }
+            };
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
@@ -1011,23 +949,6 @@ impl Program<'_> {
         }
         for (_, row) in self.declaration_envelopes.iter() {
             source_roots(row, &mut roots);
-        }
-        // A header can name services without supplying an executable body.
-        // Keep its known names in the same service registry; omitted bounds
-        // remain open in the prepared policy and grant no additional effects.
-        for (_, policy) in self.declared_envelope_policies.iter() {
-            let Some(policy) = policy else { continue };
-            roots.extend(policy.reach.iter().flatten().copied());
-            roots.extend(
-                policy
-                    .invokes
-                    .iter()
-                    .flatten()
-                    .filter_map(|target| match target {
-                        Invocation::Service(service) => Some(*service),
-                        Invocation::Parameter(_) => None,
-                    }),
-            );
         }
         for (_, row) in self.boundaries.rows.iter() {
             source_roots(&row.envelope, &mut roots);

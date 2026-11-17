@@ -66,7 +66,12 @@ impl<'a> Envelope<'a> {
     fn entries(self) -> Option<Vec<Entry>> {
         match self {
             Self::Runtime(envelope) => Some(envelope.invocations.clone()),
-            Self::Abstract(envelope) => envelope.invokes.clone(),
+            Self::Abstract(envelope) => match &envelope.invokes {
+                terminal_check_tables::contracts::Ceiling::Inferred => None,
+                terminal_check_tables::contracts::Ceiling::Authored(row) => {
+                    Some(row.iter().copied().map(Entry::Service).collect())
+                }
+            },
         }
     }
     fn suspension(self) -> Option<bool> {
@@ -1323,74 +1328,4 @@ fn fixed_refinement_reach(
     fixed.sort_unstable();
     fixed.dedup();
     Ok(fixed)
-}
-
-#[cfg(test)]
-mod abstract_bound_tests {
-    use super::*;
-    use terminal_check_tables::contracts::{Ceiling, RequirementCeilings};
-
-    fn open() -> RequirementCeilings {
-        RequirementCeilings {
-            reaches: Ceiling::Inferred,
-            invokes: None,
-            suspension: None,
-            blocking: None,
-            termination: terminal_psi::TerminalCallableTermination::NotGuaranteed,
-        }
-    }
-
-    #[test]
-    fn abstract_bounds_keep_unknown_empty_and_permitted_effects_distinct() {
-        let unknown = open();
-        let closed = RequirementCeilings {
-            reaches: Ceiling::Authored(Vec::new()),
-            invokes: Some(Vec::new()),
-            suspension: Some(false),
-            blocking: Some(false),
-            termination: terminal_psi::TerminalCallableTermination::Terminates {
-                premises: Vec::new(),
-            },
-        };
-        for axis in [Axis::Reach, Axis::Entries, Axis::Suspension, Axis::Blocking] {
-            assert_eq!(Envelope::Abstract(&unknown).row(axis), None);
-            assert_eq!(Envelope::Abstract(&closed).row(axis), Some(Vec::new()));
-        }
-        assert!(
-            Contributions::default()
-                .operational_from(Envelope::Abstract(&unknown), Envelope::Abstract(&closed))
-                .is_err()
-        );
-        assert!(
-            Contributions::default()
-                .operational_from(Envelope::Abstract(&unknown), Envelope::Abstract(&unknown))
-                .is_ok()
-        );
-        let supplied = RequirementCeilings {
-            invokes: Some(vec![Entry::Parameter(3)]),
-            suspension: Some(true),
-            blocking: Some(true),
-            ..open()
-        };
-        assert_eq!(
-            Envelope::Abstract(&supplied).entries(),
-            Some(vec![Entry::Parameter(3)])
-        );
-        let mut reached = Contributions::default();
-        reached
-            .operational_from(Envelope::Abstract(&supplied), Envelope::Abstract(&closed))
-            .unwrap();
-        assert_eq!(reached.row(Axis::Suspension), vec![Permission::MaySuspend]);
-        assert_eq!(reached.row(Axis::Blocking), vec![Permission::MayBlock]);
-        assert_eq!(reached.row(Axis::Termination), vec![Permission::MayDiverge]);
-        let no_suspend = RequirementCeilings {
-            suspension: Some(false),
-            ..open()
-        };
-        assert_eq!(
-            Contributions::default()
-                .operational_from(Envelope::Abstract(&no_suspend), Envelope::Abstract(&closed)),
-            Err("abstract callable has no closed suspension, blocking or progress envelope")
-        );
-    }
 }

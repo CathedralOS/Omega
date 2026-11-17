@@ -208,19 +208,14 @@ pub fn prepare_compilation(
         &mut source,
     );
     closure = closure.and_then(|mut elaboration| {
-        crate::declare::close_specializations(
-            typed,
-            &forms,
-            prepared_applications,
-            &mut elaboration,
-        )
-        .map_err(|(owner, reason)| {
-            crate::refuse(
-                owner,
-                terminal_check_tables::Construct::Machine,
-                crate::Unserved::Declaration(reason),
-            )
-        })?;
+        crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
+            .map_err(|(owner, reason)| {
+                crate::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            })?;
         // Proof scope retains the completed callable headers for later
         // admission. Capture commitments are part of those headers.
         crate::publication::finalize_source(

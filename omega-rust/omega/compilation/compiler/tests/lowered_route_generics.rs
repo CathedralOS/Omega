@@ -53,52 +53,6 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
         .count()
 }
 
-// Publication uses the original program's Build selections and package
-// inputs, through the same source-compilation request as normal checking.
-fn checked_fixture_publication(fixture: &str, rejects: bool) {
-    let _guard = lock_fixture_compilation();
-    std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            let directory = repository(fixture);
-            let main = directory.join("main.omg");
-            let checked = orchestration::check_source(
-                &mut compiler::CompilationSession::default(),
-                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
-            )
-            .result;
-            if rejects {
-                let expected = std::fs::read_to_string(directory.join("expected.txt")).unwrap();
-                let diagnostics = checked
-                    .expect_err("the original excessive guarantee is refused")
-                    .into_diagnostics();
-                assert!(
-                    diagnostics
-                        .iter()
-                        .any(|diagnostic| diagnostic.message.contains(expected.trim())),
-                    "{diagnostics:#?}"
-                );
-            } else {
-                let checked =
-                    checked.unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
-                let publication = checked
-                    .terminal_publication()
-                    .accepted()
-                    .unwrap()
-                    .closure()
-                    .publish()
-                    .unwrap();
-                terminal_codec::ClosedTerminalModule::from_semantic_bytes(
-                    publication.artifact.semantic_bytes(),
-                )
-                .unwrap();
-            }
-        })
-        .unwrap()
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-    });
-}
-
 fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
     let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
@@ -604,7 +558,6 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
     // Two types, each with both machines.
     assert_eq!(count(&rows, "carried", "accepted"), 8);
     assert_eq!(count(&rows, "carried", "refused"), 0);
-    checked_fixture_publication("tests/fixtures/run/generics/type_parameter_contract", false);
 }
 
 /// Its twin differs only in the bound `relay` promises, `result <= 10`,
@@ -628,10 +581,6 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
             ("carried", "guarantee"),
             ("carried", "guarantee")
         ]
-    );
-    checked_fixture_publication(
-        "tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee",
-        true,
     );
 }
 

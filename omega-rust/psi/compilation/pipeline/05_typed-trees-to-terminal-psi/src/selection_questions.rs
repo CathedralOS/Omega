@@ -244,7 +244,6 @@ struct Capture<'a> {
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [typed_trees::signature::StateSignature],
     closed_signature_templates: Vec<SymbolHandle>,
-    required_generic_forms: &'a [SymbolHandle],
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     scopes: Vec<SymbolHandle>,
@@ -722,16 +721,6 @@ impl TypedReferences for Capture<'_> {
         if !self.valid_symbol(symbol, "visited declaration") {
             return false;
         }
-        if self
-            .required_generic_forms
-            .binary_search_by_key(&(symbol.arena_index(), symbol.generation()), |symbol| {
-                (symbol.arena_index(), symbol.generation())
-            })
-            .is_ok()
-        {
-            self.seen_declarations.insert(symbol);
-            return false;
-        }
         self.owner = symbol;
         self.scopes.clear();
         self.expressions.clear();
@@ -1078,7 +1067,6 @@ pub(crate) fn capture(
         admitted,
         completed_operators,
         signature_views,
-        &[],
     )
 }
 
@@ -1088,7 +1076,6 @@ pub(crate) fn capture_with_bodies(
     bodies: &DeclarationSelection,
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
-    required_generic_forms: &[SymbolHandle],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     let roots = admitted.explicit_symbols().ok_or_else(|| {
         SelectionCaptureError(
@@ -1119,24 +1106,6 @@ pub(crate) fn capture_with_bodies(
     closed_signature_templates
         .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     closed_signature_templates.dedup();
-    // The main form keeps these declarations' identities. Their questions
-    // belong to their own mandatory generic forms, whose source descriptions
-    // and judgments are assembled with the main form before publication.
-    let mut required_generic_forms = required_generic_forms.to_vec();
-    required_generic_forms
-        .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    required_generic_forms.dedup();
-    for &symbol in &required_generic_forms {
-        if !admitted.contains(symbol)
-            || !typed
-                .machine_by_symbol(symbol)
-                .is_some_and(|machine| crate::is_generic_template(typed, machine))
-        {
-            return Err(SelectionCaptureError(
-                "a deferred source declaration has no required generic form".into(),
-            ));
-        }
-    }
     let mut capture = Capture {
         typed,
         admitted,
@@ -1144,7 +1113,6 @@ pub(crate) fn capture_with_bodies(
         completed_operators,
         signature_views,
         closed_signature_templates,
-        required_generic_forms: &required_generic_forms,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()
@@ -1981,13 +1949,11 @@ mod tests {
         );
         answers.record_builtin(&typed, b, expression).unwrap();
         answers.finish();
-        let refusal = capture(&typed, &admitted, &answers, &[])
-            .unwrap_err()
-            .to_string();
-        assert!(refusal.contains("CheckedOperator"));
         assert!(
-            refusal.contains(&format!("({b:?}, {expression:?}, {occurrence:?})")),
-            "{refusal}"
+            capture(&typed, &admitted, &answers, &[])
+                .unwrap_err()
+                .to_string()
+                .contains("CheckedOperator")
         );
         answers.record_builtin(&typed, a, expression).unwrap();
         answers.finish();

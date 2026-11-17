@@ -157,12 +157,13 @@ impl ServiceMap {
         row.dedup();
         Ok(row)
     }
-    pub(crate) fn invocations(
+    pub(crate) fn envelope(
         &self,
         context: MachineId,
-        sources: &[SourceInvocation],
-    ) -> Checked<Vec<TerminalCallableInvocation>> {
-        let mut invocations = sources
+        source: &SourceEnvelope,
+    ) -> Checked<TerminalCallableEnvelope> {
+        let mut invocations = source
+            .invocations
             .iter()
             .map(|target| match target {
                 SourceInvocation::Parameter(position) => {
@@ -175,16 +176,9 @@ impl ServiceMap {
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
-        Ok(invocations)
-    }
-    pub(crate) fn envelope(
-        &self,
-        context: MachineId,
-        source: &SourceEnvelope,
-    ) -> Checked<TerminalCallableEnvelope> {
         Ok(TerminalCallableEnvelope {
             service_reach: self.row(context, &source.service_reach)?,
-            invocations: self.invocations(context, &source.invocations)?,
+            invocations,
             suspends: source.suspends,
             blocks: source.blocks,
             termination: source.termination.clone(),
