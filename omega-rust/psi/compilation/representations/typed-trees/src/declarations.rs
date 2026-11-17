@@ -1449,7 +1449,6 @@ pub mod domain {
             language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
         >,
         pub subject: TypeReferenceHandle,
-        pub executable: SymbolHandle,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

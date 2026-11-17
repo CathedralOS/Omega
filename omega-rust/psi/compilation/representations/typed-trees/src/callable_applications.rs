@@ -1578,7 +1578,6 @@ pub(crate) mod domain_scopes {
                 application: selected,
                 authorization: selection.authorization,
                 subject: application.type_reference(self, selection.subject)?,
-                executable: SymbolHandle::invalid(),
             })
         }
     }

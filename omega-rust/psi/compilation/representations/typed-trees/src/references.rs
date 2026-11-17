@@ -2876,7 +2876,6 @@ fn visit_cleanup_selection(
         retained.authored_selection(occurrence);
     }
     visit_symbol(retained, application.registration_operation);
-    visit_symbol(retained, selection.executable);
     visit_type_reference(program, retained, selection.subject);
     for argument in program.static_machine_application_arguments(selection.application) {
         visit_static_argument(program, retained, argument);

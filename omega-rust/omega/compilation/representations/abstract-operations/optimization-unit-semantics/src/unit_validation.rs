@@ -13359,6 +13359,14 @@ pub(crate) mod operation_contracts {
                 self.qualifications.is_empty() && self.projected_qualifications.is_empty()
             }
 
+            pub(crate) fn has_decomposition_obligations(&self) -> bool {
+                !self.is_unqualified()
+                    || !self.additional_input_qualifications.is_empty()
+                    || self
+                        .operation_result
+                        .is_some_and(|result| !result.qualification_establishments.is_empty())
+            }
+
             pub(crate) fn has_result_evidence(&self) -> bool {
                 self.operation_result.is_some_and(|result| {
                     !result.claims.is_empty() || !result.qualification_establishments.is_empty()

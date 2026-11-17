@@ -2660,6 +2660,35 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
+    fn an_empty_record_pattern_keeps_its_consuming_marker() {
+        let parsed = super::parse_source(
+            "data Zero [linear] {} machine consume(value: Zero) { let {} = move value; }",
+            "an empty consuming pattern must parse",
+        );
+        let machine = super::root_machine(&parsed, "machine root item");
+        let state = super::entry_state(&parsed, machine);
+        let locals = parsed
+            .items
+            .statements(state.statements)
+            .iter()
+            .filter_map(|handle| match parsed.statements.statement(*handle) {
+                StatementNode::LocalData(local) => Some(local),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [marker] = locals.as_slice() else {
+            panic!("one empty pattern marker")
+        };
+        assert_eq!(marker.role, language_core::LocalBindingRole::RecordPattern);
+        assert!(
+            parsed
+                .expressions
+                .match_fields(marker.pattern_fields)
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn record_pattern_marker_carries_its_field_roster() {
         let source = r#"
         data Pair { left__value: i32; right: i32; other: i32; }

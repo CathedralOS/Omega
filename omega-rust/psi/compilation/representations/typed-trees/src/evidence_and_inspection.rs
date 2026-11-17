@@ -2952,7 +2952,6 @@ pub mod inspection {
                 pub target: String,
                 pub arguments: Vec<super::StaticArgumentSnapshot>,
                 pub subject: TypeReferenceSnapshot,
-                pub has_executable: bool,
                 pub has_authorization: bool,
             }
 
@@ -2975,7 +2974,6 @@ pub mod inspection {
                         })
                         .collect(),
                     subject: type_reference_snapshot(program, selection.subject),
-                    has_executable: selection.executable.is_valid(),
                     has_authorization: selection.authorization.is_some(),
                 }
             }

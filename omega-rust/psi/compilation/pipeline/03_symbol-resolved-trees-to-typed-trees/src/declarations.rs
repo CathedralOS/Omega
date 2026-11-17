@@ -573,7 +573,6 @@ pub(crate) mod domain {
             application,
             subject,
             authorization,
-            executable: symbols::SymbolHandle::invalid(),
         })
     }
 }
