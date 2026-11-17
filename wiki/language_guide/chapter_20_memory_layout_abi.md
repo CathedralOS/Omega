@@ -122,8 +122,12 @@ The policy fixes argument placement, register preservation and kernel entry.
 Build supplies the syscall number. Remove `: Calling<LinuxX86ByteViewCalling>`
 from this trait and the compiler must reject the binding because an ordinary
 Omega call cannot enter the kernel. Other foreign ABIs work the same way.
-For example, a Windows callback can declare `Calling<MicrosoftX64Policy>`.
-See [calling plans](../spec/build/calling_plans.md#default-calling-convention).
+For example, std's `WindowsX64ScalarCalling` policy sets
+`plan.call.shadow_bytes = 32;` to tell the caller how much stack space
+to reserve for the callee. Your package can use the same registers,
+stack slots and entry controls to describe its own convention entirely in Omega.
+See the [Windows x64 policy](../../source/library/std/targets/windows_x86_64/calling.omg)
+and [calling plans](../spec/build/calling_plans.md#authorship-and-evaluation).
 
 ## Functions supplied through a table
 

@@ -51,8 +51,17 @@ both follow [inline conformance members](../language/conformances.md#declaration
 Accepting a plan validates the calling description, not the truth of an opaque
 provider's claims or its authority to execute.
 
-Packages may author policies under the same rules as platform packages. The
-`std::calling` vocabulary describes normalized signatures, placement, machine
+Omega source owns each foreign convention's rules for classifying values,
+placing arguments and results, reserving stack space, and selecting entry
+control. Bundled platform policies belong in the
+[system library](declarations.md#library-responsibilities-and-names).
+Any package can define a new convention entirely in Omega using the same
+primitives, without registering an ABI name with the compiler. The selected
+policy's evaluated plan is the sole source of foreign ABI rules for that call.
+The compiler checks the plan against the signature and target and uses it to
+emit calls and entries.
+
+The `std::calling` vocabulary describes normalized signatures, placement, machine
 state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
 to a compiler field requires a checked range conversion. Policies choose from
 closed primitives; they cannot emit instructions, supply relocation bytes,
