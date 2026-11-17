@@ -279,6 +279,7 @@ Write each item so any agent can start from it alone: current state, files and e
 <a id="checked-assembly-control-flow"></a>
 
 - **CHECKED-ASM-LABEL-CONTRACTS.** Implement `asm machine`, block declarations, `align_of(value)`, port settlements (`provider_custody.rs`), and [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution).
+  - Migrate the [flag-restoration samples](samples/cli/facts/checked_asm_flag_restore) and other fixtures using colon labels or implicit block fall-through to [checked assembly control flow](wiki/spec/language/assembly.md#explicit-control-flow). Preserve each positive case's observable result and each negative case's intended rejection. Remove incidental `builder.freestanding` settings from hosted fixtures. Where the operation really needs privilege, check it against the intended target or run it on an explicitly supplied Psi model under the [hardware authority rule](wiki/spec/build/permissions.md#where-the-operation-can-run).
 
 - **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**) Close `samples/`, [Squalr](samples/apps/README.md), and macOS `.app` bundles ([macos_application.md](wiki/spec/build/macos_application.md)) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
 
