@@ -313,30 +313,39 @@ impl<T> HandleSpan<T> {
         }
     }
 
+    /// Appends the next handle in the same generation, preserving a contiguous span.
     pub fn push_contiguous(&mut self, handle: Handle<T>) {
-        if self.is_empty() {
-            *self = Self::from_parts(handle, 1);
+        self.extend_contiguous(Self::from_parts(handle, 1));
+    }
+
+    /// Appends adjacent coordinates without iterating or copying the referenced rows.
+    /// Empty spans are ignored. Nonempty spans must share a generation and touch.
+    pub fn extend_contiguous(&mut self, span: Self) {
+        if span.is_empty() {
             return;
         }
-
+        if self.is_empty() {
+            *self = span;
+            return;
+        }
         let expected_index = self
             .start
             .arena_index()
             .checked_add(self.count)
             .expect("handle span index overflow");
         assert_eq!(
-            handle.arena_index(),
+            span.start.arena_index(),
             expected_index,
             "handle span push must be contiguous"
         );
         assert_eq!(
-            handle.generation(),
+            span.start.generation(),
             self.start.generation(),
             "handle span push must keep one generation"
         );
         self.count = self
             .count
-            .checked_add(1)
+            .checked_add(span.count)
             .expect("handle span count overflow");
     }
 }

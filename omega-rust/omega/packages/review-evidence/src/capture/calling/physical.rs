@@ -113,6 +113,7 @@ fn value_placement(
         shape: PackageReviewBoundaryValueShape {
             class: match placement.shape.class {
                 ValueClass::Integer => PackageReviewBoundaryValueClass::Integer,
+                ValueClass::IntegerAggregate => PackageReviewBoundaryValueClass::IntegerAggregate,
                 ValueClass::Float => PackageReviewBoundaryValueClass::Float,
                 ValueClass::BorrowedReference => PackageReviewBoundaryValueClass::BorrowedReference,
                 ValueClass::BorrowedScalarReference => {

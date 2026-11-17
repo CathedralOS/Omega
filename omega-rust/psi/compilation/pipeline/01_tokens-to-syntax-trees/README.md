@@ -17,12 +17,14 @@ pages. Grammar dispatch is visible here and in the domain entries below.
 | [statements/sequence.rs](statements/sequence.rs), [parse.rs](statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
 | [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references |
 | [assembly/parse.rs](assembly/parse.rs) | Assembly blocks; `generated_statements.rs` constructs their register and flag statements |
-| [token_input/cursor.rs](token_input/cursor.rs) | Token cursor, retained source, spans and lookahead; adjacent files handle delimiters and paths |
+| [token_input/cursor.rs](token_input/cursor.rs) | Token cursor, retained source, spans and lookahead; `delimiters.rs` handles balanced token ranges |
 | [literals/numbers.rs](literals/numbers.rs) | Numeric value validation after lexical recognition |
-| [syntax_storage/](syntax_storage/) | Shared handle spans, table access and copying paths into statement tables |
 | [errors/parse_error.rs](errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
 
-The output belongs to [syntax-trees](../../representations/syntax-trees/).
+The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
+Generic spans come from [foundation/arena](../../../foundation/arena/src/arena.rs);
+[tree copying](../../representations/syntax-trees/copying/statement_paths.rs) belongs
+to the representation. The parser accesses its public tables directly.
 This stage preserves authored syntax and source spans. Symbol resolution, typing
 and proof checking follow it. It neither changes the token representation nor
 publishes a second inter-stage product.

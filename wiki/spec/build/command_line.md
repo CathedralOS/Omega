@@ -131,10 +131,15 @@ location, so a project can confirm that every conforming checker accepts its
 sources. The option changes no accepted program's meaning and is not a Build
 setting.
 
-## Independent stage validators
+<a id="independent-stage-validators"></a>
 
-`--validator <ExactName>` requests a named independent stage-output validator
-inside this compilation. Repeat the option to select multiple exact validators.
+## Independent stage validators and determinism checks
+
+`--validator <ExactName>` requests a named stage-output check with the coverage
+described below. Independent correspondence validators and producer replay
+checks have different assurance; a replay is not independent validation.
+The option runs the selected check inside this compilation. Repeat the option
+to select multiple exact validators.
 `--every-validator` enumerates the deterministic registered set for this compiler
 and runs every applicable validator. It is a quantifier, not a curated assurance
 profile. Combining it with named requests does not run the same validator twice;
@@ -167,10 +172,15 @@ inputs for that audit; default compilation does not. Current-artifact byte,
 frame, exit and machine-state checks remain required without the originals.
 
 `SelectedInstructionRewriteReplay` rebuilds each selected-instruction rewrite
-run step by step from that run's own input and requires the allocated
-program's optimization record to name exactly that run. The request retains
-the run for that audit; default compilation trusts the run and does not keep
-it. With no selected-instruction rewrite rule selected it is inapplicable.
+run step by step with the producer from that run's own input and requires
+the allocated program's optimization record to name exactly that run. The request
+retains the run for that audit; default compilation trusts the run and does not keep
+it. This establishes producer repeatability and record custody only. It cannot
+detect a deterministic incorrect rewrite and does not satisfy the independent
+rewrite-validation requirement in
+[optimizations](optimizations.md#atomic-candidates-and-independent-validation).
+Its report names the determinism scope, including when it passes. With no
+selected-instruction rewrite rule selected it is inapplicable.
 
 ## Required acceptance
 

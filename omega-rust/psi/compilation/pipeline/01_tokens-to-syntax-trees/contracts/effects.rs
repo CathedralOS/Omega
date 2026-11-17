@@ -115,11 +115,11 @@ pub(crate) fn publish_capability_contracts(
     syntax_trees: &mut syntax_trees::SyntaxTrees,
     contracts: Vec<syntax_trees::item::CapabilityContract>,
 ) -> arena::HandleSpan<syntax_trees::item::CapabilityContract> {
-    let mut span = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut span = arena::HandleSpan::empty();
     for contract in contracts {
-        span.push(syntax_trees.items.append_capability_contract(contract));
+        span.push_contiguous(syntax_trees.items.append_capability_contract(contract));
     }
-    span.finish()
+    span
 }
 
 /// `crashes none` promises that no crash route exists. It names no cause,

@@ -1488,7 +1488,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 
 // Structural type rows now retain their declared three-way multiplicity.
 // The previous schema carried only the copy bit.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI37";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI38";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1496,6 +1496,26 @@ const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn darwin_integer_aggregate_shape_round_trip_preserves_composite_identity() {
+        let scalar = calling_conventions::ValueShape::integer(4, 2);
+        let record = calling_conventions::ValueShape::integer_aggregate(4, 2);
+        let mut encoded = Vec::new();
+        for shape in [scalar, record] {
+            let mut output = RecordWriter::new(Default::default());
+            shape.write(&mut output).unwrap();
+            let bytes = output.finish();
+            let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+            assert_eq!(
+                calling_conventions::ValueShape::read(&mut input).unwrap(),
+                shape
+            );
+            input.finish().unwrap();
+            encoded.push(bytes);
+        }
+        assert_ne!(encoded[0], encoded[1]);
+    }
 
     #[test]
     fn retained_provider_plan_keeps_its_selecting_and_numeric_declarations() {
@@ -1555,6 +1575,7 @@ mod tests {
             b"OMGNTI34",
             b"OMGNTI35",
             b"OMGNTI36",
+            b"OMGNTI37",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1578,7 +1599,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI38", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI39", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

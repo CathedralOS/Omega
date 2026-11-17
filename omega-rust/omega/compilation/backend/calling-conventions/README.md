@@ -70,9 +70,8 @@ passing plan evaluator says nothing about their
 [clang_crosscheck.rs](src/tests/clang_crosscheck.rs) compares where the
 default plans put each argument and result byte with where clang puts it, for
 1,440 fixed generated C signatures on all four hosted targets. The platform
-ABI documents stay the answer key: each disagreement still open on `main` is
-one `KNOWN_MISMATCHES` entry that quotes the ABI rule and names its
-OWNER_CODE_CONCERNS.md heading, and the test fails on any other disagreement
-or on an entry that no longer reproduces. It needs clang, so it is ignored by
+ABI documents stay the answer key. Every admitted signature must agree;
+refused signatures are counted separately, and any mismatch or unreadable
+clang output fails the test. It needs clang, so it is ignored by
 default; the post-merge workflow runs it report-only:
 `mbx test -p calling-conventions --lib clang_crosscheck -- --ignored --nocapture`.

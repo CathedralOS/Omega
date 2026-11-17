@@ -318,9 +318,9 @@ fn parse_nominal_requirement_path<'tokens, 'source>(
             break;
         }
     }
-    let mut path = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut path = arena::HandleSpan::empty();
     for member in members {
-        path.push(syntax_trees.items.append_identifier_path_member(member));
+        path.push_contiguous(syntax_trees.items.append_identifier_path_member(member));
     }
-    Ok((path.finish(), trait_arguments, rest))
+    Ok((path, trait_arguments, rest))
 }

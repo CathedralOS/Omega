@@ -11394,7 +11394,7 @@ mod source {
                                             (placement.shape == calling_conventions::ValueShape::integer(0, 1)
                                                 && placement.locations.is_empty())
                                             || (graph.call_plan.policy.is_aapcs64()
-                                                && placement.shape.class == calling_conventions::ValueClass::Integer
+                                                && placement.shape.class.is_integer()
                                                 && matches!(placement.locations.as_slice(),
                                                     [calling_conventions::ValueLocation::Indirect {
                                                         pointer: calling_conventions::IndirectPointerLocation::Register(calling_conventions::MachineRegister::Aarch64X(8)),
@@ -24949,7 +24949,7 @@ mod structural {
                 else {
                     return Err(invalid());
                 };
-                if placement.shape.class != calling_conventions::ValueClass::Integer
+                if !placement.shape.class.is_integer()
                     || *byte_size != placement.shape.byte_size
                     || *alignment != placement.shape.alignment
                 {
@@ -25723,7 +25723,7 @@ mod structural {
             else {
                 return Err(Error::Mismatch("owned incoming home has no ABI value copy"));
             };
-            if placement.shape.class != calling_conventions::ValueClass::Integer
+            if !placement.shape.class.is_integer()
                 || *byte_size != placement.shape.byte_size
                 || *alignment != placement.shape.alignment
             {

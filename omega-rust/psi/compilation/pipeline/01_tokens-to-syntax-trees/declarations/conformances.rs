@@ -54,7 +54,7 @@ fn parse_conformance_members<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<ConformanceMember>> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut members = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut members = arena::HandleSpan::empty();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let head = if input.at_keyword(KeywordKind::Public) {
@@ -92,7 +92,7 @@ fn parse_conformance_members<'tokens, 'source>(
                         requirement,
                         target,
                     });
-            members.push(handle);
+            members.push_contiguous(handle);
             input = rest;
             continue;
         }
@@ -129,12 +129,12 @@ fn parse_conformance_members<'tokens, 'source>(
         let handle = syntax_trees
             .items
             .append_conformance_member(ConformanceMember::Machine(machine));
-        members.push(handle);
+        members.push_contiguous(handle);
         input = rest;
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((members.finish(), input))
+    Ok((members, input))
 }
 
 fn normalize_conformance_machine_entry(syntax_trees: &mut SyntaxTrees, machine: &mut Machine) {

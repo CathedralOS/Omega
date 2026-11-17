@@ -2176,6 +2176,23 @@ fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
         (val(1), 8, Some(2), fact.identity)
     );
     assert!(project_write_only_primitive_store(machine(), &[], &retained).is_err());
+    // The retained target row still must fit the instruction's byte-width
+    // field. Preserve the conversion's cause instead of a bare custody error.
+    let oversized = row(16, 256, 8);
+    let error =
+        project_write_only_primitive_store(machine(), std::slice::from_ref(&fact), &oversized)
+            .unwrap_err()
+            .attributed(machine(), Some(op(3)));
+    let diagnostic = error.to_string();
+    assert!(diagnostic.contains("TryFromIntError"), "{diagnostic}");
+    assert!(matches!(
+        error,
+        crate::LegalizationError::SourceCustodyMismatch {
+            machine: Some(owner),
+            operation: Some(operation),
+            ..
+        } if owner == machine() && operation == op(3)
+    ));
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();

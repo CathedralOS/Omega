@@ -4,6 +4,7 @@ use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryValueClass {
     BorrowedScalarReference,
+    IntegerAggregate,
     Integer,
     Float,
     BorrowedReference,

@@ -16,7 +16,7 @@ pub(crate) fn parse_capability_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, CapabilityDefinition> {
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut members = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut members = arena::HandleSpan::empty();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("entry") {
@@ -34,7 +34,7 @@ pub(crate) fn parse_capability_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_capability_member(CapabilityMember::State(state));
-            members.push(handle);
+            members.push_contiguous(handle);
             input = rest;
         } else {
             let (field_name, rest) = input.take_identifier()?;
@@ -51,18 +51,12 @@ pub(crate) fn parse_capability_definition<'tokens, 'source>(
                     name: field_name,
                     type_reference,
                 }));
-            members.push(handle);
+            members.push_contiguous(handle);
         }
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((
-        CapabilityDefinition {
-            name,
-            members: members.finish(),
-        },
-        input,
-    ))
+    Ok((CapabilityDefinition { name, members }, input))
 }
 
 fn parse_capability_state<'tokens, 'source>(
@@ -70,14 +64,14 @@ fn parse_capability_state<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityState> {
     let (signature, mut input) = parse_callable_signature(syntax_trees, input)?;
-    let mut contracts = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = arena::HandleSpan::empty();
 
     if input.at_punctuation(PunctuationKind::LeftBrace) {
         input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         while !input.at_punctuation(PunctuationKind::RightBrace) {
             let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
-            contracts.push(handle);
+            contracts.push_contiguous(handle);
             input = rest;
         }
         input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -89,7 +83,7 @@ fn parse_capability_state<'tokens, 'source>(
         {
             let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
-            contracts.push(handle);
+            contracts.push_contiguous(handle);
             input = rest;
         }
     }
@@ -97,7 +91,7 @@ fn parse_capability_state<'tokens, 'source>(
     Ok((
         CapabilityState {
             signature,
-            contracts: contracts.finish(),
+            contracts,
         },
         input,
     ))

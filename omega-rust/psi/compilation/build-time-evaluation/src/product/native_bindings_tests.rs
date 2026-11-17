@@ -38,6 +38,17 @@ fn typed_requirement(
     } else {
         "Raw::read"
     };
+    typed_requirement_at(requirement, path, origin, owner, stratum, dependency)
+}
+
+fn typed_requirement_at(
+    requirement: &str,
+    path: &str,
+    origin: SourceOrigin,
+    owner: Option<PackageKeyIdentity>,
+    stratum: SourceResolutionStratum,
+    dependency: bool,
+) -> TypedTrees {
     let build = format!(
         "machine build(builder: &mut Build) {{\n\
          let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall {{ number: 9u64 }};\n\
@@ -197,6 +208,125 @@ fn assert_refusal(
 }
 
 #[test]
+fn closed_native_requirements_rejoin_the_same_complete_argument() {
+    const GENERIC: &str = "public boundary trait Raw { machine read<const Limit: u64>() -> u64 reaches none crashes none; }";
+    let make = |path| {
+        typed_requirement_at(
+            GENERIC,
+            path,
+            SourceOrigin::User,
+            Some(package(7)),
+            SourceResolutionStratum::Base,
+            false,
+        )
+    };
+    let prepare = |typed: &mut TypedTrees| {
+        let source = typed.clone();
+        let lookup = typed_trees::product_operand::ProductSourceLookups::new(&source);
+        let author = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "build")
+            .unwrap()
+            .symbol;
+        let occurrence =
+            typed_trees::product_operand::collect_product_selection_occurrences(&source)
+                .into_iter()
+                .find(|occurrence| occurrence.request.operation == BuildOperation::NativeBinding)
+                .unwrap();
+        typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            typed,
+            &lookup,
+            &occurrence.request.operands[0],
+            author,
+            None,
+        )
+    };
+    let mut four = make("Raw::read<4>");
+    let prepared = prepare(&mut four).unwrap();
+    assert!(prepared.application.is_some() && prepared.closed_requirement.is_some());
+    let (declarations, intents) = capture(&four);
+    assert!(declarations[0].application.is_some());
+    let mut receiving = make("Raw::read<4>");
+    let selections = collect_captured(&mut receiving, &declarations, &intents).unwrap();
+    let [selection] = selections.as_slice() else {
+        panic!("one binding must rejoin")
+    };
+    assert!(selection.application.is_some());
+    selection.require_canonical_requirement(&receiving).unwrap();
+    let mut missing = selection.clone();
+    missing.application = None;
+    assert_eq!(
+        missing
+            .require_canonical_requirement(&receiving)
+            .unwrap_err(),
+        "native binding lost its complete requirement application"
+    );
+    let closed = receiving
+        .closed_requirement_application(selection.requirement)
+        .unwrap();
+    assert_eq!(receiving.symbols.name(closed.template), "read");
+    assert_eq!(closed.portable_local_arguments.len(), 1);
+    assert_ne!(selection.requirement, closed.template);
+
+    let mut eight = make("Raw::read<8>");
+    prepare(&mut eight).unwrap();
+    let (other, _) = capture(&eight);
+    let other_selections = collect_captured(&mut receiving, &other, &intents).unwrap();
+    let [other_selection] = other_selections.as_slice() else {
+        panic!("one other closed binding must rejoin")
+    };
+    other_selection
+        .require_canonical_requirement(&receiving)
+        .unwrap();
+    let mut changed_handle = selection.clone();
+    changed_handle.application = other_selection.application;
+    assert_eq!(
+        changed_handle
+            .require_canonical_requirement(&receiving)
+            .unwrap_err(),
+        "native binding application selects another closed requirement"
+    );
+    assert_ne!(
+        declarations[0].requirement_identity,
+        other[0].requirement_identity
+    );
+    let value = other[0]
+        .application
+        .as_ref()
+        .unwrap()
+        .graph
+        .operands
+        .iter()
+        .find_map(|(_, operand)| operand.integer.clone())
+        .unwrap();
+    let mut wrong = declarations.clone();
+    let mut changed = 0;
+    wrong[0]
+        .application
+        .as_mut()
+        .unwrap()
+        .graph
+        .operands
+        .for_each_mut(|_, operand| {
+            if operand.integer.is_some() {
+                operand.integer = Some(value.clone());
+                changed += 1;
+            }
+        });
+    assert_eq!(changed, 1, "only the closed argument changes");
+    assert_refusal(&mut make("Raw::read<4>"), &wrong, &intents, "was chosen as");
+
+    let error = prepare(&mut make("Raw::read<4, 8>")).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|error| error.message.contains("complete argument tuple")),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn captured_public_toolchain_product_binding_keeps_its_supplier() {
     let (declarations, intents) = capture(&toolchain_product());
     let mut receiving = toolchain_product();
@@ -204,6 +334,7 @@ fn captured_public_toolchain_product_binding_keeps_its_supplier() {
     let [selection] = selections.as_slice() else {
         panic!("one executed binding must survive")
     };
+    selection.require_canonical_requirement(&receiving).unwrap();
     assert_eq!(
         receiving
             .symbols

@@ -1,6 +1,5 @@
 use crate::errors::parse_error::ParseError;
 use crate::parameters::relevance::parse_binding_relevance_brackets;
-use crate::syntax_storage::tables::{items, type_refs_of};
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::types::references::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
@@ -18,13 +17,13 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut parameters = arena::HandleSpan::empty();
 
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
-            let handle = items(syntax_trees).append_state_parameter_handle(parameter);
-            parameters.push(handle);
+            let handle = syntax_trees.items.append_state_parameter_handle(parameter);
+            parameters.push_contiguous(handle);
             input = rest;
             let Some(next) = input.take_comma()? else {
                 break;
@@ -34,7 +33,7 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = parameters.finish();
+    let parameters = parameters;
     Ok((parameters, input))
 }
 
@@ -85,15 +84,17 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     let (type_reference, borrowed_mutable, input) =
         parse_parameter_type_reference(syntax_trees, input)?;
     Ok((
-        items(syntax_trees).insert_state_parameter_node(syntax_trees::item::StateParameterNode {
-            name,
-            type_reference,
-            is_const,
-            is_mutable: receiver_access.is_some_and(|access| access.is_exclusive())
-                || is_leading_mutable
-                || borrowed_mutable,
-            relevance,
-        }),
+        syntax_trees
+            .items
+            .insert_state_parameter_node(syntax_trees::item::StateParameterNode {
+                name,
+                type_reference,
+                is_const,
+                is_mutable: receiver_access.is_some_and(|access| access.is_exclusive())
+                    || is_leading_mutable
+                    || borrowed_mutable,
+                relevance,
+            }),
         input,
     ))
 }
@@ -110,7 +111,7 @@ fn parse_parameter_type_reference<'tokens, 'source>(
 
     let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let borrowed_mutable = matches!(
-        type_refs_of(syntax_trees).type_reference(type_reference),
+        syntax_trees.type_references.type_reference(type_reference),
         syntax_trees::types::TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable
                 | language_core::ReferenceAccess::WriteOnly,

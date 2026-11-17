@@ -95,34 +95,6 @@ framework or a list of unimplemented features.
 - Cost: Independent worktrees rebuild unchanged dependencies. This Mac now uses a locally repaired 1.29.2 adapter that retains the checksum option in its input identity and preserves checksum dependency output. An isolated probe reused unchanged inputs and rejected a same-size, same-mtime source change; subsequent ordinary Omega builds stored cache objects without the checksum-flag bypass. The patch, original binary and receipts are retained in `worker-1/build/mbx-workflow-tooling-20261116` under the local worktree pool. Upstream releases and fresh hosts still need the repair; do not disable content fingerprint checks.
 - Reported: 2026-11-16, Codex, during the draft PR takeovers
 
-### macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot
-- Category: A verdict with nothing behind it
-- Where: [Darwin stack packing](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L767), [ValueShape](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L144), [clang cross-check](omega-rust/omega/compilation/backend/calling-conventions/src/tests/clang_crosscheck.rs)
-- Saw: `DarwinAapcs64` packs every stack argument at its natural alignment, records included. AAPCS64 B.5 rounds a Composite Type's size up to a multiple of 8 and C.14 rounds the stack address up to "the larger of 8 or the Natural Alignment of the argument's type"; Apple's packing covers the scalars its document shows, and clang keeps B.5 and C.14 for non-HFA records on Apple targets. So after eight register arguments, `{i16,i8}` goes at sp+2 under Omega and at sp+8 under clang, and every later stack argument shifts. The clang cross-check finds 24 of its 1,440 macOS signatures with this cause. `ValueShape` gives a small record and a scalar of the same size the same `Integer` class, so the evaluator cannot tell them apart; the fix needs the shape to say it is a record.
-- Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
-- Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
-
-### The Omega 04 replay validator reruns the optimizer instead of checking it
-- Category: A verdict with nothing behind it
-- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
-- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
-- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
-### An optional Omega 04 rewrite shrinks the registers allocation may use
-- Category: Knowledge crossing a boundary
-- Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
-- Saw: When a SelectedLowering or PreAllocation rule runs, Omega 04 builds legality under `FramelessLeafCallerSavedViews` and hands that analysis to Omega 05, which allocates on it. With no rewrite selected, `SelectedAllocationInput::into_legality` builds legality under `AllEnvironmentAllocatableViews`. So selecting an optional profitability rewrite restricts the whole program to caller-saved registers. This predates #3833, which kept it. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation", and [exact selection](wiki/spec/build/optimizations.md#exact-selection) treats allocation as mandatory "whether or not optional profitability rewrites are selected".
-- Cost: The same program allocates under different constraints, and may be refused, depending on an unrelated optimization choice. Let the rewrite run on its own analysis and have Omega 05 build legality under the availability allocation needs, whatever ran before.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
-### Allocation admission re-checks choices Omega 05 just made
-- Category: Re-deriving
-- Where: [admission](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs#L250)
-- Saw: On every compile, `validate_recovery_selection` checks that the recovery rule that ran equals the selection `stage_register_allocation` picked it from, and `capture_publication_facts` checks the manifest Omega 05 built against the record it built it from. [Verification placement](omega-rust/pipeline.md#verification-placement) says a default compile does not revalidate output the same compile just produced.
-- Cost: The checks are cheap, but they cannot fail unless the same function is wrong twice, and they add error variants every reader must handle. Move them into the allocation validator or a test.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
@@ -162,13 +134,6 @@ framework or a list of unimplemented features.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
 
-### A shared byte view of an array gives its elements different addresses in the Psi interpreter
-- Category: Re-deriving
-- Where: [shared view is a snapshot](omega-rust/psi/interpreter/src/boundary_inputs.rs#L1403), [shared reborrow snapshot](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L1017), [fresh namespace](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3003), [view element address](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3077), [array element address](omega-rust/psi/interpreter/src/storage_primitives.rs#L6016)
-- Saw: [address exposure](wiki/spec/language/counts_and_addresses.md#L35) says compatible views of the same location "expose the same address", and [interpreted address identities](wiki/spec/language/counts_and_addresses.md#L107) says changing a view's type "cannot change the referent's address". A shared view `&bytes[..]` of a `[u8; N]` array, and a shared reborrow of a mutable view, copy the bytes into `ByteSequenceView::new`, which draws a new exposure namespace; `address_of(&view[i])` encodes that namespace while `address_of(&bytes[i])` encodes the array's identity. `var bytes: [u8; 4]; let view = &bytes[..]; exit_process(if address_of(&bytes[0]) == address_of(&view[0]) { 0 } else { 1 });` exits 0 natively and 1 under Psi. Traced in the interpreter; the lowering of `address_of` on a view place was not confirmed.
-- Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
@@ -203,13 +168,6 @@ framework or a list of unimplemented features.
 - Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
-
-### Source correspondence repeats signature searches
-- Category: Verifying costs more than writing
-- Where: [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
-- Saw: For each projected method, correspondence validation scans every inherited signature and derives its callable identity before interning it. Finding one match still exhausts the scan. The original Console binding replay43 took 329.112s before its next refusal. A brief sample caught this work, but captured only two samples; its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
-- Cost: Repeated identity normalization grows with both the method and signature counts. Prepare the exact callable/package identities once per inherited declaration set. Preserve source authentication, complete applications, and refusals for missing or ambiguous requirements. Validate with the unchanged Console program and refusal controls; measure the identity derivations before claiming a speedup.
-- Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
 
 ### Native products evaluate their scalar conditions twice
 - Category: re-deriving

@@ -36,7 +36,7 @@ pub(crate) fn parse_let_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut parameters = arena::HandleSpan::empty();
     let mut input = input;
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
@@ -45,7 +45,7 @@ pub(crate) fn parse_let_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_mathematical_parameter_handle(handle);
-            parameters.push(handle);
+            parameters.push_contiguous(handle);
             input = rest;
             let Some(next) = input.take_comma()? else {
                 break;
@@ -54,7 +54,7 @@ pub(crate) fn parse_let_definition<'tokens, 'source>(
         }
     }
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = parameters.finish();
+    let parameters = parameters;
 
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (result, input) = parse_mathematical_type(syntax_trees, input)?;

@@ -461,11 +461,11 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
         .expect("the conformance proof retains its generated checking frame");
     assert!(matches!(
         check_form.publish(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         check_form.publish_invocation(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(crate::ceilings::judge(&check_form.elaboration).is_ok());
     let mut duplicate = check_form.elaboration.clone();

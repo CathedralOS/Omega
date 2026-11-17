@@ -12,6 +12,12 @@ alignment, and public layout. Classification is recursive: equal size does not
 imply equal ABI class. A policy may place or reject the aggregate under its
 target's rules.
 
+Darwin arm64 distinguishes non-HFA integer composites from equally sized
+scalars in its classified ABI shape (`IntegerAggregate`). Such composites
+retain the AAPCS64 whole-eight-byte stack slot and minimum eight-byte stack
+alignment; scalar stack arguments use Apple's natural-alignment packing.
+The same distinction survives plan identities, retained inputs, and review.
+
 An erased field retains semantic/proof identity but contributes no ABI field,
 offset, size, alignment, register/stack fragment, or transfer. Omission is
 recursive. Terminal Psi retains the exact erased type identity separately.

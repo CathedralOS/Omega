@@ -1,5 +1,4 @@
 use crate::expressions::context::ExpressionContext;
-use crate::syntax_storage::tables::exprs;
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -20,14 +19,17 @@ pub(crate) fn extend_membership<'tokens, 'source>(
         input = input.take_contextual("in")?;
         let subject = expression;
         let (domain, rest) = parse_path_handle_span(input, |member| {
-            exprs(syntax_trees).append_identifier_path_member(member)
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(member)
         })?;
         input = rest;
-        expression =
-            exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+        expression = syntax_trees.expressions.insert(ExpressionNode::Membership(
+            TableMembershipExpression {
                 value: expression,
                 domain,
-            }));
+            },
+        ));
 
         while input.at_punctuation(PunctuationKind::Ampersand)
             || input.at_punctuation(PunctuationKind::Pipe)
@@ -44,21 +46,26 @@ pub(crate) fn extend_membership<'tokens, 'source>(
                 )
             };
             let (domain, rest) = parse_path_handle_span(after_operator, |member| {
-                exprs(syntax_trees).append_identifier_path_member(member)
+                syntax_trees
+                    .expressions
+                    .append_identifier_path_member(member)
             })?;
             input = rest;
-            let right =
-                exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+            let right = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                TableMembershipExpression {
                     value: subject,
                     domain,
-                }));
+                },
+            ));
             expression =
-                exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                    left: expression,
-                    operator,
-                    right,
-                }));
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: expression,
+                        operator,
+                        right,
+                    }));
         }
     }
 

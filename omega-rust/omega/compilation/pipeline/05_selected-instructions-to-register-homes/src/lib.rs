@@ -36,7 +36,8 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
   - `pressure_rematerialization_recovery.rs`: active-resident immediate rematerialization under register pressure.
   - `runtime_spill_and_split.rs`: runtime value spilling, live-range splitting, and runtime rematerialization.
   - `reanalysis.rs`: liveness, live-range, and legality reanalysis over fixed-view copy graphs.
-  - `output.rs`: `StagedAllocation`, `AllocationOutput` projection and `RetainedAllocation` admission.
+  - `output.rs`: `StagedAllocation`, `AllocationOutput` projection and `RetainedAllocation` retention.
+  - `publication_validation.rs`: explicit replay of the retained recovery decision and manifest history.
   - `preservation.rs`: allocation-visible callee-saved register modification discovery and replay.
 */
 
@@ -96,6 +97,8 @@ mod fixed_view_copy_recovery;
 mod home_assignment;
 mod output;
 mod preservation;
+mod publication_validation;
+pub use publication_validation::AllocationPublicationValidationError;
 mod pressure_rematerialization_recovery;
 mod reanalysis;
 mod register_allocation;

@@ -285,6 +285,7 @@ mod calling {
         3 => BorrowedScalarReference,
         4 => HomogeneousFloatAggregate { members },
         5 => SystemVAggregate { first, second },
+        6 => IntegerAggregate,
     });
 
     record_variants!(calling_conventions::ValueLocation {

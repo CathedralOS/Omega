@@ -5,7 +5,6 @@ use crate::parameters::generics::parse_generic_parameters;
 use crate::parameters::relevance::parse_binding_relevance_brackets;
 use crate::parameters::requirements::parse_machine_parameter_contracts;
 use crate::parameters::requirements::validate_machine_parameter_contracts;
-use crate::syntax_storage::tables::{items, items_of};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::types::properties::parse_property_brackets;
 use crate::types::references::{
@@ -77,13 +76,13 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
         }
         input = next.take_punctuation(PunctuationKind::Percent, "%")?;
         let (relation, next) = parse_path_handle_span(input, |member| {
-            items(syntax_trees).append_identifier_path_member(member)
+            syntax_trees.items.append_identifier_path_member(member)
         })?;
         input = next;
         let equivalence = if input.at_contextual("requires") {
             input = input.take_contextual("requires")?;
             let (selected_relation, next) = parse_path_handle_span(input, |member| {
-                items(syntax_trees).append_identifier_path_member(member)
+                syntax_trees.items.append_identifier_path_member(member)
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
@@ -128,7 +127,7 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
             input,
         ));
     }
-    let mut default_domain_facts = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut default_domain_facts = arena::HandleSpan::empty();
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let ((facts, _token_count), rest) =
@@ -137,10 +136,10 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
                     || input.at_punctuation(PunctuationKind::LeftBrace)
                     || input.tokens.is_empty()
             })?;
-        default_domain_facts.push_span(facts);
+        default_domain_facts.extend_contiguous(facts);
         input = rest;
     }
-    let requires_facts = default_domain_facts.finish();
+    let requires_facts = default_domain_facts;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     if input.at_integer() {
@@ -213,20 +212,37 @@ pub(crate) fn parse_boundary_data_definition<'tokens, 'source>(
     ))
 }
 
+// A retired identity starts with both tokens. The same word before a
+// colon remains a field name in records and case payloads.
+fn take_retired_identity<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<u64>> {
+    if !input.at_contextual("retired") {
+        return Ok((None, input));
+    }
+    let after_name = input.take_contextual("retired")?;
+    if !after_name.at_punctuation(PunctuationKind::Hash) {
+        return Ok((None, input));
+    }
+    let after_hash = after_name.take_punctuation(PunctuationKind::Hash, "#")?;
+    let (identity, rest) = after_hash.take_identity()?;
+    Ok((Some(identity), rest))
+}
+
 fn parse_data_members<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<DataMember>> {
-    let mut members = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut members = arena::HandleSpan::empty();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, next) = parse_data_member(syntax_trees, input)?;
         input = next;
-        members.push(items(syntax_trees).append_data_member(member));
+        members.push_contiguous(syntax_trees.items.append_data_member(member));
     }
 
-    let members = members.finish();
-    validate_data_identity_modes(items_of(syntax_trees).data_members(members), input)?;
+    let members = members;
+    validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
     Ok((members, input))
 }
 
@@ -327,13 +343,11 @@ fn take_optional_identity<'tokens, 'source>(
 
 fn parse_data_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
+    input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
-    if input.at_contextual("retired") {
-        input = input.take_contextual("retired")?;
-        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-        let (identity, input) = input.take_identity()?;
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    let (retired, after_retired) = take_retired_identity(input)?;
+    if let Some(identity) = retired {
+        let input = after_retired.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((DataMember::Retired(identity), input));
     }
 
@@ -461,14 +475,12 @@ fn parse_case_payload_fields<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (HandleSpan<DataField>, Vec<u64>)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut payload = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut payload = arena::HandleSpan::empty();
 
     let mut retired_identities = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightParen) {
-        if input.at_contextual("retired") {
-            input = input.take_contextual("retired")?;
-            input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-            let (identity, next) = input.take_identity()?;
+        let (retired, next) = take_retired_identity(input)?;
+        if let Some(identity) = retired {
             retired_identities.push(identity);
             input = next;
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -485,13 +497,13 @@ fn parse_case_payload_fields<'tokens, 'source>(
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
 
-        let handle = items(syntax_trees).append_data_payload_field(DataField {
+        let handle = syntax_trees.items.append_data_payload_field(DataField {
             identity,
             name: field_name,
             relevance,
             type_reference,
         });
-        payload.push(handle);
+        payload.push_contiguous(handle);
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -501,7 +513,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let payload = payload.finish();
+    let payload = payload;
     let identities: Vec<Option<u64>> = syntax_trees
         .items
         .data_payload_fields(payload)

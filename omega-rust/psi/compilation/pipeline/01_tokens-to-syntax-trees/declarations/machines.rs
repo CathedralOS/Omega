@@ -3,9 +3,7 @@ use crate::machine_bodies::states;
 use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
 use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;
-use crate::syntax_storage::tables::{exprs, exprs_of};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
-use crate::token_input::paths::join_path_identifier;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -30,7 +28,9 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         (None, input)
     };
     let (path, input) = parse_path_handle_span(input, |member| {
-        exprs(syntax_trees).append_identifier_path_member(member)
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
     })?;
     let (generic_parameters, input) = parse_generic_parameters(
         syntax_trees,
@@ -153,7 +153,7 @@ struct MachinePath {
 }
 
 fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) -> MachinePath {
-    let members = exprs_of(syntax_trees).identifier_path_members(path);
+    let members = syntax_trees.expressions.identifier_path_members(path);
 
     if members.len() <= 1 {
         return MachinePath {
@@ -166,8 +166,8 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
         };
     }
 
-    let name = join_path_identifier(syntax_trees, members);
-    let attached_data = join_path_identifier(syntax_trees, &members[..members.len() - 1]);
+    let name = Identifier::from_path(syntax_trees, members);
+    let attached_data = Identifier::from_path(syntax_trees, &members[..members.len() - 1]);
 
     MachinePath {
         name,

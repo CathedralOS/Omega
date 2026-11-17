@@ -508,10 +508,12 @@ pub(super) fn form(
     };
     if !matches!(
         role,
-        ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
+        ProductOperandRole::BoundarySubject
+            | ProductOperandRole::Provider
+            | ProductOperandRole::Requirement
     ) {
         return Err(Stop::Unserved(
-            "an applied operand that is not a slot or a provider",
+            "an applied operand that is not a slot, provider or requirement",
         ));
     }
     if let Some(existing) = program.prepared_product_operand(operand, environment, author, role) {
@@ -545,6 +547,16 @@ pub(super) fn form(
         ))
     })?;
     let (declaration_parameters, lifetimes) = match role {
+        ProductOperandRole::Requirement => program
+            .trait_machine_signature(declaration)
+            .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == declaration)
+            .ok_or(Stop::Unserved("an applied requirement with no exact boundary declaration"))
+            .and_then(|(owner, requirement)| {
+                if !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty() {
+                    return Err(Stop::Unserved("a requirement without its complete declaring trait application"));
+                }
+                Ok((requirement.type_parameters, requirement.lifetime_parameters.len()))
+            })?,
         ProductOperandRole::BoundarySubject => program
             .trait_definition_by_symbol(declaration)
             .map(|definition| {
@@ -619,69 +631,102 @@ pub(super) fn form(
         })),
         ..StaticMachineArgument::default()
     };
-    let unformed = |_| Stop::Unserved("an application whose arguments have no type form");
-    let references = closed
-        .iter()
-        .map(|argument| program.static_operand_type_reference_in_scope(argument, author))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(unformed)?;
-    let incomplete = Stop::Unserved("an application with no complete trait scope");
-    let scope = match role {
-        ProductOperandRole::BoundarySubject => {
-            let definition =
-                program
-                    .trait_definition_by_symbol(declaration)
-                    .ok_or(Stop::Unserved(
-                        "an applied slot that is not a boundary trait",
-                    ))?;
-            AppliedTraitScope::new(
-                program,
-                definition,
-                TraitApplicationArguments {
-                    lexical_owner: author,
-                    enclosing_data_applications: &[],
-                    arguments: &references,
-                    lifetimes: &[],
-                },
-            )
-            .map(|scope| scope.environment())
+    let scope = if role == ProductOperandRole::Requirement {
+        let (owner, _) = program
+            .trait_machine_signature(declaration)
+            .ok_or(Stop::Unserved(
+                "an applied requirement lost its declaring trait",
+            ))?;
+        AppliedTraitScope::abstract_scope(owner).environment()
+    } else {
+        let unformed = |_| Stop::Unserved("an application whose arguments have no type form");
+        let references = closed
+            .iter()
+            .map(|argument| program.static_operand_type_reference_in_scope(argument, author))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(unformed)?;
+        let incomplete = Stop::Unserved("an application with no complete trait scope");
+        match role {
+            ProductOperandRole::BoundarySubject => {
+                let definition =
+                    program
+                        .trait_definition_by_symbol(declaration)
+                        .ok_or(Stop::Unserved(
+                            "an applied slot that is not a boundary trait",
+                        ))?;
+                AppliedTraitScope::new(
+                    program,
+                    definition,
+                    TraitApplicationArguments {
+                        lexical_owner: author,
+                        enclosing_data_applications: &[],
+                        arguments: &references,
+                        lifetimes: &[],
+                    },
+                )
+                .map(|scope| scope.environment())
+            }
+            _ => {
+                let definition = program
+                    .conformance_by_symbol(declaration)
+                    .ok_or(Stop::Unserved("an applied provider with no declaration"))?;
+                AppliedTraitScope::from_conformance_application(
+                    program,
+                    definition,
+                    TraitApplicationArguments {
+                        lexical_owner: author,
+                        enclosing_data_applications: &[],
+                        arguments: &references,
+                        lifetimes: &[],
+                    },
+                )
+                .map(|scope| scope.environment())
+            }
         }
-        _ => {
-            let definition = program
-                .conformance_by_symbol(declaration)
-                .ok_or(Stop::Unserved("an applied provider with no declaration"))?;
-            AppliedTraitScope::from_conformance_application(
-                program,
-                definition,
-                TraitApplicationArguments {
-                    lexical_owner: author,
-                    enclosing_data_applications: &[],
-                    arguments: &references,
-                    lifetimes: &[],
-                },
-            )
-            .map(|scope| scope.environment())
-        }
-    }
-    .ok_or(incomplete)?;
+        .ok_or(incomplete)?
+    };
     let scope = scope.retain(program).map_err(Stop::Unserved)?;
     let supplying = program.expression_table.retain_static_machine_application(
         declaration,
         Identifier::generated(&operand.path),
-        std::slice::from_ref(&whole),
+        if role == ProductOperandRole::Requirement {
+            &closed
+        } else {
+            std::slice::from_ref(&whole)
+        },
     );
     let retained = program
         .expression_table
         .static_machine_application_mut(supplying);
     retained.binding_declaration = declaration;
     retained.lexical_owner = author;
+    let selected = if role == ProductOperandRole::Requirement {
+        use crate::passes::specialization::{
+            Stop as RequirementStop, prepare_requirement_application,
+        };
+        prepare_requirement_application(program, declaration, supplying, &closed)
+            .map_err(|stop| match stop {
+                RequirementStop::Unserved(reason) => Stop::Unserved(reason.unwrap_or(
+                    "a requirement application whose declared arguments cannot be closed",
+                )),
+                RequirementStop::Rejected(reason) => Stop::Rejected(reason),
+                RequirementStop::Defect(reason) => {
+                    Stop::Rejected(format!("Product requirement preparation defect: {reason}"))
+                }
+            })?
+            .ok_or(Stop::Unserved(
+                "a requirement application with no canonical closed header",
+            ))?
+    } else {
+        declaration
+    };
     Ok(Some(program.retain_product_operand_application(
         ProductOperandApplication {
             operand: operand.clone(),
             environment: environment.cloned().map(std::sync::Arc::new),
             owner: author,
             role: Some(role),
-            declaration,
+            declaration: selected,
             declaration_parameters,
             declaration_lifetime_count: 0,
             demand,

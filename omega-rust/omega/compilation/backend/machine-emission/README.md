@@ -25,7 +25,8 @@ they never suppress the mandatory final-artifact checks. The same retained
 replay can carry Omega 04's completed rewrite run as an opaque
 `RetainedSelectedOptimizationRun`; `SelectedInstructionRewriteReplay` asks it
 to rebuild itself against the record the allocated program carries. Emission
-never reads it.
+never reads it. Rebuilding uses the producer itself, so the replay checks
+repeatability and record custody, not independent rewrite correctness.
 
 Layout and exit-contract code computes each result once. Their separate
 validators serve explicit checks, retained-artifact readers and tests;

@@ -11,6 +11,55 @@ use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::source_selections::SelectionPurpose;
 use std::sync::Arc;
 
+// A request with unavailable ownership is still a selected policy request.
+// Validate that roster before deciding whether a native binding has no policy.
+fn calling_policy_instances(
+    module: &terminal_psi::TerminalModule,
+) -> Result<
+    Vec<(
+        terminal_psi::TerminalIdentityIndex,
+        &terminal_psi::CallingPolicyInstance,
+    )>,
+    String,
+> {
+    let mut instances = Vec::new();
+    for request in &module.calling_policy_requests {
+        let declaration = *request.declaration.as_ref().map_err(Clone::clone)?;
+        if module
+            .identities
+            .text(declaration)
+            .is_none_or(str::is_empty)
+        {
+            return Err("selected Calling policy lost its source declaration".into());
+        }
+        let applications = request
+            .instances
+            .as_ref()
+            .map_err(|reasons| reasons.join("; "))?;
+        if applications.is_empty() {
+            return Err("selected Calling policy has no retained application".into());
+        }
+        instances.extend(applications.iter().map(|instance| (declaration, instance)));
+    }
+    Ok(instances)
+}
+
+fn require_unselected_calling_policy(
+    instances: &[(
+        terminal_psi::TerminalIdentityIndex,
+        &terminal_psi::CallingPolicyInstance,
+    )],
+    application: terminal_psi::TerminalIdentityIndex,
+) -> Result<(), String> {
+    if instances
+        .iter()
+        .any(|(_, instance)| instance.declaring_application == application)
+    {
+        return Err("native binding has no result from its selected Calling policy".into());
+    }
+    Ok(())
+}
+
 pub fn prepare_provider_execution_inputs(
     publication: &ProductTerminalPublication,
     sources: &package_compilation::CheckedSourceCustody,
@@ -96,11 +145,10 @@ pub fn prepare_provider_execution_inputs(
                 "Build native binding has competing exact boundary occurrences".into(),
             ));
         }
-        if supply.selection.application.is_some() {
-            return Err(refuse(
-                "native binding retains an unrepresented applied requirement".into(),
-            ));
-        }
+        supply
+            .selection
+            .require_canonical_requirement(accepted.source())
+            .map_err(refuse)?;
         let schema =
             backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
         let declaration = module
@@ -121,16 +169,30 @@ pub fn prepare_provider_execution_inputs(
             &mut binding_identities,
         )
         .map_err(refuse)?;
-        if native_bindings
-            .iter()
-            .any(|(previous, _)| *previous == boundary)
-        {
+        if native_bindings.iter().any(
+            |previous: &provider_planning::target_supply::NormalizedNativeSupply| {
+                previous.boundary == boundary
+            },
+        ) {
             return Err(refuse(
                 "native requirement has competing completed Build supplies".into(),
             ));
         }
-        native_bindings.push((boundary, evaluated));
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, boundary)
+            .map_err(refuse)?;
+        requirements.push(
+            module
+                .identities
+                .text(abi.requirement_identity)
+                .ok_or_else(|| refuse("native binding lost its original method template".into()))?,
+        );
+        native_bindings.push(provider_planning::target_supply::NormalizedNativeSupply {
+            boundary,
+            binding: evaluated,
+        });
     }
+    requirements.sort_unstable();
+    requirements.dedup();
     let calling = CallingProgram {
         artifact: Arc::clone(program.artifact()),
         evaluator: build_settings::CALLING_POLICY_EVALUATOR,
@@ -141,6 +203,7 @@ pub fn prepare_provider_execution_inputs(
     let authority = sources.dependency_closure().map(|graph| {
         graph as &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
     });
+    let requested_instances = calling_policy_instances(module).map_err(refuse)?;
     let mut calling_applications = Vec::new();
     let mut schemas = module
         .provider_selections
@@ -148,9 +211,9 @@ pub fn prepare_provider_execution_inputs(
         .filter(|choice| choice.target == profile.target_name())
         .map(|choice| (choice.schema_declaration, choice.schema_application))
         .collect::<Vec<_>>();
-    for (boundary, _) in &native_bindings {
-        let schema =
-            backend_plan::DirectBoundaryLeaf::declared_schema(module, *boundary).map_err(refuse)?;
+    for supply in &native_bindings {
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
         schemas.push((schema.declaration, schema.application));
     }
     schemas.sort_unstable();
@@ -166,87 +229,111 @@ pub fn prepare_provider_execution_inputs(
         }) {
             continue;
         }
-        let declaration = module
-            .identities
-            .text(schema_declaration)
-            .ok_or_else(|| refuse("selected provider schema lost its source declaration".into()))?;
         let owner = module
             .identities
             .text(schema_application)
             .ok_or_else(|| refuse("selected provider schema lost its full application".into()))?;
-        let requester = selections
-            .declaration_custody(
-                program.artifact().view().into(),
-                declaration,
-                SelectionPurpose::Product,
-            )
-            .map_err(refuse)?;
-        for request in &module.calling_policy_requests {
-            if request.declaration.as_ref().ok() != Some(&schema_declaration) {
+        // Nominal schema ownership and source-selection custody have different
+        // identities. The retained full declaring application joins them; its
+        // request still supplies the authenticated semantic source declaration.
+        for &(declaration, instance) in &requested_instances {
+            if instance.declaring_application != schema_application {
                 continue;
             }
-            for instance in request
-                .instances
+            let declaration = module.identities.text(declaration).ok_or_else(|| {
+                refuse("selected Calling policy lost its source declaration".into())
+            })?;
+            let requester = selections
+                .declaration_custody(
+                    program.artifact().view().into(),
+                    declaration,
+                    SelectionPurpose::Product,
+                )
+                .map_err(refuse)?;
+            for &signature in instance
+                .signatures
                 .as_ref()
-                .map_err(|reasons| refuse(reasons.join("; ")))?
+                .map_err(|reason| refuse(reason.clone()))?
             {
-                if instance.declaring_application != schema_application {
+                let abi = module.calling_abi_signature(signature).ok_or_else(|| {
+                    refuse("provider policy names an absent ABI declaration".into())
+                })?;
+                let requirement = module
+                    .identities
+                    .text(abi.requirement_identity)
+                    .ok_or_else(|| refuse("provider ABI lost its requirement identity".into()))?;
+                if requirements.binary_search(&requirement).is_err() {
                     continue;
                 }
-                for &signature in instance
-                    .signatures
-                    .as_ref()
-                    .map_err(|reason| refuse(reason.clone()))?
-                {
-                    let abi = module.calling_abi_signature(signature).ok_or_else(|| {
-                        refuse("provider policy names an absent ABI declaration".into())
-                    })?;
-                    let requirement = module
-                        .identities
-                        .text(abi.requirement_identity)
-                        .ok_or_else(|| {
-                            refuse("provider ABI lost its requirement identity".into())
-                        })?;
-                    if requirements.binary_search(&requirement).is_err() {
-                        continue;
+                let (signature, plan) = calling
+                    .evaluate(instance, profile, signature, &[], requester, authority)
+                    .map_err(refuse)?;
+                let application = signature
+                    .native_application_with_owner(&plan, None, owner)
+                    .map_err(refuse)?;
+                if let Some(previous) = calling_applications.iter().find(
+                    |previous: &&calling_conventions::BoundaryCallingApplication| {
+                        previous.abi == application.abi
+                    },
+                ) {
+                    if previous != &application {
+                        return Err(refuse(
+                            "provider ABI has competing calling policy results".into(),
+                        ));
                     }
-                    let (signature, plan) = calling
-                        .evaluate(instance, profile, signature, &[], requester, authority)
-                        .map_err(refuse)?;
-                    let application = signature
-                        .native_application_with_owner(&plan, None, owner)
-                        .map_err(refuse)?;
-                    if let Some(previous) = calling_applications.iter().find(
-                        |previous: &&calling_conventions::BoundaryCallingApplication| {
-                            previous.abi == application.abi
-                        },
-                    ) {
-                        if previous != &application {
-                            return Err(refuse(
-                                "provider ABI has competing calling policy results".into(),
-                            ));
-                        }
-                    } else {
-                        calling_applications.push(application);
-                    }
+                } else {
+                    calling_applications.push(application);
                 }
             }
         }
     }
+    // Explicit selections remain authoritative. Only an undeclared policy uses
+    // the existing native default planner; a failed or missing selected result
+    // cannot silently become a default ABI.
+    let mut default_bindings = Vec::new();
+    for supply in &native_bindings {
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+            .map_err(refuse)?
+            .identity(&module.identities)
+            .map_err(refuse)?;
+        if calling_applications
+            .iter()
+            .any(|application| application.abi == abi)
+        {
+            continue;
+        }
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
+        require_unselected_calling_policy(&requested_instances, schema.application)
+            .map_err(refuse)?;
+        default_bindings.push(supply.clone());
+    }
+    calling_applications.extend(
+        provider_planning::calling_policy_plans::native_calling_applications(
+            profile,
+            &calling,
+            &default_bindings,
+        )?,
+    );
     let mut external_bindings = Vec::with_capacity(native_bindings.len());
     let mut evaluated_native_bindings = Vec::with_capacity(native_bindings.len());
-    for (boundary, evaluated) in native_bindings {
-        let schema =
-            backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
+    for supply in native_bindings {
+        let evaluated = supply.binding;
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+            .map_err(refuse)?
+            .identity(&module.identities)
+            .map_err(refuse)?;
         let boundary = module
-            .boundary_machine(boundary)
+            .boundary_machine(supply.boundary)
             .ok_or_else(|| refuse("native binding lost its exact boundary".into()))?;
         let requirement = module
             .identities
             .text(boundary.identity)
             .ok_or_else(|| refuse("native binding lost its exact requirement identity".into()))?;
         let mut methods = schema.surface.methods.iter().filter(|method| {
-            schema.surface.identity_text(method.requirement_identity) == requirement
+            schema.surface.identity_text(method.requirement_identity) == abi.requirement_identity
         });
         let (Some(method), None) = (methods.next(), methods.next()) else {
             return Err(refuse(
@@ -255,7 +342,7 @@ pub fn prepare_provider_execution_inputs(
         };
         let applications = calling_applications
             .iter()
-            .filter(|application| application.requirement_identity == requirement)
+            .filter(|application| application.abi == abi)
             .cloned()
             .collect::<Vec<_>>();
         if applications.is_empty() {
@@ -344,4 +431,55 @@ pub fn prepare_provider_execution_inputs(
         terminal_authority_permissions: permissions,
         terminal_authority_permission_identities: identities.build(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{calling_policy_instances, require_unselected_calling_policy};
+
+    #[test]
+    fn unavailable_selected_calling_policy_is_not_an_absent_policy() {
+        let mut module = terminal_psi::TerminalModule::declarations();
+        assert!(calling_policy_instances(&module).unwrap().is_empty());
+        module
+            .calling_policy_requests
+            .push(terminal_psi::CallingPolicyRequest {
+                declaration: Err("selected owner is unavailable".into()),
+                display_name: "selected".into(),
+                instances: Ok(Vec::new()),
+            });
+        assert_eq!(
+            calling_policy_instances(&module).unwrap_err(),
+            "selected owner is unavailable"
+        );
+    }
+    #[test]
+    fn native_default_requires_absence_of_the_exact_policy_application() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let declaration = identities.intern("semantic declaration");
+        let selected = identities.intern("selected full application");
+        let other = identities.intern("another full application");
+        let mut module = terminal_psi::TerminalModule::declarations();
+        module.identities = identities.build();
+        require_unselected_calling_policy(&calling_policy_instances(&module).unwrap(), selected)
+            .unwrap();
+        module
+            .calling_policy_requests
+            .push(terminal_psi::CallingPolicyRequest {
+                declaration: Ok(declaration),
+                display_name: "selected".into(),
+                instances: Ok(vec![terminal_psi::CallingPolicyInstance {
+                    declaring_application: selected,
+                    policy_declaration: Err("unavailable policy declaration".into()),
+                    policy: Err("unavailable policy body".into()),
+                    signatures: Err("missing evaluated Calling result".into()),
+                }]),
+            });
+        let instances = calling_policy_instances(&module).unwrap();
+        assert_eq!(
+            require_unselected_calling_policy(&instances, selected).unwrap_err(),
+            "native binding has no result from its selected Calling policy"
+        );
+        require_unselected_calling_policy(&instances, other).unwrap();
+    }
 }

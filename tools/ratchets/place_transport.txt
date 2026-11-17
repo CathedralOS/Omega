@@ -12,7 +12,7 @@
 1 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/continuations.rs
 4 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/control_flow_and_calls.rs
 7 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
-1 omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs
+1 omega-rust/psi/compilation/representations/syntax-trees/expressions/values.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/bindings.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/wire/src/semantic_module.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/wire/src/term_wire.rs

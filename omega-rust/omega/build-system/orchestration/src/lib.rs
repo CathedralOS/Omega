@@ -39,8 +39,8 @@ Product and target vocabulary:
   subdirectory even if the set has length 1).
 - `BuildError::outcome` classifies compilation refusals through
   `CompilerRequestOutcome::of_refusal`: only a refusal consisting entirely of
-  exceeded private provisions returns `Incomplete`; a failed independent stage
-  validator is the compiler's own defect and returns `InternalFailure`;
+  exceeded private provisions returns `Incomplete`; a failed stage-output
+  check is the compiler's own defect and returns `InternalFailure`;
   preparation, directory, and publication errors always return `Reject`.
 
 */
@@ -187,7 +187,7 @@ pub enum BuildError {
     Publication(String),
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
-    /// A requested independent stage validator rejected the compiler's own
+    /// A requested stage-output check rejected the compiler's own
     /// stage output: a compiler invariant failure, not invalid source. Holds
     /// every requested row for the target, passed and failed, in roster order.
     StageValidation(Vec<StageValidationRow>),
@@ -220,7 +220,7 @@ impl std::fmt::Display for BuildError {
                 }
                 write!(
                     formatter,
-                    "the compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
+                    "the compiler's own stage output failed a stage-output check; this is a compiler defect, not an error in the source"
                 )
             }
         }

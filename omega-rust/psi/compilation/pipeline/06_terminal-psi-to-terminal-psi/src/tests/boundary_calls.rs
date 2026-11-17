@@ -698,10 +698,231 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     call.authored_machine_application = second.2;
     let refusal = read_applied_boundary(&typed.into()).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "call closed requirement call selects another bound application"
+    assert!(
+        refusal
+            .detail
+            .starts_with("call closed requirement call selects another bound application"),
+        "{refusal:?}"
     );
+}
+
+#[test]
+fn closed_boundary_calling_templates_keep_one_declaration() {
+    let source = typed(
+        r#"
+boundary trait Pair {
+    machine first<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+    machine second<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Pair::first<4>(3);
+    let second: u32 = Pair::second<4>(3);
+    first
+}
+"#,
+    );
+    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0;
+    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let module = &elaboration.module;
+    let [first, second] = module.boundary_machines.as_slice() else {
+        panic!("two requirements of the same trait");
+    };
+    let a = first.declaration.as_ref().unwrap();
+    let b = second.declaration.as_ref().unwrap();
+    let abi_a = module.calling_abi_identity(first.id).unwrap();
+    let abi_b = module.calling_abi_identity(second.id).unwrap();
+    assert_eq!(abi_a.declaring_application, abi_b.declaring_application);
+    assert_eq!(abi_a.operands, abi_b.operands);
+    assert_ne!(abi_a.requirement_identity, abi_b.requirement_identity);
+    for (declaration, abi) in [(a, &abi_a), (b, &abi_b)] {
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap()
+        );
+    }
+    let mut changed = a.clone();
+    changed.source.semantic_declaration = b.source.semantic_declaration;
+    changed
+        .source
+        .specialization
+        .as_mut()
+        .unwrap()
+        .template_semantic_declaration = b
+        .source
+        .specialization
+        .as_ref()
+        .unwrap()
+        .template_semantic_declaration;
+    assert!(
+        !changed
+            .matches_calling_abi(&module.identities, &abi_a)
+            .unwrap(),
+        "a changed semantic template pair must not authenticate the original callable and ABI"
+    );
+    for entry_only in [false, true] {
+        let mut changed = a.clone();
+        let template = changed.source.specialization.as_mut().unwrap();
+        let other = b.source.specialization.as_ref().unwrap();
+        template.template_entry = other.template_entry.clone();
+        if !entry_only {
+            template.template = other.template.clone();
+        }
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abi_a)
+                .unwrap(),
+            "nominal template coordinates must name the same callable: entry_only={entry_only}"
+        );
+    }
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+}
+
+// The requirement name and static tuple are equal, but its runtime signature
+// selects a different overload. That declaration identity must survive too.
+#[test]
+fn overloaded_boundary_calling_templates_keep_one_signature() {
+    use language_semantics::declaration_selection::product_operands::{
+        ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+    };
+    use language_semantics::declaration_selection::{
+        ProductDeclarationOperand, ProductOperandRole,
+    };
+    // These are accepted headers. The original ambiguous generic call source
+    // remains a separate recorded refusal, not a requirement for this identity check.
+    let source = typed(
+        r#"
+boundary trait Pair {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+    machine take<const Limit: u64>(value: i32) -> i32
+    reaches none requires value <= Limit crashes none;
+}
+machine entry() -> u32 crashes none { 3 }
+"#,
+    );
+    let mut program = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0
+    .into_inner();
+    let pair = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Pair")
+        .unwrap()
+        .symbol;
+    let requirements = program
+        .trait_machine_signatures(program.trait_definition_by_symbol(pair).unwrap())
+        .iter()
+        .map(|header| header.symbol)
+        .collect::<Vec<_>>();
+    let mut selected = Vec::new();
+    for requirement in requirements {
+        // Rejoin an exact retained declaration, then let the normal Product
+        // instantiator form its complete <4> header. No overload is selected by name.
+        let mut graph = ProductStaticOperandGraph::default();
+        let value = graph.operands.insert(ProductStaticOperand {
+            integer: Some(numerics::literals::IntegerLiteral::from_value(4)),
+            ..Default::default()
+        });
+        let arguments = graph.static_arguments.insert_many([value]);
+        let application = graph.applications.insert(ProductStaticApplication {
+            arguments,
+            ..Default::default()
+        });
+        graph.root = graph.operands.insert(ProductStaticOperand {
+            application,
+            ..Default::default()
+        });
+        let operand = ProductDeclarationOperand {
+            path: "Pair::take<4>".into(),
+            source_span: program.symbols.symbol_source_span(requirement).unwrap(),
+            application: Some(Arc::new(graph)),
+        };
+        let application = typed_trees_to_typed_trees::prepare_retained_product_application(
+            &mut program,
+            &operand,
+            ProductOperandRole::Requirement,
+            requirement,
+        )
+        .unwrap();
+        let closed = program
+            .product_requirement_application(application)
+            .unwrap();
+        assert_eq!(closed.template, requirement);
+        selected.push(closed.signature.symbol);
+    }
+    let program: typed_trees::FrozenTypedTrees = program.into();
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &program,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[pair],
+            entries: &[entry(&program)],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &selected,
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let module = &elaboration.module;
+    let [first, second] = module.boundary_machines.as_slice() else {
+        panic!("two exact closed headers");
+    };
+    let a = first.declaration.as_ref().unwrap();
+    let b = second.declaration.as_ref().unwrap();
+    let abi_a = module.calling_abi_identity(first.id).unwrap();
+    let abi_b = module.calling_abi_identity(second.id).unwrap();
+    assert_eq!(abi_a.declaring_application, abi_b.declaring_application);
+    assert_eq!(abi_a.operands, abi_b.operands);
+    assert_ne!(a.source.semantic_declaration, b.source.semantic_declaration);
+    for (declaration, other, abi) in [(a, b, &abi_a), (b, a, &abi_b)] {
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap()
+        );
+        let mut changed = declaration.clone();
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        changed
+            .source
+            .specialization
+            .as_mut()
+            .unwrap()
+            .template_semantic_declaration = other
+            .source
+            .specialization
+            .as_ref()
+            .unwrap()
+            .template_semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap(),
+            "a different overload's semantic template cannot authenticate this callable and ABI"
+        );
+    }
+    let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
+        panic!("the selected closed headers must be accepted");
+    };
+    accepted.publish_invocation().unwrap();
 }
 
 /// A boundary requirement with a value parameter, `take<const Count: u64>`,
@@ -845,6 +1066,419 @@ fn a_closed_boundary_application_does_not_authorize_an_unrelated_selection() {
             .detail
             .contains("selection resolved to another declaration"),
         "{refusal:?}"
+    );
+}
+
+// The two applications have identical runtime carriers. Their different
+// constant limits still select different contracts, so shape checking cannot
+// substitute for the source application's own binding relation.
+#[test]
+fn a_closed_boundary_call_keeps_its_source_application() {
+    use typed_trees::expression::ExpressionNode;
+
+    let program = typed(
+        r#"
+boundary trait Probe {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none
+    requires value <= Limit
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}
+"#,
+    );
+    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+        program,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0;
+    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let module = &elaboration.module;
+    assert_eq!(module.boundary_machines.len(), 2);
+    let owner = prepared
+        .traits()
+        .iter()
+        .find(|owner| prepared.symbols.name(owner.symbol) == "Probe")
+        .unwrap();
+    let surface = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &prepared,
+            source::DependencyScope::Product,
+        ),
+        owner,
+    );
+    let surface = surface.unwrap();
+    assert_eq!(
+        surface.declaration.methods.len(),
+        1,
+        "closed occurrences must not add universal provider obligations"
+    );
+    assert_eq!(module.service_schemas.len(), 1);
+    for boundary in &module.boundary_machines {
+        let service = module
+            .services
+            .iter()
+            .find(|service| Some(service.id) == boundary.owning_service)
+            .unwrap();
+        let schema = module
+            .service_schema(boundary.owner.identity(), service.identity)
+            .expect("each closed boundary retains its complete service schema");
+        assert_eq!(schema.surface.as_ref(), surface.declaration.as_ref());
+        let abi = module.boundary_calling_abi(boundary.id).unwrap();
+        let storage = abi
+            .storage
+            .as_ref()
+            .expect("the exact closed application must retain its physical storage projection");
+        assert_eq!(storage.parameters.len(), 1);
+        assert_eq!(
+            storage.parameters[0].access,
+            terminal_psi::StructuralAccess::Owned
+        );
+        assert_eq!(storage.result, Some(storage.parameters[0].structural_type));
+
+        assert_eq!(
+            module.identities.text(abi.requirement_identity),
+            Some(
+                schema
+                    .surface
+                    .identity_text(schema.surface.methods[0].requirement_identity)
+            )
+        );
+    }
+    let first = module.calling_signatures[0].clone();
+    let mut duplicate = module.clone();
+    duplicate.calling_signatures.insert(0, first.clone());
+    assert_eq!(
+        duplicate.boundary_calling_abi(first.boundary).unwrap_err(),
+        "boundary has no unique Terminal calling declaration"
+    );
+    let mut missing = module.clone();
+    missing
+        .calling_signatures
+        .retain(|row| row.boundary != first.boundary);
+    assert_eq!(
+        missing.boundary_calling_abi(first.boundary).unwrap_err(),
+        "boundary has no unique Terminal calling declaration"
+    );
+    let abis = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| module.calling_abi_identity(boundary.id).unwrap())
+        .collect::<Vec<_>>();
+    for (ordinal, boundary) in module.boundary_machines.iter().enumerate() {
+        let declaration = boundary.declaration.as_ref().unwrap();
+        let abi = &abis[ordinal];
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap_or_else(|reason| panic!(
+                    "{reason}; semantic={:?}; template={:?}; ABI={abi:?}",
+                    module
+                        .identities
+                        .text(declaration.source.semantic_declaration),
+                    declaration
+                        .source
+                        .specialization
+                        .as_ref()
+                        .and_then(|application| module
+                            .identities
+                            .text(application.template_semantic_declaration)),
+                ))
+        );
+        for mutation in 0..5 {
+            let mut changed = abi.clone();
+            match mutation {
+                0 => changed.operands[0].identity = abis[1 - ordinal].operands[0].identity.clone(),
+                1 => changed.operands[0].kind = semantic_vocabulary::CallingOperandKind::Type,
+                2 => changed.requirement_identity.push_str("other-template"),
+                3 => changed.declaring_application.push_str("other-owner"),
+                4 => changed.operands.clear(),
+                _ => unreachable!(),
+            }
+            assert!(
+                !declaration
+                    .matches_calling_abi(&module.identities, &changed)
+                    .unwrap(),
+                "another argument, kind, template, owner or tuple must not share calling authority: {mutation}"
+            );
+        }
+        let other = module.boundary_machines[1 - ordinal]
+            .declaration
+            .as_ref()
+            .unwrap();
+        let mut changed = declaration.clone();
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abis[1 - ordinal])
+                .unwrap(),
+            "a different semantic tuple must not retain the original method tuple and commitment"
+        );
+        let mut changed = declaration.clone();
+        changed.method_arguments.clone_from(&other.method_arguments);
+        let arguments = changed
+            .method_arguments
+            .iter()
+            .map(|argument| {
+                use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                let terminal_psi::ClosedReachArgument::Const(identity) = argument else {
+                    panic!("this source applies one constant");
+                };
+                MachineOperandSelectionIdentity::Const(
+                    module.identities.text(*identity).unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let application = changed.source.specialization.as_mut().unwrap();
+        application.commitment =
+            language_semantics::conformance_identity::requirement_application_commitment(
+                module
+                    .identities
+                    .text(application.template_callable)
+                    .unwrap(),
+                &arguments,
+            )
+            .unwrap();
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap(),
+            "a new method tuple and recomputed commitment must not retain another semantic tuple"
+        );
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abis[1 - ordinal])
+                .unwrap(),
+            "coherent changed metadata must still match the original closed callable"
+        );
+        let application = declaration.source.specialization.as_ref().unwrap();
+        let identity = module
+            .identities
+            .text(declaration.source.semantic_declaration)
+            .unwrap();
+        let template = module
+            .identities
+            .text(application.template_semantic_declaration)
+            .unwrap();
+        for malformed in [
+            format!("{identity}trailing"),
+            identity[..identity.len() - 1].to_owned(),
+        ] {
+            assert!(
+                language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                    &malformed,
+                    template,
+                    module
+                        .identities
+                        .text(application.template.identity())
+                        .unwrap(),
+                    module.identities.text(declaration.source.callable).unwrap(),
+                    abi,
+                )
+                .is_err()
+            );
+        }
+        let callable = module.identities.text(declaration.source.callable).unwrap();
+        for malformed in [
+            format!("{callable}trailing"),
+            callable[..callable.len() - 1].to_owned(),
+        ] {
+            assert!(
+                language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                    identity,
+                    template,
+                    module
+                        .identities
+                        .text(application.template.identity())
+                        .unwrap(),
+                    &malformed,
+                    abi,
+                )
+                .is_err()
+            );
+        }
+    }
+    let positive = judge(Ok(elaboration)).unwrap();
+    assert!(
+        matches!(positive, RouteVerdict::Accepted(_)),
+        "{positive:?}"
+    );
+    // Native binding preparation also nominates the generic declaration's
+    // schema. Its abstract header is metadata, while these two calls are closed.
+    let probe = prepared
+        .traits()
+        .iter()
+        .find(|declaration| declaration.name.as_str() == "Probe")
+        .unwrap()
+        .symbol;
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &prepared,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[probe],
+            entries: &[entry(&prepared)],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let publication_scope = format!(
+        "requirements={:?}, envelopes={}, binders={:?}, values={:?}, rigid={:?}",
+        elaboration.requirements,
+        elaboration.check_form_envelopes.len(),
+        elaboration.generic_binders,
+        elaboration.value_parameters,
+        elaboration
+            .tables
+            .machines
+            .iter()
+            .flat_map(|(machine, row)| row
+                .values
+                .iter()
+                .filter_map(move |(value, row)| row.rigid.map(|rigid| (machine, value, rigid))))
+            .collect::<Vec<_>>()
+    );
+    let verdict = judge(Ok(elaboration)).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("closed calls with their declaration schema: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap_or_else(|error| {
+        panic!(
+            "closed calls must publish with their nominated schema: {error:?}; {publication_scope}"
+        )
+    });
+    // A normal product also checks every declaration owned by its package.
+    // Use the actual compilation entrance so generic source forms are judged
+    // separately from the executable closure that must be published.
+    let package = prepared
+        .symbols
+        .source_map()
+        .unwrap()
+        .files()
+        .next()
+        .unwrap()
+        .package_identity
+        .unwrap();
+    for publication in [
+        terminal_codec::TerminalPublication::Portable,
+        terminal_codec::TerminalPublication::Invocation,
+    ] {
+        let compilation = typed_trees_to_terminal_psi::prepare_compilation(
+            &prepared,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[probe],
+                entries: &[entry(&prepared)],
+                subjects: &[Some(package)],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            publication,
+        );
+        let mut verdicts = crate::judge_compilation(compilation.program).into_iter();
+        let Ok(RouteVerdict::Accepted(executable)) = verdicts.next().unwrap() else {
+            panic!("the package's closed caller must be accepted");
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        match publication {
+            terminal_codec::TerminalPublication::Portable => {
+                executable.publish().unwrap();
+            }
+            terminal_codec::TerminalPublication::Invocation => {
+                executable.publish_invocation().unwrap();
+            }
+        }
+    }
+    // A standalone generic check still owns an inherited method's binder.
+    // This only forms that check input; its declaration-only judgment has an
+    // independent diagnostic-context limitation.
+    let open = typed(
+        "trait Parent { machine read<const Limit: u64>(value: u32) -> u32 requires value <= Limit; } trait Child: Parent {} machine entry() {}",
+    );
+    let child = open
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let parent = open
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let method = &open.trait_machine_signatures(parent)[0];
+    let binder = open.state_signature_type_parameters(method)[0].symbol;
+    let mut forms =
+        typed_trees_to_terminal_psi::elaborate_generic_forms(&open, &[child.symbol]).unwrap();
+    let form = forms.remove(0);
+    assert_eq!(form.generic_binders, [binder]);
+    let mut wrongly_accepted = Vec::new();
+    for missing in [false, true] {
+        let mut changed = prepared.clone().into_inner();
+        let calls = changed
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(at, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                changed
+                    .closed_requirement_application(call.target_symbol)
+                    .map(|closed| (at, call.target_symbol, closed.template))
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("the source has exactly two closed applications: {calls:?}");
+        };
+        assert_eq!(first.2, second.2, "both apply the same declaration");
+        assert_ne!(first.1, second.1, "the limits select different contracts");
+        let ExpressionNode::Call(call) = changed.expression_table.expression_mut(first.0) else {
+            unreachable!()
+        };
+        let expected = if missing {
+            call.authored_machine_application = Default::default();
+            "closed requirement call has a stale declaration or application"
+        } else {
+            call.target_symbol = second.1;
+            "closed requirement call selects another bound application"
+        };
+        match read_applied_boundary(&changed.into()) {
+            Err(refusal) => assert!(refusal.detail.contains(expected), "{refusal:?}"),
+            Ok(elaboration) => {
+                let verdict = judge(Ok(elaboration)).unwrap();
+                if matches!(verdict, RouteVerdict::Accepted(_)) {
+                    wrongly_accepted.push(if missing {
+                        "missing receipt"
+                    } else {
+                        "wrong closed application"
+                    });
+                } else {
+                    panic!("the mismatched call reached a different refusal: {verdict:?}");
+                }
+            }
+        }
+    }
+    assert!(
+        wrongly_accepted.is_empty(),
+        "reader and checker accepted: {wrongly_accepted:?}"
     );
 }
 

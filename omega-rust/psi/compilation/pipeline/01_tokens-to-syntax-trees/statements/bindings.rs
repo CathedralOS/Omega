@@ -1,6 +1,5 @@
 use crate::expressions::postfix::memory_ordering_from_expression;
 use crate::statements::expressions::copy_expression_as_place;
-use crate::syntax_storage::tables::{exprs, exprs_of, items};
 use arena::HandleSpan;
 use language_core::atomic::AtomicOrderingPlan;
 use numerics::literals::IntegerLiteral;
@@ -39,7 +38,7 @@ pub(crate) fn try_desugar_atomic_let(
     if call.target_is_static || !call.receiver.is_valid() {
         return None;
     }
-    let arguments = exprs_of(syntax_trees).expression_handles(call.arguments);
+    let arguments = syntax_trees.expressions.expression_handles(call.arguments);
     if let Some(observation) =
         language_core::atomic::AtomicCompareExchangeObservationAxis::single_attempt_member(
             call.target.as_str(syntax_trees),
@@ -54,7 +53,7 @@ pub(crate) fn try_desugar_atomic_let(
         };
         let operands = [*expected, *replacement];
         let mut carrier = call;
-        carrier.arguments = exprs(syntax_trees).insert_expression_handles(operands);
+        carrier.arguments = syntax_trees.expressions.insert_expression_handles(operands);
         let value = syntax_trees
             .expressions
             .insert(ExpressionNode::Call(carrier));
@@ -75,7 +74,7 @@ pub(crate) fn try_desugar_atomic_let(
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(local));
-        let first = items(syntax_trees).append_statement_handle(statement);
+        let first = syntax_trees.items.append_statement_handle(statement);
         return Some(HandleSpan::from_parts(first, 1));
     }
     let (update, ordering) = match (call.target.as_str(syntax_trees), arguments) {
@@ -129,51 +128,59 @@ pub(crate) fn try_desugar_atomic_let(
         .expressions
         .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
     let result = result_reference(syntax_trees, &binding.name);
-    let value = match update {
-        AtomicUpdate::Fetch { operand, operator } => {
-            exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                left: result,
-                operator,
-                right: operand,
-            }))
-        }
-        AtomicUpdate::Swap { replacement } => replacement,
-        AtomicUpdate::CompareExchange {
-            expected,
-            replacement,
-        } => {
-            let prior_for_subtract = result_reference(syntax_trees, &binding.name);
-            let difference =
-                exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                    left: replacement,
-                    operator: BinaryOperator::Subtract,
-                    right: prior_for_subtract,
-                }));
-            let prior_for_compare = result_reference(syntax_trees, &binding.name);
-            let comparison =
-                exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                    left: prior_for_compare,
-                    operator: BinaryOperator::Equal,
-                    right: expected,
-                }));
-            let replacement_delta =
-                exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                    left: comparison,
-                    operator: BinaryOperator::Multiply,
-                    right: difference,
-                }));
-            exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-                policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                left: result,
-                operator: BinaryOperator::Add,
-                right: replacement_delta,
-            }))
-        }
-    };
+    let value =
+        match update {
+            AtomicUpdate::Fetch { operand, operator } => {
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: result,
+                        operator,
+                        right: operand,
+                    }))
+            }
+            AtomicUpdate::Swap { replacement } => replacement,
+            AtomicUpdate::CompareExchange {
+                expected,
+                replacement,
+            } => {
+                let prior_for_subtract = result_reference(syntax_trees, &binding.name);
+                let difference = syntax_trees.expressions.insert(ExpressionNode::Binary(
+                    TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: replacement,
+                        operator: BinaryOperator::Subtract,
+                        right: prior_for_subtract,
+                    },
+                ));
+                let prior_for_compare = result_reference(syntax_trees, &binding.name);
+                let comparison = syntax_trees.expressions.insert(ExpressionNode::Binary(
+                    TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: prior_for_compare,
+                        operator: BinaryOperator::Equal,
+                        right: expected,
+                    },
+                ));
+                let replacement_delta = syntax_trees.expressions.insert(ExpressionNode::Binary(
+                    TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: comparison,
+                        operator: BinaryOperator::Multiply,
+                        right: difference,
+                    },
+                ));
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        left: result,
+                        operator: BinaryOperator::Add,
+                        right: replacement_delta,
+                    }))
+            }
+        };
     let value = syntax_trees
         .expressions
         .insert(ExpressionNode::Atomic(TableAtomicExpression {
@@ -185,19 +192,19 @@ pub(crate) fn try_desugar_atomic_let(
     let local = syntax_trees
         .statements
         .insert(StatementNode::LocalData(result_binding));
-    let first = items(syntax_trees).append_statement_handle(local);
+    let first = syntax_trees.items.append_statement_handle(local);
     let assignment = syntax_trees
         .statements
         .insert(StatementNode::Assignment(TableAssignment { target, value }));
-    items(syntax_trees).append_statement_handle(assignment);
+    syntax_trees.items.append_statement_handle(assignment);
     Some(HandleSpan::from_parts(first, 2))
 }
 
 fn result_reference(syntax_trees: &mut SyntaxTrees, name: &Identifier) -> ExpressionHandle {
     let name = Identifier::generated(name.as_str(syntax_trees));
-    let member = exprs(syntax_trees).append_identifier_path_member(name);
+    let member = syntax_trees.expressions.append_identifier_path_member(name);
     let path = HandleSpan::from_parts(member, 1);
-    exprs(syntax_trees).insert(ExpressionNode::Name {
+    syntax_trees.expressions.insert(ExpressionNode::Name {
         members: path,
         application: None,
     })
@@ -207,7 +214,7 @@ pub(crate) fn try_desugar_atomic_store(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<TableAssignment> {
-    let ExpressionNode::Call(call) = exprs_of(syntax_trees).expression(expression).clone() else {
+    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone() else {
         return None;
     };
     if call.target_is_static

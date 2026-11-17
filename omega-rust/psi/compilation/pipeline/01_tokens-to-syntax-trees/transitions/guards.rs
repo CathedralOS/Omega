@@ -1,6 +1,5 @@
 use crate::errors::parse_error::ParseError;
 use crate::expressions::parse::parse_expression_handle_without_struct_literals;
-use crate::syntax_storage::tables::{exprs, exprs_of};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -84,7 +83,7 @@ pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
         .iter()
         .map(|pattern| match pattern {
             None => Some(None),
-            Some(handle) => match exprs_of(syntax_trees).expression(*handle) {
+            Some(handle) => match syntax_trees.expressions.expression(*handle) {
                 ExpressionNode::Boolean(value) => Some(Some(*value)),
                 _ => None,
             },
@@ -102,7 +101,7 @@ pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
 }
 
 fn arm_pattern_is_condition(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    match exprs_of(syntax_trees).expression(expression) {
+    match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Binary(binary) => matches!(
             binary.operator,
             BinaryOperator::And
@@ -287,21 +286,24 @@ fn retain_value_pattern(
     value: ExpressionHandle,
     bindings: &mut Vec<DestructureBindings>,
 ) {
-    let capture = exprs(syntax_trees).insert_transition_subject(subject);
+    let capture = syntax_trees.expressions.insert_transition_subject(subject);
     let (head, guard) = if matches!(
-        exprs_of(syntax_trees).expression(value),
+        syntax_trees.expressions.expression(value),
         ExpressionNode::Name { .. }
     ) {
         (value, ExpressionHandle::invalid())
     } else if arm_pattern_is_condition(syntax_trees, value) {
         (ExpressionHandle::invalid(), value)
     } else {
-        let equality = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-            policy: numerics::arithmetic::ArithmeticDomain::Exact,
-            left: subject,
-            operator: BinaryOperator::Equal,
-            right: value,
-        }));
+        let equality =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: subject,
+                    operator: BinaryOperator::Equal,
+                    right: value,
+                }));
         (ExpressionHandle::invalid(), equality)
     };
     bindings.push(DestructureBindings {
@@ -330,12 +332,14 @@ fn join_guard_conjunction(
     if !left.is_valid() {
         return right;
     }
-    exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-        policy: numerics::arithmetic::ArithmeticDomain::Exact,
-        left,
-        operator: BinaryOperator::And,
-        right,
-    }))
+    syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            left,
+            operator: BinaryOperator::And,
+            right,
+        }))
 }
 
 pub(crate) fn parse_transition_expression_list<'tokens, 'source>(
@@ -433,7 +437,9 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     };
 
     let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
-        exprs(syntax_trees).append_identifier_path_member(member)
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
     })?;
     if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
         if guard_input.is_some() {
@@ -458,18 +464,20 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .collect::<Vec<_>>();
     let has_rest = parsed_fields.has_rest;
     let proof_selectors = parsed_fields.proof_selectors;
-    let head = exprs(syntax_trees).insert(ExpressionNode::Name {
+    let head = syntax_trees.expressions.insert(ExpressionNode::Name {
         members: path,
         application: None,
     });
-    let capture = exprs(syntax_trees).insert_transition_subject(subject);
-    let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
-        syntax_trees::expression::TableSavedSubject {
-            component: Default::default(),
-            capture,
-            pattern_head: head,
-        },
-    ));
+    let capture = syntax_trees.expressions.insert_transition_subject(subject);
+    let saved = syntax_trees
+        .expressions
+        .insert(ExpressionNode::SavedSubject(
+            syntax_trees::expression::TableSavedSubject {
+                component: Default::default(),
+                capture,
+                pattern_head: head,
+            },
+        ));
     let fields = fields
         .into_iter()
         .filter_map(|(member, binding, component)| {
@@ -509,7 +517,9 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 pattern: syntax_trees::expression::TableDestructurePattern {
                     application_type: Default::default(),
                     head,
-                    fields: exprs(syntax_trees).insert_match_fields(parsed_fields.fields),
+                    fields: syntax_trees
+                        .expressions
+                        .insert_match_fields(parsed_fields.fields),
                     has_rest,
                     guard: combined,
                     proof_selectors: syntax_trees

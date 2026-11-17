@@ -1762,6 +1762,57 @@ mod tests {
     }
 
     #[test]
+    fn darwin_record_stack_slots_bridge_to_internal_scalar_geometry() {
+        let mut internal = vec![ValueShape::integer(8, 8); 8];
+        internal.extend([
+            ValueShape::integer(1, 1),
+            ValueShape::integer(4, 2),
+            ValueShape::integer(1, 1),
+        ]);
+        let mut inbound = internal.clone();
+        inbound[9] = ValueShape::integer_aggregate(4, 2);
+        let request = request(
+            NativeTarget::macos_arm64(),
+            internal,
+            inbound,
+            &(0..11).collect::<Vec<_>>(),
+            &[0; 11],
+            None,
+        );
+        assert!(matches!(
+            request.inbound.call.parameters[9].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 8,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            request.internal.parameters[9].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 2,
+                ..
+            }]
+        ));
+        let transport = value_transport(
+            &request.inbound.call.parameters[9],
+            &request.internal.parameters[9],
+            0,
+        )
+        .unwrap();
+        assert_eq!(transport.byte_size, 4);
+        assert!(matches!(
+            transport.source.pieces()[0].location,
+            WordLocation::Stack(8)
+        ));
+        assert!(matches!(
+            transport.destination.pieces()[0].location,
+            WordLocation::Stack(2)
+        ));
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        validate_native_entry_bridge(&bridge).unwrap();
+    }
+
+    #[test]
     fn descriptor_entry_retains_codec_and_parameter_permutation() {
         for target in [
             NativeTarget::macos_arm64(),
