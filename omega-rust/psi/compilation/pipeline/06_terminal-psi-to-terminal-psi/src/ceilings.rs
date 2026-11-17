@@ -368,9 +368,23 @@ struct Calls<'a> {
     module: &'a TerminalModule,
     values: Option<&'a CallableValueProgram<'a>>,
     caller: &'a TerminalMachine,
+    ceiling: Envelope<'a>,
+    axes: &'a [Axis],
     at: Construct,
 }
 impl Calls<'_> {
+    fn operational(&self, envelope: Envelope<'_>, reached: &mut Contributions) -> Checked<()> {
+        if self
+            .axes
+            .iter()
+            .any(|axis| matches!(axis, Axis::Suspension | Axis::Blocking | Axis::Termination))
+        {
+            reached
+                .operational_from(envelope, self.ceiling)
+                .map_err(|reason| self.unsupported(reason))?;
+        }
+        Ok(())
+    }
     fn foreign(&self, detail: &'static str) -> terminal_check_tables::Refusal {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -703,7 +717,7 @@ impl Calls<'_> {
         let values = self.resolve(query)?;
         self.holder(contract, &values, reached)?;
         let envelope = &self.contract(contract)?.envelope;
-        reached.operational(Envelope::Runtime(envelope));
+        self.operational(Envelope::Runtime(envelope), reached)?;
         union(&mut reached.reach, envelope.service_reach.iter().copied());
         for entry in &envelope.invocations {
             match entry {
@@ -789,6 +803,22 @@ fn validate_check_form_envelopes(
 
 pub(crate) fn judge(
     elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<Vec<Excess>> {
+    judge_axes(elaboration, &Axis::ALL)
+}
+
+/// A logical refinement proves the declared service and entry rows without
+/// claiming executable acceptance. Its caller still owes operational refinement
+/// at descriptor admission, where every axis is checked independently.
+pub(crate) fn judge_declared_rows(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<Vec<Excess>> {
+    judge_axes(elaboration, &[Axis::Reach, Axis::Entries])
+}
+
+fn judge_axes(
+    elaboration: &terminal_check_tables::program::Elaboration,
+    axes: &[Axis],
 ) -> Checked<Vec<Excess>> {
     let module = &elaboration.module;
     let tables = &elaboration.tables;
@@ -1007,6 +1037,8 @@ pub(crate) fn judge(
                 module,
                 values: values.as_ref(),
                 caller,
+                ceiling,
+                axes,
                 at,
             };
             let mut reached = Contributions::default();
@@ -1033,9 +1065,7 @@ pub(crate) fn judge(
                     "open abstract invocation ceiling cannot establish a finite caller ceiling",
                 ));
             }
-            reached
-                .operational_from(envelope, ceiling)
-                .map_err(|detail| context.unsupported(detail))?;
+            context.operational(envelope, &mut reached)?;
             if let Callee::Selected { callable } = call.inputs.callee {
                 let contract = call.inputs.contract.ok_or_else(|| {
                     context.foreign("selected invocation lost its exact contract")
@@ -1079,6 +1109,7 @@ pub(crate) fn judge(
                 call.inputs.callee,
                 at,
                 &mut found,
+                axes,
             );
         }
         let tails = crate::call_contracts::TailCallSites::new(caller);
@@ -1088,11 +1119,17 @@ pub(crate) fn judge(
             {
                 tail_contribution(
                     elaboration,
-                    caller,
+                    Calls {
+                        module,
+                        values: values.as_ref(),
+                        caller,
+                        ceiling,
+                        axes,
+                        at: Construct::Edge(edge),
+                    },
                     &tails,
                     callee,
                     edge,
-                    values.as_ref(),
                     &mut found,
                 )?;
             }
@@ -1108,8 +1145,9 @@ fn contain(
     callee: Callee,
     at: Construct,
     found: &mut Vec<Excess>,
+    axes: &[Axis],
 ) {
-    for axis in Axis::ALL {
+    for &axis in axes {
         let Some(ceiling) = ceiling.row(axis) else {
             continue;
         };
@@ -1137,23 +1175,17 @@ fn contain(
 /// invocation row: substitute the jump's actual scalar values directly.
 fn tail_contribution(
     elaboration: &terminal_check_tables::program::Elaboration,
-    caller: &TerminalMachine,
+    context: Calls<'_>,
     tails: &crate::call_contracts::TailCallSites<'_>,
     callee: MachineId,
     edge: semantic_vocabulary::EdgeId,
-    values: Option<&CallableValueProgram<'_>>,
     found: &mut Vec<Excess>,
 ) -> Checked<()> {
     let module = &elaboration.module;
-    let at = Construct::Edge(edge);
-    let context = Calls {
-        module,
-        values,
-        caller,
-        at,
-    };
+    let caller = context.caller;
+    let at = context.at;
+    let ceiling = context.ceiling;
     let tail = crate::call_contracts::tail_call(module, tails, callee, edge)?;
-    let ceiling = machine_envelope(elaboration, caller.id)?;
     let envelope = machine_envelope(elaboration, callee)?;
     let mut reached = Contributions::default();
     if let Some(reach) = envelope.reach() {
@@ -1176,9 +1208,7 @@ fn tail_contribution(
             "open abstract invocation ceiling cannot establish a finite caller ceiling",
         ));
     }
-    reached
-        .operational_from(envelope, ceiling)
-        .map_err(|detail| context.unsupported(detail))?;
+    context.operational(envelope, &mut reached)?;
     if reached.conditional_progress
         && matches!(
             ceiling.termination(),
@@ -1206,6 +1236,7 @@ fn tail_contribution(
         Callee::Declared(callee.into()),
         at,
         found,
+        context.axes,
     );
     Ok(())
 }
