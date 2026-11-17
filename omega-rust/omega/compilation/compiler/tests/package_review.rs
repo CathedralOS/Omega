@@ -1814,6 +1814,124 @@ fn check_wrapping_index_guards(fixtures: &[(&str, bool)]) {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+#[test]
+fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
+    use std::sync::Arc;
+    let source = kept_fixture("run/calls/scalar_contract_route_exit/main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(
+        &source,
+        package_compilation::BuildExecutionInputs {
+            snapshot: fixture_package_inputs::fixture_build_snapshot(&source).unwrap(),
+            ..Default::default()
+        },
+    )
+    .expect("discover the unchanged scalar-contract program");
+    // Preparing Windows inputs exercises the stored product on every host;
+    // this control neither emits nor executes a platform image.
+    let profile = target::TargetProfile::WindowsX64;
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        retain_native_inputs: true,
+        retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(),
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
+        .expect("admit the scalar-contract native product");
+    assert_eq!(prepared.plans.len(), 1);
+    let (actual_profile, request) = prepared.plans.pop().unwrap();
+    assert_eq!(actual_profile, profile);
+    let build = orchestration::prepare_package(
+        prepared.session.compiler(),
+        request.occurrences,
+        &mut prepared.completed,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "prepare scalar-contract source: {:?}",
+            error.failure.into_diagnostics()
+        )
+    });
+    let mut outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: request.terminal_permissions,
+            },
+        )])
+        .expect("produce checked native inputs");
+    assert_eq!(outcomes.len(), 1);
+    let ((), output) = outcomes.pop().unwrap();
+    let compiler::CompilationOutput::Native(pending) = output.expect("prepare native application")
+    else {
+        panic!("expected the pending native application");
+    };
+    let original = &pending.terminal;
+    assert!(
+        original
+            .evidence()
+            .is_some_and(|evidence| !evidence.seals.is_empty()),
+        "the unchanged fixture must produce actual operation evidence"
+    );
+    let canonical = Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&original.artifact().to_bytes())
+            .unwrap(),
+    );
+    let authorization = original.authorization().clone();
+    authorization.require_artifact(&canonical).unwrap();
+    let (recovered, permissions, assumptions) = products::recover_native_derivation_inputs(
+        authorization,
+        pending
+            .retained_native_inputs
+            .as_ref()
+            .expect("requested saved inputs"),
+    )
+    .expect("recover the exact saved pair");
+    let mut differences = Vec::new();
+    if recovered.evidence() != original.evidence() {
+        differences.push(format!(
+            "operation evidence changed: original {} seals, recovered {:?}",
+            original.evidence().unwrap().seals.len(),
+            recovered.evidence().map(|evidence| evidence.seals.len())
+        ));
+    }
+    let original_identities = original
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .selection
+        .identities()
+        .entries();
+    let recovered_identities = recovered
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .selection
+        .identities()
+        .entries();
+    if original_identities != recovered_identities {
+        let first = original_identities
+            .iter()
+            .zip(recovered_identities)
+            .position(|(left, right)| left != right);
+        differences.push(format!("provider identity order changed at {first:?}: original {} entries, recovered {} entries", original_identities.len(), recovered_identities.len()));
+    }
+    assert!(
+        recovered == *original,
+        "saved native inputs changed the checked product: {}",
+        differences.join("; ")
+    );
+    assert_eq!(permissions, pending.accepted_package_permissions);
+    assert!(assumptions.is_empty());
+}
+
 // The foreign contract keeps its authored method identity, while its closed
 // outer and local arguments control exactly which call instances it can supply.
 // Restrict an existing working registrar to the callback it actually receives.
