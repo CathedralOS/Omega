@@ -1,13 +1,7 @@
 /*
-We define the domain-separated SHA-256 publication digest newtypes (`NativePublicationCertificateDigest`,
-`NativePublicationEvidenceDigest`, `ExecutableContainerDigest`,
-`ExecutableInstallationEvidenceDigest`, `PackageComponentDigest`, and
-`NativePackageEvidenceDigest`), pre-installation preparation carriers
-(`PreparedExecutablePublication` and `PreparedDynamicElfPublication`), and
-self-verifying publication receipts (`ExecutablePublicationReceipt` and
-`DynamicElfPublicationReceipt`). We keep Direct and Dynamic-ELF publication
-domains distinct so dynamic bytes can never satisfy direct-image publication
-custody.
+A direct executable publication receipt records digests of its inputs, the
+emitted container and its installation. A dynamic ELF receipt uses a separate
+digest domain. Both receipts bind the output path at installation.
 */
 
 use crate::digest_encoder::DomainDigestEncoder;
@@ -34,7 +28,8 @@ macro_rules! publication_digest {
 
 pub(crate) use publication_digest;
 
-publication_digest!(NativePublicationCertificateDigest);
+// Hash of the artifact identity, semantic bytes, target, symbols and backend reports.
+publication_digest!(NativePublicationInputsDigest);
 publication_digest!(NativePublicationEvidenceDigest);
 publication_digest!(ExecutableContainerDigest);
 publication_digest!(ExecutableInstallationEvidenceDigest);
@@ -62,7 +57,7 @@ pub fn executable_installation_evidence_digest(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn native_publication_certificate_digest(
+pub(crate) fn native_publication_inputs_digest(
     native_artifact_identity: &[u8; 32],
     semantic_bytes: &[u8],
     target: target::NativeTarget,
@@ -73,7 +68,8 @@ pub(crate) fn native_publication_certificate_digest(
     function_validation_report_fingerprint: u64,
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
-) -> NativePublicationCertificateDigest {
+) -> NativePublicationInputsDigest {
+    // This domain tag is part of the v1 receipt byte contract.
     let mut digest = DomainDigestEncoder::new(b"omega.native-publication-certificate.sha256.v1\0");
     digest.raw(native_artifact_identity);
     digest.u64(semantic_bytes.len() as u64);
@@ -91,13 +87,13 @@ pub(crate) fn native_publication_certificate_digest(
     digest.raw(&function_validation_report_fingerprint.to_le_bytes());
     digest.raw(inventory_digest.as_bytes());
     digest.raw(&inventory_report_fingerprint.to_le_bytes());
-    NativePublicationCertificateDigest::from_digest(digest.finish())
+    NativePublicationInputsDigest::from_digest(digest.finish())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn native_publication_evidence_digest(
     native_artifact_identity: &[u8; 32],
-    certificate_digest: NativePublicationCertificateDigest,
+    publication_inputs_digest: NativePublicationInputsDigest,
     callback_placement_identity_report_fingerprint: u64,
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
@@ -109,7 +105,7 @@ pub(crate) fn native_publication_evidence_digest(
 ) -> NativePublicationEvidenceDigest {
     let mut digest = DomainDigestEncoder::new(b"omega.native-publication-evidence.sha256.v1\0");
     digest.raw(native_artifact_identity);
-    digest.raw(certificate_digest.as_bytes());
+    digest.raw(publication_inputs_digest.as_bytes());
     digest.raw(function_validation_digest.as_bytes());
     digest.raw(inventory_digest.as_bytes());
     for value in [
@@ -136,7 +132,7 @@ pub fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
 pub struct ExecutablePublicationReceipt {
     pub(crate) output_path: PathBuf,
     pub(crate) native_artifact_identity: [u8; 32],
-    pub(crate) certificate_digest: NativePublicationCertificateDigest,
+    pub(crate) publication_inputs_digest: NativePublicationInputsDigest,
     pub(crate) callback_placement_identity_report_fingerprint: u64,
     pub(crate) boundary_contract_report_fingerprint: Option<u64>,
     pub(crate) inventory_digest: image::PlacedExecutableRegionInventoryDigest,
@@ -154,7 +150,7 @@ impl ExecutablePublicationReceipt {
     pub fn new(
         output_path: PathBuf,
         native_artifact_identity: [u8; 32],
-        certificate_digest: NativePublicationCertificateDigest,
+        publication_inputs_digest: NativePublicationInputsDigest,
         callback_placement_identity_report_fingerprint: u64,
         boundary_contract_report_fingerprint: Option<u64>,
         inventory_digest: image::PlacedExecutableRegionInventoryDigest,
@@ -170,7 +166,7 @@ impl ExecutablePublicationReceipt {
         Self {
             output_path,
             native_artifact_identity,
-            certificate_digest,
+            publication_inputs_digest,
             callback_placement_identity_report_fingerprint,
             boundary_contract_report_fingerprint,
             inventory_digest,
@@ -189,8 +185,8 @@ impl ExecutablePublicationReceipt {
         &self.output_path
     }
 
-    pub const fn certificate_digest(&self) -> NativePublicationCertificateDigest {
-        self.certificate_digest
+    pub const fn publication_inputs_digest(&self) -> NativePublicationInputsDigest {
+        self.publication_inputs_digest
     }
 
     pub const fn native_artifact_identity(&self) -> &[u8; 32] {
@@ -245,7 +241,7 @@ impl ExecutablePublicationReceipt {
         self.publication_evidence_digest
             == native_publication_evidence_digest(
                 &self.native_artifact_identity,
-                self.certificate_digest,
+                self.publication_inputs_digest,
                 self.callback_placement_identity_report_fingerprint,
                 self.inventory_digest,
                 self.inventory_report_fingerprint,
@@ -313,7 +309,7 @@ impl<'artifact> PreparedExecutablePublication<'artifact> {
         let boundary_contract_report_fingerprint = self
             .function_validation
             .boundary_contract_report_fingerprint;
-        let certificate_digest = native_publication_certificate_digest(
+        let publication_inputs_digest = native_publication_inputs_digest(
             &native_artifact_identity,
             artifact.semantic_bytes(),
             artifact.target(),
@@ -327,7 +323,7 @@ impl<'artifact> PreparedExecutablePublication<'artifact> {
         );
         let publication_evidence_digest = native_publication_evidence_digest(
             &native_artifact_identity,
-            certificate_digest,
+            publication_inputs_digest,
             output.callback_placement_identity_report_fingerprint,
             output.executable_regions.inventory_digest,
             output.executable_regions.inventory_report_fingerprint,
@@ -347,7 +343,7 @@ impl<'artifact> PreparedExecutablePublication<'artifact> {
         let receipt = ExecutablePublicationReceipt::new(
             output_path,
             native_artifact_identity,
-            certificate_digest,
+            publication_inputs_digest,
             output.callback_placement_identity_report_fingerprint,
             boundary_contract_report_fingerprint,
             output.executable_regions.inventory_digest,
@@ -483,7 +479,7 @@ mod tests {
         let text = image::CompilerTextDerivationDigest::from_digest([3; 32]);
         let function = image::CompilerFunctionValidationDigest::from_digest([4; 32]);
         let inventory = image::PlacedExecutableRegionInventoryDigest::from_digest([5; 32]);
-        let certificate = native_publication_certificate_digest(
+        let publication_inputs_digest = native_publication_inputs_digest(
             &[1; 32],
             b"psi",
             target::NativeTarget::linux_x64(),
@@ -497,7 +493,7 @@ mod tests {
         );
         let evidence = native_publication_evidence_digest(
             &[1; 32],
-            certificate,
+            publication_inputs_digest,
             29,
             inventory,
             23,
@@ -512,7 +508,7 @@ mod tests {
         ExecutablePublicationReceipt::new(
             output_path,
             [1; 32],
-            certificate,
+            publication_inputs_digest,
             29,
             Some(17),
             inventory,
@@ -536,7 +532,7 @@ mod tests {
                 "50e382152c267a4e5d5b9ce1a60d864d0840fcf4514d5a9694139feb25fa7fe2",
             ),
             (
-                *receipt.certificate_digest().as_bytes(),
+                *receipt.publication_inputs_digest().as_bytes(),
                 "41be7cb69cfeae55c854e5770667279a4411d040e65c656cabccbd87e9440cce",
             ),
             (

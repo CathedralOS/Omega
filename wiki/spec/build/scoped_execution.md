@@ -90,9 +90,9 @@ exact coordinator registration, retaining its owning activation and Product or
 Build purpose scope. A fieldless value, variable name or separately constructed
 `{}` cannot stand for a distinct registration. Copies and borrows retain one
 identity within the activation; a handle from another or expired Build is not
-valid for the current builder. The handle is not a validated-package certificate
-or a persistent package identity and grants no acquisition, execution or trust
-authority. Ordinary helper delegation uses the root's actual builder and handle.
+valid for the current builder. The handle records a registration within that
+activation. It carries no package validation result, persistent package
+identity or authority to acquire, execute or trust the package. Ordinary helper delegation uses the root's actual builder and handle.
 
 Aliases are unique in their requesting package and purpose scope. A duplicate
 or conflicting registration rejects rather than choosing an order-dependent

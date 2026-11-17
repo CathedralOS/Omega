@@ -53,8 +53,10 @@ selected rules in canonical order under explicit bounds, and returns one typed
 stage result with execution evidence. Candidate ordering is deterministic;
 fixed-point passes have explicit convergence and iteration budgets.
 
-Each applied transformation and the final representation keep an independent
-validator. Under [verification placement](../../../omega-rust/pipeline.md#verification-placement), set by the owner in
+Each applied optimization and its output representation keep an independent
+validator. For the emitted executable, see
+[native backend regression tests](machine_state_evidence.md#final-artifact-validation-placement).
+Under [verification placement](../../../omega-rust/pipeline.md#verification-placement), set by the owner in
 `b1423f5385d` (2026-10-04), the corpus runner and the tests run those
 validators; the default compile path does not re-validate the input or output
 that the same compile just produced. Explicit

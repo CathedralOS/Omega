@@ -70,8 +70,8 @@ pub(crate) use physical::{
 };
 pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
-    ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
-    NativePublicationEvidenceDigest, PackageComponentDigest, PreparedDynamicElfPublication,
+    ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationEvidenceDigest,
+    NativePublicationInputsDigest, PackageComponentDigest, PreparedDynamicElfPublication,
     PreparedExecutablePublication, executable_container_digest,
     executable_installation_evidence_digest,
 };
