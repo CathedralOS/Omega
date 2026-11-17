@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Checked provider rows are sorted differently from their portable encoding
+- Category: Knowledge crossing a boundary
+- Where: [candidate publication](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/static_contracts.rs#L653), [canonical order](omega-rust/psi/compilation/representations/terminal-psi/wire/src/semantic_module.rs#L525)
+- Saw: At `9afd8469a55b9`, the unchanged `tests/fixtures/run/providers/target_selected_implementation/main.omg` passes checking but publication refuses with `Seals(NonCanonicalOrder("provider candidates by exact conformance identity"))`. The checker calls `candidates.sort()` on records containing interned identity coordinates; the portable encoder requires order by the corresponding identity text as well as boundary and candidate.
+- Cost: An accepted multi-provider program cannot be published. Publish the roster in the encoder's declared order and pin a multi-provider round trip without changing its source or weakening decoding.
+- Reported: 2026-11-16, Codex, while counting source-identity derivations during provider publication.
+
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
 - Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
@@ -120,13 +127,6 @@ framework or a list of unimplemented features.
   - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
-
-### Each provider row rehashes every toolchain source
-- Category: Verifying costs more than writing
-- Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
-- Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
-- Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
-- Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
 
 ### A qualified collection gets builtin `[..]` indexing without a declared operator
 - Category: A verdict with nothing behind it

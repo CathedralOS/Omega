@@ -1707,7 +1707,7 @@ fn lower_program<'source>(
         services,
         &mut qualifications,
         &mut module,
-        typed_source,
+        declarations,
         &external_provider_candidates,
     )?;
     module.scalar_qualifications = qualifications.catalog;

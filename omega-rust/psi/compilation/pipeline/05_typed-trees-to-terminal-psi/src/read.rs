@@ -399,6 +399,12 @@ impl<'t> Program<'t> {
         )
     }
 
+    /// Provider rows and other readings of this program use the same exact
+    /// source identities; publication must not hash the source files per row.
+    pub(crate) fn exact_toolchain_sources(&self) -> Result<&[(source::SourceId, [u8; 32])], &str> {
+        self.shared.exact_toolchain_sources(self.typed)
+    }
+
     pub fn with_captures(
         typed: &'t TypedTrees,
         rigid: bool,
