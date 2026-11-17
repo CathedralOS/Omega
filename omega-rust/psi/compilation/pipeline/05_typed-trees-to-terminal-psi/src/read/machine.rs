@@ -651,7 +651,7 @@ impl<'t> Program<'t> {
         arguments: Vec<ValueType>,
     ) -> Checked<MachineId> {
         if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
-            self.symbols.get(*id) == Some(&symbol) && *applied == arguments
+            self.symbols.get(*id) == Some(&symbol) && self.same_type_arguments(applied, &arguments)
         }) {
             return Ok(*id);
         }

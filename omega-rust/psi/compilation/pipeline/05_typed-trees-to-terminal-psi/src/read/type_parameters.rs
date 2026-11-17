@@ -138,6 +138,19 @@ impl Program<'_> {
             .collect()
     }
 
+    /// A binder and its storage carrier name the same applied type. Keep all
+    /// other type and qualification comparisons exact, including concrete types.
+    pub(super) fn same_type_arguments(&self, left: &[ValueType], right: &[ValueType]) -> bool {
+        left.len() == right.len()
+            && left.iter().zip(right).all(|(left, right)| {
+                left == right
+                    || matches!(
+                        (self.logical_parameter(*left), self.logical_parameter(*right)),
+                        (Some(left), Some(right)) if left == right
+                    )
+            })
+    }
+
     pub(super) fn logical_parameter(&self, value: ValueType) -> Option<RigidType> {
         match value {
             ValueType::Rigid(rigid) => Some(rigid),
