@@ -427,10 +427,10 @@ impl Lowering<'_> {
                 right,
                 ..
             } => {
-                // The one strict operator over storage: `==` of two byte
-                // views, which the reader forms for no other operand type.
+                // The reader admits intrinsic storage equality for byte
+                // views and payload-free sums after ordinary access checks.
                 if matches!(left_expression.result, Some(ValueType::Record(..))) {
-                    return self.byte_equal(left_expression, right, source);
+                    return self.structural_equal(left_expression, right, source);
                 }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));

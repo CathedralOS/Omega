@@ -302,7 +302,66 @@ pub(crate) fn prepare(
             .expression_table
             .expression(comparison)
             .clone();
+        complete_expanded_equality(preparation.program, handle)?;
         *preparation.program.expression_table.expression_mut(handle) = node;
+    }
+    Ok(())
+}
+
+/// Expansion has selected the core equality rule. Complete its original
+/// operator question here; generated calls separately retain their exact
+/// conformance and requirement. One intrinsic receipt covers both a selected
+/// call and structural expansion, including the negation used for `!=`.
+fn complete_expanded_equality(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let span = program.expression_table.source_span(expression);
+    let occurrences = program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .collect::<Vec<_>>();
+    for occurrence in occurrences {
+        let selection = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .copied()
+            .ok_or_else(|| {
+                Diagnostic::error("expanded equality lost its source selection")
+                    .with_source_span(span)
+            })?;
+        if selection.kind() != Kind::Operator || selection.source_span() != span {
+            continue;
+        }
+        match selection.target() {
+            Target::Intrinsic(Intrinsic::BuiltinOperator) => {}
+            Target::LateBound(Binding::CheckedOperator) => {
+                program
+                    .finalize_authored_intrinsic_selection(
+                        occurrence,
+                        Binding::CheckedOperator,
+                        Intrinsic::BuiltinOperator,
+                    )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "expanded equality cannot retain its meaning: {error:?}"
+                        ))
+                        .with_source_span(span)
+                    })?;
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "expanded equality conflicts with its source selection",
+                )
+                .with_source_span(span));
+            }
+        }
     }
     Ok(())
 }
@@ -782,6 +841,67 @@ impl Preparation<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn expanded_equality_retains_its_core_meaning_and_selected_call() {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+            AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+        };
+        use typed_trees::expression::ExpressionNode;
+        let source = "data Point [copy] { x: i32; } PointEquality satisfies Equatable<Point> {}\n\
+            data Custom [copy] { x: i32; } CustomEquality satisfies Equatable<Custom> {\n\
+                machine equals(left: &Custom, right: &Custom) -> bool { false } }\n\
+            machine point_equal(left: Point, right: Point) -> bool { left == right }\n\
+            machine point_different(left: Point, right: Point) -> bool { left != right }\n\
+            machine custom_equal(left: Custom, right: Custom) -> bool { left == right }\n\
+            machine custom_different(left: Custom, right: Custom) -> bool { left != right }";
+        let program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "point_equal")
+            .unwrap();
+        let source_id = program
+            .symbols
+            .symbol_provenance_source_span(machine.symbol)
+            .unwrap()
+            .source_id;
+        let operators = program
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| {
+                selection.kind() == Kind::Operator && selection.source_span().source_id == source_id
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            operators.len(),
+            4,
+            "each authored equality keeps its question"
+        );
+        assert!(
+            operators.iter().all(
+                |selection| selection.target() == Target::Intrinsic(Intrinsic::BuiltinOperator)
+            )
+        );
+        let selected = program
+            .conformances()
+            .iter()
+            .find(|conformance| {
+                program
+                    .symbols
+                    .display_path(conformance.symbol, "::")
+                    .contains("CustomEquality")
+            })
+            .unwrap();
+        assert!(program.expression_table.iter_expressions().any(|(_, node)| {
+            let ExpressionNode::Call(call) = node else { return false; };
+            call.target_symbol == selected.rows[0].requirement
+                && matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if path.symbol == selected.symbol)
+        }), "the intrinsic receipt must retain the chosen user's method call");
+    }
+
     #[test]
     fn borrowed_enum_comparison_observes_the_exact_referent() {
         let source = "data Kind [copy] { case First; case Last; } machine shared(kind: &Kind) -> bool { kind == Kind::First } machine exclusive(kind: &mut Kind) -> bool { kind != Kind::Last }";

@@ -1348,6 +1348,8 @@ struct Located {
     fresh: bool,
 }
 
+type CaseSelection = (Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>);
+
 /// A structural root's whole-value domains and the projected domains of the
 /// fields beneath it.
 pub(super) type Memberships = (
@@ -3501,6 +3503,19 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(subject));
         let case = self.case_of(at.record, case)?.id;
+        let value = self.case_membership_at(&at, case, source)?;
+        if at.fresh {
+            self.retire_homes(&[at.root], source)?;
+        }
+        Ok(Reached::Value(value))
+    }
+
+    fn case_membership_at(
+        &mut self,
+        at: &Located,
+        case: StructuralCaseId,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
         self.name_contents(at.place, ValueType::record(at.record))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
@@ -3513,7 +3528,6 @@ impl<'a> Lowering<'a> {
                 case,
             },
         )
-        .map(Reached::Value)
     }
 
     /// Ends the open block in the `StructuralCase` that observes the sum
@@ -3540,7 +3554,6 @@ impl<'a> Lowering<'a> {
     ///
     /// Each scalar payload field of an arm's case is one parameter of the
     /// arm's block, in declaration order.
-    #[allow(clippy::type_complexity)]
     pub(super) fn select(
         &mut self,
         subject: &Expression,
@@ -3548,8 +3561,19 @@ impl<'a> Lowering<'a> {
         wildcard: Option<SourceOrigin>,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
-    ) -> Evaluation<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
+    ) -> Evaluation<CaseSelection> {
         let at = continuing!(self.located(subject));
+        self.select_at(at, arms, wildcard, source, capture)
+    }
+
+    fn select_at(
+        &mut self,
+        at: Located,
+        arms: &[usize],
+        wildcard: Option<SourceOrigin>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
+    ) -> Evaluation<CaseSelection> {
         let data = self.record_type(at.record)?;
         if data.cases().is_empty() {
             return Err(self.internal("a dispatch on storage that is no sum"));
@@ -3595,9 +3619,18 @@ impl<'a> Lowering<'a> {
         }
         let mut rest: Option<(BlockId, Chosen)> = None;
         let mut excluded = Vec::new();
+        // Case positions index the declared roster. Prepare the first arm
+        // once rather than search all arms for each declared case.
+        let mut arm_positions = vec![None; data.cases().len()];
+        for (arm, case) in arms.iter().enumerate() {
+            let Some(position) = arm_positions.get_mut(*case) else {
+                return Err(self.internal("a dispatch arm is outside its sum's case roster"));
+            };
+            position.get_or_insert(arm);
+        }
         let mut edges = Vec::with_capacity(data.cases().len());
         for (position, case) in data.cases().iter().enumerate() {
-            let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
+            let (target, payload_fields) = match arm_positions[position] {
                 Some(arm) => (blocks[arm].0, payloads[arm].clone()),
                 None if wildcard.is_some() => {
                     let block = match &rest {
@@ -4023,12 +4056,88 @@ impl<'a> Lowering<'a> {
         Ok(Reached::Value(Value::Scalar(length)))
     }
 
+    /// Storage equality uses the reader's selected intrinsic meaning.
+    pub(super) fn structural_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let Some(ValueType::Record(record, _, _)) = left.result else {
+            return Err(self.internal("storage equality has no structural operand"));
+        };
+        let data = self.record_type(record)?;
+        if data.cases().is_empty() {
+            return self.byte_equal(left, right, source);
+        }
+        // A payload-free case constructor evaluates nothing. Retain the
+        // ordinary single-membership lowering for this constant operand.
+        if let ExpressionKind::Case { case, fields } = &right.kind
+            && fields.is_empty()
+            && data.is_copyable()
+            && data.cleanup.is_none()
+        {
+            return self.case_membership(left, *case, source);
+        }
+        self.enum_equal(left, right, source)
+    }
+
+    /// Save the left value before evaluating the right. Each saved Boolean
+    /// observes one retained case identity, rather than a representation tag.
+    /// The right dispatch returns the saved Boolean of its selected case:
+    /// both operands are evaluated once, with linear work in the case roster
+    /// and no pairwise expansion (data_and_literals.md, "Value equality").
+    fn enum_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let left = continuing!(self.located(left));
+        let cases = self.record_type(left.record)?.cases();
+        let mut observed = Vec::with_capacity(cases.len());
+        for case in cases {
+            let Value::Scalar(value) = self.case_membership_at(&left, case.id, source)? else {
+                return Err(self.internal("a case membership has no Boolean value"));
+            };
+            observed.push(value);
+        }
+        let right = continuing!(self.located(right));
+        let temporaries = [
+            left.fresh.then_some(left.root),
+            right.fresh.then_some(right.root),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        let roster = (0..cases.len()).collect::<Vec<_>>();
+        let (blocks, _) = continuing!(self.select_at(right, &roster, None, source, None));
+        let join = self.block(source);
+        let result = self.value(
+            ScalarType::Boolean,
+            ValueOrigin::BlockParameter {
+                block: join,
+                position: 0,
+            },
+        );
+        self.parameter(join, result, ScalarType::Boolean)?;
+        for ((block, _), value) in blocks.into_iter().zip(observed) {
+            self.enter(block);
+            if !temporaries.is_empty() {
+                self.retire_homes(&temporaries, source)?;
+            }
+            self.jump_with_structural(join, vec![value], Vec::new(), source)?;
+        }
+        self.enter(join);
+        Ok(Reached::Value(Value::Scalar(result)))
+    }
+
     /// `left == right` on two borrowed byte views. Each operand is located
     /// in source order, then each is measured, then the two are compared:
     /// the comparison names each measurement as the length of its operand
     /// (byte_views.md, "The operand retains its own dominating length
     /// observation, readable access, and establishment").
-    pub(super) fn byte_equal(
+    fn byte_equal(
         &mut self,
         left: &Expression,
         right: &Expression,

@@ -19,8 +19,9 @@ use calling_conventions::{CallPlan, ValueShape};
 use native_vocabulary::completion_claims::CompletionClaimSource;
 use native_vocabulary::values::AbstractResult;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
-    MachineId, OperationId, PlaceId, ServiceId, StructuralFieldId, ValueId,
+    BlockId, BoundaryMachineId, ClosedIntegerType, EdgeId, IeeeFloatFormat, IeeeFloatValue,
+    IntegerType, IntegerValue, MachineId, OperationId, PlaceId, ServiceId, StructuralFieldId,
+    ValueId,
 };
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument,
@@ -139,7 +140,9 @@ pub enum TargetUnitOperation {
     AtomicAccess {
         psi_operation: OperationId,
         location: StructuralArgument,
-        scalar_type: IntegerType,
+        // Storage width already established from the closed logical cell.
+        // AtomicBool's byte carrier need not occur as a source integer type.
+        scalar_type: ClosedIntegerType,
         field_byte_offset: u32,
         event: terminal_psi::AtomicAccessEvent,
         operands: Vec<TargetUnitScalarArgumentSource>,

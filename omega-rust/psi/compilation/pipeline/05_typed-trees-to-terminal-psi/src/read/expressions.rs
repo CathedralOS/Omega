@@ -486,38 +486,13 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
-                // `subject in S::C` is a case test wherever it stands.
-                // `k == Kind::A` is the same test only on a payload-free sum
-                // (data_and_literals.md: "Primitive and payload-free-sum
-                // equality is intrinsic"). On a record or a payload-bearing
-                // sum, Psi 03 replaces a `==` it can type with the selected
-                // `Equatable` call, so a `==` that reaches here against a case
-                // has no selected comparison and `case_test` refuses it.
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::CaseMembership
-                        | BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                ) && let Some(case) = self.named_case(binary.right)
+                // Membership names a case domain. Value equality instead
+                // reads both operands through the ordinary comparison path,
+                // including when one is a named case value.
+                if binary.operator == BinaryOperator::CaseMembership
+                    && let Some(case) = self.named_case(binary.right)
                 {
-                    let test = self.case_test(
-                        id,
-                        slots,
-                        binary.left,
-                        case,
-                        binary.operator != BinaryOperator::CaseMembership,
-                        source,
-                    )?;
-                    return Ok(if binary.operator == BinaryOperator::NotEqual {
-                        Expression {
-                            call_context: None,
-                            result: test.result,
-                            kind: ExpressionKind::Not(Box::new(test)),
-                            source,
-                        }
-                    } else {
-                        test
-                    });
+                    return self.case_test(id, slots, binary.left, case, source);
                 }
                 // A quoted literal is a byte view whatever its partner is
                 // (data_and_literals.md, "Quoted bytes"), so it is read
@@ -569,18 +544,19 @@ impl<'t> Program<'t> {
                     )?;
                     (left, right)
                 };
-                // conformances.md, "Core equality acquisition": text is
-                // "compared by byte content". Two unqualified byte views
-                // compare by the bytes they hold; `!=` is that comparison
-                // negated (structural_predicates.md, "Byte-sequence equality
-                // compares live lengths and live byte prefixes").
+                // Intrinsic storage equality compares byte contents or the
+                // retained case identity of a payload-free sum. Selected
+                // user comparisons are already calls, so they never enter
+                // this raw-operator path (conformances.md, "Core equality
+                // acquisition"). `!=` negates the same selected comparison.
                 if suffix.is_none()
                     && matches!(
                         binary.operator,
                         BinaryOperator::Equal | BinaryOperator::NotEqual
                     )
-                    && self.is_plain_readable_bytes(id, left.result)?
-                    && self.is_plain_readable_bytes(id, right.result)?
+                    && ((self.is_plain_readable_bytes(id, left.result)?
+                        && self.is_plain_readable_bytes(id, right.result)?)
+                        || self.intrinsic_enum_equality(id, &left, &right, source)?)
                 {
                     let boolean = Some(ValueType::plain(ScalarType::Boolean));
                     let equal = Expression {
@@ -759,6 +735,41 @@ impl<'t> Program<'t> {
             return self.borrow_value(id, slots, handle, wanted, source);
         }
         self.observed(id, value, expected)
+    }
+
+    /// The implicit route reads only two identical, unqualified enum types.
+    /// Payloads require the selected Equatable call; domains.md, "Operands"
+    /// requires a declared operator or explicit cast for qualified values.
+    fn intrinsic_enum_equality(
+        &self,
+        id: MachineId,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Checked<bool> {
+        let Some(left_record) = self.opened(id, left.result, Access::Read)? else {
+            return Ok(false);
+        };
+        let Some(right_record) = self.opened(id, right.result, Access::Read)? else {
+            return Ok(false);
+        };
+        if [left.result, right.result]
+            .into_iter()
+            .flatten()
+            .any(|value| !value.qualification().is_none())
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "builtin equality requires unqualified operands",
+            ));
+        }
+        if left.result != right.result {
+            return Err(crate::reject(id, source, "equality operand types differ"));
+        }
+        self.require_intrinsic_tag_equality(id, left_record)?;
+        self.require_intrinsic_tag_equality(id, right_record)?;
+        Ok(true)
     }
 
     /// A place that holds a reference, as the context that names it sees it.
