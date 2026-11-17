@@ -14,6 +14,13 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/joined_product_execution.rs"]
+mod joined_product_execution;
+
 use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
 use typed_trees_to_terminal_psi::{Compilation, elaborate};
 
@@ -111,4 +118,79 @@ fn equality_against_a_case_of_a_payload_bearing_sum_is_not_a_tag_test() {
             "{name}: {refusal:?}"
         );
     }
+}
+
+#[test]
+fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
+    for (name, source, reason) in [
+        (
+            "payload_bearing_variables",
+            "machine same(flag: bool, left: Cmd, right: Cmd) -> bool {\n\
+                 (match flag { true -> left, false -> left }) == right\n\
+             }",
+            "no selected Equatable",
+        ),
+        (
+            "foreign_enum_variables",
+            "data Other [copy] { case A; case B; }\n\
+             machine same(flag: bool, left: Kind, right: Other) -> bool {\n\
+                 (match flag { true -> left, false -> left }) == right\n\
+             }",
+            "equality operand types differ",
+        ),
+        (
+            "qualified_enum_variables",
+            "domain Kind::Marked;\n\
+             machine same(flag: bool, left: Kind in Marked, right: Kind in Marked) -> bool {\n\
+                 (match flag { true -> left, false -> left }) == right\n\
+             }",
+            "qualified operand",
+        ),
+    ] {
+        let found = verdict(name, source);
+        assert!(
+            !matches!(found, RouteVerdict::Accepted(_)),
+            "{name}: {found:?}"
+        );
+        assert!(format!("{found:?}").contains(reason), "{name}: {found:?}");
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn enum_comparison_observes_each_operand_once_in_native_and_psi() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/fixtures/run/equality/intrinsic_enum_comparison/main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(&fixture, Default::default())
+        .unwrap_or_else(|errors| panic!("enum fixture discovery: {errors:#?}"));
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::LinuxX64],
+        product,
+    )
+    .unwrap_or_else(|errors| panic!("enum fixture review: {errors:#?}"));
+    let output = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .unwrap_or_else(|errors| panic!("enum fixture production: {errors:#?}"));
+    let report = orchestration::complete_product(output)
+        .and_then(compiler::CompilationOutput::into_report)
+        .expect("complete the enum comparison native product");
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "intrinsic-enum-comparison",
+        false,
+    )
+    .unwrap();
+    joined_product_execution::execute_report(report, &directory.path().join("native"));
 }
