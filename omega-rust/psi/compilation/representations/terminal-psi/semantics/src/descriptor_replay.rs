@@ -18,32 +18,6 @@ pub(crate) mod analysis {
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
-    #[cfg(debug_assertions)]
-    fn trace_storage_query(
-        replay: &super::engine::Replay<'_>,
-        machine: &DescriptorMachine,
-        before: &super::engine::State,
-        position: DescriptorPosition,
-        location: &DescriptorLocation,
-    ) {
-        if std::env::var_os("OMEGA_DESCRIPTOR_STORAGE_TRACE").is_none() {
-            return;
-        }
-        let root_type = machine.place_types.get(&location.root);
-        let shape = root_type
-            .and_then(|id| replay.types.iter().find(|ty| ty.id == *id))
-            .map(|ty| &ty.shape);
-        let origins = before
-            .slots
-            .get(&DescriptorLocation::whole(location.root))
-            .and_then(Option::as_ref)
-            .map(|origins| origins.iter().take(4).collect::<Vec<_>>());
-        eprintln!(
-            "descriptor storage query: machine={:?} at={position:?} location={location:?} root_type={root_type:?} shape={shape:?} origins={origins:?}",
-            machine.id
-        );
-    }
-
     pub(crate) mod call_origins {
         use super::*;
 
@@ -1369,11 +1343,7 @@ pub(crate) mod analysis {
                                 detail: Some(INEXACT_REFERENCE_BACKING),
                             })
                         }
-                        None => {
-                            #[cfg(debug_assertions)]
-                            trace_storage_query(replay, machine, before, *position, location);
-                            Err(incomplete_step())
-                        }
+                        None => Err(incomplete_step()),
                     }
                 };
                 step.definitions = step
@@ -1544,11 +1514,7 @@ pub(crate) mod analysis {
                         detail: Some(INEXACT_REFERENCE_BACKING),
                     })
                 }
-                None => {
-                    #[cfg(debug_assertions)]
-                    trace_storage_query(&self.replay, machine, before, position, location);
-                    Err(incomplete_step())
-                }
+                None => Err(incomplete_step()),
             };
             let summary = self
                 .replay
@@ -5994,13 +5960,13 @@ pub(crate) mod engine {
                     DescriptorFlowSource::Contents(query) => Some(query.clone()),
                     DescriptorFlowSource::Unavailable(_) => None,
                 };
-                if let Some(query) = query {
-                    let structural_type = *machine.place_types.get(&binding.parameter.root)?;
-                    // A borrowed header names the actual's storage, rather
-                    // than a copied descriptor value held in that storage.
-                    // Capture before installing any destination names.
-                    let borrowed_storage = binding.access != StructuralAccess::Owned
-                        && !is_descriptor(self.types.iter(), structural_type);
+                let structural_type = *machine.place_types.get(&binding.parameter.root)?;
+                // The address of a borrowed scalar need not have a descriptor
+                // contents slot. Retain its captured address independently;
+                // nested descriptor contents still require their own query.
+                let borrowed_storage = binding.access != StructuralAccess::Owned
+                    && !is_descriptor(self.types.iter(), structural_type);
+                if borrowed_storage || query.is_some() {
                     let value = if borrowed_storage {
                         if let Some((descriptor, projection)) = &binding.captured_storage {
                             let ty = self
@@ -6020,7 +5986,7 @@ pub(crate) mod engine {
                             })
                         }
                     } else {
-                        self.read_contents_with_depth(machine, before, &query, reads)
+                        self.read_contents_with_depth(machine, before, query.as_ref()?, reads)
                     };
                     let mut captured = Slots::new();
                     if borrowed_storage {
@@ -6038,7 +6004,7 @@ pub(crate) mod engine {
                         if slot == binding.parameter {
                             continue;
                         }
-                        let mut source = query.clone();
+                        let mut source = query.as_ref()?.clone();
                         source.steps.extend(
                             slot.path
                                 .iter()
@@ -9888,74 +9854,85 @@ pub(crate) mod engine {
                 ),
                 (target, DescriptorFlowStep::default()),
             ]);
-            let graph = vec![machine];
-            let mut replay =
-                Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
-            let states = replay.states(graph[0].id, 0).unwrap();
-            let mut after = states[&target].clone();
-            assert!(
-                matches!(
-                    replay.resolve_storage(&graph[0], &after, &descriptor_alias, None),
-                    Some(StorageResolution::Unique(_))
-                ),
-                "descriptor value transport must remain distinct from captured referent storage"
-            );
-            // Replacing the descriptor home cannot retarget its captured child.
-            let new_origin = after.slots.get(&replacement).unwrap().clone();
-            after.slots_mut().insert(source.clone(), new_origin);
-            after.slots_mut().insert(
-                captured.clone(),
-                Some(BTreeSet::from([Origin::Storage(replacement.clone())])),
-            );
-            let StorageResolution::Projected(DescriptorCallOrigin::Argument {
-                source: original,
-                projection: held,
-            }) = replay
-                .resolve_storage(&graph[0], &after, &captured, None)
-                .unwrap()
-            else {
-                panic!("indexed arrival must retain its original projected backing");
-            };
-            assert_eq!(original, source.root);
-            assert_eq!(held, projection);
-            assert_eq!(held.captured_storage_path(), Some(vec![index.clone()]));
-            assert!(
-                Projection::new(std::slice::from_ref(&index))
-                    .captured_storage_path()
-                    .is_none()
-            );
-            assert!(
-                held.clone()
-                    .without_runtime_coordinates()
-                    .captured_storage_path()
-                    .is_none()
-            );
-            let mut missing = after.clone();
-            Arc::make_mut(&mut missing.arrival_backing).insert(captured.clone(), None);
-            let mut joined_missing = after.clone();
-            assert!(merge_state(&mut joined_missing, &missing));
-            assert!(
-                replay
-                    .resolve_storage(&graph[0], &joined_missing, &captured, None)
-                    .is_none()
-            );
-            Arc::make_mut(&mut after.arrival_backing).insert(
-                captured.clone(),
-                Some(BTreeSet::from([
-                    Origin::Backing(DescriptorCallOrigin::Argument {
-                        source: source.root,
-                        projection: held.clone(),
-                    }),
-                    Origin::Backing(DescriptorCallOrigin::Argument {
-                        source: replacement.root,
-                        projection: held,
-                    }),
-                ])),
-            );
-            assert!(matches!(
-                replay.resolve_storage(&graph[0], &after, &captured, None),
-                Some(StorageResolution::Alternatives)
-            ));
+            let mut graph = vec![machine];
+            let original_query = graph[0].flow[&entry].successors[0].bindings[0]
+                .source
+                .clone();
+            for missing_contents in [false, true] {
+                graph[0].flow.get_mut(&entry).unwrap().successors[0].bindings[0].source =
+                    if missing_contents {
+                        DescriptorFlowSource::Unavailable(source.root)
+                    } else {
+                        original_query.clone()
+                    };
+                let mut replay =
+                    Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+                let states = replay.states(graph[0].id, 0).unwrap();
+                let mut after = states[&target].clone();
+                assert!(
+                    matches!(
+                        replay.resolve_storage(&graph[0], &after, &descriptor_alias, None),
+                        Some(StorageResolution::Unique(_))
+                    ),
+                    "descriptor value transport must remain distinct from captured referent storage"
+                );
+                // Replacing the descriptor home cannot retarget its captured child.
+                let new_origin = after.slots.get(&replacement).unwrap().clone();
+                after.slots_mut().insert(source.clone(), new_origin);
+                after.slots_mut().insert(
+                    captured.clone(),
+                    Some(BTreeSet::from([Origin::Storage(replacement.clone())])),
+                );
+                let StorageResolution::Projected(DescriptorCallOrigin::Argument {
+                    source: original,
+                    projection: held,
+                }) = replay
+                    .resolve_storage(&graph[0], &after, &captured, None)
+                    .unwrap()
+                else {
+                    panic!("indexed arrival must retain its original projected backing");
+                };
+                assert_eq!(original, source.root);
+                assert_eq!(held, projection);
+                assert_eq!(held.captured_storage_path(), Some(vec![index.clone()]));
+                assert!(
+                    Projection::new(std::slice::from_ref(&index))
+                        .captured_storage_path()
+                        .is_none()
+                );
+                assert!(
+                    held.clone()
+                        .without_runtime_coordinates()
+                        .captured_storage_path()
+                        .is_none()
+                );
+                let mut missing = after.clone();
+                Arc::make_mut(&mut missing.arrival_backing).insert(captured.clone(), None);
+                let mut joined_missing = after.clone();
+                assert!(merge_state(&mut joined_missing, &missing));
+                assert!(
+                    replay
+                        .resolve_storage(&graph[0], &joined_missing, &captured, None)
+                        .is_none()
+                );
+                Arc::make_mut(&mut after.arrival_backing).insert(
+                    captured.clone(),
+                    Some(BTreeSet::from([
+                        Origin::Backing(DescriptorCallOrigin::Argument {
+                            source: source.root,
+                            projection: held.clone(),
+                        }),
+                        Origin::Backing(DescriptorCallOrigin::Argument {
+                            source: replacement.root,
+                            projection: held,
+                        }),
+                    ])),
+                );
+                assert!(matches!(
+                    replay.resolve_storage(&graph[0], &after, &captured, None),
+                    Some(StorageResolution::Alternatives)
+                ));
+            }
         }
 
         #[test]

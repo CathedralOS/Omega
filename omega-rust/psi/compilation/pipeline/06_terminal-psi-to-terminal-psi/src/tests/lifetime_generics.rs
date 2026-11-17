@@ -204,15 +204,28 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
 }
 "#;
     let judged = |text: &str| {
+        let typed = super::boundary_calls::typed(text);
+        let template_symbol = typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.name.as_str() == "relay"
+                    && typed
+                        .machine_instantiation(machine.symbol)
+                        .unwrap()
+                        .is_none()
+            })
+            .expect("the authored helper has its own source declaration")
+            .symbol;
         let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
-            super::boundary_calls::typed(text),
+            typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .expect("ordinary preparation must retain the selected helper");
         let template = prepared
             .machines()
             .iter()
-            .find(|machine| machine.name.as_str() == "relay")
+            .find(|machine| machine.symbol == template_symbol)
             .unwrap();
         assert!(!template.lifetime_parameters.is_empty());
         let callback = prepared
@@ -231,22 +244,23 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
                 .is_some(),
             "the pure callback has an authored reach bound"
         );
-        let receipt = prepared
+        let path = prepared
             .machines()
             .iter()
+            .filter(|machine| machine.symbol != template.symbol)
             .find_map(|machine| {
                 prepared
-                    .machine_instantiation(machine.symbol)
-                    .unwrap()
-                    .filter(|receipt| receipt.template() == template.symbol)
+                    .machine_instantiation_path(machine.symbol, template.symbol)
+                    .filter(|path| !path.is_empty())
             })
-            .expect("the call must use an actual retained specialization");
+            .expect("the call must keep its exact capture and specialization path");
         assert!(
-            !prepared
+            path.iter().any(|receipt| !prepared
                 .expression_table
                 .static_machine_application(receipt.binding_application())
                 .arguments
-                .is_empty()
+                .is_empty()),
+            "the selected helper keeps its original static tuple"
         );
         super::boundary_calls::compilation_results_of(&prepared)
     };
