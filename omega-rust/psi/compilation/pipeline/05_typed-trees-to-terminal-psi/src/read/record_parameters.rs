@@ -1181,6 +1181,10 @@ mod tests {
                     .is_some()
             );
             assert!(!entry.published_service_ceiling.is_empty());
+            assert!(
+                !prepared.program.module.declaration_contracts.is_empty(),
+                "the requirement must follow a nonempty declaration-contract prefix"
+            );
             for requirement in [ordinary, record] {
                 let machine = prepared
                     .program
@@ -1190,6 +1194,16 @@ mod tests {
                     .find(|machine| machine.id == requirement)
                     .unwrap();
                 assert!(machine.declaration.is_none());
+                let instance = prepared
+                    .program
+                    .static_schemas
+                    .iter()
+                    .flat_map(|schema| &schema.requirements)
+                    .filter_map(|requirement| requirement.instance.as_ref())
+                    .find(|instance| instance.machine == requirement)
+                    .unwrap();
+                assert_ne!(instance.header.proof.id.get(), requirement.get());
+                assert_eq!(instance.header.proof.id, machine.contract.id);
                 assert_eq!(
                     machine.declared_service_reach.as_deref(),
                     Some(entry.published_service_ceiling.as_slice())

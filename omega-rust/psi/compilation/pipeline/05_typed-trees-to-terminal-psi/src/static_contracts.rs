@@ -238,8 +238,27 @@ impl StaticContracts {
                             let instance = requirement
                                 .instance
                                 .map(|machine| {
+                                    // Earlier declaration contracts can shift this contract
+                                    // away from the machine ID. Read its allocated ID
+                                    // from the machine rows, which are stored in ID order.
+                                    let contract = usize::try_from(machine.get() - 1)
+                                        .ok()
+                                        .and_then(|position| module.machines.get(position))
+                                        .filter(|published| published.id == machine)
+                                        .ok_or_else(|| {
+                                            refuse(
+                                                machine,
+                                                terminal_check_tables::Construct::Machine,
+                                                Unserved::Declaration(
+                                                    "requirement lost its published machine contract",
+                                                ),
+                                            )
+                                        })?
+                                        .contract
+                                        .id;
                                     crate::lower::static_signature_header(
                                         machine,
+                                        contract,
                                         &requirement.signature,
                                         signatures,
                                         outcomes,
@@ -265,8 +284,12 @@ impl StaticContracts {
             .collect::<Checked<Vec<_>>>()?;
         let mut conformances = Vec::with_capacity(self.conformances.len());
         for source in &self.conformances {
+            // A conformance signature has no published machine contract.
+            // Keep its proof tied to this local context.
             let required = crate::lower::static_signature_header(
                 context,
+                semantic_vocabulary::ContractId::new(context.get())
+                    .expect("a machine context is nonzero"),
                 &source.signature,
                 signatures,
                 outcomes,
