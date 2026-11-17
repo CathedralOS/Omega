@@ -41,7 +41,14 @@ fn verdict(name: &str, source: &str) -> RouteVerdict {
 }
 
 fn frontier_verdict(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdict {
-    judge(elaborate(
+    judge(frontier_elaboration(frontier))
+        .unwrap_or_else(|defect| panic!("{name}: the route must reach a verdict: {defect:?}"))
+}
+
+fn frontier_elaboration(
+    frontier: &compiler::TypedFrontier,
+) -> terminal_check_tables::Checked<typed_trees_to_terminal_psi::Elaboration> {
+    elaborate(
         &frontier.typed,
         Compilation {
             calling: frontier
@@ -58,8 +65,7 @@ fn frontier_verdict(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerd
             bindings: &frontier.bindings,
             supplies: &[],
         },
-    ))
-    .unwrap_or_else(|defect| panic!("{name}: the route must reach a verdict: {defect:?}"))
+    )
 }
 
 #[test]
@@ -214,10 +220,12 @@ fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
             });
     }
     frontier.typed = typed.into();
-    let found = frontier_verdict("lost_selected_enum_comparison", &frontier);
-    assert!(!matches!(found, RouteVerdict::Accepted(_)), "{found:?}");
+    let found = frontier_elaboration(&frontier)
+        .expect_err("a retained selected declaration cannot become a primitive comparison");
     assert!(
-        format!("{found:?}").contains("conflicts with its authored selection"),
+        found
+            .detail
+            .contains("conflicts with its authored selection"),
         "{found:?}"
     );
 }
