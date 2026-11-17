@@ -219,13 +219,6 @@ framework or a list of unimplemented features.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
 
-### Source correspondence repeats signature searches
-- Category: Verifying costs more than writing
-- Where: [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
-- Saw: For each projected method, correspondence validation scans every inherited signature and derives its callable identity before interning it. Finding one match still exhausts the scan. The original Console binding replay43 took 329.112s before its next refusal. A brief sample caught this work, but captured only two samples; its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
-- Cost: Repeated identity normalization grows with both the method and signature counts. Prepare the exact callable/package identities once per inherited declaration set. Preserve source authentication, complete applications, and refusals for missing or ambiguous requirements. Validate with the unchanged Console program and refusal controls; measure the identity derivations before claiming a speedup.
-- Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
-
 ### Native products evaluate their scalar conditions twice
 - Category: re-deriving
 - Where: [product checking](omega-rust/omega/compilation/compiler/src/terminal/terminal_artifact.rs#L94), [native completion](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L25)
