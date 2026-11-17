@@ -62,6 +62,7 @@ pub(crate) mod model {
             machine: Option<semantic_vocabulary::MachineId>,
             operation: Option<semantic_vocabulary::OperationId>,
             site: optimization_core::CompilerCheckSite,
+            cause: Option<String>,
         },
         ElementViewCustody {
             machine: semantic_vocabulary::MachineId,
@@ -136,10 +137,24 @@ pub(crate) mod model {
 
         #[track_caller]
         pub fn custody() -> Self {
+            Self::custody_reason(None)
+        }
+
+        /// Keep the failed query's reason as well as this conversion's site.
+        /// Some input queries expose only Debug, so retain that description
+        /// without imposing another error vocabulary on their owners.
+        #[track_caller]
+        pub(crate) fn custody_with_cause(cause: impl std::fmt::Debug) -> Self {
+            Self::custody_reason(Some(format!("{cause:?}")))
+        }
+
+        #[track_caller]
+        fn custody_reason(cause: Option<String>) -> Self {
             Self::SourceCustodyMismatch {
                 machine: None,
                 operation: None,
                 site: optimization_core::CompilerCheckSite::caller(),
+                cause,
             }
         }
 
@@ -162,10 +177,12 @@ pub(crate) mod model {
                     machine: None,
                     operation: None,
                     site,
+                    cause,
                 } => Self::SourceCustodyMismatch {
                     machine: Some(machine),
                     operation,
                     site,
+                    cause,
                 },
                 Self::ReferenceObservation {
                     machine: owner,
@@ -942,12 +959,12 @@ fn derive_expected_functions(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),
     )
-    .map_err(|_| LegalizationError::custody())?;
+    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let unit_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &unit.structural_types,
         unit.structural_types.owned_sequence_bounds(),
     )
-    .map_err(|_| LegalizationError::custody())?;
+    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let abstract_plan = &crate::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,

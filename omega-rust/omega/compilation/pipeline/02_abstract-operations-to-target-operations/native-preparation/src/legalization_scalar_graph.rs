@@ -1081,7 +1081,7 @@ pub(crate) mod aggregate_results {
     ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
         plan.geometry()
             .sum_layout(structural_type)
-            .map_err(|_| LegalizationError::custody())
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))
     }
 
     pub(crate) fn cleanup(
@@ -1207,7 +1207,7 @@ pub(crate) mod aggregate_results {
                 result,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if graph.call_plan != expected
             || target.scalar_abi.as_ref().is_some_and(|abi| {
                 !graph.parameters.is_empty()
@@ -2422,7 +2422,7 @@ pub(crate) mod call_origin {
             .target_context
             .map(|selection| target::TargetProfile::from_canonical_target_name(selection.target()))
             .transpose()
-            .map_err(|_| LegalizationError::custody())?;
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if native.profile != profile
             || profile.is_some_and(|profile| profile.native_realization() != Some(native.target))
             || input
@@ -2510,7 +2510,7 @@ pub(crate) mod call_origin {
         ) -> Result<&'a terminal_psi::BoundaryMachineDeclaration, LegalizationError> {
             let index = rows
                 .binary_search_by_key(&id, |row| row.id)
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             if index
                 .checked_sub(1)
                 .is_some_and(|previous| rows[previous].id == id)
@@ -2536,7 +2536,7 @@ pub(crate) mod call_origin {
                 module,
                 declaration,
             )
-            .map_err(|_| LegalizationError::custody())?;
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             executions.push((id, execution));
         }
         for operation in native
@@ -2965,7 +2965,7 @@ pub(crate) mod cleanup_calls {
                     edge,
                     action_ordinal: ordinal
                         .try_into()
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                 };
                 let shapes = callee
                     .structural_parameters
@@ -2982,7 +2982,7 @@ pub(crate) mod cleanup_calls {
                         result: None,
                     },
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let mut arguments = Vec::new();
                 for (position, parameter) in callee.structural_parameters.iter().enumerate() {
                     if position != 0 || parameter.access != terminal_psi::StructuralAccess::Owned {
@@ -3571,7 +3571,7 @@ pub(crate) mod header {
                 result,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if expected
             .result
             .as_ref()
@@ -4045,7 +4045,7 @@ pub(crate) mod normalized_foreign {
                     plan.geometry(),
                     policy,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 Ok((
                     TargetBoundaryResult::Structural(
                         target_operations::TargetStructuralHomeRequirement {
@@ -4140,13 +4140,13 @@ pub(crate) mod normalized_foreign {
         if matching.len() != materializations.len() {
             return Err(LegalizationError::custody());
         }
-        let pointer_size =
-            u16::try_from(native.target.pointer_size).map_err(|_| LegalizationError::custody())?;
+        let pointer_size = u16::try_from(native.target.pointer_size)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         let pointer_alignment = u16::try_from(native.target.pointer_alignment)
-            .map_err(|_| LegalizationError::custody())?;
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         for (index, callback) in matching.iter().enumerate() {
             let ordinal = usize::try_from(callback.application.native_ordinal)
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             let access_root = boundary_entry_plan.call.parameters.get(ordinal)
                 == Some(&callback.application.placement);
             let destination_admitted = match &callback.destination {
@@ -4350,10 +4350,10 @@ pub(crate) mod normalized_foreign {
                         }),
                 )
             };
-        let pointer_size =
-            u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
-        let pointer_alignment =
-            u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
+        let pointer_size = u16::try_from(native.pointer_size)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+        let pointer_alignment = u16::try_from(native.pointer_alignment)
+            .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         let presentation = (semantic.access != StructuralAccess::Owned)
             .then(|| {
                 borrowed_byte_view_presentation(
@@ -4448,7 +4448,7 @@ pub(crate) mod normalized_foreign {
                     declarations,
                     policy,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let multiplicity = if semantic.path.is_empty() {
                     root_multiplicity
                 } else if declaration_parameter.multiplicity
@@ -4473,7 +4473,7 @@ pub(crate) mod normalized_foreign {
                         declarations,
                         policy,
                     )
-                    .map_err(|_| LegalizationError::custody())?
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                 } else {
                     if !matches!(destination.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
@@ -4785,7 +4785,7 @@ pub(crate) mod read_byte {
             &[],
             &[vec![], vec![ValueShape::integer(4, 4)]],
         )
-        .map_err(|_| LegalizationError::custody())
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))
     }
 
     pub(crate) fn validate(
@@ -9091,7 +9091,7 @@ pub(crate) fn callee_plan(
             CallingPolicy::native_for_target(native.target),
             &CallSignature { parameters, result },
         )
-        .map_err(|_| LegalizationError::custody());
+        .map_err(|cause| LegalizationError::custody_with_cause(cause));
     };
     let targets = native
         .functions
@@ -9217,4 +9217,48 @@ pub(crate) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> 
         )
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
+
+    #[test]
+    fn sum_layout_refusal_retains_its_geometry_cause_and_operation() {
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(terminal_psi::TerminalModule::declarations())
+                .unwrap();
+        let types = crate::native_geometry::ModuleTypes::of(&closed);
+        let plan = abstract_operations::AbstractOperationPlan {
+            psi: closed.identity(),
+            entry: MachineId::new(1).unwrap(),
+            structural_types: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            callables: Default::default(),
+            dynamic_dispatch: Default::default(),
+            identities: Default::default(),
+            functions: Vec::new(),
+        };
+        let geometry = crate::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let input = crate::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
+        let machine = MachineId::new(7).unwrap();
+        let operation = OperationId::new(11).unwrap();
+        for raw_type in [3, 5] {
+            let structural_type = StructuralTypeId::new(raw_type).unwrap();
+            let error = super::aggregate_results::sum_type_layout(structural_type, &input)
+                .unwrap_err()
+                .attributed(machine, Some(operation));
+            let diagnostic = error.to_string();
+            assert!(
+                diagnostic.contains(&format!("UnknownStructuralType({structural_type:?})")),
+                "{diagnostic}"
+            );
+            assert!(
+                matches!(error, crate::LegalizationError::SourceCustodyMismatch {
+                machine: Some(owner), operation: Some(site), ..
+            } if owner == machine && site == operation)
+            );
+        }
+    }
 }
