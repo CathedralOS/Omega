@@ -399,7 +399,7 @@ machine build_entry(owner: &mut Item, replacement: Item) {
     assert_eq!(
         violation.site,
         Some(source::SourceSpan::new(
-            source::SourceId(2),
+            source::SourceId(1),
             source::Span::new(start, start + "owner".len())
         ))
     );

@@ -112,6 +112,44 @@ pub(super) fn frontier_with_core(
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
+#[test]
+fn bundled_core_imports_keep_the_callers_checked_purpose() {
+    let core = &[(
+        "byte_observation.omg",
+        "byte_observation",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/byte_observation.omg"
+        )),
+    )];
+    let imports = "use omega::language::core::byte_observation; machine importer() {}";
+    let empty = "machine other() {}";
+    for scope in [DependencyScope::Product, DependencyScope::Build] {
+        let (product, build) = match scope {
+            DependencyScope::Product => (imports, empty),
+            DependencyScope::Build => (empty, imports),
+        };
+        let typed = frontier_with_core(product, build, scope, core);
+        let sources = typed.symbols.source_map().unwrap();
+        let declaration = sources
+            .files()
+            .find(|file| file.origin.is_toolchain())
+            .unwrap();
+        assert_eq!(declaration.dependency_scope, scope);
+        let declaration_span = declaration.source_span(source::Span::new(0, 1));
+        for caller in sources.files().filter(|file| !file.origin.is_toolchain()) {
+            assert_eq!(
+                sources.reference_can_see_declaration(
+                    caller.source_span(source::Span::new(0, 1)),
+                    declaration_span
+                ),
+                caller.dependency_scope == scope,
+                "Core source cannot cross a checked program purpose",
+            );
+        }
+    }
+}
+
 pub(super) fn symbol(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandle {
     typed
         .machines()

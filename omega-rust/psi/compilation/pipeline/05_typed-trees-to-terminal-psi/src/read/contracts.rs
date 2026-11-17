@@ -647,7 +647,32 @@ impl Program<'_> {
             && let ExpressionNode::Indexed(indexed) =
                 self.typed.expression_table.expression(borrow.target)
         {
-            self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            // A domain's `self` names the declared logical carrier, which
+            // may be unsized. Its actual source type is retained by that
+            // declaration; reading it is not executable slice materialization.
+            if let Some(subject) = scope.subject
+                && let Some(definition) = self.typed.domain_definition(scope.owner)
+                && subject.symbol == definition.subject_symbol
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(definition.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+                && typed_trees::domain::domain_subject_reference(
+                    self.typed,
+                    definition,
+                    indexed.collection,
+                )
+            {
+                Some(definition.target_type)
+            } else {
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            }
         } else {
             None
         };

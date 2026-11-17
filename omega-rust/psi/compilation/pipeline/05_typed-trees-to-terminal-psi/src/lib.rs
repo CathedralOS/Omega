@@ -1914,18 +1914,15 @@ fn finish_storage(
                 source_span: None,
                 detail: format!("replacement input {place:?} has no unique source declaration"),
             },
-            terminal_semantics::StructuralStoreValueError::CannotDiscard(operation) => {
-                let origin = sources.get(machine.id)
-                    .and_then(|source| source.operations.get(operation)).copied()
-                    .unwrap_or(SourceOrigin::Unpositioned(Unpositioned::SpanAbsent));
-                let mut refusal = reject(
-                    machine.id,
-                    origin,
-                    "whole-value replacement requires discardable incoming custody without conserved claims",
-                );
-                refusal.concerns = Construct::Operation(operation);
-                refusal
-            }
+            terminal_semantics::StructuralStoreValueError::CannotDiscard(operation) => Refusal {
+                reason: RefusalReason::Violation,
+                machine: machine.id,
+                concerns: Construct::Operation(operation),
+                source_span: sources.get(machine.id)
+                    .and_then(|source| source.operations.get(operation))
+                    .and_then(|origin| origin.span()),
+                detail: "whole-value replacement requires discardable incoming custody without conserved claims".into(),
+            },
         })?;
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
