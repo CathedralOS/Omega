@@ -81,10 +81,22 @@ pub(crate) mod source_review {
         pub source: SourceNode,
     }
 
+    /// Actual source arguments stay separate from the authored type occurrence.
+    /// A frame substitutes its arguments simultaneously; earlier frames supply
+    /// the context in which those arguments were written. Records from one
+    /// machine share this context instead of copying its complete call history.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceTypeScope {
+        pub parent: Option<std::sync::Arc<SourceTypeScope>>,
+        pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        pub rigid_parameters: Vec<SymbolHandle>,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeApplication {
         pub reference: TypeReferenceHandle,
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        pub scope: std::sync::Arc<SourceTypeScope>,
     }
 
     /// The canonical service coordinate paired with its source declaration.
@@ -144,7 +156,7 @@ pub(crate) mod source_review {
 pub use source_review::{
     SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
     SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCleanup, SourceRecordCorrespondence,
-    SourceServiceCorrespondence, SourceTypeApplication,
+    SourceServiceCorrespondence, SourceTypeApplication, SourceTypeScope,
 };
 macro_rules! typed_tree_table {
     ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
@@ -2337,3 +2349,5 @@ mod continuation_storage_tests {
         assert_eq!(ordinary_clone.tables, successor.tables);
     }
 }
+
+mod source_type_applications;

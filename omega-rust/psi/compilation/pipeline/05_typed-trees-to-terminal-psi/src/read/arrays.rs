@@ -1080,6 +1080,7 @@ pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
         application: Some(typed_trees::SourceTypeApplication {
             reference,
             substitutions: Vec::new(),
+            scope: Default::default(),
         }),
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),

@@ -1796,40 +1796,86 @@ pub mod domain {
     struct StaticArgumentClosure<'a> {
         program: &'a TypedTrees,
         substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &'a [usize],
+        rigid_parameters: &'a [symbols::SymbolHandle],
         types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
         expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
         open: bool,
     }
     impl Extend<symbols::SymbolHandle> for StaticArgumentClosure<'_> {
         fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
-            self.open |= symbols
-                .into_iter()
-                .filter(|symbol| symbol.is_valid())
-                .any(|symbol| {
-                    if let Some((_, actual)) = self
-                        .substitutions
+            for symbol in symbols {
+                if !symbol.is_valid() {
+                    continue;
+                }
+                if !self.program.symbols.symbols().nodes().is_valid(symbol) {
+                    self.open = true;
+                    continue;
+                }
+                let matches = |(_, (formal, _)): &(
+                    usize,
+                    &(symbols::SymbolHandle, crate::types::TypeReferenceHandle),
+                )| *formal == symbol;
+                // The original unscoped query substitutes one simultaneous
+                // tuple. An applied scope reads an actual before its own
+                // tuple, retaining the caller's preceding arguments.
+                let binding = if self.scope_starts.is_empty() {
+                    self.substitutions.iter().enumerate().find(matches)
+                } else {
+                    self.substitutions.iter().enumerate().rev().find(matches)
+                };
+                if let Some((position, (_, actual))) = binding {
+                    let (substitutions, starts) = match self
+                        .scope_starts
                         .iter()
-                        .find(|(formal, _)| *formal == symbol)
+                        .rposition(|start| *start <= position)
                     {
-                        return !index_argument_is_closed(self.program, *actual);
-                    }
-                    matches!(
-                        self.program.symbols.get(symbol).kind,
-                        symbols::SymbolKind::TypeParameter
-                            | symbols::SymbolKind::MachineParameter
-                            | symbols::SymbolKind::ConformanceParameter
-                            | symbols::SymbolKind::PropositionParameter
-                            | symbols::SymbolKind::Parameter
-                            | symbols::SymbolKind::Local
-                    )
-                });
+                        Some(frame) => (
+                            &self.substitutions[..self.scope_starts[frame]],
+                            &self.scope_starts[..frame],
+                        ),
+                        None => (&[][..], &[][..]),
+                    };
+                    self.open |= !index_argument_is_in_scope(
+                        self.program,
+                        *actual,
+                        substitutions,
+                        starts,
+                        self.rigid_parameters,
+                    );
+                } else if matches!(
+                    self.program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::Local
+                ) {
+                    self.open |= !self.rigid_parameters.contains(&symbol)
+                        || self.program.symbols.get(symbol).kind
+                            != symbols::SymbolKind::TypeParameter;
+                }
+            }
         }
     }
     impl crate::references::TypedReferences for StaticArgumentClosure<'_> {
         fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            if !self.program.contains_type_reference(reference) {
+                self.open = true;
+                return false;
+            }
             self.types.insert(reference)
         }
         fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+            {
+                self.open = true;
+                return false;
+            }
             self.expressions.insert(expression)
         }
     }
@@ -1843,6 +1889,8 @@ pub mod domain {
         let mut closure = StaticArgumentClosure {
             program,
             substitutions: &[],
+            scope_starts: &[],
+            rigid_parameters: &[],
             types: Default::default(),
             expressions: Default::default(),
             open: false,
@@ -1856,9 +1904,32 @@ pub mod domain {
         reference: crate::types::TypeReferenceHandle,
         substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
     ) -> bool {
+        index_argument_is_in_scope(program, reference, substitutions, &[], &[])
+    }
+
+    /// Check every free input against the supplied generic scope. This is
+    /// availability of a type argument, not layout or access authority.
+    pub fn index_argument_is_in_scope(
+        program: &TypedTrees,
+        reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &[usize],
+        rigid_parameters: &[symbols::SymbolHandle],
+    ) -> bool {
+        if !program.contains_type_reference(reference)
+            || scope_starts.first().is_some_and(|start| *start != 0)
+            || scope_starts
+                .last()
+                .is_some_and(|start| *start > substitutions.len())
+            || scope_starts.windows(2).any(|pair| pair[0] > pair[1])
+        {
+            return false;
+        }
         let mut closure = StaticArgumentClosure {
             program,
             substitutions,
+            scope_starts,
+            rigid_parameters,
             types: Default::default(),
             expressions: Default::default(),
             open: false,

@@ -929,3 +929,126 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
         }
     }
 }
+
+#[test]
+fn an_open_record_header_retains_its_actual_field_binder() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { value: T; }
+        machine entry<T>(value: &Envelope<T>) {}
+    "#,
+    );
+    assert_eq!(form.generic_storage.len(), 1);
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_forwarded_open_record_uses_the_callers_actual_type() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+    "#,
+    );
+    assert_eq!(form.generic_storage.len(), 1);
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn an_open_record_cannot_silently_discard_its_unknown_field() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine entry<T>(value: Envelope<T>) {}
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
+        "the field's possible linear debt must survive: {verdict:?}"
+    );
+}
+
+#[test]
+fn forwarded_open_records_cannot_change_their_argument() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T, U>(left: &Envelope<T>, right: &Envelope<U>) { keep<T>(right); }
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+            if refusal.reason == RefusalReason::Unsupported && refusal.detail.contains("argument types")),
+        "the receiving record must retain its actual argument: {verdict:?}"
+    );
+}
+
+#[test]
+fn an_open_record_literal_transfers_its_unknown_field() {
+    let form = parameter_form(
+        r#"
+        data Envelope<T> { before: u32; item: T; after: u32; }
+        machine entry<T>(value: T) -> Envelope<T> {
+            Envelope { before: 19u32, item: move value, after: 23u32 }
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn an_open_record_call_requires_its_actual_source_owner() {
+    let mut source = super::boundary_calls::typed(
+        r#"
+        data Envelope<T> { value: T; }
+        machine keep<U>(value: &Envelope<U>) {}
+        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+    "#,
+    );
+    let entry = super::boundary_calls::entry(&source);
+    let callee = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "keep")
+        .unwrap()
+        .symbol;
+    let application = source
+        .expression_table
+        .static_machine_applications()
+        .find(|(_, application)| {
+            source
+                .machine_by_symbol(application.lexical_owner)
+                .or_else(|| source.machine_holding_state(application.lexical_owner))
+                .is_some_and(|owner| owner.symbol == entry)
+        })
+        .expect("the call retains its actual source owner")
+        .0;
+    source
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = callee;
+    let refusal = typed_trees_to_terminal_psi::elaborate_generic(&source, entry).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("type application has another source owner or declaration"),
+        "{refusal:?}"
+    );
+}

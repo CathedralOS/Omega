@@ -1954,18 +1954,59 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         call: &StaticInvocation<'_>,
-    ) -> Checked<Option<Vec<crate::body::ValueType>>> {
-        use typed_trees::static_applications::StaticMachineBindingValue;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if !call.application.is_valid() {
-            return Ok(None);
-        }
-        let Some(owner) = self.entered_machine(call.target) else {
+    ) -> Checked<
+        Option<(
+            Vec<crate::body::ValueType>,
+            Vec<typed_trees::types::TypeReferenceHandle>,
+        )>,
+    > {
+        let owner = self.symbols.get(id).copied().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("type application has no source caller"),
+            )
+        })?;
+        let Some((_, references)) =
+            self.type_argument_references(id, owner, call.target, call.application)?
+        else {
             return Ok(None);
         };
+        let values = references
+            .iter()
+            .map(|reference| self.value_type(id, *reference))
+            .collect::<Checked<Vec<_>>>()?;
+        Ok(Some((values, references)))
+    }
+
+    /// One retained type-only application, shared by body reading and static
+    /// partition discovery. Discovery uses the source references before this
+    /// reader materializes their opaque or concrete value types.
+    pub(super) fn type_argument_references(
+        &self,
+        id: MachineId,
+        owner: SymbolHandle,
+        target: SymbolHandle,
+        application: StaticMachineApplicationHandle,
+    ) -> Checked<Option<(SymbolHandle, Vec<typed_trees::types::TypeReferenceHandle>)>> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if !application.is_valid() {
+            return Ok(None);
+        }
+        if self.entered_machine(target).is_none() {
+            return Ok(None);
+        }
         let typed = self.typed;
         let table = &typed.expression_table;
-        let bindings = table.static_machine_application_bindings(call.application);
+        if !table.static_machine_application_is_valid(application) {
+            return unserved("type application has a stale source application");
+        }
+        let source = table.static_machine_application(application);
+        let bindings = table.static_machine_application_bindings(application);
+        if bindings.len() != source.bindings.len() {
+            return unserved("type application has a stale binding span");
+        }
         if bindings.is_empty()
             || bindings
                 .iter()
@@ -1973,21 +2014,40 @@ impl<'t> Program<'t> {
         {
             return Ok(None);
         }
-        let application = table.static_machine_application(call.application);
-        if !application.selected_machine_arguments.is_empty()
-            || !application.input_selections.is_empty()
-            || !application.lifetime_bindings.is_empty()
-            || application.conformance_selection.is_some()
-            || application.callable_contract_source.is_valid()
+        let source_machine = |symbol| {
+            typed
+                .machine_by_symbol(symbol)
+                .or_else(|| typed.machine_holding_state(symbol))
+        };
+        let Some(callee) = source_machine(target) else {
+            return unserved("type application of something that is not a machine");
+        };
+        let (_, state) = self.declaration(id, callee.symbol)?;
+        if target != callee.symbol && target != state.symbol {
+            return unserved("type application does not name its exact entry state");
+        }
+        if source_machine(source.lexical_owner).map(|machine| machine.symbol) != Some(owner)
+            || source_machine(source.registration_operation).map(|machine| machine.symbol)
+                != Some(callee.symbol)
+            || source.binding_declaration != callee.symbol
+        {
+            return unserved("type application has another source owner or declaration");
+        }
+        if !source.selected_machine_arguments.is_empty()
+            || !source.input_selections.is_empty()
+            || !source.lifetime_bindings.is_empty()
+            || source.conformance_selection.is_some()
+            || source.callable_contract_source.is_valid()
         {
             return unserved("type application with another static feature");
         }
-        let Some(callee) = typed.machine_by_symbol(owner) else {
-            return unserved("type application of something that is not a machine");
-        };
         let parameters = typed.machine_type_parameters(callee);
-        if parameters.len() != bindings.len() {
-            return unserved("type application that does not bind every parameter");
+        if parameters.len() != bindings.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.kind != typed_trees::data::TypeParameterKind::Type)
+        {
+            return unserved("type application that does not bind every type parameter");
         }
         let mut arguments = Vec::with_capacity(parameters.len());
         for parameter in parameters {
@@ -1997,13 +2057,19 @@ impl<'t> Program<'t> {
             let (Some(binding), None) = (bound.next(), bound.next()) else {
                 return unserved("type parameter without exactly one binding");
             };
-            let StaticMachineBindingValue::Type(type_reference) = &binding.value else {
+            let StaticMachineBindingValue::Type(reference) = &binding.value else {
                 return unserved("type parameter bound to something other than a type");
             };
-            let argument = self.value_type(id, *type_reference)?;
-            arguments.push(argument);
+            let reference = *reference;
+            if !typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("type application has a stale bound type");
+            }
+            arguments.push(reference);
         }
-        Ok(Some(arguments))
+        Ok(Some((callee.symbol, arguments)))
     }
 
     /// A const application in a generic body forwards actual rigid inputs as
@@ -2127,7 +2193,10 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         call: StaticInvocation<'_>,
-        type_arguments: Vec<crate::body::ValueType>,
+        type_arguments: (
+            Vec<crate::body::ValueType>,
+            Vec<typed_trees::types::TypeReferenceHandle>,
+        ),
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
@@ -2149,7 +2218,7 @@ impl<'t> Program<'t> {
             }
             other => return unserved(symbol_kind(other)),
         };
-        let callee = self.application(id, machine, type_arguments)?;
+        let callee = self.application(id, machine, type_arguments.0, Some(type_arguments.1))?;
         self.call_of(
             id,
             slots,
@@ -2494,7 +2563,7 @@ impl<'t> Program<'t> {
             self.const_application(target)?
         } else {
             match self.inherited_type_arguments(id, target) {
-                Some(arguments) => self.application(id, target, arguments)?,
+                Some(arguments) => self.application(id, target, arguments, None)?,
                 None => self.machine(target)?,
             }
         };
