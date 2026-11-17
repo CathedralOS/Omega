@@ -976,12 +976,6 @@ pub(crate) mod constraint_identity {
                         "missing constant recipe",
                     );
                 };
-                if let Some(value) = program
-                    .declared_constant_extent(*value)
-                    .and_then(|extent| extent.closed(program))
-                {
-                    return atom(ArrayLengthForm::Literal, &value.to_string());
-                }
                 substitution::array_length_expression(program, *expression, context)
             }
             FixedArrayLength::Literal(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
@@ -3173,18 +3167,21 @@ pub(crate) mod identity_context {
                     identity
                 }
             }
-            ExpressionNode::Binary(binary) => compound(
-                index_binary_operator_name(binary.operator),
-                [
-                    normalize_index_expression(program, binary.left, context),
-                    normalize_index_expression(program, binary.right, context),
-                ]
-                .into_iter()
-                .chain(
-                    (context.structural_callable_identity || context.signature_owners.is_some())
-                        .then(|| atom(Label::Domain, binary.policy.name())),
-                ),
-            ),
+            ExpressionNode::Binary(binary) => {
+                // A raw non-Exact operation needs its selected carrier as well
+                // as its policy. Until that complete operation is represented,
+                // refuse an exact identity instead of erasing its semantics.
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return substitution::rejected(context);
+                }
+                compound(
+                    index_binary_operator_name(binary.operator),
+                    [
+                        normalize_index_expression(program, binary.left, context),
+                        normalize_index_expression(program, binary.right, context),
+                    ],
+                )
+            }
             ExpressionNode::Integer(value) => substitution::index_integer(value, context),
             ExpressionNode::Unary(unary) => compound(
                 match unary.operator {
@@ -8303,6 +8300,18 @@ pub(crate) mod substitution {
         spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> String {
+        if symbol.is_valid() {
+            let is_value = match program.symbols.get(symbol).kind {
+                symbols::SymbolKind::Const | symbols::SymbolKind::Parameter => true,
+                symbols::SymbolKind::TypeParameter => program
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value()),
+                _ => false,
+            };
+            if !is_value {
+                return rejected(context);
+            }
+        }
         if let Some(value) = integer(program, symbol, spelling) {
             literal_array_length(value, context)
         } else {
@@ -8324,8 +8333,13 @@ pub(crate) mod substitution {
                 |value| literal_array_length(value, context),
             );
         }
-        if let Some(value) = program.expression_table.constant_integer_value(expression) {
-            return literal_array_length(value, context);
+        if let Some(value) =
+            crate::const_integer::closed_literal(&program.expression_table, expression)
+        {
+            return value.value_bignum().map_or_else(
+                || rejected(context),
+                |value| literal_array_length(value, context),
+            );
         }
         compound(
             ArrayLengthForm::ConstExpression,
@@ -8341,11 +8355,22 @@ pub(crate) mod substitution {
         if !program.contains_type_reference(reference) {
             return rejected(context);
         }
-        if let Some(value) = program
-            .declared_constant_extent(reference)
-            .and_then(|extent| extent.closed(program))
+        // Retained callable/conformance index applications use the existing
+        // exact operand route. Ordinary type-only references are not values.
+        if context.invalid_application.is_some()
+            && let Ok(selected) = program.static_operand_from_type_reference(reference)
+            && selected.symbol.is_valid()
+            && matches!(
+                program.symbols.get(selected.symbol).kind,
+                symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::State
+                    | symbols::SymbolKind::Conformance
+            )
         {
-            return literal_array_length(value, context);
+            return compound(
+                ArrayLengthForm::ConstExpression,
+                [index_reference(program, reference, context)],
+            );
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, name } => {
@@ -8356,10 +8381,7 @@ pub(crate) mod substitution {
             TypeReferenceNode::ConstExpression(expression) => {
                 array_length_expression(program, *expression, context)
             }
-            _ => compound(
-                ArrayLengthForm::ConstExpression,
-                [index_reference(program, reference, context)],
-            ),
+            _ => rejected(context),
         }
     }
 
@@ -8369,8 +8391,8 @@ pub(crate) mod substitution {
         context: &TypeIdentityContext<'_>,
     ) -> String {
         match argument {
-            IndexIdentityArgument::TypeArgument(reference)
-            | IndexIdentityArgument::TypeReference(reference) => {
+            IndexIdentityArgument::TypeArgument(_) => rejected(context),
+            IndexIdentityArgument::TypeReference(reference) => {
                 array_length_reference(program, reference, context)
             }
             IndexIdentityArgument::Expression(expression)
@@ -8399,8 +8421,7 @@ pub(crate) mod substitution {
                 argument
                     .const_literal
                     .as_ref()
-                    .unwrap()
-                    .value_bignum()
+                    .and_then(numerics::literals::IntegerLiteral::value_bignum)
                     .map_or_else(
                         || rejected(context),
                         |value| literal_array_length(value, context),
@@ -10734,6 +10755,148 @@ mod declared_array_extent_tests {
             assert_eq!(identity, expected);
             assert_eq!(malformed_identity_offset(&identity), None);
         }
+    }
+
+    #[test]
+    fn array_extent_applications_refuse_type_only_operands() {
+        use super::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        use crate::types::TypeReferenceNode;
+        let mut fixture = Fixture::new();
+        let n = fixture.symbol("N");
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        assert!(
+            fixture
+                .render_in_lifetime_scope(
+                    parameter,
+                    fixture.symbol("size"),
+                    &[],
+                    &[(n, "type-parameter:0".to_owned())],
+                    &[]
+                )
+                .is_some(),
+            "the matching const binder is a valid extent"
+        );
+        let value = fixture.integer(4);
+        let value = fixture.index(value);
+        let data = fixture.named("Payload");
+        let unit = fixture.type_node(TypeReferenceNode::Unit);
+        let reference = fixture.type_node(TypeReferenceNode::Reference {
+            referee: fixture.u64_type,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        });
+        for argument in [
+            IndexIdentityArgument::TypeArgument(value),
+            IndexIdentityArgument::TypeReference(fixture.u64_type),
+            IndexIdentityArgument::TypeReference(data),
+            IndexIdentityArgument::TypeReference(unit),
+            IndexIdentityArgument::TypeReference(reference),
+        ] {
+            let arguments = [(n, argument)];
+            let scopes = [AppliedTypeIdentityScope {
+                declaration: fixture.symbol("Container"),
+                arguments: &arguments,
+                lifetimes: &[],
+            }];
+            assert!(
+                super::portable_applied_type_identity(
+                    &fixture.program,
+                    parameter,
+                    fixture.symbol("size"),
+                    &scopes,
+                )
+                .is_none(),
+                "a type operand cannot become an extent value"
+            );
+        }
+        let t = fixture.symbol("T");
+        let type_parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: t,
+            name: Identifier::generated("T"),
+        });
+        assert!(
+            fixture
+                .render_in_lifetime_scope(
+                    type_parameter,
+                    fixture.symbol("size"),
+                    &[],
+                    &[(t, "type-parameter:0".to_owned())],
+                    &[]
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn array_extent_folding_preserves_carriers_and_refuses_unrepresented_policies() {
+        use crate::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+        use numerics::arithmetic::ArithmeticDomain;
+        use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        let mut fixture = Fixture::new();
+        let typed = |value, carrier| {
+            IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::from_name(carrier).unwrap(),
+                domain: ArithmeticDomain::Exact,
+            })
+        };
+        let impossible = fixture.array(FixedArrayLength::Literal(256));
+        let expected256 = fixture.render(impossible, &[], &[]);
+        for carrier in ["u8", "u16"] {
+            let left = fixture.expression(ExpressionNode::Integer(typed(255, carrier)));
+            let right = fixture.expression(ExpressionNode::Integer(typed(1, carrier)));
+            for policy in [ArithmeticDomain::Wrapping, ArithmeticDomain::Saturating] {
+                let expression =
+                    fixture.expression(ExpressionNode::Binary(TableBinaryExpression {
+                        left,
+                        right,
+                        operator: BinaryOperator::Add,
+                        policy,
+                    }));
+                let expression = fixture.index(expression);
+                let array = fixture.array(FixedArrayLength::Expression(expression));
+                assert!(
+                    fixture
+                        .render_in_lifetime_scope(array, fixture.symbol("size"), &[], &[], &[])
+                        .is_none(),
+                    "raw policy syntax has no complete carrier-aware canonical identity"
+                );
+            }
+        }
+        let left = fixture.expression(ExpressionNode::Integer(typed(255, "u8")));
+        let right = fixture.expression(ExpressionNode::Integer(typed(1, "u8")));
+        let overflow = fixture.expression(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            right,
+            operator: BinaryOperator::Add,
+            policy: ArithmeticDomain::Exact,
+        }));
+        let overflow = fixture.index(overflow);
+        let overflow = fixture.array(FixedArrayLength::Expression(overflow));
+        assert_ne!(
+            fixture.render(overflow, &[], &[]),
+            expected256,
+            "typed overflow cannot be folded as anonymous arithmetic"
+        );
+        let left = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(255)));
+        let right = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let sum = fixture.binary(left, BinaryOperator::Add, right);
+        let sum = fixture.index(sum);
+        let sum = fixture.array(FixedArrayLength::Expression(sum));
+        assert_eq!(fixture.render(sum, &[], &[]), expected256);
+        let seven = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
+        let two = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let division = fixture.binary(seven, BinaryOperator::Divide, two);
+        let division = fixture.index(division);
+        let division = fixture.array(FixedArrayLength::Expression(division));
+        let three = fixture.array(FixedArrayLength::Literal(3));
+        assert_ne!(
+            fixture.render(division, &[], &[]),
+            fixture.render(three, &[], &[]),
+            "anonymous rational division is not truncating integer division"
+        );
     }
 
     #[test]

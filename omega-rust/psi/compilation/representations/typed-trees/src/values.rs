@@ -4868,10 +4868,12 @@ pub mod expression {
         pub operator: BinaryOperator,
         pub right: ExpressionHandle,
         /// The policy an operator suffix chose for this one operation
-        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Preparation
-        /// rewrites every suffixed operation in executable code onto
-        /// policy-qualified operands, so checking sees `Exact` here and
-        /// rejects anything else.
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Executable code,
+        /// contracts and mathematical definitions may retain this suffix for
+        /// their policy-aware lowering; constant type positions reject it.
+        /// Canonical identities support raw Exact recipes. A non-Exact raw
+        /// recipe needs a complete selected operation identity, including its
+        /// carrier, and refuses until that representation is available.
         pub policy: numerics::arithmetic::ArithmeticDomain,
     }
 
