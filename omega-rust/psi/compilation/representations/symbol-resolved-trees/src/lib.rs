@@ -1289,7 +1289,7 @@ mod tests {
         let rebased = trees
             .rebase_authored_selection_extension(frontier, &destination)
             .expect("exact append frontier");
-        let shifted = rebased.authored_declaration_selections().as_slice()[2].occurrence_id();
+        let shifted = rebased.authored_declaration_selections().rows()[2].occurrence_id();
         assert_eq!(
             rebased
                 .expression_table()
@@ -1335,8 +1335,8 @@ mod tests {
         };
         assert_eq!(fact.authored_domain_selection, Some(shifted));
         assert_eq!(
-            &rebased.authored_declaration_selections().as_slice()[..2],
-            destination.as_slice()
+            rebased.authored_declaration_selections().rows().slice(0..2),
+            destination.rows()
         );
     }
 
@@ -1395,7 +1395,7 @@ mod tests {
                     )
                     .expect("destination-only row");
             }
-            let outside_source = destination.as_slice()[2].occurrence_id();
+            let outside_source = destination.rows()[2].occurrence_id();
             let expression = trees
                 .expression_table_mut()
                 .insert(expression::ExpressionNode::default());

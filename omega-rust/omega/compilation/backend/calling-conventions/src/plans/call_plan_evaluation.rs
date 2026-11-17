@@ -738,7 +738,10 @@ fn evaluate_split_bank_call(
             }
         } else if float_members.is_none() && shape.byte_size > 8 {
             let register_count = shape.byte_size.div_ceil(8) as usize;
-            if policy.is_aapcs64() && shape.alignment >= 16 {
+            // AAPCS64 C.10 rounds the next integer register up to even for
+            // a 16-byte-aligned value. Apple arm64 explicitly permits an
+            // odd starting x register, so it must not consume that gap.
+            if policy == CallingPolicy::Aapcs64 && shape.alignment >= 16 {
                 integer_index = integer_index.next_multiple_of(2);
             }
             if integer_index + register_count <= integer_registers.len() {

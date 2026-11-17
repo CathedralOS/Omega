@@ -353,7 +353,7 @@ mod providers {
 
     #[cfg(test)]
     mod execution_tag_tests {
-        use crate::retained_terminal::codec::value::{
+        use crate::retained_terminal_codec::value::{
             RecordLimits, RecordReader, RecordValue, RecordWriter,
         };
         use effects::CompilerIntrinsicExecutionIdentity as Execution;

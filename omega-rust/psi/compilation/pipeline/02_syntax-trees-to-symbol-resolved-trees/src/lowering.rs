@@ -3086,7 +3086,7 @@ pub(crate) mod operator {
                     DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::lexer::Lexer::new(text)
+            let tokens = source_files_to_tokens::Lexer::new(text)
                 .tokenize()
                 .expect("the test source must tokenize");
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)

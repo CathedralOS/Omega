@@ -866,8 +866,8 @@ pub(crate) mod seeded_continuation {
         let destination_ledger = retained.typed.authored_declaration_selections();
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(destination_ledger.as_slice())
+            .rows()
+            .starts_with(destination_ledger.rows())
         {
             return Err(SeededContinuationError::AuthoredSelectionPrefixChanged);
         }
@@ -936,8 +936,8 @@ pub(crate) mod seeded_continuation {
         }
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(retained.typed.authored_declaration_selections().as_slice())
+            .rows()
+            .starts_with(retained.typed.authored_declaration_selections().rows())
         {
             return Err(Diagnostic::error(
                 "authored-body completion did not retain the typed selection ledger prefix",

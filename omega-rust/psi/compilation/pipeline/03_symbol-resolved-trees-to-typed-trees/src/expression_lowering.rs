@@ -3416,8 +3416,8 @@ pub(crate) mod expression {
                         )
                         .unwrap();
                     assert_eq!(
-                        continued.as_slice(),
-                        program.authored_declaration_selections().as_slice()
+                        continued.rows(),
+                        program.authored_declaration_selections().rows()
                     );
                 }
 

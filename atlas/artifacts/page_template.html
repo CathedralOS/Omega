@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="%%DESCRIPTION%%">
+  <title>%%TITLE%%</title>
+  <link rel="stylesheet" href="%%PREFIX%%design/tokens.css">
+  <style>%%STYLE%%</style>
+</head>
+<body class="%%PAGE_CLASS%%">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="%%PREFIX%%index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">%%STATUS%% · %%NUMBER_LABEL%%</div>
+      <h1>%%TITLE%%</h1>
+      <p class="lede">%%DESCRIPTION%%</p>
+      <div class="meta"><span>Compiler snapshot <a href="%%REVISION_URL%%"><code>%%REVISION%%</code></a></span><span>%%PUBLICATION%%</span><span><a href="%%MANIFEST_URL%%">Evidence provenance</a></span><span><a href="%%SOURCE_URL%%">Page source</a></span></div>
+%%COUNTS%%
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+    </header>
+%%EXPLORER%%
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore %%PAGE_COUNT%% pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      %%NAV%%
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main">%%TOC%%%%BODY%%</main>
+    <footer><a href="%%PREFIX%%index.html">Atlas index</a><a href="%%README_URL%%">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>%%SCRIPT%%</script>
+</body>
+</html>

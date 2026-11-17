@@ -81,6 +81,12 @@ framework or a list of unimplemented features.
 - Saw: `examine` reconstructs the exact unavailable borrowed storage and its restoration flag. Later, `minted` calls `verify_claims_in`, which converts that same unavailable row into a blanket Unsupported before the ordinary restoration diagnostic is returned. In `a_whole_local_owned_home_is_repaired_before_its_reference_ends`, the restored positive passes and removing only `local = next;` gets this generic refusal.
 - Cost: The invalid program still refuses, but its strict restoration regression test fails and callers cannot distinguish a broken restoration obligation from missing compiler support. Keep one availability owner and carry its actual reason through claim validation.
 - Reported: 2026-11-16, Codex, while carrying Room A1 and the multiplication table through byte-observer checking.
+### Saved native inputs do not reproduce the product they were saved from
+- Category: tests that pin the bug
+- Where: [round-trip check](omega-rust/omega/build-system/orchestration/examples/installation_assumption_review/saved_project.rs#L88), [recovery](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs#L1876), [evidence attachment](omega-rust/omega/compilation/native-compiler/src/application.rs#L44)
+- Saw: `installation_assumption_review prepare tests/fixtures/run/calls/scalar_contract_route_exit/main.omg windows_x86_64 DIR` refuses with "saved native inputs do not reproduce the checked project" on `main`. The recovered `RetainedTerminalArtifact` differs from the original in two places. Recovery attaches no operation evidence, while `TerminalApplication` attaches it with `with_evidence`. And the proposal's provider-identity table numbers its rows in a different order: the first differing line maps `named(..Extent)` where the original has `trait-application(..ProgramStorageEntry)`.
+- Cost: The review workflow the native-compiler README documents cannot prepare a saved project, and nothing on the Windows host tests the round trip; the only test of it (`closed_native_binding_reloads_and_executes_the_descriptor_callback`) runs on macOS arm64 only. Save or re-derive the evidence, encode provider identities in their canonical order, and run the round trip in a host-independent test.
+- Reported: 2026-11-17, pi, while moving the saved native-input codec out of Omega 00.
 
 ### Unpatched mbx bypasses the cache for checksum-enabled compilations
 - Category: Verifying costs more than writing
@@ -128,13 +134,6 @@ framework or a list of unimplemented features.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
 
-### Each provider row rehashes every toolchain source
-- Category: Verifying costs more than writing
-- Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
-- Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
-- Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
-- Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
-
 ### A qualified collection gets builtin `[..]` indexing without a declared operator
 - Category: A verdict with nothing behind it
 - Where: [builtin meaning check](omega-rust/psi/compilation/representations/typed-trees/src/operator_declarations.rs#L2135), [typing selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L74), [byte-view tests](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L593)
@@ -148,14 +147,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
-### macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one
-- Category: One idea, several implementations
-- Where: [even-register rounding](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L735), [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [pilot harness](https://github.com/CathedralOS/Omega/tree/work/pilot-abi-vs-clang)
-- Saw: [authorship and evaluation](wiki/spec/build/calling_plans.md#L14) says the selected plan must support the argument's placement or reject the binding. Apple's arm64 ABI says that when a 16-byte-aligned argument is passed in integer registers, "Apple platforms allow the argument to start in an odd-numbered xN register", for example x1 and x2. The default macOS arm64 plan uses the generic `Aapcs64` evaluator, which rounds `integer_index` up to an even register for any 16-byte-aligned value (AAPCS64 C.10). A record with a `u128` field passed after one integer argument goes in x2–x3 under Omega and in x1–x2 under Apple's rule. The ABI pilot compared 1,440 signatures against clang and found 13 macOS signatures with this cause, each checked against the quoted Apple rule.
-- Cost: Default-ABI imports and callbacks with such records exchange wrong values on macOS. This has the same root as the macOS stack-packing entry: Mach-O arm64 uses the generic AAPCS64 policy instead of Apple's. Give Apple arm64 its own policy row covering both rules, or refuse these signatures there.
-- Reported: 2026-11-16, Claude Code, while piloting an ABI cross-check against clang
-
 
 ### A read through a runtime index gets a field equation the spec says it never supplies
 - Category: The documents disagree
@@ -285,8 +276,8 @@ framework or a list of unimplemented features.
 
 ### Selected-body activation copies retained side records
 - Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L669), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
-- Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L670), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
+- Saw: Replacing symbols on a shared typed tree can copy other side records, normalized identities and owned containers even with no bodies selected. A matched pair on fixed `673a8aa` plus the declaration-selection sharing repair and numeric observer recorded 376,901 requested bytes, 1,582 allocations and 36 arena clones per route on Windows x86-64 (opt-level 1); this is historical measurement, not current-main qualification. See the [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) and [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for earlier baselines.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
