@@ -1,5 +1,11 @@
 # Interactive architecture
 
+Use **Current / Proposed** above the drawing to compare the observed compiler
+with the recorded migration plan on the same canvas. Each view remembers its
+camera. Proposed boxes have dashed borders; selecting one opens its contract,
+plan citation and any unresolved planning obligation. The proposed phase names
+are not replacement stage numbers or claims that the migration is implemented.
+
 Follow the bold route from START, top to bottom. Numbered stages show the
 compilation order; phase frames separate source compilation, execution selection,
 native compilation, and publishing. Dashed connections show supporting calls
