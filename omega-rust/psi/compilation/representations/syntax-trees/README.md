@@ -14,6 +14,7 @@ checkpoints, page adoption and root publication stay beside those structures.
 | `SyntaxTreeTables.type_references` | [types/references.rs](types/references.rs): type syntax, constraints and retained application information |
 | `SyntaxTreeTables.text` | [text/owner.rs](text/owner.rs): retained source pages; [identifiers.rs](text/identifiers.rs) defines names and paths that refer to them |
 | `ParsedSource`, `ParsedSources`, `ParsedUnit` | [files/parsed.rs](files/parsed.rs): source/root associations and standalone reusable parses |
+| `ParsedSyntaxPages`, `ParsedSyntaxSource` | [files/pages.rs](files/pages.rs): published parser pages and their source associations |
 | Copying between forests | [copying/items.rs](copying/items.rs) and [bodies.rs](copying/bodies.rs): declaration/body copying, preserving shared handles and text ownership |
 | Copying between tables in one forest | [copying/statement_paths.rs](copying/statement_paths.rs): expression arguments and identifier paths retained by statements |
 | Logical equality and page identity | [storage/equality.rs](storage/equality.rs), [relocation.rs](storage/relocation.rs), [paged_tables.rs](storage/paged_tables.rs) |

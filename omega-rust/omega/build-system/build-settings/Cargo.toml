@@ -42,6 +42,7 @@ typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 build-declarations = { path = "../../packages/build-declarations" }
 
 [dev-dependencies]
+tokens = { path = "../../../psi/compilation/representations/tokens" }
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

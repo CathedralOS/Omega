@@ -87,7 +87,7 @@ framework or a list of unimplemented features.
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
 - Saw: [three layers](wiki/spec/build/platform_services.md) says a portable service "is identical on every target". A static diff of the two adapter families found three differences that #3864 did not cover:
   - `set_times` accepts any `i64` on POSIX, but Windows refuses times at or before 1601 and after about year 60056. The comment cites Win32, but the portable contract does not state the limit.
-  - `read_dir_nth` and `read_dir_is_empty` error on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
+  - `read_dir_nth` errors on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
   - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows. `read_at`, `write_at` and `copy` refuse a count over 4 GiB on Windows the same way.
   - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
@@ -99,20 +99,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
-### A read through a runtime index gets a field equation the spec says it never supplies
-- Category: The documents disagree
-- Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
-- Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L556) says a runtime-element read "supplies no field equation", and such a store "publishes no field equation" (L639). The write log records a store at `[RuntimeIndex i]` as `Stored::Value(v)`, and `read_equation` gives a later read of the same path `r == v`, so `a[i] = 7; need7(a[i]);` is accepted. This is sound (same selector, overlap-based retirement), but contradicts the page.
-- Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
-
-### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
-- Category: A verdict with nothing behind it
-- Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
-- Saw: [patterns.md](wiki/spec/language/patterns.md#L30) says "`field: value` is ordinary projected equality", so `Reading::Value { level: 0 }` matches only some `Value` readings. `case_pattern` checks only that the arm names the case and ignores the pattern's fields, so `transition r { Reading::Value { level: 0 } -> 0  Reading::Missing -> 1 }` passes coverage and `Value { level: 5 }` matches nothing.
-- Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
 
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree

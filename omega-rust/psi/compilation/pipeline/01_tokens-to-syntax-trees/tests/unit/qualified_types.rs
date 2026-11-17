@@ -1,5 +1,5 @@
+use crate::frontend_fixture::Lexer;
 use source::SourceId;
-use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
 #[test]
 fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts() {
@@ -17,7 +17,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                 .tokenize()
                 .expect("tokenize boolean domain index");
             let mut syntax = SyntaxTrees::new(SourceId::default());
-            crate::parse(&mut syntax, source_id, &tokens).expect("parse boolean domain index");
+            crate::parse_into(&mut syntax, source_id, &tokens).expect("parse boolean domain index");
             let arguments = if cast {
                 syntax
                     .expressions

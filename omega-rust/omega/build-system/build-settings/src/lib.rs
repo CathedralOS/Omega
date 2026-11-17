@@ -129,3 +129,7 @@ pub use provider_planning::program_entry::{
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use via_binding_evaluation::prepare_source_via_bindings;
+
+#[cfg(test)]
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

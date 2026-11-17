@@ -1,4 +1,4 @@
-use source_files_to_tokens::Lexer;
+use crate::frontend_fixture::Lexer;
 use syntax_trees::{SyntaxTrees, expression::ExpressionNode, statement::StatementNode};
 
 #[test]

@@ -1,5 +1,5 @@
 //! Lex loaded sources into ordered token streams, preserving source spans and errors.
-//! `lex_sources` owns the batch; `Lexer::fill_tokens` scans one source and publishes
+//! `lex` owns the batch; the private scanner handles one source and publishes
 //! tokens. Token dispatch leads into `literals` for numeric and quoted-byte rules.
 
 #![forbid(unsafe_code)]
@@ -19,21 +19,19 @@ use tokens::{
     CommentKind, KeywordKind, LexedSource, LexedSources, PunctuationKind, TokenKind, TokenStream,
 };
 
-pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
+/// Lexes a complete source batch, preserving source order and reporting its first error.
+pub fn lex(mut sources: LoadedSources) -> Result<LexedSources, LexError> {
     let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
     let source_count = loaded_sources.len();
     let mut lexed_sources = Arena::with_capacity(source_count);
-    let results: Vec<Result<LexedSource, Diagnostic>> = if source_count <= 1 {
+    let results: Vec<Result<LexedSource, LexError>> = if source_count <= 1 {
         loaded_sources.iter_mut().map(lex_source).collect()
     } else {
         execution_admission::within_budget(|| {
             loaded_sources.par_iter_mut().map(lex_source).collect()
         })
     };
-    let lexed = results
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| vec![error])?;
+    let lexed = results.into_iter().collect::<Result<Vec<_>, _>>()?;
 
     let batch = lexed_sources.insert_many(lexed);
 
@@ -43,18 +41,13 @@ pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagn
     })
 }
 
-fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnostic> {
+fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError> {
     let tokens = Lexer::new(loaded_source.source.as_ref())
         .tokenize()
-        .map_err(|error| {
-            let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
-            Diagnostic::error(format!(
-                "{}:{}:{}: {}",
-                loaded_source.path.display(),
-                position.line,
-                position.column,
-                error.message
-            ))
+        .map_err(|mut error| {
+            let position = SourcePosition::of(&loaded_source.source, error.span.start);
+            error.location = Some((loaded_source.path.clone(), position));
+            error
         })?;
 
     Ok(LexedSource {
@@ -67,7 +60,7 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnosti
     })
 }
 
-pub struct Lexer<'source> {
+struct Lexer<'source> {
     source: &'source str,
     chars: SourceCursor<'source>,
 }
@@ -79,33 +72,18 @@ struct LexedToken {
 }
 
 impl<'source> Lexer<'source> {
-    pub fn new(source: &'source str) -> Self {
+    fn new(source: &'source str) -> Self {
         Self {
             source,
             chars: SourceCursor::new(source),
         }
     }
 
-    pub fn tokenize(self) -> Result<TokenStream<'source>, LexError> {
+    fn tokenize(self) -> Result<TokenStream<'source>, LexError> {
         let capacity = self.source.len().saturating_div(4).max(16);
         let mut tokens = TokenStream::with_capacity(self.source, capacity);
         self.fill_tokens(&mut tokens)?;
         Ok(tokens)
-    }
-
-    pub fn tokenize_reusing(
-        self,
-        scratch: &mut tokens::TokenScratch,
-    ) -> Result<TokenStream<'source>, LexError> {
-        let capacity = self.source.len().saturating_div(4).max(16);
-        let mut tokens = TokenStream::with_scratch(self.source, capacity, scratch);
-        match self.fill_tokens(&mut tokens) {
-            Ok(()) => Ok(tokens),
-            Err(error) => {
-                tokens.recycle(scratch);
-                Err(error)
-            }
-        }
     }
 
     fn fill_tokens(mut self, tokens: &mut TokenStream<'source>) -> Result<(), LexError> {
@@ -303,18 +281,36 @@ const OUTSIDE_LEXICAL_PROFILE_MESSAGE: &str = "spelling is outside the current l
 pub struct LexError {
     pub message: String,
     pub span: Span,
+    location: Option<(std::path::PathBuf, SourcePosition)>,
 }
 
 impl LexError {
-    pub fn new(message: impl Into<String>, span: Span) -> Self {
+    fn new(message: impl Into<String>, span: Span) -> Self {
         Self {
             message: message.into(),
             span,
+            location: None,
         }
     }
 
     pub(crate) fn outside_lexical_profile(span: Span) -> Self {
         Self::new(OUTSIDE_LEXICAL_PROFILE_MESSAGE, span)
+    }
+}
+
+impl LexError {
+    /// Formats the source location captured by the stage with its error message.
+    pub fn into_diagnostic(self) -> Diagnostic {
+        match self.location {
+            Some((path, position)) => Diagnostic::error(format!(
+                "{}:{}:{}: {}",
+                path.display(),
+                position.line,
+                position.column,
+                self.message
+            )),
+            None => Diagnostic::error(self.message),
+        }
     }
 }
 

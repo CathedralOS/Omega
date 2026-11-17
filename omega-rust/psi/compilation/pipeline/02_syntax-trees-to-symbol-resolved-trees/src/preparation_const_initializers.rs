@@ -745,8 +745,11 @@ mod tests {
                     source::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            let unit = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            let unit =
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             syntax.extend_from(&unit);
         }
         resolve(ResolutionRequest {

@@ -57,3 +57,7 @@ pub(crate) mod unique {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

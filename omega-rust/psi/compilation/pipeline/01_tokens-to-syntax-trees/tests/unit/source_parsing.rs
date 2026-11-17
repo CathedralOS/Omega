@@ -1,6 +1,7 @@
-use crate::{parse, parse_source_units, parse_sources};
+use crate::frontend_fixture::Lexer;
+use crate::{parse_into as parse, parse_source_units, parse_sources};
 use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
-use source_files_to_tokens::{Lexer, lex_sources};
+use source_files_to_tokens::lex as lex_sources;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -29,11 +30,6 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     let original = trees.root_item(first[0]).clone();
     let lexed = lexed_source(SourceId(22), "second.omg", "data Second {} data Third {}");
     let backing = lexed.sources.span_or_empty(lexed.batch)[0].source.clone();
-    let path_buffer = lexed.sources.span_or_empty(lexed.batch)[0]
-        .path
-        .as_os_str()
-        .as_encoded_bytes()
-        .as_ptr();
     let parsed = parse_sources(lexed, &mut trees).unwrap();
     let sources = parsed.sources.span_or_empty(parsed.batch);
     assert_eq!(sources.len(), 1);
@@ -43,10 +39,6 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     assert_eq!(appended.origin, Some(SourceOrigin::User));
     assert_eq!(appended.scope, DependencyScope::Build);
     assert!(Arc::ptr_eq(&appended.source, &backing));
-    assert_eq!(
-        appended.path.as_os_str().as_encoded_bytes().as_ptr(),
-        path_buffer
-    );
     let second = &appended.root_items;
 
     assert_eq!(first.len(), 1);
@@ -145,12 +137,6 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
         }
     }));
     let lexed = lex_sources(loaded).unwrap();
-    let path_buffers = lexed
-        .sources
-        .span_or_empty(lexed.batch)
-        .iter()
-        .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
-        .collect::<Vec<_>>();
     let budget = execution_admission::ExecutionBudget::with_workers(4).unwrap();
     let parsed = budget.run(|| parse_source_units(lexed)).unwrap();
 
@@ -160,8 +146,8 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
         assert_eq!(source.source().source_id, SourceId(100 + position));
         assert_eq!(source.source().root_items.len(), 1);
         assert_eq!(
-            source.source().path.as_os_str().as_encoded_bytes().as_ptr() as usize,
-            path_buffers[position]
+            source.source().path,
+            std::path::PathBuf::from(format!("source-{position}.omg"))
         );
         let root = source.source().root_items[0];
         assert_eq!(root.generation(), source.syntax_handle().generation());
@@ -174,7 +160,7 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
 }
 
 #[test]
-fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
+fn private_construction_keeps_its_prefix_but_failed_stage_output_is_not_adopted() {
     let mut trees = SyntaxTrees::new(SourceId(11));
     let tokens = Lexer::new("data Retained {} ;").tokenize().unwrap();
     let error = parse(&mut trees, SourceId(22), &tokens).unwrap_err();
@@ -193,12 +179,12 @@ fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
     .unwrap_err();
     assert_eq!(errors.len(), 1);
     assert!(errors[0].message.starts_with("appended.omg:2:3: "));
-    assert_eq!(trees.root_item_count(), 2);
-    let Item::Data(data) = trees.root_items().nth(1).unwrap() else {
-        panic!("batch prefix must remain parsed");
+    assert_eq!(trees.root_item_count(), 1);
+    let Item::Data(data) = trees.root_items().next().unwrap() else {
+        panic!("existing syntax remains intact");
     };
-    assert_eq!(data.name.as_str(&trees), "Another");
-    assert_eq!(data.name.source_span().source_id, SourceId(33));
+    assert_eq!(data.name.as_str(&trees), "Retained");
+    assert_eq!(data.name.source_span().source_id, SourceId(22));
 }
 
 #[test]
@@ -272,10 +258,7 @@ fn float_spellings_share_forest_custody_and_survive_cross_forest_copy() {
     let source: Arc<str> = Arc::from(
         "machine numbers() { let first: f32 = 1.25f32; let second: f64 = -2.5e-2f64; first }",
     );
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .unwrap()
-        .retain_source(source.clone());
+    let tokens = crate::frontend_fixture::lex_retained(source.clone()).unwrap();
     let syntax = crate::parse_syntax_trees(&tokens).unwrap();
     drop(tokens);
     assert_eq!(

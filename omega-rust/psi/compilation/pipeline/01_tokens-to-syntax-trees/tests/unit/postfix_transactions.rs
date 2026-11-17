@@ -6,7 +6,7 @@ fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
         "<Outer<[u8; Count]>, value + >()",
         "<Outer<Inner<3>>, value + >()",
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(spelling)
+        let tokens = crate::frontend_fixture::Lexer::new(spelling)
             .tokenize()
             .unwrap();
         let retained = Input::retain_source(&tokens);

@@ -82,8 +82,10 @@ fn packages(
             )
             .source_id;
         source_ids.push(id);
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let parsed = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         parsed_units.push(parsed);
     }
     sources.retain_product_dependency_scope(
