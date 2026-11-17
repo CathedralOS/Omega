@@ -8,7 +8,6 @@ use build_time_evaluation::provider_declarations::{ProviderSelection, RetainedPr
 use diagnostics::Diagnostic;
 use source::{SourceFile, SourceResolutionStratum};
 use std::path::PathBuf;
-use std::sync::Arc;
 use symbols::RetainedDeclaration;
 
 pub(super) struct CompletedProviderDefaults {
@@ -113,22 +112,8 @@ impl CompletedProviderDefaults {
             .into_iter()
             .flatten()
             {
-                let needed = application
-                    .declaration_spans()
-                    .map(|span| span.source_id)
-                    .collect::<Vec<_>>();
-                let files = application
-                    .sources
-                    .files()
-                    .map(|file| {
-                        if needed.contains(&file.source_id) {
-                            self.admit_source(inputs, file)
-                        } else {
-                            Ok(file.clone())
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                application.sources = Arc::new(source::SourceMap::from_files(files));
+                *application =
+                    inputs.admit_retained_product_application(&self.supplier, application)?;
             }
             let subject_loaded = source.typed().symbols.source_files().any(|file| {
                 file.dependency_scope == source::DependencyScope::Product

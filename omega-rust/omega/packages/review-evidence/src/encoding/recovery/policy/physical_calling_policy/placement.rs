@@ -13,6 +13,7 @@ pub(in crate::encoding::recovery) fn value_placement(
 ) -> Result<PackageReviewBoundaryValuePlacement, Error> {
     let class = super::super::tag!(reader => {
         0 => Class::Integer,
+        6 => Class::IntegerAggregate,
         1 => Class::Float,
         2 => Class::HomogeneousFloatAggregate {
             members: reader.byte()?,
@@ -93,4 +94,41 @@ pub(in crate::encoding::recovery) fn register(reader: &mut Reader<'_>) -> Result
         17 => Register::Aarch64X(reader.byte()?),
         18 => Register::Aarch64V(reader.byte()?),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::encoding::{
+        PackagePolicyRecoveryLimits,
+        encode::{declarations::encode_value_placement, encoder::Encoder},
+    };
+
+    #[test]
+    fn darwin_integer_aggregate_shape_round_trip_preserves_composite_identity() {
+        let mut encoded = Vec::new();
+        for class in [Class::Integer, Class::IntegerAggregate] {
+            let placement = PackageReviewBoundaryValuePlacement {
+                shape: PackageReviewBoundaryValueShape {
+                    class,
+                    byte_size: 4,
+                    alignment: 2,
+                },
+                locations: vec![Location::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 0,
+                    byte_size: 4,
+                    alignment: 8,
+                }],
+            };
+            let mut encoder = Encoder::bounded(512);
+            encode_value_placement(&mut encoder, &placement).unwrap();
+            let bytes = encoder.finish().unwrap();
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(value_placement(&mut reader).unwrap(), placement);
+            reader.finish().unwrap();
+            encoded.push(bytes);
+        }
+        assert_ne!(encoded[0], encoded[1]);
+    }
 }

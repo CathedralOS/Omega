@@ -3373,7 +3373,12 @@ pub(crate) mod normalized_foreign {
         {
             return Err(LegalizationError::custody());
         }
-        let callbacks = native_callbacks_at(native, *psi_operation, &binding.boundary_entry_plan)?;
+        let callbacks = native_callbacks_at(
+            native,
+            optimized.machine,
+            *psi_operation,
+            &binding.boundary_entry_plan,
+        )?;
         let operands = binding.operand_placements();
         let mut private_ordinals = Vec::new();
         for callback in &callbacks {

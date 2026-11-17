@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 286`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 287`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4999,10 +4999,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 286 replaces the structural type copy bit with its declared three-way
-// multiplicity. Earlier payloads cannot supply Linear and reject before decoding.
-// The source and callable identity schema from main remains unchanged.
-pub(crate) const FORMAT_MARKER: u16 = 286;
+// Marker 287 retains the owning machine of callback registrar and interrupt
+// installation operations. Earlier payloads lack that scope and reject before
+// decoding; machine-local operation numbers are not renumbered.
+pub(crate) const FORMAT_MARKER: u16 = 287;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

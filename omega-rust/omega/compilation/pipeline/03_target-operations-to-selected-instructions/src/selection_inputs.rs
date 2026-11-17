@@ -915,9 +915,7 @@ pub(crate) mod aggregate_result_input {
         if direct_fragments(placement) {
             return true;
         }
-        if placement.shape.class != calling_conventions::ValueClass::Integer
-            || placement.shape.byte_size == 0
-        {
+        if !placement.shape.class.is_integer() || placement.shape.byte_size == 0 {
             return false;
         }
         let Some(calling_conventions::ValueLocation::Stack {
@@ -1048,9 +1046,7 @@ pub(crate) mod aggregate_result_input {
         if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
             return true;
         }
-        if placement.shape.class != calling_conventions::ValueClass::Integer
-            || !(1..=2).contains(&placement.locations.len())
-        {
+        if !placement.shape.class.is_integer() || !(1..=2).contains(&placement.locations.len()) {
             return false;
         }
         let mut offset = 0;
@@ -1451,7 +1447,7 @@ pub(crate) mod aggregate_result_input {
         placement: &calling_conventions::ValuePlacement,
     ) -> Option<calling_conventions::MachineRegister> {
         use calling_conventions::{IndirectPointerLocation, ValueLocation};
-        if placement.shape.class != calling_conventions::ValueClass::Integer
+        if !placement.shape.class.is_integer()
             || placement.shape.byte_size == 0
             || !placement.shape.alignment.is_power_of_two()
         {

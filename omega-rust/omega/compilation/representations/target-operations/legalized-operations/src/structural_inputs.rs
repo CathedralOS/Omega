@@ -2571,9 +2571,7 @@ pub mod structural_unit_input {
     use crate::structural_inputs::structural_reference_input::{
         parameter_shape, stored_value_shape,
     };
-    use calling_conventions::{
-        CallPlan, IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement,
-    };
+    use calling_conventions::{CallPlan, IndirectPointerLocation, ValueLocation, ValuePlacement};
     use terminal_psi::StructuralAccess;
 
     #[derive(Clone, Copy)]
@@ -2645,7 +2643,7 @@ pub mod structural_unit_input {
         placement: &ValuePlacement,
     ) -> Option<IndirectPointerLocation> {
         if parameter.access != StructuralAccess::Owned
-            || placement.shape.class != ValueClass::Integer
+            || !placement.shape.class.is_integer()
             || placement.shape.byte_size == 0
         {
             return None;

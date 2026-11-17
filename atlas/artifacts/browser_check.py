@@ -86,6 +86,7 @@ def main():
             context = browser.new_context(viewport={'width':1440,'height':1000},color_scheme='light')
             page = context.new_page()
             page.goto(address('pages/architecture.html'))
+            page.locator('#page-list summary').click()
             page.locator('#page-filter').fill('psi')
             assert page.locator('nav li:visible').count()==2
             page.locator('#page-filter').fill('')

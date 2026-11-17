@@ -91,6 +91,32 @@ impl PackageReviewNominalIdentity {
             && writer.remaining == ",arguments(),lifetimes())"
     }
 
+    pub(crate) fn matches_closed_calling_application(
+        &self,
+        application: &str,
+        abi: &semantic_vocabulary::CallingAbiIdentity,
+    ) -> Result<bool, &'static str> {
+        let PackageReviewNominalOwner::Package(package) = self.owner else {
+            return Err("closed native application has no exact package owner");
+        };
+        let mut nominal = String::new();
+        self.write_qualified_path(&mut nominal)
+            .map_err(|_| "closed native application cannot retain its nominal method")?;
+        let path = language_semantics::type_identity::encoding::callable_declaration_path(
+            &self.path,
+            &abi.requirement_identity,
+        );
+        let template =
+            language_semantics::type_identity::package_declaration_identity(package, &path);
+        language_semantics::type_identity::closed_callable_matches_calling_abi(
+            application,
+            &template,
+            &nominal,
+            abi,
+        )
+        .map_err(|_| "native inventory has a malformed or unsupported closed application")
+    }
+
     fn write_qualified_path(&self, writer: &mut impl Write) -> std::fmt::Result {
         writer.write_str("nominal(")?;
         match self.owner {

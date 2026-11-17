@@ -685,3 +685,134 @@ fn body_service_summary_refuses_an_unknown_instruction_service() {
         ));
     assert!(crate::body_services::body_service_reaches(&module).is_err());
 }
+
+#[test]
+fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
+    use StructuralAccess::{MutableBorrow, Owned, SharedBorrow};
+    use terminal_psi::ByteSequenceCarrier;
+
+    let mut module = module();
+    let descriptor = |id, access| StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
+        id: StructuralTypeId::new(id).unwrap(),
+        identity: TerminalIdentityIndex(id as u32),
+        requires: Vec::new(),
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: true,
+        multiplicity: if access == Some(MutableBorrow) {
+            StructuralMultiplicity::Affine
+        } else {
+            StructuralMultiplicity::Unrestricted
+        },
+        descriptor_cleanup: true,
+        nominal_cleanup: None,
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
+        scalar_restriction: None,
+    };
+    module.structural_types = vec![
+        descriptor(10, None),
+        descriptor(20, Some(MutableBorrow)),
+        descriptor(30, Some(SharedBorrow)),
+    ];
+    // Canonical type rows are ordered, but their IDs need not be consecutive.
+    let id = |n: u64| StructuralTypeId::new(n * 10).unwrap();
+    let accepts = |actual, formal| {
+        let program = CallableValueProgram {
+            catalog: &module.callables,
+            structural_types: &module.structural_types,
+            graph: Vec::new(),
+            bodies: Vec::new(),
+        };
+        program.structural_actual_matches(actual, formal)
+    };
+    assert!(accepts((id(2), MutableBorrow), (id(1), MutableBorrow)));
+    assert!(accepts((id(2), SharedBorrow), (id(1), SharedBorrow)));
+    // Claiming mutable access in the argument does not upgrade a shared view.
+    assert!(!accepts((id(3), MutableBorrow), (id(1), MutableBorrow)));
+    assert!(!accepts((id(2), SharedBorrow), (id(1), MutableBorrow)));
+    assert!(!accepts((id(2), Owned), (id(1), Owned)));
+    assert!(!accepts((id(4), MutableBorrow), (id(1), MutableBorrow)));
+
+    module.structural_types[2].multiplicity = StructuralMultiplicity::Affine;
+    module.structural_types[1].multiplicity = StructuralMultiplicity::Unrestricted;
+    module.structural_types[2].shape = StructuralTypeShape::ElementView {
+        element: id(1),
+        access: Some(MutableBorrow),
+    };
+    module.structural_types[1].shape = StructuralTypeShape::ElementView {
+        element: id(1),
+        access: None,
+    };
+    let program = CallableValueProgram {
+        catalog: &module.callables,
+        structural_types: &module.structural_types,
+        graph: Vec::new(),
+        bodies: Vec::new(),
+    };
+    assert!(program.structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow)));
+    module.structural_types[2].shape = StructuralTypeShape::ElementView {
+        element: id(2),
+        access: Some(MutableBorrow),
+    };
+    let program = CallableValueProgram {
+        catalog: &module.callables,
+        structural_types: &module.structural_types,
+        graph: Vec::new(),
+        bodies: Vec::new(),
+    };
+    assert!(!program.structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow)));
+    assert!(program.structural_actual_matches((id(1), Owned), (id(1), Owned)));
+}
+
+#[test]
+fn callable_reborrows_do_not_erase_declaration_requirements() {
+    let mut module = module();
+    let mut first = StructuralTypeDeclaration {
+        declaration_identity: TerminalIdentityIndex(1),
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: TerminalIdentityIndex(1),
+        requires: Vec::new(),
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: true,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        descriptor_cleanup: true,
+        nominal_cleanup: None,
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        }),
+        scalar_restriction: None,
+    };
+    let mut second = first.clone();
+    second.id = StructuralTypeId::new(2).unwrap();
+    second.identity = TerminalIdentityIndex(2);
+    second.declaration_identity = TerminalIdentityIndex(2);
+    module.structural_types = vec![first.clone(), second.clone()];
+    let refuses = |types: &[StructuralTypeDeclaration]| {
+        let program = CallableValueProgram {
+            catalog: &module.callables,
+            structural_types: types,
+            graph: Vec::new(),
+            bodies: Vec::new(),
+        };
+        !program.structural_actual_matches(
+            (
+                StructuralTypeId::new(1).unwrap(),
+                StructuralAccess::SharedBorrow,
+            ),
+            (
+                StructuralTypeId::new(2).unwrap(),
+                StructuralAccess::SharedBorrow,
+            ),
+        )
+    };
+    assert!(refuses(&module.structural_types));
+    second.declaration_identity = first.declaration_identity;
+    second.owns_linear_claim = true;
+    assert!(refuses(&[first.clone(), second.clone()]));
+    second.owns_linear_claim = false;
+    first.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    second.shape = first.shape.clone();
+    assert!(refuses(&[first.clone(), second]));
+}

@@ -104,3 +104,48 @@ macro_rules! tag {
 }
 
 pub(crate) use tag;
+
+#[cfg(test)]
+mod integer_aggregate_format_tests {
+    use super::{Error, PackagePolicyRecoveryLimits};
+    use crate::encoding::{
+        CALLING_POLICY_MAGIC, PACKAGE_POLICY_BASELINE_MAGIC, REPRESENTATION_POLICY_MAGIC,
+        SELECTED_PROVIDER_POLICY_MAGIC, TERMINAL_PERMISSION_POLICY_MAGIC,
+    };
+    use crate::record::{
+        PackagePolicyBaseline, PackagePolicyCallingPlan, PackagePolicyRepresentation,
+        PackagePolicySelectedProviders, PackagePolicyTerminalPermissions,
+    };
+
+    #[test]
+    fn physical_calling_components_reject_headers_that_erase_integer_aggregate_class() {
+        type Recover = fn(&[u8], PackagePolicyRecoveryLimits) -> Result<(), Error>;
+        // These are the actual predecessor formats, not VERSION - 1: forgetting
+        // to bump any enclosing component must fail before its body is read.
+        let previous: &[(&[u8], u16, Recover)] = &[
+            (PACKAGE_POLICY_BASELINE_MAGIC, 33, |bytes, limits| {
+                PackagePolicyBaseline::recover_canonical(bytes, limits).map(|_| ())
+            }),
+            (CALLING_POLICY_MAGIC, 16, |bytes, limits| {
+                PackagePolicyCallingPlan::recover_canonical(bytes, limits).map(|_| ())
+            }),
+            (REPRESENTATION_POLICY_MAGIC, 14, |bytes, limits| {
+                PackagePolicyRepresentation::recover_canonical(bytes, limits).map(|_| ())
+            }),
+            (SELECTED_PROVIDER_POLICY_MAGIC, 24, |bytes, limits| {
+                PackagePolicySelectedProviders::recover_canonical(bytes, limits).map(|_| ())
+            }),
+            (TERMINAL_PERMISSION_POLICY_MAGIC, 13, |bytes, limits| {
+                PackagePolicyTerminalPermissions::recover_canonical(bytes, limits).map(|_| ())
+            }),
+        ];
+        for (magic, version, recover) in previous {
+            let mut bytes = magic.to_vec();
+            bytes.extend_from_slice(&version.to_le_bytes());
+            assert_eq!(
+                recover(&bytes, PackagePolicyRecoveryLimits::default()),
+                Err(Error::UnsupportedVersion)
+            );
+        }
+    }
+}

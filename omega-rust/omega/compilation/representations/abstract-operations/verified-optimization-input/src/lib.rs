@@ -412,14 +412,12 @@ impl AdmittedLoweringFacts {
                 let mut entries = Vec::new();
                 // Admission owns which helper operations can execute. Ignore an
                 // unused proposal; retain the admitted helper's exact declarations.
-                if self
-                    .installed_interrupts()
-                    .helpers()
-                    .iter()
-                    .any(|helper| helper.installation() == operation.id)
-                {
+                if self.installed_interrupts().helpers().iter().any(|helper| {
+                    helper.installation_machine() == machine.id
+                        && helper.installation() == operation.id
+                }) {
                     let index = installed_helpers
-                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                        .binary_search_by_key(&(machine.id, operation.id), |(operation, _)| *operation)
                         .map_err(|_| "admitted interrupt installation lost its exact checked helper declarations")?;
                     entries.extend(
                         installed_helpers[index]
@@ -434,14 +432,19 @@ impl AdmittedLoweringFacts {
                     self.native_callbacks()
                         .callbacks()
                         .iter()
-                        .filter(|callback| callback.terminal_operation == operation.id)
+                        .filter(|callback| {
+                            callback.registrar_machine == machine.id
+                                && callback.terminal_operation == operation.id
+                        })
                         .map(|callback| callback.entry().machine()),
                 );
                 entries.extend(
                     self.installed_interrupts()
                         .entries()
                         .iter()
-                        .filter(|entry| entry.operation == operation.id)
+                        .filter(|entry| {
+                            entry.machine == machine.id && entry.operation == operation.id
+                        })
                         .map(|entry| entry.entry().machine()),
                 );
                 if !entries.is_empty() {

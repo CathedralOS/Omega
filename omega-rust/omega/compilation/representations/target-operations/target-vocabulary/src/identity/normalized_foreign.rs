@@ -88,6 +88,7 @@ pub fn encode_native_callback_argument(
     bytes: &mut Vec<u8>,
     callback: &crate::TargetNativeCallbackArgument,
 ) {
+    crate::codec_bytes::push_encoded(bytes, callback.registrar_machine.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, callback.terminal_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, (callback.placement_index as u64).to_le_bytes());
     encode_machine_function_identity(bytes, &callback.callback_function);

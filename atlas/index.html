@@ -78,7 +78,7 @@ svg.bars { min-width: 640px; }
 .original-status { border-bottom:1px solid var(--rule); padding-bottom:12px; font-size:13px; line-height:20px; } .original-status a { color:inherit; } .original-links { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:8px; } .original-status button { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--ink-muted); padding:2px 8px; } .atlas-directory { font-size:15px; } .atlas-directory ul { display:flex; flex-wrap:wrap; gap:8px 24px; list-style:none; padding:0; } .atlas-directory a { color:inherit; }
 </style>
 
-<div class="page"><aside class="original-status" aria-label="Historical design status"><strong>Original proposed design · 2026-11-17</strong> · Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas">3c8dc4234c71</a><br>Original drawing, labels and estimates preserved. The declaration-selection bypass was corrected in the <a href="pages/pipeline-current.html">reviewed account</a>.<nav class="original-links" aria-label="Atlas views"><a href="pages/pipeline-map.html">Original map</a><a href="pages/architecture.html">Interactive full architecture</a><a href="pages/foundation-backend-plan.html">Complete migration plan</a><a href="pages/repository.html">Codebase guide</a><a href="#atlas-directory">All pages</a><button id="original-theme" type="button">Light / dark</button></nav></aside>
+<div class="page"><aside class="original-status" aria-label="Historical design status"><strong>Original proposed design · 2026-11-17</strong> · Atlas content <a href="https://github.com/CathedralOS/Omega/tree/e394849386a02474659a58e735748c4d9bde038e/atlas">e394849386a0</a><br>Original drawing, labels and estimates preserved. The declaration-selection bypass was corrected in the <a href="pages/pipeline-current.html">reviewed account</a>.<nav class="original-links" aria-label="Atlas views"><a href="pages/pipeline-map.html">Original map</a><a href="pages/architecture.html">Interactive full architecture</a><a href="pages/foundation-backend-plan.html">Complete migration plan</a><a href="pages/repository.html">Codebase guide</a><a href="#atlas-directory">All pages</a><button id="original-theme" type="button">Light / dark</button></nav></aside>
   <header>
     <div class="eyebrow">Omega compiler · architecture · 2026-11-17</div>
     <h1>Omega pipeline map</h1>
@@ -306,24 +306,28 @@ svg.bars { min-width: 640px; }
       <figcaption>Counts are <code>.rs</code> lines from the current tree; the foundation target is the plan's estimate. Foundation keeps <code>arena</code>, <code>compiler-storage</code>, <code>diagnostics</code>, source text positions, a merged <code>wire</code>, <code>bignum</code> and <code>execution-admission</code>; <code>omega/foundation/</code> is deleted. The backend dissolves: emission, object and image code become stages, the target description becomes an input Omega 00 receives, program-derived plans move into the stages that compute them, and packaging moves to products.</figcaption>
     </figure>
   </section>
-<section class="atlas-directory" id="atlas-directory"><h2>Atlas pages</h2><nav aria-label="All atlas pages"><h2>The codebase</h2><ul>
-<li><a href="pages/repository.html"><span class="number">01</span>Codebase map</a></li>
-<li><a href="pages/psi.html"><span class="number">02</span>Psi stages</a></li>
-<li><a href="pages/omega.html"><span class="number">03</span>Omega stages and realization</a></li>
-<li><a href="pages/build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
-<li><a href="pages/cli.html"><span class="number">05</span>CLI</a></li>
-<li><a href="pages/interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
-<li><a href="pages/bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
-<li><a href="pages/tools.html"><span class="number">08</span>Tools and verification</a></li>
-<li><a href="pages/library.html"><span class="number">09</span>Bundled library</a></li>
+<section class="atlas-directory" id="atlas-directory"><h2>Atlas pages</h2><nav aria-label="All atlas pages"><ul><li><a href="index.html">Overview</a></li></ul>
+<h2>Compiler</h2><ul>
+<li><a href="pages/architecture.html">Interactive architecture</a></li>
+<li><a href="pages/psi.html">Psi stages</a></li>
+<li><a href="pages/omega.html">Omega stages and realization</a></li>
+<li><a href="pages/build-and-packages.html">Build and packages</a></li>
+<li><a href="pages/interpreter.html">Psi interpreter</a></li>
+<li><a href="pages/library.html">Bundled library</a></li>
 </ul>
-<h2>Planning</h2><ul>
-<li><a href="pages/pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
-<li><a href="pages/pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
-<li><a href="pages/architecture.html"><span class="number">12</span>Interactive architecture</a></li>
-<li><a href="pages/foundation-backend-plan.html"><span class="number">13</span>Foundation and backend plan</a></li>
-<li><a href="pages/questions.html"><span class="number">14</span>Open questions</a></li>
-<li><a href="pages/rulings.html"><span class="number">15</span>Owner rulings</a></li></ul></nav><p><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/artifacts/pipeline-map/original.html">Preserved HTML source</a> · <a href="https://github.com/CathedralOS/Omega/blob/4dcadfb359b143f87df4cda6d2b0c5b55203e7ef/atlas/pages/pipeline-map.html">Original publication revision</a></p></section>
+<h2>Repository</h2><ul>
+<li><a href="pages/repository.html">Codebase map</a></li>
+<li><a href="pages/cli.html">CLI</a></li>
+<li><a href="pages/bootstrap.html">Bootstrap</a></li>
+<li><a href="pages/tools.html">Tools and verification</a></li>
+</ul>
+<h2>Plans and evidence</h2><ul>
+<li><a href="pages/pipeline-current.html">Reviewed pipeline routes</a></li>
+<li><a href="pages/foundation-backend-plan.html">Foundation and backend plan</a></li>
+<li><a href="pages/questions.html">Open questions</a></li>
+<li><a href="pages/rulings.html">Owner rulings</a></li>
+<li><a href="pages/pipeline-map.html">Original pipeline map</a></li>
+</ul></nav><p><a href="https://github.com/CathedralOS/Omega/blob/e394849386a02474659a58e735748c4d9bde038e/atlas/artifacts/pipeline-map/original.html">Preserved HTML source</a> · <a href="https://github.com/CathedralOS/Omega/blob/4dcadfb359b143f87df4cda6d2b0c5b55203e7ef/atlas/pages/pipeline-map.html">Original publication revision</a></p></section>
 </div>
 
 <script>

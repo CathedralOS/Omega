@@ -805,7 +805,7 @@ pub(crate) mod boundary_call {
         boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         native_callbacks: &BTreeMap<
-            OperationId,
+            (semantic_vocabulary::MachineId, OperationId),
             Vec<target_operations::TargetNativeCallbackArgument>,
         >,
         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
@@ -839,7 +839,7 @@ pub(crate) mod boundary_call {
                 completion_receipts,
             } => {
                 let native_callbacks_slice = native_callbacks
-                    .get(psi_operation)
+                    .get(&(function.machine, *psi_operation))
                     .map_or(&[][..], Vec::as_slice);
                 let binding = settlements
                     .get(boundary)
@@ -913,7 +913,8 @@ pub(crate) mod boundary_call {
                         || !foreign.has_valid_entry_mechanism()
                         || foreign.native_target() != Some(target)
                         || native_callbacks_slice.iter().any(|callback| {
-                            callback.terminal_operation != *psi_operation
+                            callback.registrar_machine != function.machine
+                                || callback.terminal_operation != *psi_operation
                                 || callback.registrar_boundary_entry_plan
                                     != foreign.boundary_entry_plan
                         })
@@ -1452,14 +1453,14 @@ mod owned_store_home {
     }
 }
 mod projected_result {
-    use calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+    use calling_conventions::{ValueLocation, ValuePlacement};
     use semantic_vocabulary::PlaceId;
     use target_operations::TargetUnitOperation;
     use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
     use terminal_psi::StructuralMultiplicity;
 
     pub(crate) fn has_store_fragments(placement: &ValuePlacement) -> bool {
-        placement.shape.class == ValueClass::Integer
+        placement.shape.class.is_integer()
             && placement.shape.byte_size != 0
             && placement
                 .locations

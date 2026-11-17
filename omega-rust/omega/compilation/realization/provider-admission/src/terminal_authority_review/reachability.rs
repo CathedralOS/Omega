@@ -97,11 +97,10 @@ impl<'a> AuthorityGraph<'a> {
             return Err("authority review installation belongs to another Terminal program".into());
         }
         let mut scopes: Vec<_> = installed.scopes().iter().collect();
-        scopes.sort_unstable_by_key(|scope| scope.operation());
-        if scopes
-            .windows(2)
-            .any(|pair| pair[0].operation() == pair[1].operation())
-        {
+        scopes.sort_unstable_by_key(|scope| (scope.machine(), scope.operation()));
+        if scopes.windows(2).any(|pair| {
+            (pair[0].machine(), pair[0].operation()) == (pair[1].machine(), pair[1].operation())
+        }) {
             return Err("authority review repeats an installed Scope operation".into());
         }
         self.installed_scopes = Some(scopes);
@@ -110,11 +109,11 @@ impl<'a> AuthorityGraph<'a> {
 
     fn installed_scope(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
     ) -> Option<&crate::AdmittedInstalledInterruptScope> {
         let scopes = self.installed_scopes.as_ref()?;
         let index = scopes
-            .binary_search_by_key(&operation, |scope| scope.operation())
+            .binary_search_by_key(&operation, |scope| (scope.machine(), scope.operation()))
             .ok()?;
         Some(scopes[index])
     }
@@ -174,7 +173,7 @@ impl<'a> AuthorityGraph<'a> {
                             )
                     {
                         let scope = self
-                            .installed_scope(*psi_operation)
+                            .installed_scope((machine, *psi_operation))
                             .filter(|scope| scope.boundary() == *boundary)
                             .ok_or_else(|| {
                                 format!(

@@ -1442,31 +1442,35 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
     }
 }
 
+fn encode_review_calling_abi(abi: &semantic_vocabulary::CallingAbiIdentity) -> Vec<u8> {
+    let mut bytes = abi.id().get().to_le_bytes().to_vec();
+    for field in [&abi.requirement_identity, &abi.declaring_application] {
+        bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(field.as_bytes());
+    }
+    bytes.extend_from_slice(&(abi.operands.len() as u64).to_le_bytes());
+    for operand in &abi.operands {
+        bytes.extend_from_slice(&operand.ordinal.to_le_bytes());
+        bytes.push(operand.kind as u8);
+        bytes.extend_from_slice(&(operand.identity.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(operand.identity.as_bytes());
+    }
+    bytes
+}
+
 fn assert_recovery_rejects_swapped_native_abi(
     policy: &review_evidence::record::PackagePolicyBaseline,
     method: &review_evidence::record::PackagePolicyServiceMethod,
 ) {
     use review_evidence::encoding::PackagePolicyRecoveryLimits;
     use review_evidence::record::PackagePolicyBaseline;
-    use semantic_vocabulary::CallingAbiIdentity;
-
-    fn encode_closed_abi(abi: &CallingAbiIdentity) -> Vec<u8> {
-        assert!(abi.operands.is_empty());
-        let mut bytes = abi.id().get().to_le_bytes().to_vec();
-        for field in [&abi.requirement_identity, &abi.declaring_application] {
-            bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(field.as_bytes());
-        }
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        bytes
-    }
 
     let [application] = method.calling() else {
         panic!("one validated calling application");
     };
     let abi = application.abi();
     let original = policy.canonical_bytes().unwrap();
-    let key = encode_closed_abi(abi);
+    let key = encode_review_calling_abi(abi);
     let matches = original
         .windows(key.len())
         .enumerate()
@@ -1501,7 +1505,10 @@ fn assert_recovery_rejects_swapped_native_abi(
         // Recompute the coordinate too, so a matching checksum cannot conceal
         // disagreement with the recovered method telescope.
         let mut bytes = original.clone();
-        bytes.splice(*offset..*offset + key.len(), encode_closed_abi(&forged));
+        bytes.splice(
+            *offset..*offset + key.len(),
+            encode_review_calling_abi(&forged),
+        );
         let error = PackagePolicyBaseline::recover_canonical(
             &bytes,
             PackagePolicyRecoveryLimits::default(),
@@ -1512,6 +1519,181 @@ fn assert_recovery_rejects_swapped_native_abi(
             "package policy contains an invalid field value"
         );
     }
+}
+
+#[test]
+fn closed_native_binding_review_keeps_the_original_method_and_full_application() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
+
+    // Review describes an import without loading it. The separate native/Psi
+    // witness executes this same unsigned source against its actual C provider.
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-closed-native-bindings",
+        false,
+    )
+    .unwrap();
+    let root = workspace.path().join("main.omg");
+    std::fs::write(
+        &root,
+        r###"
+boundary trait Probe {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none
+    requires value <= Limit
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}
+
+machine entry_start() crashes Trap {
+    let observed: u32 = entry();
+    let other: u32 = Probe::take<8>(7);
+    transition observed == 3 && other == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"###,
+    )
+    .unwrap();
+    std::fs::write(root.with_file_name("build.omg"), r###"use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "closed_requirement_bindings");
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind<Probe::take<4>>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
+        },
+    });
+    Build::bind<Probe::take<8>>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
+        },
+    });
+}
+"###).unwrap();
+    let recovered = reviewed_and_recovered(&root, "macos_arm64");
+    let [first, second] = recovered.native_bindings() else {
+        panic!("both exact Build applications must survive review");
+    };
+    let originals = recovered
+        .callables()
+        .callables()
+        .iter()
+        .filter(|callable| callable.identity() == first.method().requirement())
+        .collect::<Vec<_>>();
+    let [original_method] = originals.as_slice() else {
+        panic!("one original generic declaration, not one universal method per closed call");
+    };
+    assert_eq!(original_method.type_parameters().len(), 1);
+    let [contract] = original_method.contracts() else {
+        panic!("the original value <= Limit requirement must remain visible");
+    };
+    // The contract vocabulary stays private to review. Its returned value
+    // still exposes the exact declared binder and parameter relationship.
+    assert_eq!(format!("{:?}", contract.kind()), "Requires");
+    assert_eq!(
+        format!("{:?}", contract.fact()),
+        "Expression(Binary { meaning: Builtin, operator: LessOrEqual, left: Parameter(0), right: GenericBinder(0) })"
+    );
+    assert_eq!(first.method().signature().static_parameters().len(), 1);
+    let first_application = first.application().expect("closed first application");
+    let second_application = second.application().expect("closed second application");
+    assert_ne!(first_application, second_application);
+    let [first_calling] = first.method().calling() else {
+        panic!("first exact ABI");
+    };
+    let [second_calling] = second.method().calling() else {
+        panic!("second exact ABI");
+    };
+    assert_eq!(
+        first_calling.abi().requirement_identity,
+        second_calling.abi().requirement_identity
+    );
+    assert_ne!(first_calling.abi().operands, second_calling.abi().operands);
+    assert_ne!(first_application, first_calling.abi().requirement_identity);
+
+    let original = recovered.canonical_bytes().unwrap();
+    let abi_bytes = encode_review_calling_abi(first_calling.abi());
+    let abi_positions = original
+        .windows(abi_bytes.len())
+        .enumerate()
+        .filter(|(_, bytes)| *bytes == abi_bytes)
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    let [abi_position] = abi_positions.as_slice() else {
+        panic!("one complete ABI occurrence for the first application");
+    };
+    let mut changed_kind = first_calling.abi().clone();
+    assert_eq!(changed_kind.operands.len(), 1);
+    assert_eq!(
+        changed_kind.operands[0].kind,
+        semantic_vocabulary::CallingOperandKind::Const
+    );
+    changed_kind.operands[0].kind = semantic_vocabulary::CallingOperandKind::Value;
+    let mut changed_kind_bytes = original.clone();
+    changed_kind_bytes.splice(
+        *abi_position..*abi_position + abi_bytes.len(),
+        encode_review_calling_abi(&changed_kind),
+    );
+    assert!(
+        PackagePolicyBaseline::recover_canonical(
+            &changed_kind_bytes,
+            PackagePolicyRecoveryLimits::default()
+        )
+        .is_err(),
+        "a recomputed ABI coordinate cannot change the original const binder into a value binder"
+    );
+    let positions = original
+        .windows(first_application.len())
+        .enumerate()
+        .filter(|(_, bytes)| *bytes == first_application.as_bytes())
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    let [position] = positions.as_slice() else {
+        panic!("one exact encoded native application, observed {positions:?}");
+    };
+    assert_eq!(first_application.len(), second_application.len());
+    let mut swapped = original.clone();
+    swapped[*position..*position + first_application.len()]
+        .copy_from_slice(second_application.as_bytes());
+    assert!(
+        PackagePolicyBaseline::recover_canonical(&swapped, PackagePolicyRecoveryLimits::default())
+            .is_err(),
+        "another closed argument tuple cannot retain the first calling application"
+    );
+    let option_start = position
+        .checked_sub(9)
+        .expect("application option and length");
+    assert_eq!(original[option_start], 1);
+    assert_eq!(
+        &original[option_start + 1..*position],
+        &(first_application.len() as u64).to_le_bytes()
+    );
+    let mut missing = original.clone();
+    missing.splice(option_start..*position + first_application.len(), [0]);
+    assert!(
+        PackagePolicyBaseline::recover_canonical(&missing, PackagePolicyRecoveryLimits::default())
+            .is_err(),
+        "a closed ABI cannot recover without its application"
+    );
+    let mut malformed = original;
+    malformed[*position + first_application.len() - 1] = b'!';
+    assert!(
+        PackagePolicyBaseline::recover_canonical(
+            &malformed,
+            PackagePolicyRecoveryLimits::default()
+        )
+        .is_err(),
+        "an incomplete application frame must refuse"
+    );
 }
 
 #[test]
@@ -1790,6 +1972,8 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     );
     for callback in &module.callback_applications {
         let operation = module
+            .machine(callback.registrar_machine)
+            .expect("retained callback registrar machine")
             .operations()
             .find(|operation| operation.id == callback.registrar)
             .expect("retained callback registrar operation");
@@ -1907,6 +2091,8 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             .expect("the executed callback must retain its exact application");
         assert_eq!(callback.registrar, occurrence.terminal_operation());
         let operation = module
+            .machine(callback.registrar_machine)
+            .expect("retained callback registrar machine")
             .operations()
             .find(|operation| operation.id == callback.registrar)
             .expect("actual emitted registrar operation");

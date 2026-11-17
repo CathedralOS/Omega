@@ -363,6 +363,7 @@ pub mod callback_application {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalCallbackApplication {
         pub application_index: u32,
+        pub registrar_machine: semantic_vocabulary::MachineId,
         pub registrar: semantic_vocabulary::OperationId,
         pub static_machine_ordinal: u32,
         pub requirement: String,
@@ -377,6 +378,7 @@ pub mod installed_interrupt {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalInstalledInterruptRegistration {
+        pub machine: semantic_vocabulary::MachineId,
         pub operation: semantic_vocabulary::OperationId,
         pub installer: semantic_vocabulary::BoundaryMachineId,
         pub service: semantic_vocabulary::ServiceId,

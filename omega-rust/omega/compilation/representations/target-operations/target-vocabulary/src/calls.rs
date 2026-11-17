@@ -20,6 +20,7 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetNativeCallbackArgument {
     pub registrar_invokes_callback: bool, // Producer-retained projection of the registrar's declared synchronous invocation contract.
+    pub registrar_machine: semantic_vocabulary::MachineId,
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,

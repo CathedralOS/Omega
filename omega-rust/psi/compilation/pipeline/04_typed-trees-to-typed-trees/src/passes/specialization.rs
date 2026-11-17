@@ -53,6 +53,7 @@
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
+use std::borrow::Cow;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::deferred_refusals::DeferredRequest;
@@ -93,7 +94,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     holder,
                     DeferredRequest::StaticApplication,
                     span,
-                    detail.unwrap_or(""),
+                    detail,
                 );
             }
             Err((Stop::Rejected(message), span)) => {
@@ -129,7 +130,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     let original = call.registration_operation(program);
                     program
                         .prepare_selected_requirement_application(application, &dispatch, original)
-                        .map_err(|reason| Stop::Unserved(Some(reason)))
+                        .map_err(unserved)
                 });
             match served {
                 Ok(()) => {}
@@ -139,7 +140,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                         holder,
                         DeferredRequest::StaticApplication,
                         span,
-                        detail.unwrap_or(""),
+                        detail,
                     );
                 }
                 Err(Stop::Rejected(message)) => {
@@ -157,9 +158,10 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 /// Why one application was left as typing wrote it.
 #[derive(Debug)]
-enum Stop {
-    /// A request this pass does not serve yet; nothing was changed for it.
-    Unserved(Option<&'static str>),
+pub(crate) enum Stop {
+    /// A request this pass does not serve yet, with the check that stopped it.
+    /// Owned helper errors must survive until the demanded holder reports them.
+    Unserved(Cow<'static, str>),
     /// The application is wrong as the author wrote it.
     Rejected(String),
     /// The trees broke an invariant while a machine was being generated.
@@ -168,8 +170,8 @@ enum Stop {
 
 type Served<T> = Result<T, Stop>;
 
-fn unserved(reason: &'static str) -> Stop {
-    Stop::Unserved(Some(reason))
+fn unserved(reason: impl Into<Cow<'static, str>>) -> Stop {
+    Stop::Unserved(reason.into())
 }
 
 /// One generated machine: the generic machine, the declaration each of its
@@ -381,7 +383,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     {
         program
             .prepare_bodyless_callable_application(applied.application, applied.target)
-            .map_err(|reason| Stop::Unserved(Some(reason)))?;
+            .map_err(unserved)?;
         return Ok(());
     }
     if arguments.is_empty() {
@@ -402,14 +404,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
             .machine_by_symbol(callee)
             .is_some_and(|machine| program.machine_callable_parameters(machine).is_empty())
     {
-        return enter_generated(program, site, &applied, callee, &arguments).map_err(|stop| {
-            match stop {
-                Stop::Unserved(None) => {
-                    unserved("a copied callable application does not match its enclosing selection")
-                }
-                other => other,
-            }
-        });
+        return enter_generated(program, site, &applied, callee, &arguments);
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
         if program
@@ -514,14 +509,7 @@ fn specialize_application(
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-        operands.push(
-            Operand::read(program, parameter, argument).map_err(|stop| match stop {
-                Stop::Unserved(None) => {
-                    unserved("a static argument could not be read under its declared binder")
-                }
-                other => other,
-            })?,
-        );
+        operands.push(Operand::read(program, parameter, argument)?);
     }
     // Explicit groups keep the original callable's formals and the caller's
     // supplying scope. Authenticate that relation before copying; absent groups
@@ -547,13 +535,7 @@ fn specialize_application(
     let entry = match generated.search(callee, &key) {
         Ok(row) => &generated.rows[row],
         Err(slot) => {
-            let made =
-                generate(program, callee, application, &operands).map_err(|stop| match stop {
-                    Stop::Unserved(None) => unserved(
-                        "the declaration copier could not retain the complete static context",
-                    ),
-                    other => other,
-                })?;
+            let made = generate(program, callee, application, &operands)?;
             if made.template != callee || made.arguments != key {
                 return Err(Stop::Defect(
                     "a generated machine changed the application it was generated for",
@@ -782,20 +764,30 @@ fn enter_generated(
         let mut receipts = program.machine_specializations.for_instance(callee);
         match (receipts.next(), receipts.next()) {
             (Some(row), None) => row,
-            _ => return Err(Stop::Unserved(None)),
+            _ => {
+                return Err(unserved(
+                    "a copied callable needs exactly one specialization receipt",
+                ));
+            }
         }
     };
     let Some(template) = program.machine_by_symbol(row.template) else {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied callable receipt has no template machine",
+        ));
     };
     let parameters = program.machine_callable_parameters(template);
     let table = &program.expression_table;
     let selection = table.static_machine_application(row.binding_application);
     let Some((owner, _)) = entered_machine(program, selection.registration_operation) else {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied callable selection does not enter an enclosing machine",
+        ));
     };
     let Some(source) = program.machine_by_symbol(owner) else {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied callable selection has no enclosing machine declaration",
+        ));
     };
     // The selection belongs to the original enclosing declaration, not an
     // unrelated application with equal rendered arguments.
@@ -810,14 +802,18 @@ fn enter_generated(
         captured.iter(),
     ) || program.symbols.get(callee).generated_from != row.template
     {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied callable changed its captured binders or template origin",
+        ));
     }
     let mut lexical = row.template;
     while lexical.is_valid() && lexical != owner {
         lexical = program.symbols.get(lexical).parent;
     }
     if lexical != owner {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied callable template is outside its selected lexical owner",
+        ));
     }
     let source_parameters = program.machine_callable_parameters(source);
     let operands = bound_arguments(
@@ -858,13 +854,17 @@ fn bound_arguments(
     if parameters.len() != arguments.len()
         || !same_declared_binders(parameters.iter(), source_parameters.iter())
     {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a captured static argument tuple does not match its declared binders",
+        ));
     }
     let table = &program.expression_table;
     let actual_arguments = table.static_machine_application_arguments(selection);
     let bindings = table.static_machine_application_bindings(selection);
     if actual_arguments.len() != bindings.len() || bindings.len() != source_parameters.len() {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a captured selection has incomplete argument bindings",
+        ));
     }
     let mut selected = bindings
         .iter()
@@ -873,18 +873,22 @@ fn bound_arguments(
         .collect::<Vec<_>>();
     selected.sort_unstable_by_key(|(symbol, _)| *symbol);
     if selected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(Stop::Unserved(None));
+        return Err(unserved("a captured selection repeats a static binder"));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let position = selected
             .binary_search_by_key(&symbol_order(parameter.symbol), |(symbol, _)| *symbol)
-            .map_err(|_| Stop::Unserved(None))?;
+            .map_err(|_| {
+                unserved("a captured selection has no argument for the requested binder")
+            })?;
         let actual = &selected[position].1;
         let operand = Operand::read(program, parameter, argument)?;
         let existing = Operand::read(program, parameter, actual)?;
         if operand.is_open(program) || operand.identity != existing.identity {
-            return Err(Stop::Unserved(None));
+            return Err(unserved(
+                "a captured static argument is open or differs from its selected value",
+            ));
         }
         operands.push(operand);
     }
@@ -923,7 +927,9 @@ fn bind_requirement(
         return Ok(());
     }
     if parameters.len() != arguments.len() {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a requirement call needs one argument for each declared binder",
+        ));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
@@ -956,11 +962,28 @@ fn apply_requirement(
     applied: &Applied,
     arguments: &[StaticMachineArgument],
 ) -> Served<()> {
-    let Some((owner, requirement)) = program.trait_machine_signature(applied.target) else {
-        return Ok(());
+    if let Some(closed) =
+        prepare_requirement_application(program, applied.target, applied.application, arguments)?
+    {
+        site.enter(program, closed);
+    }
+    Ok(())
+}
+
+/// Product operands spend the same declared argument tuple as source calls.
+/// Retain its binding judgment here so both entrances select the canonical
+/// requirement header; a declaration name alone cannot substitute a contract.
+pub(crate) fn prepare_requirement_application(
+    program: &mut TypedTrees,
+    target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
+    arguments: &[StaticMachineArgument],
+) -> Result<Option<SymbolHandle>, Stop> {
+    let Some((owner, requirement)) = program.trait_machine_signature(target) else {
+        return Ok(None);
     };
-    if requirement.symbol != applied.target {
-        return Ok(());
+    if requirement.symbol != target {
+        return Ok(None);
     }
     let parameters = program
         .state_signature_type_parameters(requirement)
@@ -968,14 +991,27 @@ fn apply_requirement(
         .cloned()
         .collect::<Vec<_>>();
     if parameters.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
-    if !owner.type_parameters.is_empty()
-        || !owner.lifetime_parameters.is_empty()
-        || !requirement.lifetime_parameters.is_empty()
-        || parameters.len() != arguments.len()
-    {
-        return Err(Stop::Unserved(None));
+    if !owner.type_parameters.is_empty() {
+        return Err(unserved(
+            "a requirement application still has its trait's static parameters",
+        ));
+    }
+    if !owner.lifetime_parameters.is_empty() {
+        return Err(unserved(
+            "a requirement application still has its trait's lifetime parameters",
+        ));
+    }
+    if !requirement.lifetime_parameters.is_empty() {
+        return Err(unserved(
+            "a requirement application still has its own lifetime parameters",
+        ));
+    }
+    if parameters.len() != arguments.len() {
+        return Err(unserved(
+            "a requirement application needs one argument for each declared binder",
+        ));
     }
     let environment =
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
@@ -983,29 +1019,30 @@ fn apply_requirement(
     for (parameter, argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, parameter, argument)?);
     }
-    bind(program, applied.application, &operands);
+    bind(program, application, &operands);
     // Open at a parameter of the enclosing generic machine: closed in each
     // machine generated from that one.
     if operands.iter().any(|operand| operand.is_open(program)) {
-        return Ok(());
+        return Ok(None);
     }
     let table = &mut program.expression_table;
     if table
-        .static_machine_application(applied.application)
+        .static_machine_application(application)
         .registration_operation
-        != applied.target
+        != target
     {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a requirement application names a different registration operation",
+        ));
     }
     table
-        .static_machine_application_mut(applied.application)
-        .binding_declaration = applied.target;
-    table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
+        .static_machine_application_mut(application)
+        .binding_declaration = target;
+    table.set_static_machine_application_lifetimes(application, target, &[]);
     let closed = program
-        .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
-        .map_err(|_| Stop::Unserved(None))?;
-    site.enter(program, closed);
-    Ok(())
+        .instantiate_requirement_application(&environment, target, &[], application)
+        .map_err(unserved)?;
+    Ok(Some(closed))
 }
 
 /// What a static argument is, as the identity an application is keyed by:
@@ -1118,7 +1155,7 @@ impl Operand {
                 let selected = named_static_record(program, parameter, *type_reference, argument)?;
                 let reference = program
                     .static_operand_type_reference(argument)
-                    .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                    .map_err(unserved)?;
                 let identity = if program.symbols.get(selected).kind == SymbolKind::TypeParameter {
                     Identity::Declaration(selected)
                 } else {
@@ -1147,7 +1184,7 @@ impl Operand {
                     .map_err(unserved)?;
                 let reference = program
                     .static_operand_type_reference(argument)
-                    .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                    .map_err(unserved)?;
                 (
                     Identity::Value(value.index_identity().ok_or(unserved(
                         "a static aggregate lost its canonical value identity",
@@ -1172,7 +1209,7 @@ impl Operand {
                 } else {
                     program
                         .static_operand_type_reference(argument)
-                        .map_err(|_| Stop::Unserved(None))?
+                        .map_err(unserved)?
                 };
                 (identity, StaticMachineBindingValue::Const(reference))
             }
@@ -1189,9 +1226,19 @@ impl Operand {
                     StaticMachineBindingValue::Machine(argument.clone()),
                 )
             }
-            TypeParameterKind::Machine { .. }
-            | TypeParameterKind::Value { .. }
-            | TypeParameterKind::Proposition { .. } => return Err(Stop::Unserved(None)),
+            TypeParameterKind::Machine { .. } => {
+                return Err(unserved(
+                    "a static machine binder needs a structural contract on a body-bearing declaration",
+                ));
+            }
+            TypeParameterKind::Value { .. } => {
+                return Err(unserved("a value binder has no specialization operand"));
+            }
+            TypeParameterKind::Proposition { .. } => {
+                return Err(unserved(
+                    "a proposition binder has no specialization operand",
+                ));
+            }
         };
         Ok(Self {
             parameter,
@@ -1285,15 +1332,19 @@ fn closed_scalar(
     parameter_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<Scalar> {
-    if let Some(primitive) = program.primitive_type_reference(parameter_type)
-        && let Ok(value) = program.prepare_callable_scalar_argument(primitive, argument)
-    {
-        return match value {
-            ExpressionNode::Integer(literal) => Ok(Scalar::Closed(Value::Integer(literal))),
-            ExpressionNode::Boolean(value) => Ok(Scalar::Closed(Value::Boolean(value))),
-            _ => Err(Stop::Defect("prepared callable scalar is not a scalar")),
-        };
-    }
+    let reason = match program.primitive_type_reference(parameter_type) {
+        Some(primitive) => match program.prepare_callable_scalar_argument(primitive, argument) {
+            Ok(value) => {
+                return match value {
+                    ExpressionNode::Integer(literal) => Ok(Scalar::Closed(Value::Integer(literal))),
+                    ExpressionNode::Boolean(value) => Ok(Scalar::Closed(Value::Boolean(value))),
+                    _ => Err(Stop::Defect("prepared callable scalar is not a scalar")),
+                };
+            }
+            Err(reason) => reason,
+        },
+        None => "a static scalar binder has no primitive carrier",
+    };
     let symbol = argument.symbol;
     if only_a_name(program, argument)
         && symbol.is_valid()
@@ -1302,7 +1353,7 @@ fn closed_scalar(
     {
         return Ok(Scalar::Parameter(symbol));
     }
-    Err(Stop::Unserved(None))
+    Err(unserved(reason))
 }
 
 /// Whether a static argument is a name and nothing else, so that replacing
@@ -1358,7 +1409,9 @@ fn named_implementation(
         || !symbol.is_valid()
         || !program.symbols.symbols().nodes().is_valid(symbol)
     {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a static implementation argument must name an implementation without its own application",
+        ));
     }
     match program.symbols.get(symbol).kind {
         SymbolKind::ConformanceParameter => Ok(symbol),
@@ -1370,7 +1423,9 @@ fn named_implementation(
                 .iter()
                 .filter(|bound| bound.binder == parameter);
             let (Some(bound), None) = (bounds.next(), bounds.next()) else {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "an implementation binder needs exactly one declared conformance bound",
+                ));
             };
             let plain = program.conformance_by_symbol(symbol).is_some_and(|named| {
                 named.trait_symbol == bound.trait_symbol
@@ -1382,11 +1437,15 @@ fn named_implementation(
                     && program.conformance_type_parameters(named).is_empty()
             });
             if !plain {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "a static implementation must be plain and match its binder's exact trait",
+                ));
             }
             Ok(program.implementation_value_head(symbol))
         }
-        _ => Err(Stop::Unserved(None)),
+        _ => Err(unserved(
+            "a static implementation argument names neither an implementation nor its parameter",
+        )),
     }
 }
 
@@ -1477,16 +1536,24 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
             .declaration()
             .and_then(|declaration| program.conformance_by_symbol(declaration))
         else {
-            return Err(Stop::Unserved(None));
+            return Err(unserved(
+                "a selected implementation operand has no conformance declaration",
+            ));
         };
         let placeholders = program
             .symbols
             .child_handles(operand.parameter)
-            .ok_or(Stop::Unserved(None))?;
+            .ok_or(unserved(
+                "an implementation binder has no requirement placeholders",
+            ))?;
         for placeholder in placeholders {
-            let Ok(Some(requirement)) = program.evidence_requirement_declaration(placeholder)
+            let Some(requirement) = program
+                .evidence_requirement_declaration(placeholder)
+                .map_err(unserved)?
             else {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "an implementation placeholder has no exact requirement declaration",
+                ));
             };
             // A requirement's own value parameters are bound at each call
             // through it (`bind_requirement`); any other parameter of its
@@ -1505,17 +1572,23 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
                 || !requirement.lifetime_parameters.is_empty()
                 || !requirement.conformance_bounds.is_empty()
             {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "an implementation requirement needs only value parameters without lifetimes or conformance bounds",
+                ));
             }
             let mut rows = implementation
                 .rows
                 .iter()
                 .filter(|row| row.requirement == requirement.symbol);
             let (Some(row), None) = (rows.next(), rows.next()) else {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "an implementation needs exactly one row for each selected requirement",
+                ));
             };
             if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
-                return Err(Stop::Unserved(None));
+                return Err(unserved(
+                    "a selected implementation row has no realization machine or state",
+                ));
             }
             selected.push(Selection {
                 placeholder,
@@ -1683,7 +1756,7 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
         .collect::<Vec<_>>();
     parameters.sort_unstable_by_key(|symbol| symbol_order(*symbol));
     if parameters.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(Stop::Unserved(None));
+        return Err(unserved("a declaration template repeats a callable binder"));
     }
     let mut pending = vec![symbol];
     let mut parts = Vec::new();
@@ -1740,12 +1813,10 @@ fn copied_parts(
     symbol: SymbolHandle,
 ) -> Served<(Machine, State, Vec<TypeReferenceHandle>)> {
     let Some(machine) = program.machine_by_symbol(symbol) else {
-        return Err(Stop::Unserved(Some("a copied declaration has no machine")));
+        return Err(unserved("a copied declaration has no machine"));
     };
     let Some([state]) = program.machine_states(machine).as_array() else {
-        return Err(Stop::Unserved(Some(
-            "a copied declaration needs exactly one entry",
-        )));
+        return Err(unserved("a copied declaration needs exactly one entry"));
     };
     let plan = &machine.termination_plan;
     // Lifetimes remain binders of each copied declaration. The shared type
@@ -1784,9 +1855,9 @@ fn copied_parts(
             .iter()
             .any(|forwarding| forwarding.machine_symbol == symbol);
     if !plain {
-        return Err(Stop::Unserved(Some(
+        return Err(unserved(
             "the declaration copier does not yet retain this machine's complete interface",
-        )));
+        ));
     }
     let facts = program
         .machine_contracts(machine)
@@ -1810,9 +1881,9 @@ fn copied_parts(
             roots.extend(custody.rank_range);
         }
         _ => {
-            return Err(Stop::Unserved(Some(
+            return Err(unserved(
                 "a copied termination witness needs its original expression custody",
-            )));
+            ));
         }
     }
     for fact in facts {
@@ -1847,9 +1918,9 @@ fn copied_parts(
             | StatementNode::Transition(_) => true,
         };
         if !copied {
-            return Err(Stop::Unserved(Some(
+            return Err(unserved(
                 "a copied statement has unserved retained metadata",
-            )));
+            ));
         }
         roots.extend(
             program
@@ -1886,9 +1957,9 @@ fn copied_parts(
         });
     }
     if !copied {
-        return Err(Stop::Unserved(Some(
+        return Err(unserved(
             "a copied expression has unserved retained metadata",
-        )));
+        ));
     }
     Ok((machine.clone(), state.clone(), types))
 }
@@ -2210,7 +2281,7 @@ fn copy_declarations(
         for contract in program.machine_contracts(source).to_vec() {
             let contract = program
                 .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
-                .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                .map_err(unserved)?;
             program.push_machine_contract(&mut machine, contract);
         }
         let mut state = source_state.clone();
@@ -2232,7 +2303,7 @@ fn copy_declarations(
         for contract in program.state_contracts(source_state).to_vec() {
             let contract = program
                 .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
-                .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                .map_err(unserved)?;
             program.push_state_contract(&mut state, contract);
         }
         let expression_count = program.expression_table.expression_count() + 1 - first_expression;
@@ -2682,7 +2753,7 @@ fn substitute_record_receivers(
         source.source_record_receiver = Some(binder);
         program
             .named_conformance_member(selected, target)
-            .map_err(|reason| Stop::Unserved(Some(reason)))?
+            .map_err(unserved)?
             .ok_or(unserved(
                 "a static record call lost its exact declared requirement",
             ))?;

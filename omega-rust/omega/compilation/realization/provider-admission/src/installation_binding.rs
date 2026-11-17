@@ -80,7 +80,7 @@ pub fn bind_installation_authority(
     let mut entries: Vec<_> = cohort
         .entries()
         .iter()
-        .map(|entry| (entry.operation, entry.placement_index))
+        .map(|entry| ((entry.machine, entry.operation), entry.placement_index))
         .collect();
     validate_stack_requirements(program, &mut entries, &mut requirements)?;
     let facts = crate::installed_interrupt_helpers::bind_installations(
@@ -99,15 +99,31 @@ pub fn bind_installation_authority(
 
 fn validate_stack_requirements(
     program: BoundInstalledEntry,
-    entries: &mut [(semantic_vocabulary::OperationId, usize)],
+    entries: &mut [(
+        (
+            semantic_vocabulary::MachineId,
+            semantic_vocabulary::OperationId,
+        ),
+        usize,
+    )],
     requirements: &mut [InstalledInterruptStackRequirement],
 ) -> Result<(), &'static str> {
     entries.sort_unstable();
-    requirements.sort_unstable_by_key(|row| (row.operation, row.placement_index));
+    requirements.sort_unstable_by_key(|row| {
+        (
+            (row.installation_machine, row.operation),
+            row.placement_index,
+        )
+    });
     if entries.windows(2).any(|pair| pair[0] == pair[1])
         || requirements.windows(2).any(|pair| {
-            (pair[0].operation, pair[0].placement_index)
-                == (pair[1].operation, pair[1].placement_index)
+            (
+                (pair[0].installation_machine, pair[0].operation),
+                pair[0].placement_index,
+            ) == (
+                (pair[1].installation_machine, pair[1].operation),
+                pair[1].placement_index,
+            )
         })
     {
         return Err("installed stack requirement or admitted placement is duplicated");
@@ -119,7 +135,10 @@ fn validate_stack_requirements(
             || requirement.alignment == 0
             || !requirement.alignment.is_power_of_two()
             || entries
-                .binary_search(&(requirement.operation, requirement.placement_index))
+                .binary_search(&(
+                    (requirement.installation_machine, requirement.operation),
+                    requirement.placement_index,
+                ))
                 .is_err()
         {
             return Err("installed stack requirement has no matching admitted entry");
@@ -191,6 +210,7 @@ mod tests {
         };
         let program = program();
         let requirement = InstalledInterruptStackRequirement {
+            installation_machine: program.machine,
             arrival: None,
             fault_exclusion: None,
             psi: program.psi,
@@ -204,17 +224,21 @@ mod tests {
             call_stack_bias: 8,
             alignment: 16,
         };
-        let key = (requirement.operation, requirement.placement_index);
+        let key = (
+            (requirement.installation_machine, requirement.operation),
+            requirement.placement_index,
+        );
         assert_eq!(
             validate_stack_requirements(program, &mut [key], &mut [requirement.clone()]),
             Ok(())
         );
-        let changes: [fn(&mut InstalledInterruptStackRequirement); 5] = [
+        let changes: [fn(&mut InstalledInterruptStackRequirement); 6] = [
             |row| row.psi.program_fingerprint = SemanticFingerprint::from_bytes([9; 32]),
             |row| row.target = target::TargetProfile::LinuxX64.native_target(),
             |row| row.alignment = 3,
             |row| row.body_bytes = u64::MAX,
             |row| row.placement_index = 1,
+            |row| row.installation_machine = MachineId::new(2).unwrap(),
         ];
         for change in changes {
             let mut invalid = requirement.clone();

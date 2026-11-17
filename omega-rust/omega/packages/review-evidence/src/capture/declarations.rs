@@ -27,6 +27,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub(super) struct ContractScope<'a> {
     pub owner: SymbolHandle,
     pub subject: Option<(SymbolHandle, TypeReferenceHandle)>,
+    pub statics: arena::RootRows<'a, typed_trees::data::TypeParameter>,
     pub parameters: arena::RootRows<'a, typed_trees::signature::StateParameter>,
     pub result: Option<TypeReferenceHandle>,
 }
@@ -396,6 +397,7 @@ impl<'a> PackageReviewInput<'a> {
                 owner: domain.symbol,
                 subject: Some((domain.subject_symbol, domain.target_type)),
                 parameters: Default::default(),
+                statics: Default::default(),
                 result: None,
             },
             depth,
@@ -459,6 +461,15 @@ impl<'a> PackageReviewInput<'a> {
                     && name.symbol == symbol
                 {
                     return Ok(Some(value_type));
+                }
+                if let Some(parameter) = scope.statics.iter().find(|p| p.symbol == name.symbol) {
+                    return match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Const { type_reference }
+                        | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                            Ok(Some(type_reference))
+                        }
+                        _ => Err(unavailable("a non-value contract binder")),
+                    };
                 }
                 if let Some(parameter) = scope.parameters.iter().find(|p| p.symbol == name.symbol) {
                     return Ok(Some(parameter.type_reference));
@@ -525,6 +536,13 @@ impl<'a> PackageReviewInput<'a> {
                     .is_some_and(|(symbol, _)| symbol.is_valid() && name.symbol == symbol)
                 {
                     Expression::DomainSubject
+                } else if let Some(position) =
+                    scope.statics.iter().position(|p| p.symbol == name.symbol)
+                {
+                    Expression::GenericBinder(
+                        u32::try_from(position)
+                            .map_err(|_| unavailable("a contract static binder ordinal"))?,
+                    )
                 } else if let Some(position) = scope
                     .parameters
                     .iter()
