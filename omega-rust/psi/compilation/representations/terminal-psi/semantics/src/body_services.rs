@@ -23,7 +23,9 @@ impl BodyServiceReaches {
     }
 }
 
-pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReaches> {
+pub fn body_service_reaches(
+    module: &TerminalModule,
+) -> std::result::Result<BodyServiceReaches, String> {
     if module
         .machines
         .windows(2)
@@ -33,7 +35,9 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
             .windows(2)
             .any(|rows| rows[0].id >= rows[1].id)
     {
-        return Err("body service summary requires canonical machine and service coordinates");
+        return Err(
+            "body service summary requires canonical machine and service coordinates".into(),
+        );
     }
     let machines = module
         .machines
@@ -54,7 +58,7 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
     let mut parent_positions = Vec::with_capacity(module.services.len());
     for service in &module.services {
         if service.parents.windows(2).any(|rows| rows[0] >= rows[1]) {
-            return Err("body service inheritance repeats or reorders a parent");
+            return Err("body service inheritance repeats or reorders a parent".into());
         }
         parent_positions.push(
             service
@@ -73,7 +77,7 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
                 continue;
             }
             match colors[position] {
-                1 => return Err("body service inheritance has a cycle"),
+                1 => return Err("body service inheritance has a cycle".into()),
                 2 => continue,
                 _ => {}
             }
@@ -119,7 +123,7 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
             .iter()
             .find_map(|row| row.value.as_ref().err())
         {
-            return Err(*reason);
+            return Err((*reason).to_owned());
         }
         for row in &body.invocations {
             let invocation = row.value.as_ref().map_err(|reason| *reason)?;
@@ -156,7 +160,7 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
                             })
                     {
                         return Err(
-                            "body service boundary actuals disagree with its complete formal telescope",
+                            "body service boundary actuals disagree with its complete formal telescope".into(),
                         );
                     }
                     union(&mut rows[position], &boundary.published_service_ceiling);

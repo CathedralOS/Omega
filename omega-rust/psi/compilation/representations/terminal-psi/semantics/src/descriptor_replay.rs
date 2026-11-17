@@ -1243,6 +1243,7 @@ pub(crate) mod analysis {
                 DescriptorGraphError::IncompleteMachine {
                     machine: identity,
                     position: Some(position),
+                    successor: None,
                     detail: None,
                 },
             )?;
@@ -1252,6 +1253,7 @@ pub(crate) mod analysis {
                 .ok_or(DescriptorGraphError::IncompleteMachine {
                     machine: identity,
                     position: Some(position),
+                    successor: None,
                     detail: None,
                 })?;
             let mut step = DescriptorFlowStep::default();
@@ -1296,6 +1298,7 @@ pub(crate) mod analysis {
             let incomplete = |position| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: None,
             };
             self.replay.prepare_states_checked(identity)?;
@@ -1340,6 +1343,7 @@ pub(crate) mod analysis {
                             Err(DescriptorGraphError::IncompleteMachine {
                                 machine: identity,
                                 position: Some(*position),
+                                successor: None,
                                 detail: Some(INEXACT_REFERENCE_BACKING),
                             })
                         }
@@ -1499,6 +1503,7 @@ pub(crate) mod analysis {
             let incomplete_step = || DescriptorGraphError::IncompleteMachine {
                 machine: machine.id,
                 position: Some(position),
+                successor: None,
                 detail: None,
             };
             let canonical = |location: &DescriptorLocation| match self
@@ -1511,6 +1516,7 @@ pub(crate) mod analysis {
                     Err(DescriptorGraphError::IncompleteMachine {
                         machine: machine.id,
                         position: Some(position),
+                        successor: None,
                         detail: Some(INEXACT_REFERENCE_BACKING),
                     })
                 }
@@ -6393,6 +6399,7 @@ pub(crate) mod engine {
             let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: Some(detail),
             };
             let mut failure =
@@ -6414,6 +6421,7 @@ pub(crate) mod engine {
             let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position,
+                successor: None,
                 detail: Some(detail),
             };
             if depth >= 128 {
@@ -6754,6 +6762,7 @@ pub(crate) mod engine {
                     Err(DescriptorGraphError::IncompleteMachine {
                         machine: identity,
                         position: None,
+                        successor: None,
                         detail: Some("descriptor state preparation is recursively in progress"),
                     })
                 }
@@ -8295,6 +8304,7 @@ pub(crate) mod engine {
             let inner_error = DescriptorGraphError::IncompleteMachine {
                 machine: id,
                 position: Some(positions[0]),
+                successor: None,
                 detail: Some("descriptor storage transfer cannot be reconstructed"),
             };
             let mut nested = DescriptorAnalysis::with_reference_slots(&types, &graph);

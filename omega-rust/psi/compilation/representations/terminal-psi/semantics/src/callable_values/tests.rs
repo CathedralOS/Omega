@@ -229,6 +229,26 @@ fn boundary(id: u64, returns_callable: bool) -> terminal_psi::BoundaryMachineDec
 }
 
 #[test]
+fn terminal_projection_keeps_the_failed_storage_machine_diagnostic() {
+    let mut module = module();
+    module
+        .machines
+        .extend([machine(1), machine(999), machine(999)]);
+    let failure =
+        crate::descriptor_results::terminal_reference_graph_from(&module, [machine_id(1)])
+            .err()
+            .expect("duplicate machine identities must refuse");
+    assert_eq!(failure.machine(), machine_id(999));
+    assert_eq!(
+        terminal_callable_values(&module).err().unwrap(),
+        format!(
+            "callable provenance cannot reconstruct current Terminal storage flow: {}",
+            failure.in_module(&module),
+        ),
+    );
+}
+
+#[test]
 fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_code() {
     let mut module = module();
     let mut entry = machine(1);

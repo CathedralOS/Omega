@@ -286,7 +286,7 @@ pub(crate) mod capabilities {
         let callable_values = terminal_semantics::callable_values::terminal_callable_values(
             program.catalogs.as_ref().as_ref(),
         )
-        .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
+        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];

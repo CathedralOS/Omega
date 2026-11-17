@@ -117,7 +117,7 @@ pub(crate) struct Excess {
     pub outside: Vec<Permission>,
 }
 
-fn fault(machine: MachineId, detail: &'static str) -> terminal_check_tables::Refusal {
+fn fault(machine: MachineId, detail: &str) -> terminal_check_tables::Refusal {
     refusal(
         RefusalReason::ForeignIdentity,
         machine,
@@ -941,7 +941,7 @@ pub(crate) fn judge(
     let values = needs_values
         .then(|| terminal_callable_values(module))
         .transpose()
-        .map_err(|reason| fault(first, reason))?;
+        .map_err(|reason| fault(first, &reason))?;
     let mut found = Vec::new();
     for caller in &module.machines {
         let rows = tables
