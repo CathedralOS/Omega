@@ -91,6 +91,10 @@ impl FunctionStageAudit for NativeStageAudit {
             .originals
             .as_ref()
             .ok_or(StageAuditError::ReplayUnavailable)?;
+        originals
+            .allocation
+            .validate_publication()
+            .map_err(|error| refused("Omega 05 allocation publication", error))?;
         let program = &layout.program;
         let current = originals.allocation.current();
         let selected = current.selected();

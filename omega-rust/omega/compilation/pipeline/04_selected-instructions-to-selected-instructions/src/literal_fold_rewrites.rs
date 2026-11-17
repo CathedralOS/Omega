@@ -1,8 +1,8 @@
 /*
 We implement the `SelectedLowering` optimization phase (`literal_folds` and
 `selected_lowering`), folding incoming literal materializations into consumer
-instructions admitted by the declarative pair-rule catalog and independently
-replaying every committed step.
+instructions admitted by the declarative pair-rule catalog. Optional replay
+re-executes each committed step with the producer to check determinism.
 */
 
 #[allow(unused_imports)]

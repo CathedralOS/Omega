@@ -102,25 +102,11 @@ framework or a list of unimplemented features.
 - Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
 - Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
 
-### The Omega 04 replay validator reruns the optimizer instead of checking it
-- Category: A verdict with nothing behind it
-- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
-- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
-- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
 ### An optional Omega 04 rewrite shrinks the registers allocation may use
 - Category: Knowledge crossing a boundary
 - Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
 - Saw: When a SelectedLowering or PreAllocation rule runs, Omega 04 builds legality under `FramelessLeafCallerSavedViews` and hands that analysis to Omega 05, which allocates on it. With no rewrite selected, `SelectedAllocationInput::into_legality` builds legality under `AllEnvironmentAllocatableViews`. So selecting an optional profitability rewrite restricts the whole program to caller-saved registers. This predates #3833, which kept it. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation", and [exact selection](wiki/spec/build/optimizations.md#exact-selection) treats allocation as mandatory "whether or not optional profitability rewrites are selected".
 - Cost: The same program allocates under different constraints, and may be refused, depending on an unrelated optimization choice. Let the rewrite run on its own analysis and have Omega 05 build legality under the availability allocation needs, whatever ran before.
-- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
-
-### Allocation admission re-checks choices Omega 05 just made
-- Category: Re-deriving
-- Where: [admission](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs#L250)
-- Saw: On every compile, `validate_recovery_selection` checks that the recovery rule that ran equals the selection `stage_register_allocation` picked it from, and `capture_publication_facts` checks the manifest Omega 05 built against the record it built it from. [Verification placement](omega-rust/pipeline.md#verification-placement) says a default compile does not revalidate output the same compile just produced.
-- Cost: The checks are cheap, but they cannot fail unless the same function is wrong twice, and they add error variants every reader must handle. Move them into the allocation validator or a test.
 - Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
@@ -176,13 +162,6 @@ framework or a list of unimplemented features.
 - Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
 
-### The compiler has no `InternalFailure` outcome, so a defect it detects in itself exits as "source rejected"
-- Category: A verdict with nothing behind it
-- Where: [outcome enum](omega-rust/omega/compilation/products/src/compile_outcomes.rs#L109), [non-diagnostic errors become Reject](omega-rust/omega/build-system/orchestration/src/lib.rs#L233), [validator failure called a compiler defect](omega-rust/omega/build-system/orchestration/src/lib.rs#L215), [exit status](omega-rust/omega/application/src/commands/compile.rs#L244), [reserved-codes comment](omega-rust/omega/application/src/arguments/mod.rs#L33)
-- Saw: [outcomes](wiki/spec/build/compiler_request.md#L249) says compilation "preserves four outcome distinctions", including `InternalFailure` for "a compiler/checker malfunction or violated implementation invariant", with halt value 3; [independent stage validators](wiki/spec/build/command_line.md) says to "distinguish compiler invariant failures from invalid authored source". `CompilerRequestOutcome` has only `Complete`, `Reject` and `Incomplete`, and `BuildError::outcome` maps every non-diagnostic error (`StageValidation`, `Publication`, `BuildDirectory`, `CheckWorkspace`) to `Reject`. A failing `omega --validator TargetOperationCorrespondence main.omg` prints "this is a compiler defect, not an error in the source" and exits 1. The Omega-written compiler has the case (`source/omega/application/ocreq/outcome.omg`).
-- Cost: Scripts reading `$?` cannot tell a compiler bug from a rejected program. Add `InternalFailure` (exit 3), classify compiler-invariant errors as it, and exit with it.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/compiler_request.md
-
 ### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
 - Category: One idea, several implementations
 - Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
@@ -203,20 +182,6 @@ framework or a list of unimplemented features.
 - Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too. The field comment ("no ambient host packages or import thunks") describes behavior the flag does not have.
 - Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md, and correct the comment.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
-
-### Legalization replaces its failure causes with a bare custody error
-- Category: Verifying costs more than writing
-- Where: [scalar graph](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L1084) and four sibling `legalization_*.rs` files in `native-preparation`
-- Saw: 39 calls to `map_err(|_| LegalizationError::custody())` drop the underlying error. The result records the Rust call site and nothing about which argument, storage or result failed.
-- Cost: Each new legalization refusal needs a diagnostic build to find its cause. Keep the cause in the error; this changes no accepted program.
-- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
-
-### Callable analysis hides its storage-flow refusal
-- Category: Verifying costs more than writing
-- Where: [callable projection](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/callable_values/terminal.rs#L124)
-- Saw: `terminal_callable_values` replaces the reference graph's error with `callable provenance cannot reconstruct current Terminal storage flow`. The unchanged [indexed-case program](tests/fixtures/run/calls/indexed_case_discriminator/main.omg) produces that refusal before native compilation on both current-form source `70dfe3f` and clean landed base `d3deb345`; the underlying graph error is lost.
-- Cost: A caller cannot name the failed operation or storage relationship without another diagnostic build. Preserve the graph's reason through the callable query and its callers; keep the program and its oracle unchanged.
-- Reported: 2026-11-16, Codex, while qualifying current-form frame publication
 
 ### Changing storage analysis rebuilds the native compiler
 - Category: Verifying costs more than writing

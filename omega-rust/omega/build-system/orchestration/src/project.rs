@@ -1,4 +1,4 @@
-// Project build modules: `build_directory` guards output directories, `products` maps project demands to compiler requests, `project_compilation` executes admitted package batches, `publication` writes final artifacts to disk, and `stage_validators` runs explicitly requested independent stage validators.
+// Project build modules: `build_directory` guards output directories, `products` maps project demands to compiler requests, `project_compilation` executes admitted package batches, `publication` writes final artifacts to disk, and `stage_validators` runs explicitly requested stage-output checks.
 
 pub(crate) mod build_directory;
 pub(crate) mod products;

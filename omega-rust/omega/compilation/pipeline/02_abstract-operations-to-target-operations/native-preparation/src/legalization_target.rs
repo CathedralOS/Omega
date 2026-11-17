@@ -1634,7 +1634,7 @@ pub(crate) mod control_flow {
                             foreign.boundary_entry_plan.clone(),
                             &signature,
                         )
-                        .map_err(|_| LegalizationError::custody())?
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                         .plan()
                         .call
                         .clone(),
@@ -1642,7 +1642,7 @@ pub(crate) mod control_flow {
                             calling_conventions::CallingPolicy::native_for_target(native.target),
                             &signature,
                         )
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                     };
                     psi_edge == expected_edge
                         && boundary == expected_boundary
@@ -3259,7 +3259,7 @@ pub(crate) mod hosted_scalar {
                 result: None,
             },
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if declarations.next().is_some()
             || !supported
             || psi_operation != expected_operation
@@ -3350,7 +3350,7 @@ pub(crate) mod normalized_foreign {
             },
             |scalar| plan.closed_scalar(scalar),
         )
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if required != *descriptor_input {
             return Err(LegalizationError::custody());
         }
@@ -3383,7 +3383,7 @@ pub(crate) mod normalized_foreign {
             ) {
                 private_ordinals.push(
                     usize::try_from(callback.application.native_ordinal)
-                        .map_err(|_| LegalizationError::custody())?
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?
                         + binding.dispatch_operand_count(),
                 );
             }
@@ -3480,7 +3480,7 @@ pub(crate) mod normalized_foreign {
                 &signature,
             ),
         }
-        .map_err(|_| LegalizationError::custody())?;
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         if declarations.next().is_some()
             || psi_operation != expected_operation
             || boundary != expected_boundary
@@ -4155,9 +4155,9 @@ pub(crate) mod unit {
                             let layout = unit
                                 .geometry()
                                 .owned_sequence(result.structural_type)
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                             let count = u64::try_from(elements.len())
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                             if count > layout.capacity {
                                 return Err(LegalizationError::custody());
                             }
@@ -4334,7 +4334,7 @@ pub(crate) mod unit {
                                     plan.geometry(),
                                     declaration,
                                 )
-                                .map_err(|_| LegalizationError::custody())?;
+                                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                                 let [source] = structural_arguments.as_slice() else {
                                     return Err(LegalizationError::custody());
                                 };
@@ -5734,7 +5734,7 @@ pub(crate) mod unit {
                         lifecycle.operation,
                         structural_arguments,
                     )
-                    .map_err(|_| LegalizationError::custody())?;
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let (_, retained_result) = result_home
                     .operation_result()
                     .ok_or(LegalizationError::custody())?;
@@ -5781,7 +5781,7 @@ pub(crate) mod unit {
                     .ok_or(LegalizationError::custody())?;
                 let scalar = ScalarType::Integer(
                     semantic_vocabulary::IntegerType::address(64)
-                        .map_err(|_| LegalizationError::custody())?,
+                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?,
                 );
                 if native.profile != Some(target::TargetProfile::UefiX64)
                     || psi_operation != expected_operation || boundary != expected_boundary
@@ -5833,7 +5833,7 @@ pub(crate) mod unit {
                     &plan.boundary_machines,
                     *boundary,
                 )
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
                 let [argument] = structural_arguments.as_slice() else {
                     return Err(LegalizationError::custody());
                 };
