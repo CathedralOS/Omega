@@ -17,8 +17,8 @@ use terminal_psi::{
 };
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, Statement, Strict, Target,
-    Termination, ValueType,
+    Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature, Statement,
+    Strict, Target, Termination, ValueType,
 };
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, StorageShape, Unpositioned};
@@ -3740,7 +3740,7 @@ fn weigh(arms: Vec<(usize, Expression)>, default: Option<Expression>) -> Body {
             subject: place(0, shape()),
             arms: arms
                 .into_iter()
-                .map(|(case, value)| (case, Target::Value(value), nowhere()))
+                .map(|(case, value)| (CaseSelector::tag(case), Target::Value(value), nowhere()))
                 .collect(),
             default: default.map(arm),
             source: nowhere(),
@@ -3879,7 +3879,7 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
             capture: None,
             subject: Box::new(place(0, shape())),
             arms: vec![(
-                Selector::Case(DOT),
+                Selector::Case(CaseSelector::tag(DOT)),
                 payload(place(0, shape()), DOT, 0, scalar),
             )],
             default: Some(Box::new(integer(7))),
@@ -3982,7 +3982,7 @@ fn a_data_payload_is_copied_out_by_its_case_and_field() {
             statements: vec![Statement::Dispatch {
                 subject: place(0, shape()),
                 arms: vec![(
-                    BOXED,
+                    CaseSelector::tag(BOXED),
                     Target::Value(payload(place(0, shape()), BOXED, 0, point())),
                     nowhere(),
                 )],
@@ -4021,7 +4021,11 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
             slots: vec![shape()],
             statements: vec![Statement::Dispatch {
                 subject: place(0, shape()),
-                arms: vec![(DOT, Target::Crash(CrashCause::Trap), nowhere())],
+                arms: vec![(
+                    CaseSelector::tag(DOT),
+                    Target::Crash(CrashCause::Trap),
+                    nowhere(),
+                )],
                 default: Some((Target::Value(integer(0)), nowhere())),
                 source: nowhere(),
             }],

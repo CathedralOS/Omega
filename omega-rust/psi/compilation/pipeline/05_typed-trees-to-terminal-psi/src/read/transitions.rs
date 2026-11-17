@@ -14,9 +14,9 @@ use typed_trees::statement::{
 };
 
 use super::authority::Access;
-use super::expressions::{case_condition, case_test_of, same_computation};
+use super::expressions::{case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -184,10 +184,12 @@ impl Program<'_> {
     ) -> Checked<(Statement, usize)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
         let mut subject: Option<Expression> = None;
-        let mut arms: Vec<(usize, Target, SourceOrigin)> = Vec::new();
+        let mut arms: Vec<(CaseSelector, Target, SourceOrigin)> = Vec::new();
         let mut default = None;
         let mut taken = 0;
         let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let mut wildcard = None;
+        let mut full_cases = std::collections::BTreeMap::new();
         for statement in statements {
             let StatementNode::Transition(transition) =
                 self.typed.statement_table.statement(statement)
@@ -216,10 +218,12 @@ impl Program<'_> {
                             subject = Some(read.clone());
                         }
                     }
-                    let case = self.case_pattern(
+                    let case = self.case_selector(
                         id,
+                        slots,
                         record,
                         &pattern.pattern,
+                        &read,
                         SourceOrigin::of(transition.source_span),
                     )?;
                     // The arm's test is stored twice, as the transition
@@ -231,19 +235,13 @@ impl Program<'_> {
                         guard,
                         Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     )?;
-                    let condition = self.expression(
-                        id,
-                        slots,
-                        pattern.pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                    )?;
-                    if !same_computation(&guard, &case_test_of(&read, case))
-                        || !same_computation(&condition, &case_condition(&read, case))
+                    if !same_computation(&guard, &case_test_of(&read, case.case))
+                        && !case
+                            .condition
+                            .as_deref()
+                            .is_some_and(|condition| same_computation(&guard, condition))
                     {
                         return Err(unserved("case arm with a guard"));
-                    }
-                    if arms.iter().any(|(earlier, _, _)| *earlier == case) {
-                        return Err(unserved("case arm for a case an earlier arm selects"));
                     }
                     Some(case)
                 }
@@ -265,11 +263,27 @@ impl Program<'_> {
             };
             taken += 1;
             let arm_source = SourceOrigin::of(transition.source_span);
+            if let Some(earlier) = wildcard.or_else(|| {
+                case.as_ref()
+                    .and_then(|case| full_cases.get(&case.case).copied())
+            }) {
+                if let Some(names) = self.names.get_mut(id) {
+                    names
+                        .shadowed_patterns
+                        .push((transition.source_span, earlier));
+                }
+                continue;
+            }
             match case {
-                Some(case) => arms.push((case, target, arm_source)),
+                Some(case) => {
+                    if case.condition.is_none() {
+                        full_cases.insert(case.case, transition.source_span);
+                    }
+                    arms.push((case, target, arm_source));
+                }
                 None => {
+                    wildcard = Some(transition.source_span);
                     default = Some((target, arm_source));
-                    break;
                 }
             }
         }

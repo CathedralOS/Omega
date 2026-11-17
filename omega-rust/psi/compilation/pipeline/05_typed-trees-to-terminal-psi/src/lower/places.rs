@@ -872,7 +872,10 @@ fn statement_homes<'b>(
             ..
         } => {
             expression_homes(subject, homes);
-            for (_, arm, _) in arms {
+            for (selector, arm, _) in arms {
+                if let Some(condition) = selector.condition.as_deref() {
+                    expression_homes(condition, homes);
+                }
                 target_homes(arm, homes);
             }
             if let Some((arm, _)) = default {
@@ -969,7 +972,10 @@ fn expression_homes<'b>(
             ..
         } => {
             expression_homes(subject, homes);
-            for (_, arm) in arms {
+            for (selector, arm) in arms {
+                if let Some(condition) = selector.test() {
+                    expression_homes(condition, homes);
+                }
                 expression_homes(arm, homes);
             }
             if let Some(arm) = default {
@@ -1316,6 +1322,17 @@ pub(super) struct Chosen {
 }
 
 impl Chosen {
+    /// Fallthrough retains the saved subject's storage and lifetime, without
+    /// granting any particular case or carrying a case's payload parameters.
+    pub(super) fn without_case(&self) -> Self {
+        Self {
+            capture: self.capture.clone(),
+            place: self.place,
+            case: None,
+            parameters: Vec::new(),
+        }
+    }
+
     /// A computed subject owns its complete temporary root, including any
     /// sibling fields outside the projected sum selected by this match.
     pub(super) fn temporary(&self) -> Option<PlaceId> {
@@ -3683,9 +3700,6 @@ impl<'a> Lowering<'a> {
                 structural_arguments: Vec::new(),
                 cleanup_actions: Vec::new(),
             });
-        }
-        if let (Some(arm), None) = (wildcard, &rest) {
-            self.sources.dead_wildcards.push(arm.into());
         }
         self.terminate(Terminator::StructuralCase {
             source: at.root,

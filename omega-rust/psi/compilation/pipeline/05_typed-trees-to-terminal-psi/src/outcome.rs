@@ -500,8 +500,21 @@ impl<'b> Walk<'b> {
                     if !self.expression(machine, subject)? {
                         return Ok(normal);
                     }
-                    for (_, target, _) in arms {
+                    let mut ended_cases = std::collections::BTreeSet::new();
+                    for (selector, target, _) in arms {
+                        if ended_cases.contains(&selector.case) {
+                            continue;
+                        }
+                        if let Some(condition) = selector.condition.as_deref()
+                            && !self.expression(machine, condition)?
+                        {
+                            ended_cases.insert(selector.case);
+                            continue;
+                        }
                         normal |= self.target(machine, target)?;
+                        if selector.condition.is_none() {
+                            ended_cases.insert(selector.case);
+                        }
                     }
                     if let Some((target, _)) = default {
                         normal |= self.target(machine, target)?;
@@ -581,10 +594,35 @@ impl<'b> Walk<'b> {
                     return Ok(false);
                 }
                 let mut completes = false;
-                for (_, arm) in arms {
+                let mut ended_cases = std::collections::BTreeSet::new();
+                let mut reaches_default = true;
+                for (selector, arm) in arms {
+                    if selector
+                        .case()
+                        .is_some_and(|case| ended_cases.contains(&case))
+                    {
+                        continue;
+                    }
+                    if let Some(condition) = selector.test()
+                        && !self.expression(machine, condition)?
+                    {
+                        if let Some(case) = selector.case() {
+                            ended_cases.insert(case);
+                            continue;
+                        }
+                        reaches_default = false;
+                        break;
+                    }
                     completes |= self.expression(machine, arm)?;
+                    if let crate::body::Selector::Case(case) = selector
+                        && case.condition.is_none()
+                    {
+                        ended_cases.insert(case.case);
+                    }
                 }
-                if let Some(arm) = default {
+                if let Some(arm) = default
+                    && reaches_default
+                {
                     completes |= self.expression(machine, arm)?;
                 }
                 Ok(completes)

@@ -275,6 +275,11 @@ path = "tests/executed_fixture_discovery.rs"
 name = "selected_allocation_handoff"
 path = "tests/selected_allocation_handoff.rs"
 
+# Case payload tests retain ordered fallback decisions and ordinary equality.
+[[test]]
+name = "lowered_route_field_patterns"
+path = "tests/lowered_route_field_patterns.rs"
+
 # Independent receiver admission of the existing Windows filesystem customer.
 [[test]]
 name = "filesystem_receiver"

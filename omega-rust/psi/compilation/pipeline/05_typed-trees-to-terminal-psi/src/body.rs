@@ -958,7 +958,7 @@ pub enum Statement {
     /// lowering reports where it builds the terminator.
     Dispatch {
         subject: Expression,
-        arms: Vec<(usize, Target, SourceOrigin)>,
+        arms: Vec<(CaseSelector, Target, SourceOrigin)>,
         default: Option<(Target, SourceOrigin)>,
         source: SourceOrigin,
     },
@@ -1270,7 +1270,7 @@ pub use crate::publication::DesignatedOperands;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
     /// The case at this position of the sum the subject names.
-    Case(usize),
+    Case(CaseSelector),
     /// A value pattern on a scalar subject: the arm runs when the subject
     /// equals it (patterns.md: "Scalars use value patterns"). Always an
     /// `Integer` or `Boolean` literal of the subject's carrier, so it has no
@@ -1282,8 +1282,35 @@ impl Selector {
     /// The case this arm selects, when the subject is a sum.
     pub fn case(&self) -> Option<usize> {
         match self {
-            Self::Case(case) => Some(*case),
+            Self::Case(selector) => Some(selector.case),
             Self::Value(_) => None,
+        }
+    }
+
+    /// The expression tested before an arm runs. A case predicate is read
+    /// only inside that case's selected payload namespace.
+    pub fn test(&self) -> Option<&Expression> {
+        match self {
+            Self::Case(selector) => selector.condition.as_deref(),
+            Self::Value(value) => Some(value),
+        }
+    }
+}
+
+/// One case alternative, with its optional projected-value predicate. A tag
+/// alone covers its case; a conditional alternative can still fall through
+/// to a later alternative for that same case or the wildcard.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CaseSelector {
+    pub case: usize,
+    pub condition: Option<Box<Expression>>,
+}
+
+impl CaseSelector {
+    pub fn tag(case: usize) -> Self {
+        Self {
+            case,
+            condition: None,
         }
     }
 }

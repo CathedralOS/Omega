@@ -210,6 +210,17 @@ impl AcceptedClosure {
                 arm,
             ));
         }
+        for (_, names) in self.elaboration.names.iter() {
+            for (arm, earlier) in &names.shadowed_patterns {
+                advisories.push(Diagnostic::warning(
+                    "unreachable branch: an earlier unconditional pattern already matches this arm"
+                ).with_source_span(*arm));
+                advisories.push(
+                    Diagnostic::note("this earlier pattern already matches these values")
+                        .with_source_span(*earlier),
+                );
+            }
+        }
         advisories
     }
 }
