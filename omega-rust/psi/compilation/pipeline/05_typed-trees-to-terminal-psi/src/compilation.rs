@@ -199,7 +199,7 @@ pub fn prepare_compilation(
     }
     // Template proof forms retain both the checked source context and the
     // actual publication mode of the invocation using their captures.
-    let forms = prepare_generic_forms(
+    let mut forms = prepare_generic_forms(
         typed,
         compilation.purpose,
         templates,
@@ -207,6 +207,24 @@ pub fn prepare_compilation(
         publication,
         &mut source,
     );
+    // Policies discovered inside a check form owe their own conformance
+    // witnesses too. Move those exact source rows into the existing worklist.
+    for generic in &mut forms {
+        for form in generic.forms.iter_mut().flatten() {
+            for witness in std::mem::take(&mut form.conformance_witnesses) {
+                let row = (
+                    witness.declaring_trait,
+                    witness.requirement,
+                    witness.value_arguments,
+                    witness.implementation,
+                    None,
+                );
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+    }
     closure = closure.and_then(|mut elaboration| {
         crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
             .map_err(|(owner, reason)| {
@@ -243,9 +261,20 @@ pub fn prepare_compilation(
                 outcome_subjects: Some(compilation.subjects),
             },
         );
-        let prepared = prepared.and_then(|prepared| {
-            prepared.require_check_form()?;
-            Ok(prepared)
+        let prepared = prepared.and_then(|mut prepared| {
+            crate::declare::close_specializations(
+                &forms,
+                std::mem::take(&mut prepared.prepared_applications),
+                &mut prepared.program,
+            )
+            .map_err(|(owner, reason)| {
+                crate::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            })?;
+            prepared.finalize_check_form()
         });
         let mut witness = match prepared {
             Ok(prepared) => {
@@ -506,36 +535,27 @@ fn prepare_generic_forms(
     publication: terminal_codec::TerminalPublication,
     source: &mut crate::SourceCorrespondence,
 ) -> Vec<GenericForms> {
-    let mut forms = Vec::new();
+    struct PreparedGeneric<'source> {
+        template: SymbolHandle,
+        name: String,
+        forms: terminal_check_tables::Checked<Vec<crate::publication::PreparedProgram<'source>>>,
+        applies: Option<Vec<usize>>,
+    }
+    let mut prepared = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated = crate::prepare_generic_forms(
+        let mut elaborated = crate::prepare_generic_forms(
             typed,
             purpose,
             &[template],
             captures.clone(),
             publication,
-        )
-        .and_then(|forms| {
-            for prepared in &forms {
-                prepared.require_check_form()?;
-            }
-            Ok(forms
-                .into_iter()
-                .map(|prepared| {
-                    source.forms.push(Some(prepared.source));
-                    prepared.program
-                })
-                .collect::<Vec<_>>())
-        });
-        if elaborated.is_err() {
-            source.forms.push(None);
-        }
+        );
         let mut applies = Some(Vec::new());
-        for form in elaborated.iter().flatten() {
-            for application in &form.applications {
-                let Some(symbol) = form.machines.get(*application).copied() else {
+        for form in elaborated.iter_mut().flatten() {
+            for application in &form.program.applications {
+                let Some(symbol) = form.program.machines.get(*application).copied() else {
                     applies = None;
                     continue;
                 };
@@ -550,8 +570,13 @@ fn prepare_generic_forms(
                     applies.push(position);
                 }
             }
+            for template in std::mem::take(&mut form.program.generic_templates) {
+                if !templates.contains(&template) {
+                    templates.push(template);
+                }
+            }
         }
-        forms.push(GenericForms {
+        prepared.push(PreparedGeneric {
             template,
             name: typed.symbols.name(template).to_owned(),
             forms: elaborated,
@@ -559,5 +584,60 @@ fn prepare_generic_forms(
         });
         next += 1;
     }
-    forms
+    // Borrow the source forms' actual headers once. Closing applications adds
+    // their receipts; it does not change the template's public contract hash.
+    let bases: crate::declare::TemplateCommitments = prepared
+        .iter()
+        .map(|generic| {
+            let commitment = match &generic.forms {
+                Ok(forms) => crate::declare::template_commitment_for(
+                    generic.template,
+                    forms.iter().map(|form| &form.program),
+                ),
+                Err(_) => Ok(None),
+            };
+            (generic.template, commitment)
+        })
+        .collect();
+    prepared
+        .into_iter()
+        .map(|generic| {
+            let forms = generic.forms.and_then(|forms| {
+                let forms = forms
+                    .into_iter()
+                    .map(|mut prepared| {
+                        crate::declare::close_specializations_with_bases(
+                            &bases,
+                            std::mem::take(&mut prepared.prepared_applications),
+                            &mut prepared.program,
+                        )
+                        .map_err(|(owner, reason)| {
+                            crate::refuse(
+                                owner,
+                                terminal_check_tables::Construct::Machine,
+                                crate::Unserved::Declaration(reason),
+                            )
+                        })?;
+                        prepared.finalize_check_form()
+                    })
+                    .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+                Ok(forms
+                    .into_iter()
+                    .map(|prepared| {
+                        source.forms.push(Some(prepared.source));
+                        prepared.program
+                    })
+                    .collect())
+            });
+            if forms.is_err() {
+                source.forms.push(None);
+            }
+            GenericForms {
+                template: generic.template,
+                name: generic.name,
+                forms,
+                applies: generic.applies,
+            }
+        })
+        .collect()
 }

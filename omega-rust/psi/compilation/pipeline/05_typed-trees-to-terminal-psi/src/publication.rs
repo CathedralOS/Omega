@@ -63,8 +63,7 @@ pub(crate) struct PendingSourcePublication<'source> {
 }
 
 impl PreparedProgram<'_> {
-    /// Check forms have no final source publication entrance. Reject pending
-    /// source obligations rather than silently dropping them with the wrapper.
+    /// Extraction cannot discard source obligations that have not been published.
     pub(crate) fn require_check_form(&self) -> terminal_check_tables::Checked<()> {
         if let Some(pending) = &self.pending_publication {
             let calling = pending
@@ -98,9 +97,38 @@ impl PreparedProgram<'_> {
         Ok(())
     }
 
-    pub(crate) fn into_check_form(self) -> terminal_check_tables::Checked<Elaboration> {
+    pub(crate) fn finalize_check_form(mut self) -> terminal_check_tables::Checked<Self> {
+        if let Some((owner, _)) = self.prepared_applications.first() {
+            return Err(crate::read::services::unavailable(
+                *owner,
+                "check-form source publication needs its completed specialization headers",
+            ));
+        }
+        let Some(pending) = self.pending_publication.as_ref() else {
+            self.require_check_form()?;
+            return Ok(self);
+        };
+        let typed = pending.source;
+        if self.selected_calls.is_empty() {
+            self.selected_calls = crate::compilation::prepare_selected_signatures(
+                typed,
+                &self.program,
+                &self.source,
+            )?;
+        }
+        // The record and its exact selected calls are consumed by the same
+        // publisher as a primary closure, after this form's headers are closed.
+        let selected = std::mem::take(&mut self.selected_calls);
+        let pending = self.pending_publication.take();
+        finalize_source(typed, &mut self.program, &selected, pending)?;
         self.require_check_form()?;
-        Ok(self.program)
+        Ok(self)
+    }
+
+    pub(crate) fn into_check_form(self) -> terminal_check_tables::Checked<Elaboration> {
+        let prepared = self.finalize_check_form()?;
+        prepared.require_check_form()?;
+        Ok(prepared.program)
     }
 }
 
