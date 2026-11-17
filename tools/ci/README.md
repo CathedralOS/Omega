@@ -14,9 +14,9 @@ and diff, then, when Rust files changed, `fmt --check`, which runs one
 `tools/xtask/bootstrap-mbx.sh` installs `mbx` at the version in
 `tools/mbx-version` through the shared source-pinned builder in `tools/mbx/install.sh`.
 The builder verifies the upstream source and bootstrap binary, applies the retained
-checksum-cache patch and checks the distinct local version before installation. It lives under `tools/xtask/` so
-that `admission.yml`'s `tools/xtask/**` push filter and cache key cover it
-along with the `xtask` crate.
+checksum-cache patch and checks the distinct local version before installation.
+The bootstrap wrapper lives under `tools/xtask/`, alongside the `xtask` crate;
+the existing admission cache retains xtask outputs, not this installed mbx binary.
 
 A pull request can restore a cache only from its own runs or from main's. So
 the same workflow also runs on pushes to main that change `tools/xtask`,

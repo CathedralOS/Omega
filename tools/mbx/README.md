@@ -12,8 +12,9 @@ SHA-256 and applying `checksum-cache.patch`. The MIT license is retained in
 `LICENSE.upstream`. This is a local build, identified as `1.29.2+omega.1` in
 `tools/mbx-version`, rather than an upstream release. Build metadata preserves the
 stable version's ordering. The installed `mbx.source` records the upstream commit,
-source archive hash, patch hash, host, installed toolchain and binary hash. Change the local build identity
-when changing the patch.
+source archive hash, patch hash, host, installed toolchain and binary hash. Change
+the local build identity when changing the patch. Doctor retains its numeric
+minimum-version check; the installer checks this complete local identity.
 
 Both `tools/agent_setup.sh` and `tools/xtask/bootstrap-mbx.sh` call this installer.
 It needs Bash, curl, tar, patch, an installed Rust toolchain, and unzip on Windows.

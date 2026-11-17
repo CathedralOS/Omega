@@ -46,9 +46,9 @@ mkdir -p "$work/bootstrap"
 if [ -n "$suffix" ]; then archive="mbx-$target.zip"; else archive="mbx-$target.tar.gz"; fi
 download() {
   local filename=$1 asset_id=$2
-  if ! curl --retry 3 --retry-delay 2 -fsSL -o "$work/bootstrap/$filename" \
+  if ! curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSL -o "$work/bootstrap/$filename" \
       "https://github.com/jdx/mr-boxington/releases/download/v$upstream/$filename"; then
-    curl --retry 3 --retry-delay 2 -fsSL -H 'Accept: application/octet-stream' \
+    curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSL -H 'Accept: application/octet-stream' \
       -o "$work/bootstrap/$filename" "https://api.github.com/repos/jdx/mr-boxington/releases/assets/$asset_id"
   fi
 }
@@ -58,7 +58,7 @@ expected=$(awk -v name="$archive" '$2 == name {print $1}' "$work/bootstrap/SHA25
 verify "$expected" "$work/bootstrap/$archive"
 if [ -n "$suffix" ]; then unzip -oq "$work/bootstrap/$archive" -d "$work/bootstrap";
 else tar -xzf "$work/bootstrap/$archive" -C "$work/bootstrap"; fi
-curl --retry 3 --retry-delay 2 -fsSL \
+curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSL \
   "https://codeload.github.com/jdx/mr-boxington/tar.gz/$commit" -o "$work/source.tar.gz"
 verify "$source_sha" "$work/source.tar.gz"
 # A tar overlay can retain files from an earlier attempt. Extract into a new
