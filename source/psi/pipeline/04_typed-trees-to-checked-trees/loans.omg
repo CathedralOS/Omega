@@ -842,8 +842,8 @@ crashes Trap
     requires depth < 8
     {
         offsets[depth as -Trapping] = offset + 1;
-        handles[depth + 1] = handle;
-        offsets[depth + 1] = 0;
+        handles[(depth + 1) as -Trapping] = handle;
+        offsets[(depth + 1) as -Trapping] = 0;
         transition { _ -> visit(syntax, typing, handles, offsets, depth + 1) }
     }
 
