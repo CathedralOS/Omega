@@ -1032,3 +1032,786 @@ fn ordinary_dispatch_resumes_the_same_live_provider_reference_completion() {
     );
     assert_eq!(execution.effects().len(), 1);
 }
+
+struct OriginalStorageHandoff {
+    owner: crate::TerminalStructuralValue,
+    backing: Rc<dyn TerminalScalarBacking>,
+    value: TerminalScalarValue,
+    path: Vec<Path>,
+    allocation_contents: usize,
+    calls: usize,
+}
+impl crate::TerminalEffectHandler for OriginalStorageHandoff {
+    fn storage_requirements(
+        &self,
+        _: semantic_vocabulary::BoundaryMachineId,
+        _: &[TerminalScalarValue],
+    ) -> crate::TerminalCallStorageRequirements<'_> {
+        crate::TerminalCallStorageRequirements {
+            arguments: &[0],
+            original: true,
+        }
+    }
+    fn prepare_original_storage(
+        &mut self,
+        _: semantic_vocabulary::BoundaryMachineId,
+        requests: &[crate::TerminalOriginalStorageRequest],
+    ) -> Result<crate::TerminalOriginalScalarBackings, TerminalEffectRejection> {
+        self.calls += 1;
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.structural_type(), self.owner.structural_type);
+        assert_eq!(request.view_type(), self.owner.structural_type);
+        assert_eq!(request.root().allocation(), self.owner.opaque_identity);
+        assert_eq!(request.access(), StructuralAccess::SharedBorrow);
+        assert_eq!(request.referent(), self.path.as_slice());
+        assert_eq!(
+            request.allocation_contents().len(),
+            self.allocation_contents
+        );
+        assert_eq!(request.values().len(), 1);
+        let value = &request.values()[0];
+        assert_eq!(value.path(), self.path.as_slice());
+        assert_eq!(value.value(), self.value);
+        assert!(Rc::ptr_eq(value.backing().unwrap(), &self.backing));
+        Err(TerminalEffectRejection::new(
+            "original-storage handoff has no native pointer authority",
+        ))
+    }
+    fn handle_effect(&mut self, _: &crate::TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        panic!("a borrowed sink cannot run before original backing is admitted")
+    }
+}
+
+fn original_storage_sink(
+    execution: &mut TerminalExecution<'_>,
+    source: PlaceId,
+    structural_type: StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+) -> Operation {
+    let mut boundary = idle_boundary();
+    boundary.id = semantic_vocabulary::BoundaryMachineId::new(2).unwrap();
+    boundary.parameter_order = vec![BoundaryParameterKind::Structural];
+    boundary.structural_parameters = vec![StructuralParameterDeclaration {
+        place: PlaceId::new(10).unwrap(),
+        position: 0,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+        additional_input_qualifications: vec![],
+    }];
+    let operation = Operation::unsuspended(
+        semantic_vocabulary::OperationId::new(2).unwrap(),
+        OperationResult::Unit,
+        OperationKind::BoundaryCall {
+            boundary: boundary.id,
+            arguments: vec![],
+            structural_arguments: vec![StructuralArgument {
+                place: source,
+                path,
+                access: StructuralAccess::SharedBorrow,
+            }],
+            completion_receipts: vec![],
+            requirement_obligations: vec![],
+        },
+    );
+    let module = Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .fixture_module_mut();
+    module.boundary_machines.push(boundary);
+    module.machines[0].blocks[0].operations[1] = operation.clone();
+    module.machines[0]
+        .structural_places
+        .retain(|place| place.id != PlaceId::new(2).unwrap());
+    operation
+}
+
+#[test]
+fn resident_reference_reaches_original_storage_handoff_without_owned_authority() {
+    let (mut execution, _, result) = fixture();
+    let home = backing(word(scalar(), 37));
+    let mut producer = ReferenceHandler {
+        returned: resident(
+            1,
+            vec![(vec![], word(scalar(), 37), scalar(), home.clone())],
+        ),
+        calls: 0,
+    };
+    assert!(matches!(
+        dispatch(&mut execution, &mut producer).unwrap(),
+        crate::engine::execution::OperationFlow::Advance
+    ));
+    let carrier = execution.structural_values.get(&result.place).unwrap();
+    let owner = execution
+        .reference_referents
+        .get(&carrier.into())
+        .unwrap()
+        .view
+        .clone();
+    assert!(matches!(
+        execution.original_owned_allocation(&owner),
+        Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
+            "storage source has no live supplying allocation"
+        ))
+    ));
+    let crate::storage::scalar_storage::ScalarCell::Resident { backing, .. } = execution
+        .structural_primitive_storage
+        .get(&(&owner).into())
+        .unwrap()
+    else {
+        panic!("the provider result must remain resident")
+    };
+    let mut handler = OriginalStorageHandoff {
+        owner,
+        backing: backing.clone(),
+        value: word(scalar(), 91),
+        path: vec![],
+        allocation_contents: 0,
+        calls: 0,
+    };
+    *home.value.borrow_mut() = word(scalar(), 91);
+    let operation = original_storage_sink(
+        &mut execution,
+        result.place,
+        StructuralTypeId::new(1).unwrap(),
+        vec![StructuralPathSegment::Referent],
+    );
+    let outcome = execution.execute_boundary_call(
+        &operation,
+        &mut handler,
+        &mut terminal_work::WorkMeter::with_budget(1000),
+        &mut crate::embedding::instance::ComponentBindings::new(),
+    );
+    assert_eq!(
+        handler.calls,
+        1,
+        "the typed original-storage handoff was not reached: {:?}",
+        outcome.as_ref().err()
+    );
+    assert!(matches!(
+        outcome,
+        Err(crate::TerminalInterpretError::StructuralArgumentPreparation { .. })
+            | Err(crate::TerminalInterpretError::ResidentStorage(_))
+    ));
+    assert!(matches!(
+        execution.original_owned_allocation(&handler.owner),
+        Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
+            "storage source has no live supplying allocation"
+        ))
+    ));
+    assert_eq!(
+        read(&execution, &result, &[], scalar()).unwrap(),
+        word(scalar(), 91)
+    );
+}
+
+fn published_scalar_reference() -> (
+    TerminalExecution<'static>,
+    StructuralOperationResult,
+    Rc<Backing>,
+    ReferenceHandler,
+) {
+    let (mut execution, _, result) = fixture();
+    let home = backing(word(scalar(), 37));
+    let mut producer = ReferenceHandler {
+        returned: resident(
+            1,
+            vec![(vec![], word(scalar(), 37), scalar(), home.clone())],
+        ),
+        calls: 0,
+    };
+    dispatch(&mut execution, &mut producer).unwrap();
+    (execution, result, home, producer)
+}
+fn reference_owner(
+    execution: &TerminalExecution<'_>,
+    place: PlaceId,
+) -> crate::TerminalStructuralValue {
+    let carrier = execution.structural_values.get(&place).unwrap();
+    execution
+        .reference_referents
+        .get(&carrier.into())
+        .unwrap()
+        .view
+        .clone()
+}
+
+#[test]
+fn live_reference_owner_retains_record_and_packed_array_geometry() {
+    for array in [false, true] {
+        let field = StructuralFieldId::new(1).unwrap();
+        let shape = if array {
+            StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(1).unwrap(),
+                length: 2.into(),
+            }
+        } else {
+            StructuralTypeShape::Record {
+                fields: (1..=2)
+                    .map(|index| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
+                        inline_carrier: Some(StructuralTypeId::new(1).unwrap()),
+                        id: StructuralFieldId::new(index).unwrap(),
+                        identity: TerminalIdentityIndex(index as u32),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar()),
+                        storage: None,
+                    })
+                    .collect(),
+                storage: StructuralRecordStorage::Packed,
+            }
+        };
+        let (mut execution, _, result) = setup(
+            vec![
+                ty(1, StructuralTypeShape::PrimitiveScalar(scalar())),
+                ty(2, shape),
+            ],
+            2,
+        );
+        let paths = if array {
+            vec![vec![Path::FixedIndex(0)], vec![Path::FixedIndex(1)]]
+        } else {
+            vec![
+                vec![Path::Field(field)],
+                vec![Path::Field(StructuralFieldId::new(2).unwrap())],
+            ]
+        };
+        let homes = [backing(word(scalar(), 37)), backing(word(scalar(), 63))];
+        let mut producer = ReferenceHandler {
+            returned: resident(
+                2,
+                vec![
+                    (
+                        paths[0].clone(),
+                        word(scalar(), 37),
+                        scalar(),
+                        homes[0].clone(),
+                    ),
+                    (
+                        paths[1].clone(),
+                        word(scalar(), 63),
+                        scalar(),
+                        homes[1].clone(),
+                    ),
+                ],
+            ),
+            calls: 0,
+        };
+        dispatch(&mut execution, &mut producer).unwrap();
+        let owner = reference_owner(&execution, result.place);
+        let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+        assert_eq!(
+            execution
+                .live_reference_storage_owner(&root)
+                .unwrap()
+                .unwrap(),
+            &owner
+        );
+        let endpoint_backing = if array {
+            execution
+                .structural_byte_storage
+                .get(&root)
+                .unwrap()
+                .capture_scalar(0)
+                .unwrap()
+                .1
+                .unwrap()
+        } else {
+            let cell =
+                crate::boundary::values::StructuralScalarRuntimeField::member(root.clone(), field);
+            let crate::storage::scalar_storage::ScalarCell::Resident { backing, .. } =
+                execution.structural_scalar_fields.get(&cell).unwrap()
+            else {
+                panic!("resident field")
+            };
+            backing.clone()
+        };
+        let mut handler = OriginalStorageHandoff {
+            owner,
+            backing: endpoint_backing,
+            value: word(scalar(), 37),
+            path: paths[0].clone(),
+            allocation_contents: 1,
+            calls: 0,
+        };
+        let mut path = vec![StructuralPathSegment::Referent];
+        path.push(if array {
+            StructuralPathSegment::FixedIndex(0)
+        } else {
+            StructuralPathSegment::Field(TerminalIdentityIndex(1))
+        });
+        let operation = original_storage_sink(
+            &mut execution,
+            result.place,
+            StructuralTypeId::new(1).unwrap(),
+            path,
+        );
+        let outcome = execution.execute_boundary_call(
+            &operation,
+            &mut handler,
+            &mut terminal_work::WorkMeter::with_budget(1000),
+            &mut crate::embedding::instance::ComponentBindings::new(),
+        );
+        assert_eq!(
+            handler.calls,
+            1,
+            "array={array}, outcome={:?}",
+            outcome.as_ref().err()
+        );
+        assert!(
+            format!("{:?}", outcome.err())
+                .contains("original-storage handoff has no native pointer authority")
+        );
+    }
+}
+
+#[test]
+fn live_reference_owner_ignores_unreachable_cache_and_checks_exact_identity_and_path() {
+    let (mut execution, result, _home, _producer) = published_scalar_reference();
+    let owner = reference_owner(&execution, result.place);
+    let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+    let carrier = execution.structural_values.get(&result.place).unwrap();
+    let mut cached = execution
+        .reference_referents
+        .get(&carrier.into())
+        .unwrap()
+        .clone();
+    cached.view.opaque_identity = u64::MAX;
+    let stale = crate::boundary::values::StructuralRuntimePlace {
+        opaque_identity: u64::MAX - 1,
+        path: vec![],
+    };
+    execution.reference_referents.insert(stale, cached).unwrap();
+    assert_eq!(
+        execution
+            .live_reference_storage_owner(&root)
+            .unwrap()
+            .unwrap(),
+        &owner
+    );
+    let unknown = crate::boundary::values::StructuralRuntimePlace {
+        opaque_identity: u64::MAX,
+        path: vec![],
+    };
+    assert!(
+        execution
+            .live_reference_storage_owner(&unknown)
+            .unwrap()
+            .is_none()
+    );
+    assert!(execution.actual_storage_type_from_owner(&unknown).is_err());
+    let mut bad_path = root;
+    bad_path.path.push(StructuralPathSegment::FixedIndex(1));
+    assert!(execution.live_reference_storage_owner(&bad_path).is_err());
+}
+
+#[test]
+fn live_reference_owner_rejects_wrong_types_and_partial_or_reinterpreted_geometry() {
+    for invalid in 0..4 {
+        let (mut execution, result, _home, _producer) = published_scalar_reference();
+        let owner = reference_owner(&execution, result.place);
+        let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+        let carrier = execution
+            .structural_values
+            .get(&result.place)
+            .unwrap()
+            .clone();
+        if invalid == 0 {
+            let module = Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            module.structural_types.push(ty(
+                3,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            ));
+            execution
+                .reference_referents
+                .get_mut(&(&carrier).into())
+                .unwrap()
+                .view
+                .structural_type = StructuralTypeId::new(3).unwrap();
+        } else if invalid == 1 {
+            let reference = execution
+                .reference_referents
+                .get_mut(&(&carrier).into())
+                .unwrap();
+            reference
+                .view
+                .path
+                .push(StructuralPathSegment::FixedIndex(0));
+        } else if invalid == 2 {
+            let mut cursor = execution.local_structural_identities.cursor();
+            let mut prepared = execution
+                .capture_reference(
+                    &StructuralArgument {
+                        place: result.place,
+                        path: vec![StructuralPathSegment::Referent],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    result.structural_type,
+                    &[],
+                    None,
+                    &mut cursor,
+                )
+                .unwrap();
+            execution.local_structural_identities.commit_cursor(cursor);
+            prepared
+                .referent
+                .primitive_loan
+                .as_mut()
+                .unwrap()
+                .storage
+                .encoding = Some(
+                crate::storage::primitive_storage::PrimitiveStorageEncoding {
+                    source: scalar(),
+                    view: ScalarType::Boolean,
+                },
+            );
+            execution
+                .reference_referents
+                .insert((&carrier).into(), prepared.referent)
+                .unwrap();
+        } else {
+            let module = Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            module.structural_types.push(ty(
+                3,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            ));
+            module.structural_types.push(ty(
+                4,
+                StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(3).unwrap(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ));
+            let mut alias = carrier.clone();
+            alias.opaque_identity = execution.local_structural_identities.allocate().unwrap();
+            alias.structural_type = StructuralTypeId::new(4).unwrap();
+            let mut binding = execution
+                .reference_referents
+                .get(&(&carrier).into())
+                .unwrap()
+                .clone();
+            binding.view.structural_type = StructuralTypeId::new(3).unwrap();
+            execution
+                .reference_referents
+                .insert((&alias).into(), binding)
+                .unwrap();
+            execution
+                .structural_values
+                .insert(PlaceId::new(3).unwrap(), alias)
+                .unwrap();
+        }
+        if invalid == 1 {
+            assert!(
+                execution
+                    .live_reference_storage_owner(&root)
+                    .unwrap()
+                    .is_none()
+            );
+        } else {
+            assert!(execution.live_reference_storage_owner(&root).is_err());
+        }
+        assert!(execution.original_owned_allocation(&owner).is_err());
+    }
+}
+
+#[test]
+fn live_reference_owner_survives_reborrow_and_retires_after_the_last_alias() {
+    let (mut execution, result, home, producer) = published_scalar_reference();
+    let owner = reference_owner(&execution, result.place);
+    let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+    let weak = Rc::downgrade(&home);
+    let first = execution
+        .structural_values
+        .get(&result.place)
+        .unwrap()
+        .clone();
+    let mut cursor = execution.local_structural_identities.cursor();
+    let prepared = execution
+        .capture_reference(
+            &StructuralArgument {
+                place: result.place,
+                path: vec![StructuralPathSegment::Referent],
+                access: StructuralAccess::SharedBorrow,
+            },
+            result.structural_type,
+            &[],
+            None,
+            &mut cursor,
+        )
+        .unwrap();
+    execution.local_structural_identities.commit_cursor(cursor);
+    let mut alias = first.clone();
+    alias.opaque_identity = execution.local_structural_identities.allocate().unwrap();
+    let place = PlaceId::new(2).unwrap();
+    execution
+        .structural_values
+        .insert(place, alias.clone())
+        .unwrap();
+    execution
+        .reference_referents
+        .insert((&alias).into(), prepared.referent)
+        .unwrap();
+    assert_eq!(
+        execution
+            .live_reference_storage_owner(&root)
+            .unwrap()
+            .unwrap(),
+        &owner
+    );
+    execution.structural_values.remove(&result.place);
+    execution.reference_referents.remove(&(&first).into());
+    execution.collect_retired_descriptor_storage(None);
+    assert_eq!(
+        execution
+            .live_reference_storage_owner(&root)
+            .unwrap()
+            .unwrap(),
+        &owner
+    );
+    assert_eq!(
+        execution.actual_storage_type_from_owner(&root).unwrap(),
+        owner.structural_type
+    );
+    assert!(execution.original_owned_allocation(&owner).is_err());
+    drop(home);
+    drop(producer);
+    assert!(weak.upgrade().is_some());
+    execution.structural_values.remove(&place);
+    // Leave an unreachable reference cache row: it must not keep typed authority.
+    assert!(
+        execution
+            .live_reference_storage_owner(&root)
+            .unwrap()
+            .is_none()
+    );
+    assert!(execution.actual_storage_type_from_owner(&root).is_err());
+    execution.collect_retired_descriptor_storage(None);
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn live_reference_owner_preserves_guest_allocation_authority_and_competing_errors() {
+    let (mut execution, result, _home, _producer) = published_scalar_reference();
+    let carrier = execution
+        .structural_values
+        .get(&result.place)
+        .unwrap()
+        .clone();
+    let owner = reference_owner(&execution, result.place);
+    let allocation = execution.original_owned_allocation(&carrier).unwrap();
+    assert_eq!(allocation.place, result.place);
+    assert_eq!(allocation.value, carrier);
+    assert!(execution.original_owned_allocation(&owner).is_err());
+    // Existing guest-owned ambiguity must win even though a live reference backing exists.
+    let module = Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .fixture_module_mut();
+    for id in 3..=4 {
+        let place = PlaceId::new(id).unwrap();
+        let operation = semantic_vocabulary::OperationId::new(id).unwrap();
+        let mut declared = result.clone();
+        declared.place = place;
+        declared.structural_type = owner.structural_type;
+        module.machines[0]
+            .structural_places
+            .push(StructuralPlaceDeclaration {
+                id: place,
+                kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: owner.structural_type,
+                },
+            });
+        module.machines[0].blocks[0]
+            .operations
+            .push(Operation::unsuspended(
+                operation,
+                OperationResult::Structural(declared),
+                OperationKind::EstablishZeroedStructural {},
+            ));
+    }
+    execution
+        .structural_values
+        .insert(PlaceId::new(3).unwrap(), owner.clone())
+        .unwrap();
+    execution
+        .structural_values
+        .insert(PlaceId::new(4).unwrap(), owner.clone())
+        .unwrap();
+    assert!(matches!(
+        execution.original_owned_allocation(&owner),
+        Err(crate::TerminalInterpretError::VerifiedOperationMalformed { .. })
+    ));
+    let mut handler = OriginalStorageHandoff {
+        owner: owner.clone(),
+        backing: {
+            let crate::storage::scalar_storage::ScalarCell::Resident { backing, .. } = execution
+                .structural_primitive_storage
+                .get(&(&owner).into())
+                .unwrap()
+            else {
+                unreachable!()
+            };
+            backing.clone()
+        },
+        value: word(scalar(), 37),
+        path: vec![],
+        allocation_contents: 0,
+        calls: 0,
+    };
+    let operation = original_storage_sink(
+        &mut execution,
+        result.place,
+        owner.structural_type,
+        vec![StructuralPathSegment::Referent],
+    );
+    assert!(
+        execution
+            .execute_boundary_call(
+                &operation,
+                &mut handler,
+                &mut terminal_work::WorkMeter::with_budget(1000),
+                &mut crate::embedding::instance::ComponentBindings::new()
+            )
+            .is_err()
+    );
+    assert_eq!(handler.calls, 0);
+}
+
+#[test]
+fn live_reference_owner_keeps_stale_resident_reads_from_reaching_the_storage_handler() {
+    let (mut execution, result, home, _producer) = published_scalar_reference();
+    let owner = reference_owner(&execution, result.place);
+    let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+    let crate::storage::scalar_storage::ScalarCell::Resident { backing, .. } =
+        execution.structural_primitive_storage.get(&root).unwrap()
+    else {
+        unreachable!()
+    };
+    let mut handler = OriginalStorageHandoff {
+        owner,
+        backing: backing.clone(),
+        value: word(scalar(), 37),
+        path: vec![],
+        allocation_contents: 0,
+        calls: 0,
+    };
+    home.stale.set(true);
+    let operation = original_storage_sink(
+        &mut execution,
+        result.place,
+        StructuralTypeId::new(1).unwrap(),
+        vec![StructuralPathSegment::Referent],
+    );
+    assert!(
+        execution
+            .execute_boundary_call(
+                &operation,
+                &mut handler,
+                &mut terminal_work::WorkMeter::with_budget(1000),
+                &mut crate::embedding::instance::ComponentBindings::new()
+            )
+            .is_err()
+    );
+    assert_eq!(handler.calls, 0);
+}
+
+#[test]
+fn live_reference_owner_ignores_inactive_cached_descendants_of_a_live_sum() {
+    let (mut execution, result, _home, _producer) = published_scalar_reference();
+    let owner = reference_owner(&execution, result.place);
+    let root = crate::boundary::values::StructuralRuntimePlace::from(&owner);
+    let active = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    let inactive = semantic_vocabulary::StructuralCaseId::new(2).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .fixture_module_mut()
+        .structural_types
+        .push(ty(
+            3,
+            StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: active,
+                        identity: TerminalIdentityIndex(1),
+                        fields: vec![],
+                    },
+                    StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: inactive,
+                        identity: TerminalIdentityIndex(2),
+                        fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
+                            inline_carrier: None,
+                            id: field,
+                            identity: TerminalIdentityIndex(1),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(result.structural_type),
+                            storage: None,
+                        }],
+                    },
+                ],
+            },
+        ));
+    let sum = crate::TerminalStructuralValue::minted(
+        execution.local_structural_identities.allocate().unwrap(),
+        StructuralTypeId::new(3).unwrap(),
+        vec![],
+    );
+    let sum_root = crate::boundary::values::StructuralRuntimePlace::from(&sum);
+    execution
+        .structural_cases
+        .insert(
+            sum_root.clone(),
+            crate::boundary::structural_inputs::case_membership::StructuralCaseContents {
+                structural_type: sum.structural_type,
+                case: active,
+            },
+        )
+        .unwrap();
+    execution
+        .structural_values
+        .insert(PlaceId::new(3).unwrap(), sum)
+        .unwrap();
+    let carrier = execution.structural_values.get(&result.place).unwrap();
+    let mut cache = execution
+        .reference_referents
+        .get(&carrier.into())
+        .unwrap()
+        .clone();
+    cache.view.opaque_identity = u64::MAX;
+    let mut cached_home = sum_root;
+    cached_home.path = vec![
+        StructuralPathSegment::Case(inactive),
+        StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+    ];
+    execution
+        .reference_referents
+        .insert(cached_home, cache)
+        .unwrap();
+    assert_eq!(
+        execution
+            .live_reference_storage_owner(&root)
+            .unwrap()
+            .unwrap(),
+        &owner
+    );
+    let phantom = crate::boundary::values::StructuralRuntimePlace {
+        opaque_identity: u64::MAX,
+        path: vec![],
+    };
+    assert!(
+        execution
+            .live_reference_storage_owner(&phantom)
+            .unwrap()
+            .is_none()
+    );
+    assert!(execution.actual_storage_type_from_owner(&phantom).is_err());
+}

@@ -15,7 +15,7 @@ const graph=await new ELK().layout({id:'spine',layoutOptions:{
 const positions=new Map(graph.children.map(n=>[n.id,n]));
 const nodes=new Map();
 let offset=0;
-const phaseGaps={compiler:24,closure:32,'native-0':36,publish:24};
+const phaseGaps=model.phaseGaps||{compiler:24,closure:32,'native-0':36,publish:24};
 for(const [index,id] of model.spine.entries()){
   const incoming=index?model.edges.find(e=>e.main&&e.end===id):null;
   if(incoming?.label&&records.get(incoming.start).role!=='transform')offset+=Math.max(0,label(incoming.id,incoming.label).height+16-18);
@@ -28,6 +28,9 @@ function place(id,x,y){
   do{blocked=false;for(const n of nodes.values())if(x<n.x+n.width+20&&x+220>n.x-20&&y<n.y+n.height+24&&y+60>n.y-24){y=n.y+n.height+32;blocked=true;break;}}while(blocked);
   nodes.set(id,{id,x,y,width:220,height:60,labels:[]});
 }
+if(model.placements){
+  for(const p of model.placements)place(p.id,p.x,nodes.get(p.anchor).y+p.offset);
+}else{
 place('source-eval',680,nodes.get('compiler').y);
 place('policy-inputs',680,nodes.get('closure').y);
 place('policy-eval',1020,nodes.get('closure').y);
@@ -36,6 +39,7 @@ place('runtime-host',680,nodes.get('admit').y+140);
 place('engine',1020,nodes.get('runtime-host').y);
 place('worker',680,nodes.get('runtime-host').y+140);
 place('installations',1020,nodes.get('target').y);
+}
 if(nodes.size!==model.nodes.length)throw Error('Every component needs an explicit place beside or on the main route');
 function label(id,text,max=20){
   const lines=[];let line='';
@@ -43,12 +47,12 @@ function label(id,text,max=20){
   if(line)lines.push(line);
   return{id,text,lines,width:Math.max(...lines.map(s=>s.length))*9+8,height:lines.length*26};
 }
-const groups=[
+const groups=(model.phases||[
   ['source-group','compiler','accepted',['1. Source','compilation','Psi 00–06']],
   ['providers-group','closure','selected',['2. Execution','selection']],
   ['native-group','native-0','image',['3. Native','compilation','Omega 00–09']],
   ['product-group','publish','native-run',['4. Publish','and run']],
-].map(([id,first,last,lines])=>({id,title:lines.join(' · '),x:150,y:nodes.get(first).y-10,width:340,
+]).map(([id,first,last,lines])=>({id,title:lines.join(' · '),x:150,y:nodes.get(first).y-10,width:340,
  height:nodes.get(last).y+nodes.get(last).height-nodes.get(first).y+20,
  caption:{x:16,y:nodes.get(first).y+4,lines,width:130,height:lines.length*26}}));
 const reserved=[];
@@ -60,7 +64,7 @@ for(const n of nodes.values()){
   }
 }
 for(const g of groups)reserved.push(g.caption);
-const entry=nodes.get('build');
+const entry=nodes.get(model.spine[0]);
 const startLabel={id:'start',text:'START',lines:['START'],x:entry.x,y:entry.y-32,width:100,height:26};
 reserved.push(startLabel);
 const edges=model.edges.map(e=>({...e,labels:[],sections:[]}));
@@ -75,6 +79,7 @@ for(const e of edges.filter(e=>e.main)){
 }
 // neato -n2 routes around the fixed boxes without rearranging the spine.
 // Text on the spine is also an obstacle, rather than a wire crossing a label.
+if(edges.some(e=>!e.main)){
 const height=Math.max(...[...nodes.values()].map(n=>n.y+n.height))+40;
 const quote=JSON.stringify;
 const dot=['digraph G {','graph [splines=ortho,overlap=true,margin=0,pad=0];','node [shape=box,fixedsize=true,label="",margin=0];'];
@@ -84,7 +89,7 @@ for(const [i,l] of reserved.entries())dot.push(fixed('_text_'+i,l));
 for(const e of edges.filter(e=>!e.main))dot.push(`${quote(e.start)} -> ${quote(e.end)} [id=${quote(e.id)}];`);
 dot.push('}');
 const routed=JSON.parse(execFileSync('neato',['-n2','-Tjson'],{input:dot.join('\n'),encoding:'utf8',maxBuffer:8*1024*1024}));
-const reference=routed.objects.find(n=>n.name==='build').pos.split(',').map(Number);
+const reference=routed.objects.find(n=>n.name===entry.id).pos.split(',').map(Number);
 const dx=reference[0]-(entry.x+entry.width/2),dy=reference[1]-(height-entry.y-entry.height/2);
 const point=([x,y])=>({x:Number((x-dx).toFixed(3)),y:Number((height-y+dy).toFixed(3))});
 const routes=new Map(routed.edges.map(e=>[e.id,e]));
@@ -95,6 +100,7 @@ for(const e of edges.filter(e=>!e.main)){
   const head=r.pos.split(/\s+/).find(s=>s.startsWith('e,'));
   if(head)points.push(point(head.slice(2).split(',').map(Number)));
   e.sections=[{points:points.filter((p,i,a)=>i===0||p.x!==a[i-1].x||p.y!==a[i-1].y)}];
+}
 }
 const occupied=[...nodes.values(),...reserved].map(n=>({...n}));
 const overlap=(a,b)=>a.x<b.x+b.width+5&&a.x+a.width+5>b.x&&a.y<b.y+b.height+5&&a.y+a.height+5>b.y;

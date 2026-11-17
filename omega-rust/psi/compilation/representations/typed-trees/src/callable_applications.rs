@@ -6918,6 +6918,34 @@ pub(crate) mod signatures {
     }
 
     impl CallableApplication {
+        pub(super) fn invocations(
+            &self,
+            program: &mut TypedTrees,
+            declared: HandleSpan<signature::AuthoredInvocation>,
+        ) -> Result<HandleSpan<signature::AuthoredInvocation>, &'static str> {
+            let mut invocations = program
+                .signature_invokes
+                .span(declared)
+                .ok_or("callable invocation span is stale")?
+                .to_vec();
+            for invocation in &mut invocations {
+                invocation.target = match invocation.target {
+                    signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                        signature::AuthoredInvocationTarget::Parameter {
+                            ordinal,
+                            symbol: self.symbol(symbol),
+                        }
+                    }
+                    signature::AuthoredInvocationTarget::Service(symbol) => {
+                        signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
+                    }
+                    unresolved @ (signature::AuthoredInvocationTarget::Unresolved
+                    | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
+                };
+            }
+            Ok(program.signature_invokes.insert_many(invocations))
+        }
+
         pub(crate) fn signature(
             &mut self,
             program: &mut TypedTrees,
@@ -7079,25 +7107,7 @@ pub(crate) mod signatures {
                         .signature_contracts
                         .append_to_span(&mut applied.contracts, contract);
                 }
-                applied.invokes = HandleSpan::empty();
-                for mut invocation in program.state_signature_invokes(declared).to_vec() {
-                    invocation.target = match invocation.target {
-                        signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                            signature::AuthoredInvocationTarget::Parameter {
-                                ordinal,
-                                symbol: self.symbol(symbol),
-                            }
-                        }
-                        signature::AuthoredInvocationTarget::Service(symbol) => {
-                            signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
-                        }
-                        unresolved @ (signature::AuthoredInvocationTarget::Unresolved
-                        | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
-                    };
-                    program
-                        .signature_invokes
-                        .append_to_span(&mut applied.invokes, invocation);
-                }
+                applied.invokes = self.invocations(program, declared.invokes)?;
                 if let language_semantics::TerminationGuarantee::Terminates { premises } =
                     &mut applied.termination_guarantee
                 {
@@ -9562,13 +9572,21 @@ impl TypedTrees {
         Ok(copied)
     }
 
-    /// Applies one declaration's types throughout a copied entry and its clauses.
-    /// Signatures, local annotations, patterns, static operands and expression
-    /// metadata all use the same substitution owner; applying a domain also
-    /// rebuilds its semantic identity from the substituted arguments.
-    pub fn apply_copied_callable_types<'state>(
+    /// A copied callable keeps its invocation permissions and substituted types.
+    /// Header targets, local annotations, patterns, static operands and expression
+    /// metadata all use the same declaration map; applying a domain also rebuilds
+    /// its semantic identity from the substituted arguments.
+    pub fn apply_copied_callable_interface<'state>(
         &mut self,
-        entries: impl IntoIterator<Item = (SymbolHandle, &'state mut crate::state::State, usize, usize)>,
+        entries: impl IntoIterator<
+            Item = (
+                SymbolHandle,
+                &'state mut crate::machine::Machine,
+                &'state mut crate::state::State,
+                usize,
+                usize,
+            ),
+        >,
         symbols: crate::SymbolRebinding<'_>,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
     ) -> Result<(), &'static str> {
@@ -9581,8 +9599,9 @@ impl TypedTrees {
                 .declaration_symbols
                 .insert_execution(source, target);
         }
-        for (declaration, state, first_expression, expression_count) in entries {
+        for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
+            machine.invokes = application.invocations(self, machine.invokes)?;
             let rows = self
                 .expression_table
                 .iter_expressions_from(first_expression)

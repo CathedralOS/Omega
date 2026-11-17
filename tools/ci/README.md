@@ -11,10 +11,15 @@ builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
 and diff, then, when Rust files changed, `fmt --check`, which runs one
 `rustfmt` per CPU.
 
-`tools/xtask/bootstrap-mbx.sh` installs `mbx` at the version in
-`tools/mbx-version` and verifies its checksum. It lives under `tools/xtask/` so
-that `admission.yml`'s `tools/xtask/**` push filter and cache key cover it
-along with the `xtask` crate.
+`tools/xtask/bootstrap-mbx.sh` installs the checksum-capable adapter pinned in
+`tools/mbx-version`. It verifies the official bootstrap release, pins upstream
+source, applies `tools/xtask/mbx-checksum.patch`, and caches the completed binary
+by source, patch, installer, profile and toolchain identity. CI restores that
+small artifact cache before setup, so unchanged recipes do not rebuild mbx.
+The installer and patch live under `tools/xtask/`, covered by admission's push
+filter and cache key along with the `xtask` crate. See
+[checksum setup](../docs/testing.md#checksum-capable-mbx-setup) for build policy
+and the cache-hit/restored-mtime mutation control.
 
 A pull request can restore a cache only from its own runs or from main's. So
 the same workflow also runs on pushes to main that change `tools/xtask`,

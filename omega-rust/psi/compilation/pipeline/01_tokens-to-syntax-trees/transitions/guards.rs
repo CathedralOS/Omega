@@ -287,24 +287,13 @@ fn retain_value_pattern(
     bindings: &mut Vec<DestructureBindings>,
 ) {
     let capture = syntax_trees.expressions.insert_transition_subject(subject);
-    let (head, guard) = if matches!(
-        syntax_trees.expressions.expression(value),
-        ExpressionNode::Name { .. }
-    ) {
-        (value, ExpressionHandle::invalid())
-    } else if arm_pattern_is_condition(syntax_trees, value) {
+    // Resolution distinguishes a named case/domain from a value and creates
+    // the ordinary equality selection there. Keep literals and computed
+    // values on that same route instead of inserting an unpositioned test.
+    let (head, guard) = if arm_pattern_is_condition(syntax_trees, value) {
         (ExpressionHandle::invalid(), value)
     } else {
-        let equality =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                    left: subject,
-                    operator: BinaryOperator::Equal,
-                    right: value,
-                }));
-        (ExpressionHandle::invalid(), equality)
+        (value, ExpressionHandle::invalid())
     };
     bindings.push(DestructureBindings {
         subject,

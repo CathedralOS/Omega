@@ -2496,6 +2496,86 @@ fn closed_callback_type_requirements_are_proved_and_retained() {
 }
 
 #[test]
+fn copied_invocation_rows_rebind_only_owned_targets() {
+    use super::{Operand, copy_declarations};
+    use typed_trees::signature::{AuthoredInvocation, AuthoredInvocationTarget};
+
+    let mut source = source();
+    let program = &mut source.program;
+    let service = program.symbols.insert_generated_root_from(
+        source.relay.machine,
+        SymbolKind::Trait,
+        "Handler",
+    );
+    // Unresolved rows remain visible to the later source check. Copying must
+    // not turn them into an omitted, inferred invocation ceiling.
+    let authored = vec![
+        AuthoredInvocation {
+            name: Identifier::generated("item"),
+            target: AuthoredInvocationTarget::Parameter {
+                ordinal: 0,
+                symbol: source.relay.item,
+            },
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("Handler"),
+            target: AuthoredInvocationTarget::Service(service),
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("unresolved"),
+            target: AuthoredInvocationTarget::Unresolved,
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("missing"),
+            target: AuthoredInvocationTarget::Undeclared,
+            ..Default::default()
+        },
+    ];
+    let span = program.signature_invokes.insert_many(authored.clone());
+    let position = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == source.relay.machine)
+        .unwrap();
+    program.machine_mut(position).invokes = span;
+    let operand = Operand::read(
+        program,
+        &TypeParameter {
+            symbol: source.relay.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+        &argument(source.byte, "u8"),
+    )
+    .unwrap();
+    let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
+    let machine = program.machine_by_symbol(copied.machine).unwrap();
+    let state = only_state(program, copied.machine);
+    let parameter = program.state_parameters(state)[0].symbol;
+    assert_ne!(parameter, source.relay.item);
+    assert_eq!(program.symbols.get(parameter).parent, state.symbol);
+    let rows = program.signature_invokes.span(machine.invokes).unwrap();
+    assert_eq!(rows.len(), authored.len());
+    assert_eq!(
+        rows[0].target,
+        AuthoredInvocationTarget::Parameter {
+            ordinal: 0,
+            symbol: parameter,
+        }
+    );
+    for (copied, original) in rows.iter().skip(1).zip(authored.iter().skip(1)) {
+        assert_eq!(copied, original);
+    }
+    assert_eq!(
+        program.signature_invokes.span(span).unwrap().to_vec(),
+        authored
+    );
+}
+
+#[test]
 fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
     use super::{Operand, copy_declarations};
     use language_core::data_layout_queries::DataLayoutQueryKind;

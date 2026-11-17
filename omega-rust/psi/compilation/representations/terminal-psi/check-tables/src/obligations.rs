@@ -597,7 +597,9 @@ fn width_type_parts(
                 width_fields(&case.fields, children, widths);
             }
         }
-        StructuralTypeShape::Opaque | StructuralTypeShape::ByteSequence(_) => {}
+        StructuralTypeShape::Opaque
+        | StructuralTypeShape::TypeParameter
+        | StructuralTypeShape::ByteSequence(_) => {}
     }
     if extents {
         widths.truncate(start);

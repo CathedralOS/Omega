@@ -91,6 +91,11 @@ wire_enum! {
         4 => Extent,
         5 => RepresentationView { structural_type: Id, stored_scalar: Optional<Scalar> },
         6 => Referent,
+        // Unknown contents are logical obligations, never executable addresses.
+        ; refuse ResolvedStructuralPathSegment::UnknownContents =>
+            CodecError::MalformedStructuralFoundation(
+                "unknown generic contents are not an executable storage path"
+            )
     }
 }
 
@@ -115,6 +120,22 @@ mod tests {
         BlockId, CallableContractId, InvocationSite as SemanticInvocation, MachineDescriptorId,
         MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
     };
+
+    #[test]
+    fn unknown_contents_are_never_an_executable_path_tag() {
+        let mut writer = Writer::default();
+        assert!(matches!(
+            PathSegment::write(&mut writer, &ResolvedStructuralPathSegment::UnknownContents),
+            Err(CodecError::MalformedStructuralFoundation(
+                "unknown generic contents are not an executable storage path"
+            ))
+        ));
+        assert!(writer.finish().is_empty());
+        assert!(matches!(
+            PathSegment::read(&mut Reader::new(&[7])),
+            Err(CodecError::InvalidTag("resolved callable storage path", 7))
+        ));
+    }
 
     #[test]
     fn nonempty_callable_result_keeps_occurrences_paths_inputs_and_unresolved_code() {

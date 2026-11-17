@@ -1921,6 +1921,11 @@ pub(crate) mod structural_type_wire {
             writer.id(selection.cleanup_machine);
         }
         match &declaration.shape {
+            StructuralTypeShape::TypeParameter => {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "an open type parameter cannot be serialized as executable storage",
+                ));
+            }
             StructuralTypeShape::Opaque => {
                 if declaration.quotient_carrier.is_some()
                     || declaration.scalar_restriction.is_some()

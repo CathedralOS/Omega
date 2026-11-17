@@ -241,7 +241,9 @@ impl Program<'_> {
                     if let Ok(position) = scope.binary_search_by_key(&key, |(symbol, _)| {
                         (symbol.arena_index(), symbol.generation())
                     }) {
-                        return Ok(scope[position].1.declared().is_some());
+                        let value = scope[position].1;
+                        return Ok(value.declared().is_some()
+                            && (self.reading_schema || !matches!(value, ValueType::Rigid(_))));
                     }
                     if self.typed.symbols.builtin_type_atom(*symbol).is_some() {
                         return Ok(true);
@@ -423,9 +425,12 @@ impl Program<'_> {
             .as_ref()
             .and_then(|world| world.remainder.as_ref())
         {
-            let rigid = |reference| {
-                matches!(self.resolve_written(scope, Written::Reference(reference)),
-                Bound::Value(ValueType::Rigid(parameter)) if parameter.0 as usize == *position)
+            let rigid = |reference| match self.resolve_written(scope, Written::Reference(reference))
+            {
+                Bound::Value(value) => self
+                    .logical_parameter(value)
+                    .is_some_and(|parameter| parameter.0 as usize == *position),
+                _ => false,
             };
             let other = match (rigid(left), rigid(right)) {
                 (true, false) => Some(right),
@@ -860,7 +865,12 @@ impl Program<'_> {
             && symbol.is_valid()
             && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
         {
-            return Ok(*bound);
+            return match *bound {
+                ValueType::Rigid(rigid) if !self.reading_schema => {
+                    self.parameter_storage(id, rigid, handle)
+                }
+                value => Ok(value),
+            };
         }
         if handle.is_valid()
             && let TypeReferenceNode::Named { symbol, .. } =

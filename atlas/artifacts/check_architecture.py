@@ -61,6 +61,28 @@ def main():
                 page.locator('[data-camera="start"]').click()
                 assert page.locator('#compiler-overview').get_attribute('data-camera')==start_camera
                 assert page.locator('.overview-edge.is-traced').count()==0
+                viewport.press('ArrowDown')
+                current_camera=page.locator('#compiler-overview').get_attribute('data-camera')
+                page.get_by_role('button',name='Proposed',exact=True).click()
+                assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
+                proposed=json.loads(page.locator('#overview-proposed-model').text_content())
+                assert page.locator('.connected-viewport .connected-scene').count()==1
+                assert page.locator('.connected-viewport [data-endpoint]').count()==len(proposed['nodes'])
+                assert len(proposed['edges'])==len(proposed['nodes'])-1
+                assert all(e['main'] for e in proposed['edges'])
+                assert [n['number'] for n in proposed['nodes'] if n['role']=='owner']==list(range(11))
+                assert page.locator('.connected-viewport [data-endpoint="engine"]').count()==0
+                assert page.locator('.connected-viewport [data-endpoint="compiler"]').count()==0
+                page.locator('.connected-jump').select_option('native-planning')
+                assert 'Open contract:' in page.locator('.connected-detail').inner_text()
+                assert page.locator('.connected-detail').get_by_role('link',name='Read proposal',exact=True).count()==1
+                proposed_camera=page.locator('#compiler-overview').get_attribute('data-camera')
+                page.get_by_role('button',name='Current',exact=True).click()
+                assert page.locator('#compiler-overview').get_attribute('data-camera')==current_camera
+                page.get_by_role('button',name='Proposed',exact=True).click()
+                assert page.locator('#compiler-overview').get_attribute('data-camera')==proposed_camera
+                assert page.locator('.overview-edge.is-traced').count()==0
+                page.get_by_role('button',name='Current',exact=True).click()
                 page.locator('[data-camera="expand"]').click()
                 assert page.locator('.architecture').evaluate("e=>e.classList.contains('is-expanded')")
                 page.keyboard.press('Escape')
@@ -72,6 +94,9 @@ def main():
         context=browser.new_context(viewport={'width':400,'height':844},java_script_enabled=False)
         page=context.new_page();page.goto(base+'pages/architecture.html')
         assert page.locator('.connected-tools').is_hidden()
+        assert page.locator('.connected-views').is_hidden()
+        page.locator('.proposed-contracts > summary').click()
+        assert page.locator('.proposed-contracts').get_by_role('link',name='Recorded plan',exact=True).count()>0
         assert page.locator('.overview-node[data-endpoint="engine"]').count()==1
         page.locator('.arch-arrow-evidence > summary').click()
         assert page.locator('.arch-arrow-evidence a').count()>0

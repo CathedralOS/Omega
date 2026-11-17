@@ -1865,6 +1865,8 @@ pub(crate) mod structural_encoding {
             },
         );
         match &declaration.shape {
+            // This tag distinguishes hash inputs; executable codecs reject open storage.
+            StructuralTypeShape::TypeParameter => bytes.u8(20),
             StructuralTypeShape::Opaque => bytes.u8(19),
             StructuralTypeShape::Reference { referent, access } => {
                 bytes.u8(7);

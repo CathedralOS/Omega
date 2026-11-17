@@ -360,6 +360,9 @@ fn read_structural(
         .structural_type(structural_type)
         .ok_or("Terminal result lost its structural declaration")?;
     match &declaration.shape {
+        StructuralTypeShape::TypeParameter => {
+            Err("generic result needs a closed application before build-time observation".into())
+        }
         StructuralTypeShape::Opaque => {
             let observed = instance
                 .observe_result(path)

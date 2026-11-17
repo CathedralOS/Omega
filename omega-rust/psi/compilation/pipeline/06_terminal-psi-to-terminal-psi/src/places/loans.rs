@@ -2107,17 +2107,17 @@ impl<'a> Storage<'a> {
             return Ok(());
         };
         let concerns = Construct::Machine;
-        let slots = references.result_slots(self.machine).ok_or_else(|| {
+        let contents = references.result_contents(self.machine).ok_or_else(|| {
             self.unsupported(
                 concerns,
                 "reference result has no complete actual return-source correspondence",
             )
         })?;
-        let actual = terminal_semantics::reference_result_sources(
+        let actual = terminal_semantics::reference_result_contents(
             self.types,
             &self.lowered.structural_parameters,
             result,
-            &slots,
+            &contents,
         )
         .map_err(|reason| self.unsupported(concerns, reason))?;
         if actual != result.reference_sources {

@@ -1966,6 +1966,9 @@ impl<'t> Program<'t> {
         if !call.application.is_valid() {
             return Ok(None);
         }
+        let Some(owner) = self.entered_machine(call.target) else {
+            return Ok(None);
+        };
         let typed = self.typed;
         let table = &typed.expression_table;
         let bindings = table.static_machine_application_bindings(call.application);
@@ -1985,11 +1988,6 @@ impl<'t> Program<'t> {
         {
             return unserved("type application with another static feature");
         }
-        let owner = match typed.symbols.get(call.target).kind {
-            SymbolKind::State => typed.symbols.get(call.target).parent,
-            SymbolKind::Machine => call.target,
-            other => return unserved(symbol_kind(other)),
-        };
         let Some(callee) = typed.machine_by_symbol(owner) else {
             return unserved("type application of something that is not a machine");
         };
@@ -2024,7 +2022,12 @@ impl<'t> Program<'t> {
         call: &StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        let target = self.call_target_symbol(id, call.target)?;
+        // This probe serves ordinary const-parameter machines. A requirement
+        // entry belongs to its trait, so leave it to the normal call reader
+        // rather than asking that trait for an executable machine body.
+        let Some(target) = self.entered_machine(call.target) else {
+            return Ok(None);
+        };
         let Some(machine) = self.typed.machine_by_symbol(target) else {
             return Ok(None);
         };

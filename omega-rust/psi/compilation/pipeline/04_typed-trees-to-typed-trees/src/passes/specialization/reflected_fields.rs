@@ -490,10 +490,9 @@ fn context_type(
                 },
             ),
     };
-    // The context is runtime storage in this caller, not a region-free
-    // static type operand. Typing can infer a context carrying the caller's
-    // loans; retain that exact type rather than sending it through the
-    // static argument reader, which correctly refuses such regions.
+    // The context can still contain open runtime types. Retain the exact
+    // type that typing supplied, rather than requiring a closed static
+    // application, and compare it with the borrowed storage below.
     let written = written
         .map(|argument| {
             if argument.type_reference.is_valid() {

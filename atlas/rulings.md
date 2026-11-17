@@ -10,6 +10,10 @@ changed here first, with the date.
    writes the next. Nothing reaches back to an earlier stage, and nothing
    travels beside the pipeline: no sidecar, no library a stage calls instead of
    receiving its input, no stage work done outside a stage.
+   Admit required requests at the front; carry them and each stage's computed
+   facts through the successive representations to their consumers. Proposed
+   stages have ordered numbers. Evaluation and other compiler work belong
+   inside their owning stage, not a separate service drawn beside it.
 2. **The least code outside the pipeline.** Shared code is explicit, and there
    is as little of it as possible.
 3. **Foundation holds primitives only.** A primitive is a generic building

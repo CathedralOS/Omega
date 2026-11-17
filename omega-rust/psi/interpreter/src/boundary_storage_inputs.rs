@@ -1270,10 +1270,24 @@ pub(crate) mod original_residence {
                 original.path = home.path.clone();
                 return Ok(original);
             }
-            let original = self
-                .original_owned_allocation(source)
-                .map_err(|error| error.in_argument_preparation("resolve live original allocation"))?
-                .value;
+            let original = match self
+                .maybe_original_owned_allocation(source)
+                .map_err(|error| {
+                    error.in_argument_preparation("resolve live original allocation")
+                })? {
+                Some(original) => original.value,
+                None => {
+                    let owner = self.live_reference_storage_owner(&source_home)?.ok_or(
+                        TerminalInterpretError::UnsupportedSemanticVariant(
+                            "storage source has no live supplying allocation",
+                        ),
+                    )?;
+                    if self.actual_storage_type(owner, &source_home)? != source.structural_type {
+                        return Err(malformed());
+                    }
+                    owner.clone()
+                }
+            };
             if !original.path.is_empty() {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "original storage requires retained enclosing geometry after projected transfer",

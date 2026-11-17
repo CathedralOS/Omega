@@ -76,6 +76,27 @@ pub(crate) type Unproven = &'static str;
 /// Running out supplies no premise or partial certificate.
 const CASE_BRANCH_BUDGET: usize = 64;
 
+/// Build the candidate fact's tree with explicit invocation-owned work state.
+/// Opposite-search proof work belongs to its own construction.
+fn fact_proof_for_refutation(
+    facts: &[Fact],
+    index: usize,
+    activity: &mut ProofSearchActivity,
+) -> ProofNode {
+    #[cfg(test)]
+    {
+        let mut work = crate::known::FactProofWork::default();
+        let proof = facts[index].proof_with_work(facts, &mut work);
+        activity.refutation_fact_nodes = activity.refutation_fact_nodes.saturating_add(work.nodes);
+        proof
+    }
+    #[cfg(not(test))]
+    {
+        let _ = activity;
+        facts[index].proof(facts)
+    }
+}
+
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
@@ -319,6 +340,9 @@ pub struct ProofSearchActivity {
     /// Owned certificate copies returned by `bound`, excluding scalar-only queries.
     #[cfg(test)]
     bound_certificate_copies: usize,
+    /// Nodes emitted for the candidate fact, excluding the opposite search.
+    #[cfg(test)]
+    refutation_fact_nodes: usize,
 }
 
 impl ProofSearchActivity {
@@ -343,6 +367,9 @@ impl ProofSearchActivity {
             self.bound_certificate_copies = self
                 .bound_certificate_copies
                 .saturating_add(other.bound_certificate_copies);
+            self.refutation_fact_nodes = self
+                .refutation_fact_nodes
+                .saturating_add(other.refutation_fact_nodes);
         }
     }
 }
@@ -971,17 +998,20 @@ impl<'a> Prover<'a> {
         {
             return Some(absurd);
         }
-        // Facts stay fixed during this search. Construct a certificate only
-        // when trying its candidate; a successful refutation leaves later
-        // candidates unexpanded. Try eligible orders, literal equalities and
-        // guards in their existing relative order.
+        // Facts stay fixed during this search. Build a candidate's proof
+        // only after its opposite succeeds; a failed search cannot use it.
+        // Keep orders, literal equalities and guards in the same order.
         for index in 0..self.facts.len() {
             let fact = &self.facts[index];
             if fact.axiom.is_some() || order_with_closed_endpoint(&fact.proposition).is_none() {
                 continue;
             }
-            let known = fact.proof(&self.facts);
-            if let Some(refuted) = self.refute(known, goal) {
+            let proposition = fact.proposition.clone();
+            if let Some(refuted) = self.refute(
+                &proposition,
+                |facts, activity| Some(fact_proof_for_refutation(facts, index, activity)),
+                goal,
+            ) {
                 return Some(refuted);
             }
         }
@@ -995,15 +1025,27 @@ impl<'a> Prover<'a> {
             {
                 continue;
             }
-            let equality = fact.proof(&self.facts);
-            if let Ok(known) = weaken(equality.clone())
-                && let Some(refuted) = self.refute(known, goal)
-            {
+            let Proposition::Equal(left, right) = fact.proposition.clone() else {
+                unreachable!("only a literal equality reaches this candidate");
+            };
+            let forward = Proposition::LessOrEqual(left.clone(), right.clone());
+            if let Some(refuted) = self.refute(
+                &forward,
+                |facts, activity| weaken(fact_proof_for_refutation(facts, index, activity)).ok(),
+                goal,
+            ) {
                 return Some(refuted);
             }
-            if let Ok(known) = flip(equality).and_then(weaken)
-                && let Some(refuted) = self.refute(known, goal)
-            {
+            let reverse = Proposition::LessOrEqual(right, left);
+            if let Some(refuted) = self.refute(
+                &reverse,
+                |facts, activity| {
+                    flip(fact_proof_for_refutation(facts, index, activity))
+                        .and_then(weaken)
+                        .ok()
+                },
+                goal,
+            ) {
                 return Some(refuted);
             }
         }
@@ -1012,8 +1054,12 @@ impl<'a> Prover<'a> {
             if fact.axiom.is_some() || !is_branch_fact(&fact.proposition) {
                 continue;
             }
-            let taken = fact.proof(&self.facts);
-            if let Some(refuted) = self.refute_guard(taken, goal) {
+            let taken = fact.proposition.clone();
+            if let Some(refuted) = self.refute_guard(
+                &taken,
+                |facts, activity| Some(fact_proof_for_refutation(facts, index, activity)),
+                goal,
+            ) {
                 return Some(refuted);
             }
         }
@@ -1093,8 +1139,13 @@ impl<'a> Prover<'a> {
     ///
     /// The negated guard's denotation is proved without a split or a nested
     /// contradiction search, so this cannot re-enter itself.
-    fn refute_guard(&mut self, taken: ProofNode, goal: &Proposition) -> Option<ProofNode> {
-        let Proposition::Equal(condition, ScalarTerm::Boolean(value)) = &taken.conclusion else {
+    fn refute_guard(
+        &mut self,
+        taken: &Proposition,
+        evidence: impl FnOnce(&[Fact], &mut ProofSearchActivity) -> Option<ProofNode>,
+        goal: &Proposition,
+    ) -> Option<ProofNode> {
+        let Proposition::Equal(condition, ScalarTerm::Boolean(value)) = taken else {
             return None;
         };
         let untaken = Proposition::Equal(condition.clone(), ScalarTerm::Boolean(!*value));
@@ -1140,6 +1191,7 @@ impl<'a> Prover<'a> {
                 direct.ok()?
             }
         };
+        let taken = evidence(&self.facts, self.activity)?;
         let absurd = node(
             absurd,
             ProofRule::EqualityTransitivity {
@@ -1210,7 +1262,7 @@ impl<'a> Prover<'a> {
                     index: self.assumptions.len(),
                 },
             );
-            if let Some(contradiction) = self.refute(local, goal) {
+            if let Some(contradiction) = self.refute(part, |_, _| Some(local), goal) {
                 return Some(contradiction);
             }
         }
@@ -1234,8 +1286,13 @@ impl<'a> Prover<'a> {
     /// `goal` from an alternative that contradicts what is known: chained
     /// with the opposite order it gives a closed false relation, which
     /// `ex_falso` turns into `goal`.
-    fn refute(&mut self, local: ProofNode, goal: &Proposition) -> Option<ProofNode> {
-        let (strict, left, right) = order_with_closed_endpoint(&local.conclusion)?;
+    fn refute(
+        &mut self,
+        relation: &Proposition,
+        evidence: impl FnOnce(&[Fact], &mut ProofSearchActivity) -> Option<ProofNode>,
+        goal: &Proposition,
+    ) -> Option<ProofNode> {
+        let (strict, left, right) = order_with_closed_endpoint(relation)?;
         let (left, right) = (left.clone(), right.clone());
         let opposite = if strict {
             Proposition::LessOrEqual(right.clone(), left.clone())
@@ -1243,6 +1300,9 @@ impl<'a> Prover<'a> {
             Proposition::LessThan(right.clone(), left.clone())
         };
         let opposite = self.prove_direct(&opposite).ok()?;
+        // A failed opposite search cannot use the local proof tree. Build
+        // it only here, from the same facts and with the same conclusion.
+        let local = evidence(&self.facts, self.activity)?;
         let false_relation = if left.integer_value().is_some() {
             chain(local, opposite).ok()?
         } else {

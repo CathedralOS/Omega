@@ -46,6 +46,7 @@ pub struct RequiredDangerousServices {
 /// One exact call traversal is shared by every package in the fixture.
 pub struct DangerousServiceDiscovery {
     packages: Vec<(PackageKeyIdentity, RequiredDangerousServices)>,
+    direct_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
 }
 
 fn unavailable(reason: impl std::fmt::Display) -> Vec<Diagnostic> {
@@ -145,9 +146,9 @@ impl DangerousServiceDiscovery {
             ));
         }
 
-        // A direct foreign binding has no checked provider row. If it is one
-        // of these consent roles, its owner cannot be inferred from an address
-        // or a method name. Keep that unsupported admission explicit.
+        let mut direct_bindings = Vec::new();
+        // A direct canonical exit retains its actual Build producer and receipt.
+        // Every other direct consent role still needs its supported owner route.
         for declaration in accepted
             .boundary_requirements_declared()
             .map_err(|error| vec![error])?
@@ -157,6 +158,13 @@ impl DangerousServiceDiscovery {
                     .binary_search(&declaration.boundary)
                     .is_ok()
             {
+                continue;
+            }
+            if let Some(binding) = super::provider_acceptance::direct_process_exit_binding(
+                checked,
+                declaration.boundary,
+            )? {
+                direct_bindings.push(binding);
                 continue;
             }
             let (schema, _) = accepted
@@ -204,7 +212,14 @@ impl DangerousServiceDiscovery {
             };
             record_method(&mut packages[position].1, role, &selected.row.method)?;
         }
-        Ok(Self { packages })
+        Ok(Self {
+            packages,
+            direct_bindings,
+        })
+    }
+
+    pub fn direct_bindings(&self) -> &[package_compilation::AcceptedSemanticBinding] {
+        &self.direct_bindings
     }
 
     pub fn for_package(&self, owner: PackageKeyIdentity) -> RequiredDangerousServices {

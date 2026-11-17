@@ -8,9 +8,11 @@ read as the other.
 
 Rows match exactly like sealed intrinsic rows: the package-relative file, the
 declaration path and the exact bundled source bytes must all agree, and the
-caller first establishes toolchain origin through `symbols::core_vocabulary_at`
-or `SymbolTable::core_vocabulary`. A lookalike user declaration, or an edited
-toolchain file, is therefore ordinary code to every consumer.
+source consumer first establishes toolchain origin through
+`symbols::core_vocabulary_at` or `SymbolTable::core_vocabulary`. A source-free
+receiver instead joins the retained exact declaration owner to the catalog's
+source commitment. A lookalike user declaration, or an edited toolchain file,
+is therefore ordinary code to every consumer.
 */
 
 use crate::sealed_intrinsics::{SealedDeclaration, SealedDeclarationSite};
@@ -26,6 +28,8 @@ pub enum CoreVocabulary {
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
     PortIoService,
+    /// One of core `filesystem_authority.omg`'s capability-only services.
+    FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
     /// `data_segment.omg`.
     SegmentSelector(SegmentSelectorOperation),
@@ -61,6 +65,27 @@ pub enum CoreVocabulary {
     ExternalBinding(ExternalBindingVocabulary),
     /// Core `integer.omg`'s carrier metadata query or its result type.
     IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FilesystemService {
+    ContentRead,
+    ContentWrite,
+    MetadataQuery,
+    MetadataMutation,
+    DirectoryEnumeration,
+    NamespaceMutation,
+}
+
+impl FilesystemService {
+    pub const ALL: [Self; 6] = [
+        Self::ContentRead,
+        Self::ContentWrite,
+        Self::MetadataQuery,
+        Self::MetadataMutation,
+        Self::DirectoryEnumeration,
+        Self::NamespaceMutation,
+    ];
 }
 
 /// The `integer.omg` declarations the carrier-family classification is read
@@ -195,6 +220,7 @@ const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
 const NEVER: &[u8] = core_source!("never.omg");
+const FILESYSTEM_AUTHORITY: &[u8] = core_source!("filesystem_authority.omg");
 
 const fn row(
     file: &'static str,
@@ -225,6 +251,42 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row(
+        "filesystem_authority.omg",
+        "FilesystemContentRead",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::ContentRead),
+    ),
+    row(
+        "filesystem_authority.omg",
+        "FilesystemContentWrite",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::ContentWrite),
+    ),
+    row(
+        "filesystem_authority.omg",
+        "FilesystemMetadataQuery",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::MetadataQuery),
+    ),
+    row(
+        "filesystem_authority.omg",
+        "FilesystemMetadataMutation",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::MetadataMutation),
+    ),
+    row(
+        "filesystem_authority.omg",
+        "DirectoryEnumeration",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::DirectoryEnumeration),
+    ),
+    row(
+        "filesystem_authority.omg",
+        "FilesystemNamespaceMutation",
+        FILESYSTEM_AUTHORITY,
+        CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
+    ),
     row("never.omg", "Never", NEVER, CoreVocabulary::Never),
     row(
         "layout.omg",
@@ -585,6 +647,17 @@ impl CoreSource {
 pub struct CoreVocabularyCatalog;
 
 impl CoreVocabularyCatalog {
+    /// The receiver's bundled declaration, without reopening source. These
+    /// coordinates identify a catalog row; they grant no execution authority.
+    pub fn declaration(vocabulary: CoreVocabulary) -> Option<SealedDeclarationSite<'static>> {
+        let row = ROWS.iter().find(|row| row.vocabulary == vocabulary)?;
+        Some(SealedDeclarationSite {
+            file: Path::new(row.file),
+            declaration: row.declaration,
+            source: row.source,
+        })
+    }
+
     /// Returns the vocabulary the site's declaration is, or `None` when no row
     /// matches every part of the site.
     pub fn classify(site: SealedDeclarationSite<'_>) -> Option<CoreVocabulary> {
@@ -609,6 +682,22 @@ impl CoreVocabularyCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filesystem_services_require_the_exact_bundled_declaration() {
+        for service in FilesystemService::ALL {
+            let vocabulary = CoreVocabulary::FilesystemService(service);
+            let declared = CoreVocabularyCatalog::declaration(vocabulary).unwrap();
+            assert_eq!(CoreVocabularyCatalog::classify(declared), Some(vocabulary));
+            for changed in [
+                site("other.omg", declared.declaration, declared.source),
+                site("filesystem_authority.omg", "Lookalike", declared.source),
+                site("filesystem_authority.omg", declared.declaration, b"edited"),
+            ] {
+                assert_eq!(CoreVocabularyCatalog::classify(changed), None);
+            }
+        }
+    }
 
     fn site<'a>(
         file: &'a str,

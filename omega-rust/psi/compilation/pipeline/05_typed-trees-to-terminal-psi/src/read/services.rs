@@ -171,11 +171,9 @@ impl Program<'_> {
         components: &crate::components::Components,
     ) -> Checked<()> {
         let declaration_policies = self.declaration_policies()?;
-        // An abstract requirement can defer its operational contract to a
-        // later application. The generic witness retains that open Signature;
-        // it cannot publish a complete callable envelope or supply descriptors.
-        // A complete retained requirement policy is already sufficient input to
-        // the fixed point below; it does not need a previously inferred envelope.
+        // Open requirements keep their unknown axes. They prevent executable
+        // callable publication, but do not prevent independent bodies from
+        // completing their own contracts.
         if let Some(requirement) = self.requirements.iter().copied().find(|id| {
             self.symbols
                 .get(*id)
@@ -210,8 +208,10 @@ impl Program<'_> {
                     ));
                 }
             }
-            return Ok(());
         }
+        let mut abstract_requirements = self.requirements.clone();
+        abstract_requirements.sort_unstable();
+        let mut known = IdTable::default();
         let mut policies = IdTable::default();
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
@@ -283,6 +283,24 @@ impl Program<'_> {
                     termination: envelope.termination.clone(),
                 }
             };
+            // Completion may run again after more callees are discovered.
+            // Keep the original policy so a prior inference never becomes an
+            // authored ceiling on that later pass.
+            while self.declared_envelope_policies.len() < id.get() as usize {
+                self.declared_envelope_policies.push(None);
+            }
+            let original = self
+                .declared_envelope_policies
+                .get_mut(id)
+                .ok_or_else(|| unavailable(id, "callable lost its source policy coordinate"))?;
+            if original.is_none() {
+                *original = Some(policy.clone());
+            }
+            known.push(if abstract_requirements.binary_search(&id).is_ok() {
+                KnownAxes::of_policy(&policy)
+            } else {
+                KnownAxes::ALL
+            });
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
@@ -296,7 +314,15 @@ impl Program<'_> {
             let mut changed = false;
             for (id, uses) in calls.iter() {
                 let mut reached = empty();
+                let mut reached_known = KnownAxes::ALL;
                 for invocation in uses {
+                    if invocation.required_contract.is_none()
+                        && let CallTarget::Machine(callee) = invocation.target
+                    {
+                        reached_known.intersect(*known.get(*callee).ok_or_else(|| {
+                            unavailable(id, "callee lost its operational inference state")
+                        })?);
+                    }
                     let target_signature = self.source_call_signature(
                         id,
                         invocation.target,
@@ -461,10 +487,22 @@ impl Program<'_> {
                         );
                     }
                 }
-                let next = policies
+                let policy = policies
                     .get(id)
-                    .ok_or_else(|| unavailable(id, "callable has no header policy"))?
-                    .complete(reached);
+                    .ok_or_else(|| unavailable(id, "callable has no header policy"))?;
+                let next_known = if abstract_requirements.binary_search(&id).is_ok() {
+                    KnownAxes::of_policy(policy)
+                } else {
+                    reached_known.with_policy(policy)
+                };
+                let previous_known = known.get_mut(id).ok_or_else(|| {
+                    unavailable(id, "callable lost its operational inference state")
+                })?;
+                if *previous_known != next_known {
+                    *previous_known = next_known;
+                    changed = true;
+                }
+                let next = policy.complete(reached);
                 let previous = published
                     .get_mut(id)
                     .ok_or_else(|| unavailable(id, "callable has no envelope row"))?;
@@ -588,6 +626,24 @@ impl Program<'_> {
                     id,
                     "termination promise invokes a callable without a termination guarantee",
                 ));
+            }
+            let complete = *known
+                .get(id)
+                .ok_or_else(|| unavailable(id, "callable lost its operational inference state"))?;
+            // An inferred boolean is useful even when an unrelated reach axis
+            // remains open. Never turn that partial result into a full envelope.
+            let signature = self
+                .signatures
+                .get_mut(id)
+                .ok_or_else(|| unavailable(id, "callable lost its retained signature"))?;
+            if complete.suspends {
+                signature.operational.suspension = Some(envelope.suspends);
+            }
+            if complete.blocks {
+                signature.operational.blocking = Some(envelope.blocks);
+            }
+            if !complete.is_complete() {
+                continue;
             }
             self.callables
                 .bind_machine_envelope(id, envelope.clone())
@@ -731,6 +787,56 @@ fn call_terminates(
                 )
             })
         }
+    }
+}
+
+/// A false bit means the corresponding inferred value is still unknown.
+/// Body cycles start known and lose knowledge only through an open dependency;
+/// the numeric/set fixed point remains separate from this completeness check.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct KnownAxes {
+    reach: bool,
+    invokes: bool,
+    suspends: bool,
+    blocks: bool,
+}
+
+impl KnownAxes {
+    const ALL: Self = Self {
+        reach: true,
+        invokes: true,
+        suspends: true,
+        blocks: true,
+    };
+
+    fn of_policy(policy: &Policy) -> Self {
+        Self {
+            reach: policy.reach.is_some(),
+            invokes: policy.invokes.is_some(),
+            suspends: policy.suspends.is_some(),
+            blocks: policy.blocks.is_some(),
+        }
+    }
+
+    fn intersect(&mut self, dependency: Self) {
+        self.reach &= dependency.reach;
+        self.invokes &= dependency.invokes;
+        self.suspends &= dependency.suspends;
+        self.blocks &= dependency.blocks;
+    }
+
+    fn with_policy(self, policy: &Policy) -> Self {
+        let authored = Self::of_policy(policy);
+        Self {
+            reach: self.reach || authored.reach,
+            invokes: self.invokes || authored.invokes,
+            suspends: self.suspends || authored.suspends,
+            blocks: self.blocks || authored.blocks,
+        }
+    }
+
+    fn is_complete(self) -> bool {
+        self == Self::ALL
     }
 }
 

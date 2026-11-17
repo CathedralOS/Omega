@@ -76,28 +76,6 @@ framework or a list of unimplemented features.
 ## Entries
 
 
-### Learned incremental build state can fill the disk despite Cargo being disabled
-- Category: Verifying costs more than writing
-- Where: mbx `learned_incremental` setting and the host build environment in [build slots](tools/docs/build_slot.md).
-- Saw: This Mac accumulated 23 GiB of mbx incremental state while the chains explicitly set `CARGO_INCREMENTAL=0`. mbx still had `learned_incremental=true` and injected `-Cincremental`. Disk exhaustion stopped the byte CLI build after its 19 tests passed, and stopped two other chains before tests began. Protected collection removed 18.65 GB of logical incremental data while preserving targets and shared objects.
-- Cost: Repeated foundational builds regenerate enough private data to stop builds and even Git fetches. Current owned chains set the supported `MBX_LEARNED_INCREMENTAL=false` override; the resumed byte build kept about 17 GiB free. Host setup should respect explicit incremental settings or bound learned state without deleting live outputs. The audit is `/tmp/omega-protected-gc-sixth-20261116.json`; the completed producer records the override.
-- Reported: 2026-11-16, Codex, while completing the draft PR takeovers.
-
-### Editing bundled Core source recompiles most of the Rust compiler
-- Category: Verifying costs more than writing
-- Where: [bundled source in language-core](omega-rust/psi/foundation/language-core/src/sealed_intrinsics.rs#L221), [core vocabulary sources](omega-rust/psi/foundation/language-core/src/core_vocabulary.rs)
-- Saw: Restoring Run/Vec library source at `849dc367b3952f2e2e6145f7fd104d178ea01bf1` changed no Rust code after the warm landed-source build at `37c2dfda95c`. Because `language-core` embeds the source bytes, the next optimized CLI build rebuilt 93 packages and took 343.56 seconds. The original program then refused during source discovery in 0.15 seconds. Cargo artifact records, source identities and timings are in `worker-2/build/generic-run-vec/restored-source-baseline/`.
-- Cost: Each library repair invalidates Rust consumers that need vocabulary types but do not inspect bundled source. Separate immutable vocabulary from source-catalog data while preserving exact toolchain-source authentication; do not work around this by using a compiler with mismatched embedded source.
-- Reported: 2026-11-16, Codex, while completing the generic library Vec
-
-
-### Unpatched mbx bypasses the cache for checksum-enabled compilations
-- Category: Verifying costs more than writing
-- Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
-- Saw: Worker 1's ordinary focused build recorded `unknown-flag` for `-Zchecksum-hash-algorithm=blake3` in `/tmp/omega-worker1-cache-bypasses.jsonl`. Cargo emits that flag for the repository's content-based fingerprints. The adapter in upstream mbx 1.30.0 also rejects it. The shared cache therefore supplies no objects for these compilations.
-- Cost: Independent worktrees rebuild unchanged dependencies. This Mac now uses a locally repaired 1.29.2 adapter that retains the checksum option in its input identity and preserves checksum dependency output. An isolated probe reused unchanged inputs and rejected a same-size, same-mtime source change; subsequent ordinary Omega builds stored cache objects without the checksum-flag bypass. The patch, original binary and receipts are retained in `worker-1/build/mbx-workflow-tooling-20261116` under the local worktree pool. Upstream releases and fresh hosts still need the repair; do not disable content fingerprint checks.
-- Reported: 2026-11-16, Codex, during the draft PR takeovers
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
@@ -126,8 +104,8 @@ framework or a list of unimplemented features.
 ### `Build.freestanding` is one untargeted mutable flag that two spec pages forbid and a third relies on
 - Category: The documents disagree
 - Where: [Build declaration](omega-rust/omega/packages/build-declarations/src/prelude.rs#L269), [settings field](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs#L22), [assembly authority](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L243), [configuration.md](wiki/spec/build/configuration.md#L53), [uefi_entry.md](wiki/spec/build/uefi_entry.md#L3), [permissions.md](wiki/spec/build/permissions.md#L233)
-- Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too. The field comment ("no ambient host packages or import thunks") describes behavior the flag does not have.
-- Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md, and correct the comment.
+- Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too.
+- Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler

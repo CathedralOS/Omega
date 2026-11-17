@@ -22,6 +22,244 @@ fn rigid() -> ValueType {
     ValueType::Rigid(RigidType(0))
 }
 
+fn parameter_form(text: &str) -> typed_trees_to_terminal_psi::Elaboration {
+    let source = super::boundary_calls::typed(text);
+    typed_trees_to_terminal_psi::elaborate_generic(&source, super::boundary_calls::entry(&source))
+        .expect("the generic body must retain its declared storage carrier")
+}
+
+#[test]
+fn an_unused_owned_parameter_keeps_its_possible_linear_debt() {
+    let source = super::boundary_calls::typed("machine entry<T>(value: T) {}");
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    );
+    let verdict = judge(form).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.reason == RefusalReason::Unsupported
+        && matches!(refusal.concerns, Construct::Edge(_))
+        && refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
+        "the normal return must account for the whole unknown value: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_borrowed_parameter_retains_unknown_contents_without_owning_them() {
+    let form = parameter_form("machine entry<T>(value: &T) {}");
+    assert_eq!(form.generic_storage.len(), 1);
+    let storage = form.generic_storage[0].storage;
+    let claims =
+        terminal_semantics::owned_structure::ClaimTypes::new(&form.module.structural_types)
+            .unwrap();
+    assert_eq!(
+        terminal_semantics::owned_structure::claim_catalogue(&claims, storage, 1).unwrap(),
+        std::collections::BTreeSet::from([Vec::new()])
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn parameter_storage_cannot_drop_or_change_its_source_bound() {
+    for change in 0..3 {
+        let mut form = parameter_form("machine entry<T>(value: &T) {}");
+        let storage = form.generic_storage[0].storage;
+        match change {
+            0 => form.generic_storage.clear(),
+            1 => {
+                form.module
+                    .structural_types
+                    .iter_mut()
+                    .find(|row| row.id == storage)
+                    .unwrap()
+                    .multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted
+            }
+            2 => {
+                form.module
+                    .structural_types
+                    .iter_mut()
+                    .find(|row| row.id == storage)
+                    .unwrap()
+                    .shape = terminal_psi::StructuralTypeShape::Opaque
+            }
+            _ => unreachable!(),
+        }
+        let refusal = judge(Ok(form)).unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            RefusalReason::ForeignIdentity,
+            "{refusal:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_borrowed_callbacks_keep_their_carrier_and_access() {
+    for (reference, result, body) in [
+        ("&T", " -> u32", "let first: u32 = Next(value); Next(value)"),
+        ("&mut T", "", "Next(value); Next(value);"),
+    ] {
+        let form = parameter_form(&format!(
+            r#"
+            machine entry<T, machine Next>(value: {reference}){result}
+            requires machine Next(value: {reference}){result} reaches none crashes none;
+            reaches none
+            crashes none
+            {{ {body} }}
+        "#
+        ));
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{reference}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn an_unknown_payload_write_preserves_unexposed_local_storage() {
+    let form = parameter_form(
+        r#"
+        data Local [copy] { value: u32; }
+        machine entry<T, machine Next>(value: &mut T) -> u32
+        requires machine Next(value: &mut T) reaches none crashes none;
+        ensures result == 9u32
+        reaches none
+        crashes none
+        {
+            let local: Local = Local { value: 9u32 };
+            Next(value);
+            local.value
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn an_optional_view_keeps_its_ordinary_borrowed_result_account() {
+    let verdict = super::build_purpose::judge_build(
+        r#"
+        data Choice<'a> {
+            case Missing;
+            case Present(value: &'a [u8]);
+        }
+        machine choose<'a>(bytes: &'a [u8], take: bool) -> Choice<'a> {
+            transition take {
+                true -> Choice::Present { value: bytes }
+                false -> Choice::Missing
+            }
+        }
+        machine build_entry() {
+            let first: Choice = choose("x", true);
+            let second: Choice = choose("y", false);
+        }
+    "#,
+    )
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_generic_value_moves_with_its_unknown_contents() {
+    for bound in ["", " [linear]"] {
+        let form = parameter_form(&format!(
+            "machine entry<T{bound}>(value: T) -> T {{ value }}"
+        ));
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{bound}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_generic_call_transfers_the_same_unknown_contents_packet() {
+    let form = parameter_form(
+        r#"
+        machine keep<U>(value: U) -> U { value }
+        machine entry<T>(value: T) -> T { keep<T>(value) }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn unknown_contents_keep_their_exact_declared_binder() {
+    let mut form = parameter_form("machine entry<T, U>(left: &T, right: &U) {}");
+    assert_eq!(form.generic_storage.len(), 2);
+    form.generic_storage[0].parameter = form.generic_storage[1].parameter;
+    let refusal = judge(Ok(form)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refusal.detail,
+        "symbolic storage changed its exact source binder"
+    );
+}
+
+#[test]
+fn an_unknown_carrier_cannot_upgrade_a_shared_argument() {
+    let source = super::boundary_calls::typed(
+        r#"
+        machine entry<T, machine Next>(value: &T)
+        requires machine Next(value: &mut T) reaches none crashes none;
+        reaches none
+        crashes none
+        { Next(&value); }
+    "#,
+    );
+    let verdict = judge(typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    ))
+    .unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref violations, .. }
+        if violations.iter().any(|violation| violation.statement.contains("the caller lends only immutable access"))),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
+    let form = parameter_form("machine entry<T [copy]>(value: &T) {}");
+    let storage = form.generic_storage[0].storage;
+    let row = form.module.structural_type(storage).unwrap();
+    assert!(row.is_copyable());
+    assert!(!row.no_code_affine_cleanup && !row.descriptor_cleanup);
+    assert!(!terminal_semantics::owned_structure::unknown_owned_claims(
+        row
+    ));
+    let inventory = terminal_semantics::descriptor_results::DescriptorSlotKind::References
+        .owned_inventory(
+            &form.module.structural_types,
+            form.module.machines[0].structural_parameters[0].place,
+            storage,
+        )
+        .unwrap();
+    assert_eq!(inventory.unknown_contents.len(), 1);
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let source = super::boundary_calls::typed("machine entry<T [copy]>(value: T) {}");
+    let verdict = judge(typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    ))
+    .unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.reason == RefusalReason::Unsupported
+        && matches!(refusal.concerns, Construct::Edge(_))
+        && refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
+        "Copy does not identify the actual cleanup plan: {verdict:?}"
+    );
+}
+
 fn u32_value() -> ValueType {
     ValueType::plain(u32_type())
 }

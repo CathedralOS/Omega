@@ -10,6 +10,10 @@ or arrow highlights its connections and opens source evidence. The bold main
 route runs down through numbered stages; dashed supporting arrows reveal their
 labels on selection. ELK.js orders the main route and Graphviz routes supporting
 connections at build time; D3 Zoom moves the existing SVG in the browser. The
+Current / Proposed buttons replace the active graph in that same canvas and
+remember separate cameras. Proposed boxes have dashed borders, cite the recorded
+plan and expose open contracts; their stages use proposed ordering numbers 00–10. Every box and arrow is on one forward chain; compiler work belongs inside its stage, and requests/facts travel through successive representations.
+The current-source and proposed-plan labels remain distinct. The
 source disclosures and scrollable SVG remain available without JavaScript. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.
@@ -27,7 +31,7 @@ guess from a label.
 
 Omega looks like masonry. Build every page from flat, square-edged blocks on
 `--ground`, separated by space and hairlines, never by shadows. Words are set
-in Omega Serif, code in IBM Plex Mono, nothing else. Color carries meaning,
+in Omega Serif for headings and diagram lettering, native UI sans-serif for reading text, and IBM Plex Mono for code. Color carries meaning,
 never decoration: green (`--checked`) means proven or passing, red (`--trap`)
 means a rejection, a trap or a reach-around. The kit also provides named family
 colors for ownership views, authorized on 2026-11-17. They identify ownership
@@ -44,7 +48,7 @@ clearly labeled historical page with the same navigation wrapper.
 
 The layout reference is [Performative Labs](https://performativelabs.com/),
 observed on 2026-11-17: a simple header, clear page introduction, local section
-navigation and grouped footer. Atlas retains its serif typography, Limestone/Ink
+navigation and grouped footer. Atlas retains its serif headings and diagram lettering, Limestone/Ink
 tokens, square blocks and evidence meanings. The reference's branding, rounded
 controls, gradients and product content are not part of this design.
 
@@ -109,7 +113,9 @@ Never show status by color alone: pair `--checked` with a word or check mark,
 | display | `--type-display` | The page title, once |
 | heading | `--type-heading` | Section headings |
 | subheading | `--type-subheading` | Subsections, tile titles |
-| body | `--type-body` | All running text |
+| body | `--type-body` | Paragraphs, lists and table cells; regular reading sans-serif |
+| intro | `--type-intro` | Page introductions; regular reading sans-serif |
+| reading-small | `--type-reading-small` | Long captions, source notes and inspector text; regular reading sans-serif |
 | label | `--type-label` (+ `letter-spacing: .02em`) | Status words, counts, captions, eyebrows |
 | code | `--type-code` | Code, commands, file paths, on `--surface` |
 
@@ -249,5 +255,7 @@ in the owner's design-system artifact. Use it to check where a rule came from.
 One inconsistency there: the system's generated `tokens.generated.css` and
 `tokens.md` set body text in IBM Plex Sans and labels in IBM Plex Mono, while
 its README ("Omega Serif for words, IBM Plex Mono for code. Nothing else.")
-and its `tokens.json` set both in Omega Serif. This kit follows the README and
-`tokens.json`; the owner should settle which is meant.
+and its `tokens.json` set both in Omega Serif. The owner's 2026-11-17 correction
+settles this kit's reading roles: regular native UI sans-serif for paragraphs,
+lists, table cells and explanatory captions; Omega Serif for headings and
+diagram lettering. The reference copy stays historical.

@@ -508,6 +508,11 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             }));
         }
         let recipe = match &declaration.shape {
+            StructuralTypeShape::TypeParameter => {
+                return Err(
+                    "generic boundary value needs a closed application before ABI planning".into(),
+                );
+            }
             StructuralTypeShape::Opaque => {
                 return Err(
                     "opaque boundary value needs its selected representation before ABI planning"

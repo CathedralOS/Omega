@@ -1240,6 +1240,7 @@ fn finish_reading_into<'source>(
     )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration, further)?;
+    elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -1815,6 +1816,7 @@ fn lower_program<'source>(
             applications: Vec::new(),
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
+            generic_storage: Vec::new(),
             value_arguments: IdTable::default(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),

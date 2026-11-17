@@ -658,6 +658,7 @@ fn review_fixture_recording(
             bindings.push(binding);
         }
         let services = dangerous_service_acceptance::DangerousServiceDiscovery::new(&preliminary)?;
+        bindings.extend_from_slice(services.direct_bindings());
         for (owner, _) in inputs.packages() {
             let required = services.for_package(owner);
             bindings.extend(dangerous_service_bindings(&preliminary, owner, &required)?);
