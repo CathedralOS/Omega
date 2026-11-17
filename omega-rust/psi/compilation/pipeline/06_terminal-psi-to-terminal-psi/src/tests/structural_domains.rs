@@ -303,7 +303,7 @@ fn a_routed_cast_needs_its_issuer_route() {
     }
     refused(
         elaboration,
-        "a structural cast adds a routed domain without its issuer route",
+        "a structural cast lacks both an existing membership and an authorized issuer route",
     );
 }
 
@@ -522,16 +522,40 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
             )
         });
     }
+    for header in &mut missing.module.declaration_contracts {
+        header.membership_ensures.retain(|row| {
+            !matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        });
+    }
     cases.push(("missing guarantee", missing));
     let mut wrong = base;
     for machine in &mut wrong.module.machines {
+        let parameter = machine
+            .structural_parameters
+            .first()
+            .map(|parameter| parameter.place);
         for membership in &mut machine.contract.membership_ensures {
             if let terminal_psi::RuntimeDomainMembership::Structural { root, .. } = membership {
-                *root = machine.structural_parameters[0].place;
+                *root = parameter.expect("structural issuer has a structural input");
             }
         }
     }
     cases.push(("input named as result", wrong));
+    let mut missing_predicate = invocation(NORMAL_MEMBERSHIP).unwrap();
+    for machine in &mut missing_predicate.module.machines {
+        if machine.contract.membership_ensures.iter().any(|row| {
+            matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        }) {
+            machine.contract.ensures.clear();
+        }
+    }
+    cases.push(("missing independent predicate", missing_predicate));
     let observed: Vec<_> = cases
         .into_iter()
         .map(|(name, elaboration)| (name, judge(Ok(elaboration))))
@@ -543,6 +567,9 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
         let refusal = verdict.expect_err(name);
         let expected = match name {
             "input named as result" => "membership promise does not name its exact normal result",
+            "missing independent predicate" => {
+                "membership guarantee lost its independent result predicate"
+            }
             _ => "lacks both an existing membership and an authorized issuer route",
         };
         assert!(refusal.detail.contains(expected), "{name}: {refusal:?}");
@@ -618,4 +645,206 @@ machine entry() -> u32 crashes none {
             "{name}"
         );
     }
+}
+
+#[test]
+fn normal_result_membership_survives_field_reads_and_plain_record_copies() {
+    let text = NORMAL_MEMBERSHIP
+        .replace(
+            "data Ticket { number: u32; }",
+            "data Ticket { number: u32; canary: u32; }",
+        )
+        .replace(
+            "Ticket { number: ticket.number }",
+            "Ticket { number: ticket.number, canary: 41u32 }",
+        )
+        .replace(
+            "Ticket { number: number }",
+            "Ticket { number: number, canary: 41u32 }",
+        )
+        .replace(
+            "machine entry()",
+            r#"
+machine boxed(number: u32) -> Ticket ensures result.number in WordStamped {
+    let tagged: u32 in WordStamped = stamp_word(number) as +WordStamped;
+    Ticket { number: tagged as -WordStamped, canary: 41u32 }
+}
+machine projected(number: u32) -> u32 {
+    let original: Ticket = boxed(number);
+    let mut copied: Ticket = original;
+    copied.canary = 99u32;
+    let tagged: u32 in WordStamped = copied.number as +WordStamped;
+    tagged as -WordStamped
+}
+machine entry()"#,
+        )
+        .replace(
+            "let first_word: u32 = scalar_value(7u32);",
+            "let first_word: u32 = projected(7u32);",
+        );
+    let verdict = judge(invocation(&text)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
+    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: &mut Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
+        .replace("let plain: Ticket = stamp", "let mut plain: Ticket = stamp")
+        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(&mut plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
+    let changed_value = NORMAL_MEMBERSHIP.replace(
+        "let tagged: u32 in WordStamped = plain as +WordStamped;",
+        "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",
+    );
+    let observed = [
+        (
+            "alias write",
+            alias_write,
+            "lacks both an existing membership and an authorized issuer route",
+        ),
+        (
+            "changed value",
+            changed_value,
+            "scalar return origin does not match its source or authorized issuer",
+        ),
+    ]
+    .map(|(name, text, reason)| (name, judge(invocation(&text)), reason));
+    for (name, verdict, _) in &observed {
+        eprintln!("{name}: {verdict:?}");
+    }
+    for (name, verdict, reason) in observed {
+        let refusal = verdict.expect_err(name);
+        assert!(refusal.detail.contains(reason), "{name}: {refusal:?}");
+    }
+}
+
+#[test]
+fn normal_result_membership_does_not_authorize_fresh_zero_construction() {
+    let text = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine entry() -> u32 {
+    let forged: Ticket in Stamped;
+    let plain: Ticket = forged as -Stamped;
+    plain.number
+}
+"#;
+    let refusal = match invocation(text) {
+        Ok(_) => panic!("fresh zero construction needs its own issuer"),
+        Err(refusal) => refusal,
+    };
+    assert!(
+        refusal.detail.contains("zero construction adds")
+            && refusal
+                .detail
+                .contains("outside its authorized establishment routes"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn normal_result_membership_checks_stored_machine_contracts_against_the_target() {
+    use terminal_psi::{
+        TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableTermination,
+        TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+    };
+    let text = NORMAL_MEMBERSHIP
+        .replace(
+            "machine entry()",
+            "machine unmarked(number: u32) -> u32 { number }\nmachine entry()",
+        )
+        .replace(
+            "let first_word: u32 = scalar_value(7u32);",
+            "let first_word: u32 = unmarked(7u32);",
+        );
+    let mut module = invocation(&text).unwrap().module;
+    let required = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .contract
+                .membership_ensures
+                .iter()
+                .any(|row| matches!(row, terminal_psi::RuntimeDomainMembership::Scalar { .. }))
+        })
+        .unwrap();
+    let marked = required.id;
+    let proof = required.contract.clone();
+    let unmarked = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| module.identities.text(declaration.callable))
+                .is_some_and(|identity| identity.contains("unmarked"))
+        })
+        .unwrap()
+        .id;
+    let mut identities = module.identities.clone().into_builder();
+    let identity = identities.intern("normal-membership-test-callable");
+    let application = identities.intern("normal-membership-test-selection");
+    module.identities = identities.build();
+    let scalar_result = proof.result.scalar_ref().unwrap();
+    module.callables.contracts.push(TerminalCallableContract {
+        id: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        identity,
+        scalar_parameters: proof.parameters.clone(),
+        parameter_order: proof.parameter_order.clone(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Scalar(scalar_result.value_type()),
+        proof_result: proof.result.clone(),
+        entry_claim_paths: Vec::new(),
+        result_claim_paths: Vec::new(),
+        result_reference_regions: Vec::new(),
+        proof,
+        evidence_contract: Vec::new(),
+        envelope: TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: Vec::new(),
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        },
+    });
+    module
+        .callables
+        .descriptors
+        .push(TerminalMachineDescriptor {
+            id: semantic_vocabulary::MachineDescriptorId::new(1).unwrap(),
+            contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            machine: marked,
+            origin: TerminalMachineDescriptorOrigin {
+                application,
+                conformance: None,
+                requirement: None,
+            },
+            refinement_obligations: Vec::new(),
+            refinement_evidence: Vec::new(),
+        });
+    terminal_semantics::scalar_qualifications::validate(&module).unwrap();
+    terminal_semantics::calls::callable_refinement::callable_contract_refinement_goals(
+        &module,
+        semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        marked,
+    )
+    .unwrap();
+    let refinement =
+        terminal_semantics::calls::callable_refinement::callable_contract_refinement_goals(
+            &module,
+            semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            unmarked,
+        );
+    assert!(refinement.unwrap_err().contains(
+        "selected callable contract does not provide its required normal-result membership"
+    ));
+    module.callables.descriptors[0].machine = unmarked;
+    let error = terminal_semantics::scalar_qualifications::validate(&module).unwrap_err();
+    assert!(
+        format!("{error:?}")
+            .contains("normal completion does not establish its promised runtime membership"),
+        "{error:?}"
+    );
 }

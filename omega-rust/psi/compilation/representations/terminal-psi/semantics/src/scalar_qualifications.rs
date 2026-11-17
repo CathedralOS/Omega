@@ -814,7 +814,7 @@ fn validate_arguments(
     Ok(())
 }
 
-fn field_qualifications(
+pub(crate) fn field_qualifications(
     module: &TerminalModule,
     field: semantic_vocabulary::StructuralFieldId,
 ) -> ScalarQualificationSetId {
@@ -828,7 +828,7 @@ fn field_qualifications(
         })
 }
 
-fn primitive_qualifications(
+pub(crate) fn primitive_qualifications(
     module: &TerminalModule,
     ty: semantic_vocabulary::StructuralTypeId,
 ) -> ScalarQualificationSetId {
@@ -1138,7 +1138,7 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
                 ),
             )?;
             let forwarded =
-                membership_facts.scalar_on_edge(machine.id, coercion.edge, source.id, *id);
+                membership_facts.scalar_on_edge(module, machine.id, coercion.edge, source.id, *id);
             if !forwarded
                 && domain
                     .missing_membership_requirements(&catalog.domains, source_domains)
@@ -1307,6 +1307,7 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
                                 .is_some_and(|missing| missing.is_empty())
                     }) || (matches!(returned.site, ScalarReturnSite::Completion { .. })
                         && membership_facts.scalar_on_edge(
+                            module,
                             machine.id,
                             returned.edge,
                             source.id,

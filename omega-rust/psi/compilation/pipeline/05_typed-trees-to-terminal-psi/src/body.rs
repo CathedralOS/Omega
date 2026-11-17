@@ -353,7 +353,6 @@ pub struct RecordType {
     /// every field term by the value a place holds, and every case test by
     /// whether the place is that case, before it states a goal
     /// (`terminal-psi-to-terminal-psi`).
-    pub membership_ensures: Vec<RuntimeMembership>,
     pub requires: Vec<Proposition>,
     /// The record is `LayoutStorage<T, Policy>` storage: its bytes follow a
     /// selected plan and a byte view can observe all of them, padding
@@ -561,6 +560,8 @@ pub struct Signature {
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
     pub result: Option<ValueType>,
+    /// Facts promised about the normal result, independent of its declared type.
+    pub membership_ensures: Vec<RuntimeMembership>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
     /// position here is its position in every `CallRequirement`. A term

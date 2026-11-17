@@ -36,7 +36,7 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use crate::body::{Expression, StorageShape, ValueType};
-use crate::{Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 /// What a site does to the contents of a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,7 +236,7 @@ impl Program<'_> {
                 if !contained && has_predicates(self.domain_theory(id, domain)?) {
                     return unserved("zero-established value in a domain that must be established");
                 }
-                self.issue(id, domain, source)?;
+                self.authorize_zero_membership(id, domain, source)?;
             }
             let ValueType::Record(record, _, _) = value_type else {
                 continue;
@@ -296,4 +296,66 @@ impl Program<'_> {
 pub(crate) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
     definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
+}
+
+impl Program<'_> {
+    /// A new zero value has no fact to forward. Its author must be allowed
+    /// to issue each routed domain; predicate and cleanup checks remain separate.
+    fn authorize_zero_membership(
+        &mut self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        use language_semantics::DomainEstablishmentRoute;
+        use typed_trees::domain::DomainIssuance;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let definition = self.domain_theory(id, domain)?;
+        match definition.issuance() {
+            DomainIssuance::Unrestricted => {}
+            DomainIssuance::Only(routes) => {
+                let machine =
+                    *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+                // Only the checked body that declares the requirement's edge
+                // receives its issuing authority. A selected plain body does not.
+                let edges = match self.typed.machine_by_symbol(machine) {
+                    Some(declared) => self.typed.machine_trait_conformances(declared),
+                    None => arena::RootRows::from_slice(&[]),
+                };
+                let routed = routes.iter().any(|route| match route {
+                    DomainEstablishmentRoute::ExactMachine { machine: origin } => {
+                        *origin == machine
+                    }
+                    DomainEstablishmentRoute::CheckedRequirement {
+                        trait_definition,
+                        requirement,
+                    } => edges.iter().any(|edge| {
+                        edge.symbol == *trait_definition && edge.requirement_symbol == *requirement
+                    }),
+                    // Boundary issuance also needs provider admission.
+                    DomainEstablishmentRoute::BoundaryRequirement { .. } => false,
+                });
+                let exact = !routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::BoundaryRequirement { .. })
+                });
+                if !routed && exact {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "zero construction adds {} outside its authorized establishment routes",
+                            self.domain_named(domain),
+                        ),
+                    ));
+                }
+                if !routed {
+                    return unserved("zero construction outside its domain establishment routes");
+                }
+            }
+            DomainIssuance::Planned(_) => {
+                return unserved("zero construction whose domain issuers require an access plan");
+            }
+        }
+        Ok(())
+    }
 }

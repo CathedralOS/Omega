@@ -1274,7 +1274,6 @@ pub(crate) mod byte_buffers {
             parameters: &[StructuralParameterDeclaration],
             arguments: &[StructuralArgument],
             storage_arguments: &[usize],
-            membership_ensures: Vec::new(),
             normal_qualifications: &[terminal_psi::StructuralDomainRequirement],
             original: bool,
         ) -> Result<BoundaryArguments, TerminalInterpretError> {

@@ -820,6 +820,34 @@ pub(crate) mod proposition_encoding {
             }
         }
     }
+    pub(super) fn encode_runtime_membership(
+        bytes: &mut CanonicalBytes,
+        row: &terminal_psi::RuntimeDomainMembership,
+    ) {
+        match row {
+            terminal_psi::RuntimeDomainMembership::Scalar { subject, domain } => {
+                bytes.u8(1);
+                encode_scalar_term(bytes, subject);
+                bytes.id(*domain);
+            }
+            terminal_psi::RuntimeDomainMembership::Structural {
+                root,
+                path,
+                version,
+                domain,
+            } => {
+                bytes.u8(2);
+                bytes.id(*root);
+                encode_canonical_path(bytes, path);
+                bytes.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 1,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 2,
+                });
+                bytes.id(*domain);
+            }
+        }
+    }
+
     fn encode_float_projection_contract(
         bytes: &mut CanonicalBytes,
         contract: &numerics::float_projection::FloatProjectionContractIdentity,
@@ -1163,7 +1191,7 @@ pub(crate) mod structural_encoding {
         encode_structural_path_segment,
     };
     use super::proposition_encoding::{
-        encode_content_term, encode_float_format, encode_proposition,
+        encode_content_term, encode_float_format, encode_proposition, encode_runtime_membership,
     };
     use super::{
         BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration,
@@ -1190,7 +1218,7 @@ pub(crate) mod structural_encoding {
             MachineContract, OutcomeSpecificCallEvidence,
         };
 
-        use super::super::proposition_encoding::encode_proposition;
+        use super::super::proposition_encoding::{encode_proposition, encode_runtime_membership};
 
         pub(in super::super) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
             bytes.u8(match cause {
@@ -1305,6 +1333,7 @@ pub(crate) mod structural_encoding {
                 bytes.u32(formal.source_position);
                 bytes.u32(formal.type_identity.0);
             });
+            bytes.slice(&contract.membership_ensures, encode_runtime_membership);
             bytes.slice(&contract.requires, encode_proposition);
             bytes.slice(&contract.source_checked_requires, encode_proposition);
             bytes.slice(&contract.ensures, |bytes, clause| {
@@ -1502,6 +1531,7 @@ pub(crate) mod structural_encoding {
                 });
             });
         }
+        bytes.slice(&declaration.membership_ensures, encode_runtime_membership);
         bytes.slice(&declaration.requires, encode_domain_requirement);
         bytes.slice(
             &declaration.normal_qualifications,
@@ -2549,6 +2579,39 @@ pub(crate) mod structural_encoding {
             assert_ne!(field, root);
             assert_ne!(elements, field);
             assert_ne!(elements, root);
+        }
+
+        #[test]
+        fn optimization_unit_identity_commits_normal_membership_meaning() {
+            use terminal_psi::RuntimeDomainMembership;
+            let mut unit = unit();
+            let absent = recompute_psi_optimization_unit_identity(&unit);
+            unit.boundary_machines[0].membership_ensures.push(
+                RuntimeDomainMembership::Structural {
+                    root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    domain: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
+                },
+            );
+            let whole = recompute_psi_optimization_unit_identity(&unit);
+            let RuntimeDomainMembership::Structural { path, .. } =
+                &mut unit.boundary_machines[0].membership_ensures[0]
+            else {
+                unreachable!()
+            };
+            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1));
+            let field = recompute_psi_optimization_unit_identity(&unit);
+            let RuntimeDomainMembership::Structural { domain, .. } =
+                &mut unit.boundary_machines[0].membership_ensures[0]
+            else {
+                unreachable!()
+            };
+            *domain = semantic_vocabulary::StructuralDomainId::new(2).unwrap();
+            let application = recompute_psi_optimization_unit_identity(&unit);
+            assert_ne!(absent, whole);
+            assert_ne!(whole, field);
+            assert_ne!(field, application);
         }
 
         #[test]

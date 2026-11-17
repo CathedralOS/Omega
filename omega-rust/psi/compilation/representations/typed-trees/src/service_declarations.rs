@@ -1122,7 +1122,14 @@ pub mod projection {
                     synchronous_invocations: machine_synchronous_invocation_names(
                         program,
                         requirement,
-                    )?,
+                    )
+                    .ok_or_else(|| {
+                        projection_failure(
+                            program,
+                            requirement.symbol,
+                            "normal requirement lost its synchronous invocation roster",
+                        )
+                    })?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
                     terminates_guarantee: published_termination.promises_termination(),

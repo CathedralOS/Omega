@@ -2493,6 +2493,21 @@ contract `requires` rule) and strictly ordered service ceilings. Provider candid
 by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
 
+Normal-result domain facts have their own counted field in machine proof
+contracts and boundary declarations. A row names either a scalar term and
+scalar domain, or a structural result root, canonical path, content version and
+structural domain. Rows are strictly increasing without duplicates. Every row
+must name the exact normal result or one of its typed projections. These facts
+change neither the declared result type nor its overload key. Predicates remain
+ordinary guarantees, and checked bodies must establish the facts after cleanup.
+
+The complete service method also retains each authored normal-result membership
+as a result path and canonical domain application identity. Field and case steps
+retain named or numbered member identities; fixed indices retain their exact
+integer. Native receiving checks compare the complete published roster with
+that selected service method, including missing rows. Updating a header digest
+cannot authorize a different guarantee.
+
 ### Runtime callable contracts and selections
 
 A stored machine value names an exact code selection under a complete callable

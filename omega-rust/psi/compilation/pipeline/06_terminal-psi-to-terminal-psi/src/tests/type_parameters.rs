@@ -284,6 +284,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> typed_trees_to_terminal_p
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
@@ -595,6 +596,7 @@ fn rigid_result_transport(
     let mut signatures = IdTable::default();
     for (position, output) in [result_type, input_type].into_iter().enumerate() {
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![input_type],
             erased: Vec::new(),
@@ -853,6 +855,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             },
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: Vec::new(),
             erased: Vec::new(),

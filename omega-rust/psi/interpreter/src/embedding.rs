@@ -61,7 +61,6 @@ pub(crate) mod adapters {
                 result: declaration.result.clone(),
                 result_reference_regions: declaration.result_reference_regions.clone(),
                 result_lifetimes: declaration.result_lifetimes.clone(),
-                membership_ensures: Vec::new(),
                 normal_qualifications: declaration.normal_qualifications.clone(),
             }
         }

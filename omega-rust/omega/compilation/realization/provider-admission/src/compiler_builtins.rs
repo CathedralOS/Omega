@@ -110,8 +110,12 @@ pub(super) fn settle_compiler_builtins<'request>(
                 "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
             ))]
         })?;
-        if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
-        {
+        if !boundary_contract_matches_selected_schema(
+            input.module(),
+            boundary,
+            proposal.provider_plan,
+            requirement,
+        ) {
             return Err(vec![Diagnostic::error(format!(
                 "compiler-builtin boundary {:?} for `{requirement}` disagrees with its exact selected requirement contract (completion {:?}, unconditional termination {})",
                 boundary.id, boundary.completion, boundary.unconditional_termination,
@@ -343,12 +347,13 @@ fn admit_x86_fma_features(
 }
 
 pub(super) fn boundary_contract_matches_selected_schema(
+    module: &terminal_psi::TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
     plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
 ) -> bool {
     // A closed call keeps its own selected row while sharing the declared
-    // method's completion contract with the other applications.
+    // method's completion and returned facts with the other applications.
     let mut rows = plan
         .rows
         .iter()
@@ -370,6 +375,8 @@ pub(super) fn boundary_contract_matches_selected_schema(
         method.completion == boundary.completion
             && boundary.unconditional_termination
                 == (method.terminates_guarantee && method.termination_premises.is_empty())
+            && terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)
+                .is_ok()
     }) && matching.next().is_none()
 }
 
@@ -561,11 +568,13 @@ fn validate_access_schema(
         || !method.termination_premises.is_empty()
         || !method.entry_claims.is_empty()
         || !method.result_claims.is_empty()
+        || !method.normal_result_memberships.is_empty()
         || !method.service_reach.is_empty()
         || !method.synchronous_invocations.is_empty()
         || !boundary.requires.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.membership_ensures.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
         || !boundary.content_guarantees.is_empty()
@@ -764,6 +773,7 @@ mod selected_completion_contract_tests {
     fn exact_selected_rows_rejoin_declared_completion_without_wildcards() {
         // This unit isolates correspondence and completion; actual ABI and
         // artifact custody are checked by the source-free native control.
+        let module = terminal_psi::TerminalModule::declarations();
         let mut plan = ProviderPlan::default();
         let declared = plan.identities.intern("Boundary::invoke");
         let first = plan.identities.intern("Boundary::invoke<First>");
@@ -795,21 +805,28 @@ mod selected_completion_contract_tests {
         let original = declaration();
         for selected in ["Boundary::invoke<First>", "Boundary::invoke<Second>"] {
             assert!(boundary_contract_matches_selected_schema(
-                &original, &plan, selected
+                &module, &original, &plan, selected
             ));
         }
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &plan,
             "Boundary::invoke<Other>"
         ));
         assert!(
-            !boundary_contract_matches_selected_schema(&original, &plan, "Boundary::invoke"),
+            !boundary_contract_matches_selected_schema(
+                &module,
+                &original,
+                &plan,
+                "Boundary::invoke"
+            ),
             "a template is not an implicit selected local application"
         );
         let mut changed = plan.clone();
         changed.rows.push(changed.rows[0].clone());
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &changed,
             "Boundary::invoke<First>"
@@ -817,6 +834,7 @@ mod selected_completion_contract_tests {
         let mut changed = plan.clone();
         changed.rows[0].declared_requirement_identity = changed.identities.intern("Other::invoke");
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &changed,
             "Boundary::invoke<First>"
@@ -826,6 +844,7 @@ mod selected_completion_contract_tests {
             .methods
             .clear();
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &changed,
             "Boundary::invoke<First>"
@@ -834,13 +853,46 @@ mod selected_completion_contract_tests {
         let surface = std::sync::Arc::make_mut(&mut changed.schema.declaration);
         surface.methods.push(surface.methods[0].clone());
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &changed,
+            "Boundary::invoke<First>"
+        ));
+        let mut extra_promise = original.clone();
+        extra_promise
+            .membership_ensures
+            .push(terminal_psi::RuntimeDomainMembership::Scalar {
+                subject: semantic_vocabulary::ScalarTerm::value(
+                    semantic_vocabulary::ValueId::new(1).unwrap(),
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+                domain: semantic_vocabulary::ScalarDomainId::new(1).unwrap(),
+            });
+        assert!(!boundary_contract_matches_selected_schema(
+            &module,
+            &extra_promise,
+            &plan,
+            "Boundary::invoke<First>"
+        ));
+        let mut extra_schema_promise = plan.clone();
+        std::sync::Arc::make_mut(&mut extra_schema_promise.schema.declaration).methods[0]
+            .normal_result_memberships
+            .push(
+                language_semantics::service_surface::ServiceNormalResultMembership {
+                    path: Vec::new(),
+                    domain: "another-domain-application".into(),
+                },
+            );
+        assert!(!boundary_contract_matches_selected_schema(
+            &module,
+            &original,
+            &extra_schema_promise,
             "Boundary::invoke<First>"
         ));
         let mut changed = original.clone();
         changed.unconditional_termination = false;
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &changed,
             &plan,
             "Boundary::invoke<First>"
@@ -848,6 +900,7 @@ mod selected_completion_contract_tests {
         changed = original.clone();
         changed.completion = BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
         assert!(!boundary_contract_matches_selected_schema(
+            &module,
             &changed,
             &plan,
             "Boundary::invoke<First>"
@@ -857,6 +910,7 @@ mod selected_completion_contract_tests {
         ordinary.rows[0].requirement_identity = declared;
         ordinary.rows[0].calling_signature = None;
         assert!(boundary_contract_matches_selected_schema(
+            &module,
             &original,
             &ordinary,
             "Boundary::invoke"

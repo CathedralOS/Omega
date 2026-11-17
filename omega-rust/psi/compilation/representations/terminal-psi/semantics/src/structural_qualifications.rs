@@ -1236,7 +1236,7 @@ fn validate_change(
         let missing = declared
             .missing_membership_requirements(&module.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
-        let forwarded = facts.structural_on_edge(change, *referent, *id);
+        let forwarded = facts.structural_on_edge(module, change, *referent, *id);
         if missing && !forwarded {
             return malformed(
                 machine,

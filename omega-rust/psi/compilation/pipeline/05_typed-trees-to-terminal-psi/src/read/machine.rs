@@ -2431,6 +2431,7 @@ impl<'t> Program<'t> {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result,
+            membership_ensures: Vec::new(),
             requires: terminal_semantics::numeric_primitives::requires(meaning)
                 .map_err(unavailable)?,
             ensures,
