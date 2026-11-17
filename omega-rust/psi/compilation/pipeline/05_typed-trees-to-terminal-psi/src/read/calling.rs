@@ -358,6 +358,37 @@ impl Program<'_> {
                     })?;
                 self.admitted_declarations
                     .include(declaring.declaration.symbol);
+                // Admitting a requirement admits its contract clauses to the
+                // selection check, which needs every operator in them read. A
+                // program that never calls this requirement would otherwise
+                // admit clauses nobody read, so read the declaration the way a
+                // call does (the read is cached per requirement). Only a
+                // written clause expression carries operators; a requirement
+                // whose contract has none (a formal's domain membership, an
+                // unguarded `crashes`) has nothing for that check and stays
+                // admitted for its calling plan alone.
+                if typed
+                    .trait_machine_signature(source.symbol)
+                    .is_some_and(|(owner, declared)| {
+                        owner.is_boundary
+                            && typed
+                                .signature_contracts
+                                .span_or_empty(declared.contracts)
+                                .iter()
+                                .any(|contract| {
+                                    typed.proof_facts.span_or_empty(contract.facts).iter().any(
+                                        |fact| {
+                                            matches!(
+                                                fact,
+                                                typed_trees::domain::ProofFact::Expression(_)
+                                            )
+                                        },
+                                    )
+                                })
+                    })
+                {
+                    self.read_boundary_declaration(context, source.symbol)?;
+                }
                 self.admitted_declarations.include(source.symbol);
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
