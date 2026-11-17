@@ -84,7 +84,7 @@ review did not run the compiler.
 | --- | --- | --- |
 | Target operations → emit | The driver saves `EmissionFacts` separately; emission and physical publication still read an earlier executable program. [Driver][audit-emission], [consumer][audit-publication] | Carry the precise admission, identity, attribution and resource records in current forms. Delete earlier-program lookups and the separate driver-held bundle; forwarding the whole earlier graph is not completion. See §6. |
 | Handlers → measured binding → instruction selection | The root stops after target lowering. Required handlers become objects; their stack/entry requirements return to binding before the root continues. [Order][audit-object-order], [measurement][audit-handler-stack] | Put retained handlers in the physical program, derive complete resource summaries, then bind the program before encoding. Delete recursive handler-to-object compilation used to obtain those summaries. See §5. |
-| Source compiler ↔ source evaluator | Source preparation requests compile-time values. The evaluator also prepares an invocation and obtains its lowered-form verdict before execution. [Preparation][audit-source-job], [execution][audit-source-execution] | One source-settlement owner prepares/checks invocation code. The executor receives accepted code plus admitted inputs and returns values/status/work receipts. Delete the evaluator's source-preparation interface. See §4. |
+| Source compiler ↔ source evaluator | Source preparation requests compile-time values. The evaluator also prepares an invocation and obtains its lowered-form verdict before execution. [Preparation][audit-source-job], [execution][audit-source-execution] | One source-settlement owner prepares, checks and evaluates required invocations inside the stage. Carry values and receipts in its result. Delete both the evaluator's source-preparation interface and the external executor boundary. See §4. |
 | Provider closure ↔ policy preparation | Changed demand repeats policy preparation using accepted publication and checked source custody. [Inputs][audit-policy], [loop][audit-provider-loop] | Close logical source/body choices in source settlement; carry accepted policy code and exact choices into later ABI planning. Delete post-publication source access. Preserve existing choices and refusals. See §4. |
 | Emitted objects → more callback compilation | The coordinator scans object symbols, discovers referenced callback bodies and compiles them. [Discovery][audit-callback-reach] | Close retained body/reference demand in native planning over accepted code. Delete object-symbol-driven compiler reentry while preserving pruning. See §5. |
 | Layout/fragments → more branch encoding | Frame insertion after fragment emission can widen and re-encode displaced branches. [Frame application][audit-frame-application] | Common encoding supplies legal forms/fixups; layout selects and patches them. Preserve body-first relaxation and frame-placement behavior. Delete later calls that construct instruction encodings. See §5. |
@@ -92,11 +92,12 @@ review did not run the compiler.
 | Psi runtime admission → stage 02 helper | The runtime-only route runs abstract optimization, then separately calls `capture_runtime_borrowed_storage_layouts`. [Call][audit-runtime-layout] | Make required layout records an explicit stage output consumed by runtime provision construction. Preserve Psi-only execution without requiring native compilation of the main body. See §6. |
 | Realized function → driver-supplied audit callback | The driver attaches `NativeStageAudit`; the realized-function representation holds `Box<dyn FunctionStageAudit>`. This is a verifier dependency, not another compiler transformation. [Attachment][audit-callback], [stored capability][audit-callback-owner] | Give an explicit verifier the current form and requested originals. Delete the callable driver capability from program data while preserving independent checks. See §6. |
 
-**Keep real service boundaries explicit.** The source, calling-policy and runtime
-callers use one Psi interpreter. Execution requests/results, external host calls,
-admitted Build inputs and product publication are not themselves evidence of
-compiler backtracking. The repair concerns source/stage work inside those services
-or missing information supplied outside the declared representation handoff.
+**Current calls are evidence, not the proposed topology.** Source, calling-policy
+and runtime callers currently use one Psi interpreter. The replacement gives
+compiler evaluation to its requesting stage. Runtime execution consumes finished
+products after compilation. Neither becomes a service beside the proposed
+pipeline. Acquisition supplies the front input; publication consumes its final
+result. Required records travel through every intervening representation.
 
 **Correction to the earlier plan:** the cited O08 callback routine compares
 carried bytes against a canonical encoding; it does not replace those bytes.
@@ -133,66 +134,72 @@ handoffs for one coordinated cutover. The table below supplies their invariants;
 
 ```mermaid
 flowchart LR
-  A[Admitted source bytes and requests]
-  B[Source settlement: lazy source and evaluation closure]
-  C[Accepted canonical Psi]
-  D[Native program planning: retained-body closure]
-  E[Physical program planning: all generated bodies]
-  F[Installation and resource binding]
-  G[Common encoding]
-  H[Layout and relaxation]
-  I[Object construction]
-  J[Image construction]
-  K[Product publication]
-  A -.-> B
-  B -.-> C
-  C -.-> D
-  D -.-> E
-  E -.-> F
-  F -.-> G
-  G -.-> H
-  H -.-> I
-  I -.-> J
-  J -.-> K
+  A[00 Admit compilation inputs] --> B[01 Compile source and values]
+  B --> C[02 Seal portable program]
+  C --> D[03 Plan native code]
+  D --> E[04 Build physical program]
+  E --> F[05 Bind resources]
+  F --> G[06 Encode all code]
+  G --> H[07 Lay out code]
+  H --> I[08 Build objects]
+  I --> J[09 Build image]
+  J --> K[10 Publish products]
 ```
 
-Independent verification is a separate consumer of current forms and the
-originals its request explicitly retains. It does not produce program meaning.
+Each arrow carries the complete next input, including records destined for later
+stages. Compiler evaluation stays inside its requesting stage. Runtime execution
+starts from a finished product; it is not a compiler stage or a side helper.
 
-**Judgment:** keep the public transformation boundaries where a complete output
-can be stated without asking a previous phase for more work. Coarsen the current
-boundaries that participate in an actual dependency loop. Keep their algorithms
-as named, separately testable private operations; do not preserve obsolete
-public stage APIs behind a coordinator wrapper.
+**00–10 are proposed ordering numbers**, not current crate numbers or a claim
+that these contracts are implemented. Current Psi/Omega numbers still locate
+existing code. Feasibility work in §8 may revise the proposed boundaries.
 
-The names below describe contracts, not final directories or numbers. Assign
-numbers after the feasibility work in §8 establishes these boundaries. Current
-Psi/Omega numbers are used only to locate existing code.
+Every representation carries the current program, its identity, needed provenance,
+unconsumed requests and established facts. Stage 00 admits external inputs;
+facts first computed later enter that producer's output. A later stage consumes
+these records from its immediate predecessor. It never asks an earlier owner to
+recover a fact or perform more work. A retained earlier executable graph, source
+lookup, mutable Build context or producer callback is not a carried record.
 
-Every program representation contains its identity, provenance required by its
-consumers, selected target when applicable, current body membership and all
-facts needed next. Immutable leaf definitions may be shared. A phase receives
-its declared predecessor and admitted inputs, such as native planning's accepted
-code catalog. It must not retain an older executable graph beside its current
-input to recover missing facts, or receive a source lookup capability, mutable
-Build context or callback into another producer. Explicit verification may read
-the originals its request declares. Private worklists may contain intermediate
-forms while their owning phase runs; they are not hidden inter-stage products.
+This is a compilation record, not a proposal to put native configuration into
+portable Psi. The Psi-owned program and source operations remain target-neutral;
+they see only the neutral projection of carried requests. Native target/ABI data
+has an Omega-owned type. The exact acyclic record/type arrangement is an open
+gate, including how untouched inputs pass through Psi work without Psi importing
+Omega. Passing a callback or opaque source owner fails that gate.
 
-| Phase / owner | Complete input | Output | Required invariant |
+| Proposed stage | Complete input from predecessor | Output | Required invariant |
 | --- | --- | --- | --- |
-| Source acquisition and admission — packages/Build, before the compiler | Requested source/package roots, permissions and explicit Build input | Immutable admitted source-byte/custody reservoir and requests | Availability and authorization are recorded; acquisition does not imply semantic acceptance or activation of every file. |
-| Source settlement — Psi producer | That reservoir, scoped roots, neutral Build selection records, admitted observations and budgets | Accepted target-neutral program, closed logical provider/body selections, prepared application facts and narrow provenance | All source and logical-body discovery for this result is closed; only the lowered-form checker can accept it; dormant availability is not a new obligation. |
-| Portable sealing — Psi representation producer | Accepted program and its publication policy | Canonical Psi artifact, identity, acceptance/evidence and required summaries | Encoding cannot confer semantic acceptance or host execution authority. No live source owner escapes in the artifact. |
-| Native program planning — Omega producer | Canonical accepted code catalog, exact logical selections, selected target description, component admissions and native request | Selected native program with explicit retained-body references, call/ABI plans, obligations and generated-body recipes | Native work is source-free. It closes target demand and optimization-related body reach over already accepted code; it cannot select a new source body or silently change a logical provider. |
-| Physical program planning — Omega producer | Selected native program and immutable target environment | Complete physical program including ordinary bodies, required adapters/entries/handlers, register choices, frame recipes, effects and symbolic resource uses | All executable bodies and their effects are represented. Generated code is program data, not a later writer's private byte sequence. |
-| Installation/resource binding — Omega producer | Complete physical program, admitted installations and complete resource summaries | Bound physical program | Transitive stack demands, bridge storage, call bias, fault premises and placement identities agree; binding cannot invalidate allocation, effects or frame choices. |
-| Common encoding — Omega producer | Bound physical program | Encoded bodies/fragments, all legal alternatives, frame encodings and complete fixup descriptors | Every executable byte generated by this compilation has this producer, including entry/foreign/writer helpers. Imported pre-encoded components remain explicit admitted inputs. No new body may appear downstream. |
-| Layout and relaxation — Omega producer | Encoded program, target placement rules and relocations | Laid-out text/fragments with resolved internal references | Choose/patch carried alternatives only. Preserve existing body/frame relaxation semantics and checked range/alignment rules. |
-| Object construction — Omega producer | Laid-out program, symbols and object-format request | Object plus attribution, entry and evidence records | No source/ABI rediscovery or helper generation; composition uses declared, already encoded bodies or admitted component objects. |
-| Image construction — Omega producer | Objects, container request, external binding/loader inputs and carried entry plans | Final image, regions, symbols, relocation evidence and runtime/provision carriers | Container placement, relocation, signing/format metadata only; no fresh register, frame or instruction decisions. |
-| Publication — products/host support | Completed retained product and output request | Installed files/packages and receipts | File installation does not invoke compiler stages; failure retains the existing publication guarantees. |
-| Independent verification — explicit consumer route | Current form plus the exact optional originals/evidence required by that validator | Verification result/diagnostics | Does not choose providers or produce program meaning. Missing required replay inputs refuse the requested audit. |
+| 00 Admit compilation inputs | Acquired source/package bytes, scoped roots and explicit compilation request | Admitted compilation inputs: source custody, Build/configuration requests, target/component/provider/loader/output records, selections, budgets and staged observation receipts | Record availability and authority without activating every source file. Values that require source evaluation are produced by 01, not guessed here. |
+| 01 Compile source and values | Admitted compilation inputs | Accepted program and computed values, checked body catalog, neutral selection records, provenance and carried requests | Own lazy syntax, resolution, typing, preparation, lowering, invocation admission and hermetic evaluation. Only the lowered-form checker gives the semantic verdict; independent certificate admission stays independent. |
+| 02 Seal portable program | Accepted program, evidence, publication policy and carried requests | Canonical Psi plus the compilation record needed downstream | Psi stays target-neutral. Sealing grants no new semantic acceptance or host authority. No live source owner escapes. |
+| 03 Plan native code | Canonical checked body catalog and carried Build rows, target, component admissions and native request | Selected native program, call/ABI plans, obligations, generated-body recipes and remaining requests | Join exact Build selections to checked candidates without source lookup. Own calling-policy computation here. Close retained-body demand without changing logical choices. |
+| 04 Build physical program | Selected native program and carried target/environment facts | Complete physical program, effects, frames and symbolic resource uses | Represent ordinary bodies, adapters, entries and handlers together. Register/frame choices and generated code have this owner, not a later writer. |
+| 05 Bind resources | Complete physical program, resource summaries and carried installations/limits | Bound physical program and remaining requests | Check transitive stack, bridge storage, call bias, fault premises and placement identities. Binding must not change allocation, effects, frames or body membership. |
+| 06 Encode all code | Bound physical program and carried encoding/format facts | Encoded bodies, frames, legal alternatives, fixups and remaining requests | Every executable byte produced here has a represented body. Imported pre-encoded components remain explicit admitted data. No new body downstream. |
+| 07 Lay out code | Encoded program and carried placement rules/relocations | Laid-out program, resolved references and remaining requests | Choose and patch carried alternatives only. Preserve body/frame relaxation, range and alignment rules. |
+| 08 Build objects | Laid-out program, carried symbols and object-format request | Objects with attribution, entry/evidence records and remaining requests | No source/ABI rediscovery or private helper generation. Components are already encoded, admitted products. |
+| 09 Build image | Objects and carried container, binding, loader and entry records | Completed image, regions, symbols, relocation evidence and provision records | Container placement, relocation, signing/format metadata only; no fresh register, frame or instruction decisions. |
+| 10 Publish products | Completed product and carried output request | Installed products and publication receipts | Filesystem publication performs no compiler transformations and preserves existing failure guarantees. |
+
+**Validation remains independent.** Admit explicit validator selections and
+evidence-retention requests at 00. Each requested checker receives the declared
+form/evidence at its phase or product boundary; its report travels forward.
+Keep trust-boundary checks and independent checking authority. No verifier
+callback lives in program data, and normal compilation does not replay its own
+outputs. Read the [optimization phase contract][linear-optimization-spec].
+
+These macro stages do not erase the specification's private optimization phases,
+their exact selections or the required unoptimized/optimized checker order.
+Prove each operation's owner and order inside its macro stage; merely placing
+the old cross-stage APIs behind a new coordinator does not complete the change.
+
+A Psi-only request carries its completed portable artifact forward to publication.
+Native phases process only its requested native products, including any required
+auxiliary adapters; they do not demand a native main program. An empty native
+request carries the record through without native work. Retained portable bytes
+are a finished output, never an earlier executable graph used to recover facts.
+Specify these product/request variants in the input-custody gate before coding.
 
 Native planning absorbs the current early realization/Omega 00–04 operations
 that must cooperate to close retained-body demand. Physical planning owns
@@ -243,39 +250,51 @@ an all-purpose compiler stage.
 
 ### Evaluation is an explicit operation on accepted code
 
-The source compiler produces the program; the source evaluator runs computations
-needed while preparing it, such as constants and layout policies. These are
-different operations. The current evaluator also prepares and checks invocation
-programs, which entangles their ownership. The replacement keeps compilation in
-source settlement and gives the executor an already accepted invocation.
+The source compiler currently requests values while preparing a program; the
+evaluator also prepares and checks invocations. [Source preparation][linear-source],
+[invocation preparation][source-job] show the mixed ownership. The spec requires
+checked, hermetic evaluation, not an external executor interface.
 
-Settlement constructs, lowers and checks the exact required invocation closure,
-then gives the executor immutable accepted code plus sealed invocation admission.
-That admission binds caller, entry, arguments, target/supplies, permitted
-observations and work account. It is the result of source-consent checks, not
-`InvocationSourceConsent`, a source owner or a lookup callback. The executor
-validates the binding, invokes the interpreter and returns values/status with
-invocation-bound observation and work receipts. Settlement alone decides how
-those values update source preparation.
+**01 owns source evaluation; 03 owns calling-policy computation.** In 01, private
+operations construct, lower and check the exact invocation, bind its caller,
+arguments, target/supplies, permitted observations and work account, execute it,
+and use the result to finish source preparation. Preserve termination, empty
+runtime-service reach, suspension/trap restrictions, executable dependencies and
+all other [invocation admission rules][linear-evaluation-spec]. Each invocation
+uses fresh owned value storage; only permitted value snapshots and bound receipts
+leave it. No host/compiler reference escapes into a computed value.
 
-The current [source-job preparation][source-job] and
-[retained-product preparation][product-preparation] move to settlement.
-The actual [invocation engine][source-job-execution] remains an execution service.
-Simply making `build-time-evaluation` depend on `source-compiler` creates a
-cycle because the reverse [dependency already exists][source-dependency]. Both
-APIs must be replaced together in this migration.
+03 evaluates carried, accepted calling-policy code over the carried signature,
+target facts and admission record, then checks the returned ABI plan. The current
+[CallingPolicyEvaluator callback][linear-policy] is a path to retire, not a
+proposed shared service. A private evaluator interprets the stage's accepted
+input; it cannot request source preparation or choose a different logical body.
+
+The current [source-job preparation][source-job],
+[retained-product preparation][product-preparation] and
+[invocation execution][source-job-execution] must be assigned to these owners
+together. The reverse [dependency already exists][source-dependency]; reversing
+one import is not the repair. Language execution is compiler-semantic work,
+not a generic primitive. Sharing an interpreter-shaped compiler service outside
+the stages would preserve the rejected topology. Any shared algorithm must
+actually be language-independent; otherwise assign it to the stage or revise
+the stage boundary. Keep runtime interpretation of finished Psi a separate
+product consumer, outside compilation.
 
 ### Close logical providers without violating the firewall
 
 Available declarations are not roots. Settlement receives admitted Build
 selection/binding descriptions in Psi-neutral data: exact declaration IDs,
 source scope, target keys and language-level requirements. It owns discovery
-and preparation of each selected provider body and its transitive source
-dependencies. The output contains the exact logical selections, required body
-catalog and their acceptance/provenance. Nothing later can request another
+and preparation of the required checked candidate bodies and their transitive
+source dependencies. The output contains the checked catalog, neutral selection
+records and their acceptance/provenance. Nothing later can request another
 source file, activate a declaration or rejoin a source `SymbolTable`.
 
-Omega then evaluates/validates physical ABI plans over those closed identities.
+The [Psi product contract][linear-product-spec] keeps exact checked candidates
+portable; Omega joins the target's Build row to that catalog. Source settlement
+must not take over target-specific provider choice. Omega then evaluates and
+validates physical ABI plans over those closed identities.
 Failure cannot trigger an alternative logical provider or reopen settlement.
 The current [closure loop][closure-loop] and [calling-policy inputs][policy-input]
 must therefore be split by meaning, not moved wholesale before a renamed O00.
@@ -441,7 +460,7 @@ relocations. No stage after encoding may create a new executable body.
 | Carried record | The first complete program form that establishes it | Includes identities/provenance needed to interpret it, not an earlier program used as a database. |
 | Producer | The phase whose complete input permits the calculation | Creates a plan, offset, choice, commitment, body or authority-bound result. “Pure” does not make it data. |
 | Checker | Admission boundary or explicit independent verifier | Checks evidence against a stated input contract; it does not choose missing semantics. |
-| Live host operation | Packages, executor/runtime, products or host support | Performs acquisition, execution or publication, not a compiler transformation. |
+| Live host operation | Packages, runtime, products or host support | Performs acquisition, execution or publication, not a compiler transformation. |
 
 `terminal-psi/vocabulary` (TPV) is a proposed family of small definition/carrier
 leaves, not a destination for 40k lines of mixed semantic code. Split identities,
@@ -509,7 +528,8 @@ refuses that audit. Moving a validator beside a representation does not remove
 its dependency on a producing stage or make it independent.
 
 The verifier route receives current data and retained evidence directly through
-a verification dispatcher. Program representations hold no callback into the
+its declared phase/product boundary. Its input and report are explicit records;
+its checking logic retains independent authority. Program representations hold no callback into the
 native driver or an earlier stage. Separate shared vocabulary/codecs from
 independent checking logic; do not deduplicate a verifier into the producer
 whose error it must catch. Proof search, certificate admission, source acceptance,
@@ -530,11 +550,11 @@ Each destination is **judgment** and requires a per-export classification from
 | [arena](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/arena/Cargo.toml#L1) | 8,402 | Keep generic arenas, handles and dense storage primitives. Receive generic ID tables and hashing only; no SymbolHandle-specific aliases. |
 | [artifacts](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/artifacts/Cargo.toml#L1) | 345 | Move measurement/report carriers to a products leaf package that package compilation can use without depending on the product coordinator. |
 | [bounded-process](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/bounded-process/Cargo.toml#L1) | 3,823 | Move the reusable process mechanism to explicit host support; CLI-only private observation stays with CLI. Permit this leaf for package resolvers, runtimes and tools; it owns no compilation. |
-| [build-time-values](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/build-time-values/Cargo.toml#L1) | 91 | Put immutable evaluation result values beside the executor contract; source settlement interprets them. Move native-binding description production to Build. |
+| [build-time-values](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/build-time-values/Cargo.toml#L1) | 91 | Carry immutable computed values in the producing stage result; source settlement interprets source values. Move native-binding description production to Build. |
 | [compiler-storage](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/compiler-storage/Cargo.toml#L1) | 1,599 | Keep generic record encoding/decoding. Semantic wire tags remain with the representation they encode. |
 | [compiler-storage-derive](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/compiler-storage/derive/Cargo.toml#L1) | 168 | Keep the generic record derive package beside compiler-storage; count it as a separate package. |
 | [diagnostics](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/diagnostics/Cargo.toml#L1) | 598 | Keep plain diagnostic values and formatting. Source parsing helpers move into source settlement; stages retain exact provenance needed for errors. |
-| [evaluation-accounting](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/evaluation-accounting/Cargo.toml#L1) | 1,499 | Separate invocation/work records carried by accepted programs from evaluation sponsorship, limits and charging owned by source settlement/execution services. |
+| [evaluation-accounting](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/evaluation-accounting/Cargo.toml#L1) | 1,499 | Separate invocation/work records carried by accepted programs from evaluation sponsorship, limits and charging private to the invocation-owning stage. |
 | [execution-admission](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/execution-admission/Cargo.toml#L1) | 138 | Keep generic worker/stack budget machinery if export review confirms no language policy. It is not authority to accept a program. |
 | [extents](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/extents/Cargo.toml#L1) | 4,915 | Shared extent IDs and rights go with portable vocabulary; semantic bound derivation goes to its producing phase; mutable ledgers, root grants and host issuance stay with the interpreter/runtime owner. |
 | [filesystem-authority](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/filesystem-authority/Cargo.toml#L1) | 2,670 | Separate source admission/capture, evaluation filesystem sponsorship and product-output obligations. Package/source acquisition, source settlement and products own these respectively; no runtime-stage dependency. |
@@ -606,7 +626,7 @@ bridges and all audit consumers have moved within the same integrated change.
 | --- | ---: | --- |
 | [provider-admission](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/Cargo.toml#L1) | 26,491 | Move admission operations to native planning and late installation binding; split sealed carrier definitions for runtimes and representations. Preserve who can issue each record. |
 | [provider-planning](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-planning/Cargo.toml#L1) | 7,231 | Separate logical requirement/body discovery from target ABI realization. The former is resolved in source settlement through neutral Build records; the latter belongs to native planning over closed accepted code. |
-| [provider-selection](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-selection/Cargo.toml#L1) | 1,874 | Publish exact selected declaration/body/application identities during logical source settlement; native planning may validate these but may not activate source. |
+| [provider-selection](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-selection/Cargo.toml#L1) | 1,874 | Source settlement publishes the checked candidate catalog and neutral selection records; native planning joins each carried target Build row to exact checked declaration/body/application identities. It may not activate source. |
 | [selected-dispatch](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/Cargo.toml#L1) | 105 | Replace the external wrapper role with the selected native input contract. Preserve target agreement and canonical plan custody; public from_realization is a current construction route, not unique settle authority. |
 | [trust-model](https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/trust-model/Cargo.toml#L1) | 708 | Run trust-obligation reconstruction in native admission from carried declarations, grants and evidence; carry the result. It must not reconstruct source facts later. |
 
@@ -614,7 +634,7 @@ bridges and all audit consumers have moved within the same integrated change.
 
 | Current surface | Required treatment |
 | --- | --- |
-| `declaration_selection` | Keep exact occurrence/body identities; preserve the existing resolved → typed → lowering ledger. Logical selection mutation belongs to source settlement. |
+| `declaration_selection` | Keep exact occurrence/body identities; preserve the existing resolved → typed → lowering ledger. Source settlement owns source identity preparation; native planning joins carried target selections to the checked catalog. |
 | `RetainedDeclaration`, `SourceFile`, source scopes/consent | Keep source content and authority private to source settlement. Only explicit provenance projections enter portable leaves. |
 | `callable_applications`, semantic domains and prepared theories | Producer builds closed application records; consumers never reconstruct an unapplied family. Missing preparation preserves refusal. |
 | `float_operations`, scalar/proposition/numeric tables | Shared definitions stay portable. `float_operations` has both terminal-semantics and [target][float-target] users; a single-stage move is wrong. |
@@ -638,6 +658,8 @@ an ordering argument; a diagram alone does not close it.
 
 | Gate | Required result | What would make the proposed boundary fail |
 | --- | --- | --- |
+| Numbered input custody | Map every request/fact from admission or producer through each 00–10 handoff to its final consumer, with an acyclic type-ownership model preserving the Psi/Omega firewall. | A mid-pipeline external input, side service, retained earlier program, callback or hidden compilation in a carrier. |
+| Evaluation ownership | Assign source evaluation to 01 and target-policy computation to 03; inventory the private algorithms, admission/accounting/result records and deleted executor/callback APIs. | Language execution relabeled as a primitive, stage work still dispatched outside the chain, or changed values/refusals/charging. |
 | Source activation and closure | Exact lazy source activation, extension, evaluation and charging state transitions; preserve error order and checker verdicts. Show that private operations replace, rather than call, the old source stages. | Eager errors from unused files; dynamic source discovered after portable publication; a callback to an old stage. |
 | Logical provider separation | Map every provider-selection input to neutral admitted Build/source data or later ABI admission. Close selected source bodies and calling-policy code before source publication. | A later target decision needs another source body, an ABI object enters Psi, or moving checks changes provider choice/refusal. |
 | Native demand closure | Show available/demanded/retained membership and every generated reference; prove later encoding/layout cannot discover new bodies. Preserve optimization-pruned unavailable targets. | A conservative roster introduces new native obligations, or object symbols remain the authoritative source of reach. |
@@ -664,7 +686,7 @@ matrix and resolves conflicts across all packages.
 | --- | --- | --- |
 | Contract and evidence baseline | Planning gates closed | Refresh the pinned inventory against the implementation base; freeze stage IO, authority, wire/identity and failure contracts; list all entry points and test selectors. |
 | Primitive/leaf extraction | Agreed export/field model | Build the acyclic generic and representation leaves; update every consumer. No semantic algorithms or source custody move into primitives. |
-| Source and evaluation replacement | Neutral Build/provider and executor contracts | Implement lazy source settlement, accepted invocation execution and closed logical body selection; replace old source stage APIs and facade continuations together. |
+| Source and evaluation replacement | Carried input/result records and private evaluation ownership | Implement lazy source settlement, accepted invocation execution and closed logical body selection; replace old source stage APIs and facade continuations together. |
 | Native demand/planning replacement | Accepted code/selection contract; target leaves | Implement source-free retained-body closure, native admission, ABI plans and explicit generated-body recipes. Consume components and target requests through their declared interfaces. |
 | Physical/resource replacement | Selected program and generated-recipe contracts | Implement allocation/physical completion, complete resource analysis and stable installation binding for ordinary and generated bodies. |
 | Encoding/layout/object/image replacement | Bound physical contract; format/fixup definitions | Route every executable body through common encoding, preserve layout behavior, and construct object/image data without new program decisions. |
@@ -683,7 +705,7 @@ work-package completion, decides whether the compiler can switch.
 | --- | --- |
 | Non-primitive foundation crates and `omega/foundation/` | Every row in the foundation table assigned and all imports/codecs/tests moved. |
 | `omega/compilation/backend/` and umbrella re-exports | Every backend row assigned to a phase, representation, verifier, product/runtime or evidenced test owner. |
-| Old source stage entry APIs and split continuation/evaluation coordination | Single source-settlement producer with demand-aware syntax, exact checker acceptance and artifact-only execution. |
+| Old source stage entry APIs and split continuation/evaluation coordination | Single source-settlement producer with demand-aware syntax, exact checker acceptance and private admitted evaluation; no external executor API. |
 | External provider-to-source completion and stage work in proposal constructors | Closed logical selections/accepted code plus source-free native planning. |
 | Root/handler recursive native stage interleaving | Closed current native program, full resources and stable binding; no later-stage output fed to an earlier installer. |
 | Image-time entry/adapter/frame/writer program generation | Explicit physical bodies and common encoding, including runtime auxiliary artifacts. |
@@ -735,7 +757,7 @@ example does not establish that outcome.
 
 [Questions](../questions.md) keeps Q-A/B/C/D/F/G aligned with this design. The
 recommendation is explicit: narrow host support; no source custody in leaves;
-one source-settlement owner and artifact executor; shared definition leaves but
+stage-owned source and calling-policy evaluation; shared definition leaves but
 no earlier program access; one common encoding route; logical provider closure
 before native work and full resource binding before encoding. The open items
 are the concrete feasibility proofs in §8, not authorization to perform a
@@ -802,3 +824,9 @@ piecemeal migration.
 [audit-layout-output]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L456-L482
 [audit-handler-recursion]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L96-L109
 [audit-emission-consumer]: https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L305-L358
+
+[linear-evaluation-spec]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/language/evaluation.md#L34-L82
+[linear-optimization-spec]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/build/optimizations.md#L30-L108
+[linear-source]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L115-L185
+[linear-policy]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1-L92
+[linear-product-spec]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/terminal-psi/product.md#L68-L99

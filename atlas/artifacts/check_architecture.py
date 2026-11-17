@@ -68,7 +68,10 @@ def main():
                 proposed=json.loads(page.locator('#overview-proposed-model').text_content())
                 assert page.locator('.connected-viewport .connected-scene').count()==1
                 assert page.locator('.connected-viewport [data-endpoint]').count()==len(proposed['nodes'])
-                assert page.locator('.connected-viewport [data-endpoint="engine"]').count()==1
+                assert len(proposed['edges'])==len(proposed['nodes'])-1
+                assert all(e['main'] for e in proposed['edges'])
+                assert [n['number'] for n in proposed['nodes'] if n['role']=='owner']==list(range(11))
+                assert page.locator('.connected-viewport [data-endpoint="engine"]').count()==0
                 assert page.locator('.connected-viewport [data-endpoint="compiler"]').count()==0
                 page.locator('.connected-jump').select_option('native-planning')
                 assert 'Open contract:' in page.locator('.connected-detail').inner_text()

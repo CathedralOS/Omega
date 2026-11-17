@@ -5,7 +5,8 @@
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
 .arch-header h2 { margin:0; padding:0; border:0; font:var(--type-heading); }
 .arch-badge,.connected-intro,.connected-help { font:var(--type-label); color:var(--ink-muted); }
-.connected-intro { max-width:none; }
+.connected-intro { max-width:none; font:var(--type-reading-small); }
+.connected-help { font:var(--type-reading-small); }
 .arch-reading { padding:8px 16px 16px; }
 .arch-overview-legend { display:flex; flex-wrap:wrap; gap:8px 20px; margin:12px 0; font:var(--type-label); color:var(--ink-muted); }
 .arch-attention { color:var(--trap); }
@@ -35,7 +36,7 @@
 .connected-detail { position:absolute; top:12px; right:12px; width:340px; max-width:calc(100% - 24px); max-height:calc(100% - 24px); overflow:auto; padding:16px; border:1px solid var(--ink-muted); background:var(--surface); z-index:2; }
 .connected-detail h3 { margin:8px 0 12px; font:var(--type-subheading); }
 .connected-detail h3:focus { outline:none; }
-.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-label); }
+.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-reading-small); }
 .connected-detail-close { float:right; }
 .connected-relations { padding:0; list-style:none; }
 .connected-relations li { padding:12px 0; border-top:1px solid var(--rule); }

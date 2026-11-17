@@ -60,11 +60,12 @@ requires later source operations. Wrapping the old stage API calls in a new
 coordinator is not the replacement. Eagerly parsing every available file would
 also change the demand/error contract.
 
-The executor receives immutable accepted code and a sealed invocation admission
-binding caller, arguments, target/supplies, permitted observations and account.
-It returns values/status and receipts. It receives no mutable syntax, source
-consent object or source lookup callback. Source-job construction and
-[retained-product preparation][product-preparation] move into settlement.
+Evaluation is a private operation of the stage requesting the value, not an
+external executor. Source settlement owns source-job construction,
+[retained-product preparation][product-preparation], invocation admission,
+execution and use of the returned value. Native planning owns calling-policy
+computation over carried accepted code. Both preserve caller, arguments,
+target/supplies, permitted observations, account and invocation-bound receipts.
 The [existing dependency][source-dependency] prevents simply reversing the
 facade call without replacing both interfaces.
 
@@ -113,10 +114,10 @@ production phase.
 
 ## Q-G. How do provider closure, retained bodies and installations fit?
 
-**Recommendation:** logical provider/body discovery closes inside source
-settlement from admitted Psi-neutral Build selection records. Omega then admits
-physical ABI plans over those fixed selections and already accepted code. It
-cannot select a new source body when a target check fails.
+**Recommendation:** source settlement prepares the checked candidate body catalog
+and neutral Build selection records. Omega joins each target's Build row to that
+catalog and admits physical ABI plans. Target-specific provider selection stays
+with Omega; it cannot request unchecked source when a target check fails.
 
 The [observed provider loop][closure-loop] grows demand through selected exact
 bodies; [policy preparation still has source custody][policy-input]. Splitting

@@ -15,6 +15,15 @@ def validate(model):
     if model.get('view')=='proposed':
         if model.get('status')!='unverified' or any('/atlas/plans/foundation-and-backend.md#' not in item['source'] for item in model['nodes']+model['edges']):
             raise ValueError('Proposed contracts must be unverified and cite the recorded plan')
+        spine=model['spine']
+        if ([n['id'] for n in model['nodes']]!=spine or
+            [(e['start'],e['end']) for e in model['edges']]!=list(zip(spine,spine[1:])) or
+            any(not e.get('main') for e in model['edges'])):
+            raise ValueError('Proposed must be one forward chain with no side nodes or edges')
+        stages=[n for n in model['nodes'] if n['role']=='owner']
+        if ([n.get('number') for n in stages]!=list(range(11)) or
+            any(not n['title'].startswith(f'{i:02d} ') for i,n in enumerate(stages))):
+            raise ValueError('Proposed stages must be numbered 00–10 in order')
     nodes = {n['id']: n for n in model['nodes']}
     if len(nodes) != len(model['nodes']):
         raise ValueError('Duplicate overview endpoint')
@@ -302,7 +311,7 @@ def render_overview(architecture):
              '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
              '<div class="arch-overview-legend" data-legend="current"><span class="legend-psi">Psi form</span><span class="legend-native">Native form</span><span>Shaded: owner / inputs</span><span class="legend-check">Checker verdict</span><span>Bold: main route</span><span>Dashed: supporting work</span><span class="arch-attention">Red: extra inputs / late code</span></div>',
-             '<div class="arch-overview-legend" data-legend="proposed" hidden><span>Dashed boxes: proposed contracts</span><span>Bold: planned order</span><span>Dashed: services, inputs, consumers</span></div>',
+             '<div class="arch-overview-legend" data-legend="proposed" hidden><span>Dashed boxes: proposed contracts</span><span>00–10: stage order</span><span>Arrows: complete next input</span></div>',
              '<div class="connected-tools" hidden><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':

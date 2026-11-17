@@ -79,6 +79,7 @@ for(const e of edges.filter(e=>e.main)){
 }
 // neato -n2 routes around the fixed boxes without rearranging the spine.
 // Text on the spine is also an obstacle, rather than a wire crossing a label.
+if(edges.some(e=>!e.main)){
 const height=Math.max(...[...nodes.values()].map(n=>n.y+n.height))+40;
 const quote=JSON.stringify;
 const dot=['digraph G {','graph [splines=ortho,overlap=true,margin=0,pad=0];','node [shape=box,fixedsize=true,label="",margin=0];'];
@@ -99,6 +100,7 @@ for(const e of edges.filter(e=>!e.main)){
   const head=r.pos.split(/\s+/).find(s=>s.startsWith('e,'));
   if(head)points.push(point(head.slice(2).split(',').map(Number)));
   e.sections=[{points:points.filter((p,i,a)=>i===0||p.x!==a[i-1].x||p.y!==a[i-1].y)}];
+}
 }
 const occupied=[...nodes.values(),...reserved].map(n=>({...n}));
 const overlap=(a,b)=>a.x<b.x+b.width+5&&a.x+a.width+5>b.x&&a.y<b.y+b.height+5&&a.y+a.height+5>b.y;

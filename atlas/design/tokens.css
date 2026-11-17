@@ -26,11 +26,14 @@
 
   /* Type */
   --font-serif: "Omega Serif", Georgia, serif;
+  --font-reading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --type-display: 300 56px/62px var(--font-serif);
   --type-heading: 500 32px/40px var(--font-serif);
   --type-subheading: 500 20px/28px var(--font-serif);
-  --type-body: 400 17px/28px var(--font-serif);
+  --type-body: 400 17px/28px var(--font-reading);
+  --type-intro: 400 20px/28px var(--font-reading);
+  --type-reading-small: 400 14px/22px var(--font-reading);
   --type-label: 500 13px/18px var(--font-serif);   /* letter-spacing: 0.02em */
   --type-code: 400 14px/22px var(--font-mono);
 

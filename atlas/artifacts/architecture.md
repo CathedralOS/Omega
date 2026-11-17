@@ -3,13 +3,16 @@
 Use **Current / Proposed** above the drawing to compare the observed compiler
 with the recorded migration plan on the same canvas. Each view remembers its
 camera. Proposed boxes have dashed borders; selecting one opens its contract,
-plan citation and any unresolved planning obligation. The proposed phase names
-are not replacement stage numbers or claims that the migration is implemented.
+plan citation and any unresolved planning obligation. Proposed stages are numbered
+00–10. These are draft ordering numbers, not current crate numbers or a claim
+that the migration is implemented. Every proposed handoff moves forward; each
+representation carries the requests and facts its successors need.
 
 Follow the bold route from START, top to bottom. Numbered stages show the
-compilation order; phase frames separate source compilation, execution selection,
-native compilation, and publishing. Dashed connections show supporting calls
-and returns. Each shared component appears once, including the Psi interpreter.
+compilation order and phase frames group related work. In Current, dashed
+connections show the observed supporting calls and returns; each shared component
+appears once, including the Psi interpreter. Proposed puts compiler evaluation
+inside its owning stage and ends at published products.
 
 Drag to pan, scroll or pinch to zoom, and select a component or arrow to trace
 its connections. Find moves to a component. Fit whole compiler and the minimap
