@@ -248,6 +248,111 @@ fn declared_domains(
     (!names.is_empty()).then(|| (table.display_name(*base_type), names))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SelectedMeaning {
+    Declaration(SelectedOperator),
+    Core(language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature),
+}
+
+fn core_application(
+    program: &TypedTrees,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    owner: symbols::SymbolHandle,
+    binary: typed_trees::expression::TableBinaryExpression,
+) -> Option<language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature> {
+    use language_semantics::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature,
+    };
+    use numerics::arithmetic::ArithmeticDomain;
+    if binary.policy != ArithmeticDomain::Exact {
+        return None;
+    }
+    let operation = binary.operator.scalar_operation()?;
+    let references = [
+        types.get(program, owner, binary.left),
+        types.get(program, owner, binary.right),
+    ];
+    let read = |reference, expression| match reference {
+        Some(reference) => {
+            let (_, symbols::BuiltinTypeAtom::Integer(carrier), policy) =
+                typed_trees::operator::core_integer_operand(program, reference)?
+            else {
+                return None;
+            };
+            Some(Some(CoreIntegerOperand { carrier, policy }))
+        }
+        None if typed_trees::closed_numeric::has_anonymous_numeric_results(program, expression) => {
+            Some(None)
+        }
+        None => None,
+    };
+    let left = read(references[0], binary.left)?;
+    let right = read(references[1], binary.right)?;
+    let carrier = left.or(right)?.carrier;
+    let plain = CoreIntegerOperand {
+        carrier,
+        policy: ArithmeticDomain::Exact,
+    };
+    let application = CoreIntegerOperatorSignature::select(
+        operation,
+        [left.unwrap_or(plain), right.unwrap_or(plain)],
+    )?;
+    let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)?;
+    (!typed_trees::operator::has_scoped_operator_meaning(program, owner, spelling, &references))
+        .then_some(application)
+}
+
+fn retain_core_application(
+    program: &mut TypedTrees,
+    handle: typed_trees::expression::ExpressionHandle,
+    application: language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature,
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    let span = program.expression_table.source_span(handle);
+    let occurrences = program
+        .expression_table
+        .authored_selection_occurrences(handle)
+        .filter(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .is_some_and(|row| row.kind() == Kind::Operator && row.source_span() == span)
+        })
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        return Err(
+            Diagnostic::error("core operator lost its unique source selection")
+                .with_source_span(span),
+        );
+    };
+    let target = program
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .unwrap()
+        .target();
+    match target {
+        Target::LateBound(Late::CheckedOperator) => program
+            .finalize_authored_intrinsic_selection(
+                *occurrence,
+                Late::CheckedOperator,
+                Intrinsic::CoreIntegerOperator(application),
+            )
+            .map_err(|error| {
+                Diagnostic::error(format!(
+                    "core operator selection cannot be retained: {error:?}"
+                ))
+                .with_source_span(span)
+            }),
+        Target::Intrinsic(Intrinsic::CoreIntegerOperator(previous)) if previous == application => {
+            Ok(())
+        }
+        _ => Err(
+            Diagnostic::error("core operator conflicts with its selected declaration")
+                .with_source_span(span),
+        ),
+    }
+}
+
 pub(crate) fn prepare_site(
     program: &mut TypedTrees,
     owners: &typed_trees::references::ProgramOperandOwners,
@@ -259,7 +364,10 @@ pub(crate) fn prepare_site(
     let mut answer = None;
     let mut caller = symbols::SymbolHandle::invalid();
     for owner in owners.expression_owners(handle) {
-        let selected = selection(program, types, owner, handle)?;
+        let selected = match selection(program, types, owner, handle)? {
+            Some(selected) => Some(SelectedMeaning::Declaration(selected)),
+            None => core_application(program, types, owner, binary).map(SelectedMeaning::Core),
+        };
         if answer
             .as_ref()
             .is_some_and(|previous| previous != &selected)
@@ -281,6 +389,12 @@ pub(crate) fn prepare_site(
             return Err(error);
         }
         return Ok(());
+    };
+    let selected = match selected {
+        SelectedMeaning::Core(application) => {
+            return retain_core_application(program, handle, application);
+        }
+        SelectedMeaning::Declaration(selected) => selected,
     };
     let target = selected.target;
     let Some(machine) = program.machine_by_symbol(target) else {

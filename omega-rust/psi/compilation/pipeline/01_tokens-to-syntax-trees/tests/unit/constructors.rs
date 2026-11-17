@@ -1,5 +1,5 @@
+use crate::frontend_fixture::Lexer;
 use crate::token_input::cursor::Input;
-use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 
 #[test]

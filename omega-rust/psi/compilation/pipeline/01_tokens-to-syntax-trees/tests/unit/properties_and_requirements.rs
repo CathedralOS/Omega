@@ -1,8 +1,8 @@
+use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
 use language_core::DataSupplyMode;
 use language_core::Multiplicity;
 use language_core::OperatorSpelling;
-use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::CapabilityContractKind;
 use syntax_trees::item::CapabilityMember;

@@ -640,6 +640,22 @@ fn prepare_generic_forms<'source>(
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
     for template in templates {
+        // A requirement sized by its own `const` binders is checked once here;
+        // programs carry only its closed applications.
+        if let Some((_, requirement)) = typed.trait_machine_signature(*template) {
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
+            program.generic_requirement(requirement)?;
+            forms.push(finish_reading(
+                program,
+                None,
+                IdTable::default(),
+                None,
+                None,
+                None,
+            )?);
+            continue;
+        }
         if let Some(declared) = typed.trait_definition_by_symbol(*template) {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;
@@ -974,6 +990,7 @@ fn capture_source_questions(
         &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
+        &program.admitted_signature_view_owners,
     )
     .map_err(|error| Refusal {
         source_span: None,
@@ -1862,6 +1879,10 @@ fn finish_storage(
                 None => (Construct::Machine, None, None),
             };
             let (reason, detail) = match error {
+                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
+                    terminal_check_tables::RefusalReason::Unestablished,
+                    unavailable.message(),
+                ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     (terminal_check_tables::RefusalReason::Unsupported, detail)
                 }

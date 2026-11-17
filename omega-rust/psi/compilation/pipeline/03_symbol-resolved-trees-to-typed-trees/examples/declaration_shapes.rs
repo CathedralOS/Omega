@@ -57,10 +57,10 @@ fn main() {
         let text = std::fs::read_to_string(&path).unwrap();
         let mut sources = source::SourceMap::default();
         let id = sources.add(path.clone().into(), text.clone()).source_id;
-        let tokens = source_files_to_tokens::Lexer::new(&text)
+        let tokens = crate::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
@@ -105,3 +105,6 @@ fn main() {
         }
     }
 }
+
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

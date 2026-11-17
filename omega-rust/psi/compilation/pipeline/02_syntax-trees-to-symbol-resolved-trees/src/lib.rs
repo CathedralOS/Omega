@@ -101,3 +101,7 @@ pub mod pre_resolution {
         resolve_deferred_numeric_probe,
     };
 }
+
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

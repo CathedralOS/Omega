@@ -1,18 +1,21 @@
 //! Time the real lexer, optionally through parsing, with retained source inputs.
 //! The ordinary omega-bench runner owns pairing, resource capture and output checks.
 
-use source::SourceId;
-use source_files_to_tokens::Lexer;
+use source::{LoadedSource, LoadedSources, SourceId};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use syntax_trees::SyntaxTrees;
-use tokens::TokenScratch;
 
 fn main() -> Result<(), String> {
+    let budget =
+        execution_admission::ExecutionBudget::with_workers(1).map_err(|error| error.to_string())?;
+    budget.run(measure)
+}
+
+fn measure() -> Result<(), String> {
     // Cargo supplies this marker even when the benchmark uses its own harness.
     let arguments: Vec<_> = std::env::args()
         .skip(1)
@@ -51,9 +54,9 @@ fn main() -> Result<(), String> {
     let mut fingerprint = DefaultHasher::new();
     for (source_index, source) in sources.iter().enumerate() {
         source.hash(&mut fingerprint);
-        let tokens = Lexer::new(source)
-            .tokenize()
+        let lexed = source_files_to_tokens::lex(loaded(source.clone()))
             .map_err(|error| format!("{}: {}", arguments[source_index + 2], error.message))?;
+        let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
         tokens.len().hash(&mut fingerprint);
         for token in tokens.iter() {
             format!("{:?}", token.kind).hash(&mut fingerprint);
@@ -63,25 +66,22 @@ fn main() -> Result<(), String> {
         }
     }
 
-    let mut scratch = TokenScratch::default();
     let mut checksum = 0u64;
     let start = Instant::now();
     for _ in 0..black_box(repeats) {
         for source in &sources {
-            let tokens = Lexer::new(black_box(source))
-                .tokenize_reusing(&mut scratch)
-                .map_err(|error| error.message)?
-                .retain_source(source.clone());
+            let lexed = source_files_to_tokens::lex(loaded(black_box(source.clone())))
+                .map_err(|error| error.message)?;
+            let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
             checksum = checksum.wrapping_add(black_box(tokens.len()) as u64);
+            black_box(tokens).as_slice();
             if parse {
-                let mut syntax = SyntaxTrees::new(SourceId(1));
-                let roots = tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), &tokens)
+                let parsed = tokens_to_syntax_trees::parse(&lexed, Default::default())
                     .map_err(|error| error.message)?;
-                checksum = checksum.wrapping_add(black_box(roots.items.len()) as u64);
-                black_box(&syntax);
+                checksum = checksum
+                    .wrapping_add(black_box(parsed.sources()[0].source().root_items.len()) as u64);
+                black_box(&parsed);
             }
-            black_box(&tokens).as_slice();
-            tokens.recycle(&mut scratch);
         }
     }
     let elapsed = start.elapsed().as_nanos();
@@ -90,4 +90,14 @@ fn main() -> Result<(), String> {
         fingerprint.finish()
     );
     Ok(())
+}
+
+fn loaded(source: Arc<str>) -> LoadedSources {
+    [LoadedSource {
+        source_id: SourceId(1),
+        source,
+        ..Default::default()
+    }]
+    .into_iter()
+    .collect()
 }

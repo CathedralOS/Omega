@@ -1501,8 +1501,10 @@ mod resolution_handoff_tests {
             .add("completion/main.omg".into(), text.to_owned())
             .source_id;
         let sources = Arc::new(sources);
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let frontier =
             syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -1585,9 +1587,11 @@ mod resolution_handoff_tests {
                     machine helper() { let bytes: [u8; length()]; }\n";
         let (mut typing, frontier, sources) = deferred(text);
         let source_id = sources.files().next().unwrap().source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         let (_, pending) = build_time_evaluation::evaluate_pre_resolution(
             build_time_evaluation::BuildTimeEvaluationRequest {
                 syntax_trees: syntax,

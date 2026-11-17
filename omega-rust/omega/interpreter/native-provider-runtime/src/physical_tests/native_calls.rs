@@ -2,7 +2,7 @@
 We test real foreign C registrations across the persistent worker's
 independently mapped original homes, verifying that updating an original home
 after completion is observed on subsequent registrations, that a stale-token
-trap faults only that incarnation without replay, and that Darwin guest `errno`
+trap faults only that incarnation without replay, and that POSIX guest `errno`
 survives worker IPC and dynamic-library constructor housekeeping.
 */
 
@@ -330,6 +330,17 @@ fn parameter_storage(
 #[cfg(target_os = "macos")]
 #[test]
 fn darwin_guest_errno_survives_worker_housekeeping() {
+    guest_errno_survives_worker_housekeeping();
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_guest_errno_survives_worker_housekeeping() {
+    guest_errno_survives_worker_housekeeping();
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn guest_errno_survives_worker_housekeeping() {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -339,28 +350,45 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
     std::fs::create_dir(&directory).unwrap();
     let fixture =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/physical_tests/errno.c");
-    let mut libraries = Vec::new();
-    for image_ordinal in 0..2 {
-        let library = directory.join(format!("liberrno-{image_ordinal}.dylib"));
-        compile(
-            Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()))
-                .args([
-                    "-std=c11",
-                    "-O2",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-dynamiclib",
-                ])
-                .arg(format!("-Wl,-install_name,{}", library.display()))
-                .arg(&fixture)
-                .arg("-o")
-                .arg(&library),
-        );
-        libraries.push(library);
-    }
     let profile = TargetProfile::host();
     let target = profile.native_target();
+    let version_script = directory.join("errno.map");
+    std::fs::write(
+        &version_script,
+        "ERRNO_1.0 { global: errno_*; local: *; };\n",
+    )
+    .unwrap();
+    let mut libraries = Vec::new();
+    for image_ordinal in 0..2 {
+        let extension = match target.object_format {
+            ObjectFormat::MachO => "dylib",
+            ObjectFormat::Elf => "so",
+            ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
+        };
+        let library = directory.join(format!("liberrno-{image_ordinal}.{extension}"));
+        let mut command = Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()));
+        command.args(["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"]);
+        match target.object_format {
+            ObjectFormat::MachO => {
+                command
+                    .arg("-dynamiclib")
+                    .arg(format!("-Wl,-install_name,{}", library.display()));
+            }
+            ObjectFormat::Elf => {
+                command
+                    .args(["-shared", "-fPIC"])
+                    .arg(format!("-Wl,--version-script={}", version_script.display()));
+            }
+            ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
+        }
+        compile(command.arg(&fixture).arg("-o").arg(&library));
+        libraries.push(library);
+    }
+    let system = match target.object_format {
+        ObjectFormat::MachO => "/usr/lib/libSystem.B.dylib",
+        ObjectFormat::Elf => "libc.so.6",
+        ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
+    };
     let product = |library: &str, symbol: &str, parameters: Vec<ValueShape>, result, tag| {
         let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
             target,
@@ -372,44 +400,61 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
             .unwrap(),
         })
         .unwrap();
+        let candidate = match target.object_format {
+            ObjectFormat::MachO => ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: library.as_bytes().to_vec(),
+                symbol: format!("_{symbol}").into_bytes(),
+            },
+            ObjectFormat::Elf => ForeignLocatorCandidate::ElfVersioned {
+                object: library.as_bytes().to_vec(),
+                symbol: symbol.as_bytes().to_vec(),
+                version: if library == system {
+                    if profile == TargetProfile::LinuxArm64 {
+                        b"GLIBC_2.17".to_vec()
+                    } else {
+                        b"GLIBC_2.2.5".to_vec()
+                    }
+                } else {
+                    b"ERRNO_1.0".to_vec()
+                },
+            },
+            ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
+        };
         image_emission::emit_native_foreign_adapter(
             bridge,
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: library.as_bytes().to_vec(),
-                    symbol: symbol.as_bytes().to_vec(),
-                },
-                profile,
-            )
-            .unwrap(),
+            normalize_foreign_locator(candidate, profile).unwrap(),
             [tag; 32],
         )
         .unwrap()
     };
     let word = ValueShape::integer(8, 8);
     let integer = ValueShape::integer(4, 4);
-    let system = "/usr/lib/libSystem.B.dylib";
+    let errno_symbol = if cfg!(target_os = "macos") {
+        "__error"
+    } else {
+        "__errno_location"
+    };
     let products = [
-        product(system, "_close", vec![integer], Some(integer), 1),
-        product(system, "___error", vec![], Some(word), 2),
+        product(system, "close", vec![integer], Some(integer), 1),
+        product(system, errno_symbol, vec![], Some(word), 2),
         product(
             system,
-            "_memcpy",
+            "memcpy",
             vec![ValueShape::borrowed_reference(4, 4), word, word],
             Some(word),
             3,
         ),
-        product(system, "_getpid", vec![], Some(integer), 4),
+        product(system, "getpid", vec![], Some(integer), 4),
         product(
             libraries[0].to_str().unwrap(),
-            "_errno_success_changes",
+            "errno_success_changes",
             vec![],
             Some(word),
             5,
         ),
         product(
             libraries[1].to_str().unwrap(),
-            "_errno_success_changes",
+            "errno_success_changes",
             vec![],
             Some(word),
             6,
@@ -432,7 +477,7 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
     }
     let view_product = product(
         libraries[0].to_str().unwrap(),
-        "_errno_copy_view",
+        "errno_copy_view",
         vec![ValueShape::integer(16, 8)],
         Some(word),
         7,

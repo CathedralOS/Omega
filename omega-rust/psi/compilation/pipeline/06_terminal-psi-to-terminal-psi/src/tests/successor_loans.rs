@@ -536,3 +536,237 @@ machine entry<'a>(pair: &Pair<'a>) {}
         "two fields still name different borrows"
     );
 }
+
+#[test]
+fn indexed_successors_keep_their_original_incoming_loan() {
+    use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, DescriptorCallOrigin, terminal_borrowed_storage_graph_from,
+    };
+    // Tail-call cycles become state headers; acyclic helpers remain ordinary calls.
+    // Keep this real cycle so the test exercises captured storage on arrivals.
+    let mut input = permission_inputs(
+        r#"
+data Shape [copy] { value: u64; }
+machine entry(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64, again: bool) -> u64
+requires index < 2 {
+    transition { _ -> selected(shapes, sibling, index, again, &shapes[index]) }
+    machine selected(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64,
+        again: bool, shape: &Shape) -> u64
+    requires index < 2 {
+        transition { _ -> forwarded(shapes, sibling, index, again, shape) }
+    }
+    machine forwarded(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64,
+        again: bool, shape: &Shape) -> u64
+    requires index < 2 {
+        transition again {
+            true -> entry(shapes, sibling, index, false)
+            false -> shape.value
+        }
+    }
+}
+"#,
+    );
+    let graph_from_source = || {
+        terminal_borrowed_storage_graph_from(
+            &input.module,
+            input.module.machines.iter().map(|machine| machine.id),
+            &[],
+        )
+        .unwrap()
+    };
+    let graph = graph_from_source();
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+    let machine = input
+        .module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .blocks
+                .iter()
+                .any(|block| !block.structural_parameters.is_empty())
+        })
+        .expect("the actual source has borrowed successor headers");
+    let original = machine.structural_parameters[0].place;
+    let sibling = machine.structural_parameters[1].place;
+    assert_ne!(original, sibling);
+    let mut observed = Vec::new();
+    for block in &machine.blocks {
+        let at = (block.id, u32::try_from(block.operations.len()).unwrap());
+        for parameter in &block.structural_parameters {
+            let descriptor = DescriptorLocation::whole(parameter.place);
+            let Some(DescriptorCallOrigin::Argument { source, projection }) =
+                analysis.storage_projection(machine.id, at, &descriptor)
+            else {
+                continue;
+            };
+            if projection.captured_at.is_none() {
+                continue;
+            }
+            assert_eq!(
+                source, original,
+                "the sibling input cannot replace the selected source"
+            );
+            assert!(
+                projection
+                    .captured_storage_path()
+                    .unwrap()
+                    .iter()
+                    .any(|step| step.runtime_index().is_some())
+            );
+            assert_eq!(
+                terminal_semantics::borrowed_loan_source(
+                    &input.module,
+                    machine,
+                    &mut analysis,
+                    at,
+                    &descriptor,
+                    std::iter::empty(),
+                ),
+                Ok(terminal_semantics::BorrowedLoanSource::Incoming)
+            );
+            observed.push((at, descriptor));
+        }
+    }
+    assert!(
+        observed.len() >= 2,
+        "both selected and forwarded retain the captured address"
+    );
+    let (at, descriptor) = &observed[0];
+    let mut missing = graph_from_source();
+    let mut removed = 0;
+    for machine in &mut missing {
+        for step in machine.flow.values_mut() {
+            for edge in &mut step.successors {
+                for binding in &mut edge.bindings {
+                    if let Some((_, projection)) = &mut binding.captured_storage {
+                        *projection =
+                            terminal_semantics::borrowed_storage::Projection::new(&projection.path);
+                        removed += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(removed > 0);
+    let mut missing =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &missing);
+    assert!(
+        terminal_semantics::borrowed_loan_source(
+            &input.module,
+            machine,
+            &mut missing,
+            *at,
+            descriptor,
+            std::iter::empty(),
+        )
+        .is_err(),
+        "an indexed path without its actual capture cannot establish a loan"
+    );
+    let mut ambiguous = graph_from_source();
+    let mut crossed = 0;
+    for candidate in &mut ambiguous {
+        if candidate.id != machine.id {
+            continue;
+        }
+        for step in candidate.flow.values_mut() {
+            let alternatives = step
+                .successors
+                .iter()
+                .filter_map(|edge| {
+                    let mut alternative = edge.clone();
+                    let mut changed = false;
+                    for binding in &mut alternative.bindings {
+                        if binding.parameter != *descriptor {
+                            continue;
+                        }
+                        if let Some((captured, projection)) = &mut binding.captured_storage
+                            && projection.captured_storage_path().is_some_and(|path| {
+                                path.iter().any(|step| step.runtime_index().is_some())
+                            })
+                        {
+                            // The producer captures the current array name. Its replay
+                            // resolves that name to the original input; the sibling is
+                            // a same-typed but different incoming resource.
+                            captured.root = sibling;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        crossed += 1;
+                        Some(alternative)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            step.successors.extend(alternatives);
+        }
+    }
+    assert!(crossed > 0);
+    let mut ambiguous =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &ambiguous);
+    assert!(
+        terminal_semantics::borrowed_loan_source(
+            &input.module,
+            machine,
+            &mut ambiguous,
+            *at,
+            descriptor,
+            std::iter::empty(),
+        )
+        .is_err(),
+        "competing original and sibling arrivals cannot establish one parent"
+    );
+    let mut widened = machine.clone();
+    widened
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.structural_parameters)
+        .find(|parameter| parameter.place == descriptor.root)
+        .unwrap()
+        .access = StructuralAccess::MutableBorrow;
+    assert_eq!(
+        terminal_semantics::borrowed_loan_source(
+            &input.module,
+            &widened,
+            &mut analysis,
+            *at,
+            descriptor,
+            std::iter::empty(),
+        ),
+        Err("borrowed successor exceeds its original incoming access")
+    );
+    let identity = machine.id;
+    drop(analysis);
+    drop(missing);
+    drop(ambiguous);
+    // Check the entered machine's complete loan judgment, including both
+    // successors, with the full source module and its actual tables intact.
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
+    let (formed, domains, checking, _, _) = scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(identity).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let mut references = prepared.references(&module.structural_types);
+    let storage = crate::places::Storage::new(
+        identity,
+        module.machine(identity).unwrap(),
+        module,
+        domains,
+        &prepared.graph,
+        tables,
+        &prepared.types,
+        &mut references,
+    )
+    .unwrap();
+    let (loans, conflicts) = storage.loans(&mut references, module, tables).unwrap();
+    assert!(
+        loans.is_empty(),
+        "continuing an input must not create a loan"
+    );
+    assert!(conflicts.is_empty(), "{conflicts:?}");
+}

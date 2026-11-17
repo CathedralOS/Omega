@@ -3318,8 +3318,8 @@ mod propositions {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::frontend_fixture::Lexer;
         use crate::resolution::{ResolutionRequest, resolve};
-        use source_files_to_tokens::Lexer;
         use symbol_resolved_trees::mathematical::MathematicalBody;
 
         #[test]
@@ -3337,7 +3337,7 @@ mod propositions {
                 .source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
             let program = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
@@ -3382,7 +3382,7 @@ mod propositions {
             let source_id = sources.add("identity.omg".into(), text.into()).source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
             let program = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),

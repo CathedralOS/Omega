@@ -1,19 +1,12 @@
 //! An inferred binding keeps the initializer's actual type and ownership.
 use super::*;
 
-const SOURCE: &str = r#"
-data Ticket [linear] { number: u64; }
-data Envelope<T> { item: T; }
-machine identity<T>(value: T) -> T { move value }
-machine main() -> u64 {
-    let ticket = Ticket { number: 29u64 };
-    let envelope: Envelope<Ticket> = Envelope { item: move ticket };
-    let wrapped = identity<Envelope<Ticket>>(move envelope);
-    let { item } = move wrapped;
-    let { number } = move item;
-    number
-}
-"#;
+const SOURCE: &str = include_str!(
+    "../../../../../../../tests/fixtures/run/ownership/inferred_generic_record/main.omg"
+);
+const REPEATED: &str = include_str!(
+    "../../../../../../../tests/fixtures/fail/ownership/inferred_generic_record_reuse/main.omg"
+);
 
 fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
@@ -55,11 +48,7 @@ fn inferred_locals_keep_actual_generic_results_and_linear_ownership() {
         "{accepted:?}"
     );
 
-    let repeated = SOURCE.replace(
-        "let { item } = move wrapped;",
-        "let { item } = move wrapped; let { item as again } = move wrapped; let { number as ignored } = move again;",
-    );
-    let rejected = judged(&repeated);
+    let rejected = judged(REPEATED);
     for verdict in &rejected {
         println!("repeated inferred result: {verdict:?}");
     }
@@ -68,7 +57,7 @@ fn inferred_locals_keep_actual_generic_results_and_linear_ownership() {
             Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal
                 .detail
-                .contains("decomposition source is not a complete live value",),
+                .contains("decomposition source is not a complete live value"),
             _ => false,
         }),
         "{rejected:?}"

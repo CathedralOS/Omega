@@ -198,6 +198,8 @@ Write each item so any agent can start from it alone: current state, files and e
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
   Acceptance: independent bounds admission is retired.
 
+- **CONTRACT-RUNTIME-INDEX-OBSERVATIONS.** Contracts can index an array only at a literal index of a literal-sized array. Read the [indexed scalar contract observations](wiki/spec/terminal-psi/byte_views.md#indexed-scalar-contract-observations) the spec defines: a runtime index that is a scalar term, as in std's `send_string<const Count>` contract `text[Count - 1] == 0`, with its in-bounds obligation formed before the clause. `ScalarReadProjection::Index` already crosses the wire and the interpreter; clause substitution (`substitution_clauses.rs`), formation and the prover do not accept it yet, and the size-generic requirement check form refuses such a contract.
+
 - **LOC-VALUE-CUSTODY.** (covers **IMAGE-SELF-REPLAY-DELETED**) Carry value custody on one path per layer and qualify native execution on `linux_x86_64`.
 
 ## Universal interpreter cutover

@@ -291,18 +291,22 @@ impl TargetCompilation {
     ) -> Result<CompilationOutput, CompilationProductError> {
         let completed = produced
             .check_conditions(&mut self.realization.custody)
-            .and_then(|()| {
+            .and_then(|completion| {
                 self.realization
                     .check_declaration_requirements(produced.module())
+                    .map(|()| completion)
             });
-        if let Err(diagnostics) = completed {
-            return Err(CompilationProductError::ProductionAttempt {
-                diagnostics,
-                accounting: std::mem::take(
-                    &mut self.realization.custody.source_completion_accounting,
-                ),
-            });
-        }
+        let scalar_completion = match completed {
+            Ok(completion) => completion,
+            Err(diagnostics) => {
+                return Err(CompilationProductError::ProductionAttempt {
+                    diagnostics,
+                    accounting: std::mem::take(
+                        &mut self.realization.custody.source_completion_accounting,
+                    ),
+                });
+            }
+        };
         let runtime_product = self
             .report
             .needs_terminal(&self.realization.custody.build_admission);
@@ -353,6 +357,7 @@ impl TargetCompilation {
                     Ok(CompilationOutput::Native(Box::new(
                         products::PendingNativeProduct {
                             terminal,
+                            scalar_completion,
                             retained_native_inputs,
                             components: Ok(Vec::new()),
                             accepted_package_permissions,

@@ -1814,6 +1814,172 @@ fn check_wrapping_index_guards(fixtures: &[(&str, bool)]) {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+#[test]
+fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
+    use std::sync::Arc;
+    let source = kept_fixture("run/calls/scalar_contract_route_exit/main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(
+        &source,
+        package_compilation::BuildExecutionInputs {
+            snapshot: fixture_package_inputs::fixture_build_snapshot(&source).unwrap(),
+            ..Default::default()
+        },
+    )
+    .expect("discover the unchanged scalar-contract program");
+    // Preparing Windows inputs exercises the stored product on every host;
+    // this control neither emits nor executes a platform image.
+    let profile = target::TargetProfile::WindowsX64;
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        retain_native_inputs: true,
+        retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(),
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
+        .expect("admit the scalar-contract native product");
+    assert_eq!(prepared.plans.len(), 1);
+    let (actual_profile, request) = prepared.plans.pop().unwrap();
+    assert_eq!(actual_profile, profile);
+    let build = orchestration::prepare_package(
+        prepared.session.compiler(),
+        request.occurrences,
+        &mut prepared.completed,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "prepare scalar-contract source: {:?}",
+            error.failure.into_diagnostics()
+        )
+    });
+    let mut outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: request.terminal_permissions,
+            },
+        )])
+        .expect("produce checked native inputs");
+    assert_eq!(outcomes.len(), 1);
+    let ((), output) = outcomes.pop().unwrap();
+    let compiler::CompilationOutput::Native(pending) = output.expect("prepare native application")
+    else {
+        panic!("expected the pending native application");
+    };
+    // Saved inputs must recover after their source session has been released.
+    drop(prepared);
+    let original = &pending.terminal;
+    assert!(
+        original
+            .evidence()
+            .is_some_and(|evidence| !evidence.seals.is_empty()),
+        "the unchanged fixture must produce actual operation evidence"
+    );
+    let canonical = Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&original.artifact().to_bytes())
+            .unwrap(),
+    );
+    let authorization = original.authorization().clone();
+    authorization.require_artifact(&canonical).unwrap();
+    let (recovered, permissions, assumptions) = products::recover_native_derivation_inputs(
+        authorization,
+        pending
+            .retained_native_inputs
+            .as_ref()
+            .expect("requested saved inputs"),
+    )
+    .expect("recover the exact saved pair");
+    let mut differences = Vec::new();
+    if recovered.evidence() != original.evidence() {
+        differences.push(format!(
+            "operation evidence changed: original {} seals, recovered {:?}",
+            original.evidence().unwrap().seals.len(),
+            recovered.evidence().map(|evidence| evidence.seals.len())
+        ));
+    }
+    let original_identities = original
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .selection
+        .identities()
+        .entries();
+    let recovered_identities = recovered
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .selection
+        .identities()
+        .entries();
+    if original_identities != recovered_identities {
+        let first = original_identities
+            .iter()
+            .zip(recovered_identities)
+            .position(|(left, right)| left != right);
+        differences.push(format!("provider identity order changed at {first:?}: original {} entries, recovered {} entries", original_identities.len(), recovered_identities.len()));
+    }
+    assert!(
+        recovered == *original,
+        "saved native inputs changed the checked product: {}",
+        differences.join("; ")
+    );
+    assert_eq!(permissions, pending.accepted_package_permissions);
+    assert!(assumptions.is_empty());
+
+    // The saved companion is data: it cannot attach another module's seals
+    // or an intact seal whose obligation is not owned by the authorized body.
+    let evidence = original.evidence().unwrap();
+    let original_blob = terminal_codec::encode_operation_evidence(evidence).unwrap();
+    let saved = pending.retained_native_inputs.as_ref().unwrap();
+    assert!(saved.ends_with(&original_blob));
+    let replace_evidence = |changed: &terminal_codec::EvidenceSeals| {
+        let blob = terminal_codec::encode_operation_evidence(changed).unwrap();
+        // The mutations below replace fixed-width identity coordinates only.
+        assert_eq!(blob.len(), original_blob.len());
+        let mut forged = saved.clone();
+        let start = forged.len() - blob.len();
+        forged[start..].copy_from_slice(&blob);
+        forged
+    };
+    let refuse = |bytes: &[u8], expected: &str| {
+        let errors =
+            products::recover_native_derivation_inputs(original.authorization().clone(), bytes)
+                .expect_err("saved evidence cannot supply attachment authority");
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    };
+    let mut foreign = evidence.as_ref().clone();
+    foreign.module.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
+    refuse(
+        &replace_evidence(&foreign),
+        "operation evidence belongs to another canonical artifact",
+    );
+    let mut unowned = evidence.as_ref().clone();
+    let missing = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+    assert!(
+        original
+            .artifact()
+            .semantic_module()
+            .machine(missing)
+            .is_none()
+    );
+    unowned.seals[0].machine = missing;
+    unowned.seals[0].fingerprint = unowned.seals[0].recompute().unwrap();
+    refuse(&replace_evidence(&unowned), "UnownedSeal");
+    let mut damaged = saved.clone();
+    *damaged.last_mut().unwrap() ^= 1;
+    refuse(&damaged, "operation evidence seal fingerprint mismatch");
+}
+
 // The foreign contract keeps its authored method identity, while its closed
 // outer and local arguments control exactly which call instances it can supply.
 // Restrict an existing working registrar to the callback it actually receives.
@@ -2233,8 +2399,10 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             source::DependencyScope::Build,
         )
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let tokens = crate::frontend_fixture::Lexer::new(text)
+        .tokenize()
+        .unwrap();
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
@@ -3033,3 +3201,6 @@ machine main() {}
     );
     session.close().unwrap();
 }
+
+#[path = "../../../../../tests/support/frontend.rs"]
+mod frontend_fixture;

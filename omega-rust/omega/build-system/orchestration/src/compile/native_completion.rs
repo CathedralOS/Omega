@@ -75,6 +75,7 @@ pub(crate) fn complete_native(
 ) -> Result<CompilationOutput, CompilationProductError> {
     let PendingNativeProduct {
         terminal,
+        scalar_completion,
         retained_native_inputs: _,
         components,
         accepted_package_permissions,
@@ -116,8 +117,9 @@ pub(crate) fn complete_native(
                 .map_err(constant_checking)?,
             );
         }
-        let scalars = build_settings::scalar_completion::complete_native(
+        let scalars = build_settings::scalar_completion::extend_native(
             &terminal,
+            scalar_completion,
             settlement.source_completion_accounting_mut(),
         )
         .map_err(constant_checking)?;

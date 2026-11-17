@@ -23,5 +23,6 @@ symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 
 
 [dev-dependencies]
+tokens = { path = "../../representations/tokens" }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }

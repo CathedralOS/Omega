@@ -459,8 +459,10 @@ mod tests {
     const SOURCE: SourceId = SourceId(0);
 
     fn parse(text: &str) -> SyntaxTrees {
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(SOURCE, &tokens).unwrap()
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        crate::frontend_fixture::parse_syntax_trees_with_id(SOURCE, &tokens).unwrap()
     }
 
     /// The stage `stage` of `text`: how many stages the entry has, how many

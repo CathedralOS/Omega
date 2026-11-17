@@ -2,10 +2,10 @@
 Application-sponsored completion of canonical Terminal scalar applications
 (`scalar_completion::complete`).
 
-Both post-Terminal source checking and native compilation's inputs call
-`complete` to evaluate `ScalarApplicationId` demands against the retained
-`TerminalTargetProviderProposal` companions without reopening source trees.
-`complete_native` and `complete_native_demand` finish the values a native
+Post-Terminal Product checking calls `prepare` and retains the completed scope
+with its actual execution inputs. `extend_native` adds the executable's roots
+and demand to that scope without running identical scalar requests again.
+Source-free inputs use `complete_native` and `complete_native_demand` to finish the values a native
 compile needs before `native_compiler::compile` starts, so the native pipeline
 runs once with them as input and never pauses for evaluation. Any
 attempted evaluation usage is recorded in `accounting` even when a condition
@@ -71,6 +71,19 @@ pub fn complete<'scope>(
     proposals: &[TerminalTargetProviderProposal],
     accounting: &mut build_time_evaluation::SourceCompletionAccounting,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+    prepare(artifact, primary, demand, proposals, accounting)
+        .map(|completion| completion.completed.into_admitted())
+}
+
+/// Preserve the evaluated scope with its actual target adapters until the
+/// executable's application roots and native scalar demand are available.
+pub fn prepare<'scope>(
+    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+    primary: impl Into<Option<&'scope str>>,
+    demand: &[semantic_vocabulary::ScalarApplicationId],
+    proposals: &[TerminalTargetProviderProposal],
+    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+) -> Result<products::ProductScalarCompletion, String> {
     let deployed = proposals
         .iter()
         .any(|proposal| proposal.application_roots.is_some());
@@ -79,7 +92,7 @@ pub fn complete<'scope>(
         .filter(|proposal| proposal.application_required)
         .map(|proposal| proposal.target.clone())
         .collect::<Vec<_>>();
-    build_time_evaluation::complete_scalar_applications(
+    build_time_evaluation::prepare_scalar_applications(
         artifact,
         primary,
         deployed.then_some(scopes.as_slice()),
@@ -142,6 +155,73 @@ pub fn complete<'scope>(
             })
         },
     )
+    .map(|completed| products::ProductScalarCompletion {
+        completed,
+        proposals: proposals.to_vec(),
+    })
+}
+
+/// Extend the Product completion without replacing its target inputs. A
+/// source-free artifact has no such owner and uses `complete_native` instead.
+pub fn extend_native(
+    retained: &products::RetainedTerminalArtifact,
+    completion: products::ProductScalarCompletion,
+    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+    let proposal = retained
+        .native_realization_proposal()
+        .ok_or("native constant completion needs the retained native proposal")?;
+    let demand = proposal
+        .entry_scalar_demand(retained.authorization())
+        .map_err(diagnostic_text)?;
+    if completion.completed.artifact().view().identity() != retained.artifact().view().identity()
+        || completion.completed.primary_target() != Some(proposal.target_profile().target_name())
+    {
+        return Err("native scalar completion changed its artifact or target".into());
+    }
+    let proposals = proposal.target_provider_proposals();
+    if completion.proposals.len() != proposals.len()
+        || completion
+            .proposals
+            .iter()
+            .zip(proposals)
+            .any(|(previous, selected)| {
+                let mut expected = previous.clone();
+                expected.application_roots = selected.application_roots.clone();
+                expected != *selected
+            })
+    {
+        return Err("native scalar completion changed its retained provider proposal".into());
+    }
+    let Some(demand) = demand else {
+        return Ok(None);
+    };
+    let deployed = proposals
+        .iter()
+        .any(|proposal| proposal.application_roots.is_some());
+    let scopes = proposals
+        .iter()
+        .filter(|proposal| proposal.application_required)
+        .map(|proposal| proposal.target.clone())
+        .collect::<Vec<_>>();
+    let roots = proposals
+        .iter()
+        .filter_map(|proposal| {
+            proposal
+                .application_roots
+                .as_ref()
+                .map(|roots| (proposal.target.clone(), roots.clone()))
+        })
+        .collect::<Vec<_>>();
+    completion
+        .completed
+        .extend(
+            deployed.then_some(scopes.as_slice()),
+            &roots,
+            &demand,
+            accounting,
+        )
+        .map(Some)
 }
 
 /// The numeric catalog operations the scope's target selection realizes.

@@ -553,9 +553,11 @@ for a signed selector, against the array reached by its prefix. A read cannot
 use its own resulting range to justify that access. Every stored-reference
 crossing separately requires readable access, live unsuspended custody and
 available descriptor storage. The read observes a selected value and names no
-canonical mutable field, so it supplies no field equation. The final field's
-validated declaration instead supplies its invariant on the fresh result SSA
-value through the same certificate-checked transport as canonical field reads.
+canonical mutable field, so it supplies no equation naming that mutable field.
+The exact reaching-store rules below govern equalities between immutable SSA
+values. The final field's validated declaration supplies its invariant on the
+fresh result SSA value through the same certificate-checked transport as
+canonical field reads.
 Construction, entry and replacement stores remain responsible for establishing
 that invariant; neither a type label on an incoming scalar nor a layout offset
 establishes it. IEEE predicates retain IEEE meaning, including NaN behavior.
@@ -636,11 +638,11 @@ only the underlying scalar carrier would invalidate later range snapshots.
 Scalar and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
 store whose path crosses a runtime element names no canonical leaf: it
-publishes no field equation, forgets the current facts observed beneath the
-static prefix before its first runtime element (the array it selects in),
-and overlaps every element of that array. Facts of disjoint siblings, such as
-the selector's own field, stay current; a prefix that cannot be scoped
-forgets the whole destination root.
+publishes no equation naming a canonical mutable field, forgets the current
+facts observed beneath the static prefix before its first runtime element
+(the array it selects in), and overlaps every element of that array. Facts of
+disjoint siblings, such as the selector's own field, stay current; a prefix that
+cannot be scoped forgets the whole destination root.
 
 `ScalarStructuralField` and `BooleanStructuralField` retain the whole source
 place, an ordered canonical carrier path, and the final declaration-local field

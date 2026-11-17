@@ -457,24 +457,61 @@ pub(crate) mod reference_completion {
         {
             return Ok(BorrowedLoanSource::Owner);
         }
-        if crate::arrival_parameter(machine, descriptor.root)
-            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
-            && let Some(original) = analysis.location(machine.id, at, descriptor)
-            && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == original.root && parameter.access != StructuralAccess::Owned
-            })
+        if let Some(arrival) = crate::arrival_parameter(machine, descriptor.root)
+            && arrival.access != StructuralAccess::Owned
+            && let Some(crate::descriptor_results::DescriptorCallOrigin::Argument {
+                source,
+                projection,
+            }) = analysis.storage_projection(machine.id, at, descriptor)
+            && let Some(parameter) =
+                crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                    parameter.place == source
+                })
+                .filter(|parameter| parameter.access != StructuralAccess::Owned)
         {
-            let path = crate::descriptor_lifetimes::descriptor_path(
-                &module.structural_types,
-                parameter.structural_type,
-                &original.path,
-            )
-            .ok_or("borrowed successor has no exact original input path")?;
+            // Arrival replay retains the original captured address, including
+            // indexed paths that cannot be named as descriptor-slot locations.
+            // That address continues an input loan only within its inline
+            // storage, with the same referent type and permitted access.
+            let path = projection
+                .captured_storage_path()
+                .ok_or("borrowed successor has no exact captured original input path")?;
             if crate::projection_stays_in_inline_storage(
                 module.structural_types.iter(),
                 parameter.structural_type,
                 &path,
             ) {
+                let current_path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    arrival.structural_type,
+                    &descriptor.path,
+                )
+                .ok_or("borrowed successor has no exact current referent path")?;
+                let original = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    &path,
+                )
+                .ok_or("borrowed successor has no exact original referent type")?;
+                let current = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    arrival.structural_type,
+                    &current_path,
+                )
+                .ok_or("borrowed successor has no exact current referent type")?;
+                if original.id != current.id {
+                    return Err("borrowed successor changes its original incoming referent type");
+                }
+                if !crate::reference_source_projection_accessible(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                    &path,
+                    arrival.access,
+                ) {
+                    return Err("borrowed successor exceeds its original incoming access");
+                }
                 return Ok(BorrowedLoanSource::Incoming);
             }
         }
@@ -3537,6 +3574,7 @@ pub(crate) mod reference_storage_geometry {
 
     fn field_geometry<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
         field: &StructuralFieldDeclaration,
         storage: Option<&AuthoredFieldStorage>,
         active: &mut Vec<StructuralTypeId>,
@@ -3554,6 +3592,9 @@ pub(crate) mod reference_storage_geometry {
             .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
         }
         if let Some(carrier) = field.field_type.byte_sequence_carrier() {
+            if let Some(layout) = physical_carrier_geometry(records, owner, &field.field_type)? {
+                return Ok(Some(layout));
+            }
             return byte_sequence_geometry(carrier, carriers).map(Some);
         }
         let child = field
@@ -3590,6 +3631,19 @@ pub(crate) mod reference_storage_geometry {
     impl std::error::Error for StorageGeometryError {}
 
     pub trait RecordStorageResolver {
+        /// A representation consumer can supply its current physical carrier
+        /// footprint. Aggregates still use the shared checked field/path walk;
+        /// this query only replaces reference and sequence carrier geometry.
+        /// `None` retains source geometry, while a physical lookup error must
+        /// propagate rather than fall back to a different representation.
+        fn carrier_layout(
+            &self,
+            _owner: StructuralTypeId,
+            _carrier: &StructuralFieldType,
+        ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+            Ok(None)
+        }
+
         fn realization(
             &self,
             record: StructuralTypeId,
@@ -3956,6 +4010,7 @@ pub(crate) mod reference_storage_geometry {
             };
             sum_layout(
                 self.types.clone(),
+                root,
                 fields,
                 cases,
                 &mut vec![root],
@@ -4200,6 +4255,7 @@ pub(crate) mod reference_storage_geometry {
                 };
                 let (byte_size, byte_alignment) = field_geometry(
                     self.types.clone(),
+                    root,
                     field,
                     field_storage,
                     &mut Vec::new(),
@@ -4302,6 +4358,16 @@ pub(crate) mod reference_storage_geometry {
         let shape = &crate::structural_declaration(types.clone(), root)
             .ok_or(StorageGeometryError::MissingType(root))?
             .shape;
+        if matches!(
+            shape,
+            StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. }
+        ) && let Some(layout) =
+            physical_carrier_geometry(records, root, &StructuralFieldType::Structural(root))?
+        {
+            return Ok(Some(layout));
+        }
         active.push(root);
         let result = (|| match shape {
             StructuralTypeShape::Reference { .. } => {
@@ -4349,6 +4415,7 @@ pub(crate) mod reference_storage_geometry {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     let child = field_geometry(
                         types.clone(),
+                        root,
                         field,
                         field.storage.as_ref(),
                         active,
@@ -4394,19 +4461,37 @@ pub(crate) mod reference_storage_geometry {
                 Ok(Some((size, alignment)))
             }
             StructuralTypeShape::Sum { cases } => {
-                sum_geometry(types, &[], cases, active, carriers, records, extents)
+                sum_geometry(types, root, &[], cases, active, carriers, records, extents)
             }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                sum_geometry(types, fields, cases, active, carriers, records, extents)
-            }
+            StructuralTypeShape::Mixed { fields, cases } => sum_geometry(
+                types, root, fields, cases, active, carriers, records, extents,
+            ),
             _ => Err(StorageGeometryError::UnsupportedType(root)),
         })();
         active.pop();
         result
     }
 
+    fn physical_carrier_geometry(
+        records: &impl RecordStorageResolver,
+        owner: StructuralTypeId,
+        carrier: &StructuralFieldType,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        let Some((size, alignment)) = records.carrier_layout(owner, carrier)? else {
+            return Ok(None);
+        };
+        // A native inline carrier can end before its trailing alignment (a
+        // bounded byte value is one). The enclosing walk rounds placements;
+        // requiring size to be an alignment multiple would invent padding.
+        if size == 0 || !alignment.is_power_of_two() {
+            return Err(StorageGeometryError::InvalidCarrierLayout);
+        }
+        Ok(Some((size, alignment)))
+    }
+
     fn sum_geometry<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
         common_fields: &[StructuralFieldDeclaration],
         cases: &[terminal_psi::StructuralCaseDeclaration],
         active: &mut Vec<StructuralTypeId>,
@@ -4416,6 +4501,7 @@ pub(crate) mod reference_storage_geometry {
     ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
         Ok(sum_layout(
             types,
+            owner,
             common_fields,
             cases,
             active,
@@ -4428,6 +4514,7 @@ pub(crate) mod reference_storage_geometry {
 
     fn sum_layout<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
         common_fields: &[StructuralFieldDeclaration],
         cases: &[terminal_psi::StructuralCaseDeclaration],
         active: &mut Vec<StructuralTypeId>,
@@ -4442,6 +4529,7 @@ pub(crate) mod reference_storage_geometry {
                 .map(|field| {
                     field_geometry(
                         types.clone(),
+                        owner,
                         field,
                         field.storage.as_ref(),
                         active,
@@ -4742,6 +4830,7 @@ pub(crate) mod reference_storage_geometry {
                     };
                     let layout = sum_layout(
                         types.clone(),
+                        carrier,
                         common,
                         cases,
                         &mut vec![carrier],
@@ -4819,6 +4908,7 @@ pub(crate) mod reference_storage_geometry {
                             {
                                 let (size, alignment) = field_geometry(
                                     types.clone(),
+                                    carrier,
                                     candidate,
                                     candidate.storage.as_ref(),
                                     &mut Vec::new(),
@@ -4951,6 +5041,122 @@ pub(crate) mod reference_storage_geometry {
                 field_type,
                 storage,
             }
+        }
+
+        #[test]
+        fn physical_carriers_preserve_source_defaults_and_lookup_errors() {
+            let declaration = |raw, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                id: identity(raw),
+                identity: TerminalIdentityIndex(raw as u32),
+                shape,
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            };
+            let bytes = terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 13 };
+            let types = [
+                declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(32))),
+                declaration(
+                    2,
+                    StructuralTypeShape::Reference {
+                        referent: identity(1),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: vec![
+                            field(1, StructuralFieldType::ByteSequence(bytes), None),
+                            StructuralFieldDeclaration {
+                                identity: TerminalIdentityIndex(5),
+                                ..field(2, StructuralFieldType::Scalar(scalar(8)), None)
+                            },
+                        ],
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+            ];
+            let carriers = TargetCarrierLayout {
+                pointer_byte_size: 8,
+                pointer_byte_alignment: 8,
+                descriptor_byte_size: 16,
+                descriptor_byte_alignment: 8,
+                case_tag_byte_size: 4,
+                case_tag_byte_alignment: 4,
+            };
+            fn unresolved(application: ScalarApplicationId) -> Result<u64, StorageGeometryError> {
+                Err(StorageGeometryError::UnresolvedExtent(application))
+            }
+            let mut source = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers));
+            assert_eq!(source.layout(identity(2)), Ok((8, 8)));
+            assert!(matches!(
+                source.layout(identity(3)),
+                Err(StorageGeometryError::UnsupportedByteSequence(_))
+            ));
+
+            struct Physical {
+                unavailable: bool,
+            }
+            impl RecordStorageResolver for Physical {
+                fn carrier_layout(
+                    &self,
+                    owner: StructuralTypeId,
+                    carrier: &StructuralFieldType,
+                ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+                    if self.unavailable {
+                        return Err(StorageGeometryError::UnresolvedLayout(owner));
+                    }
+                    match carrier {
+                        StructuralFieldType::Structural(id)
+                            if *id == identity(2) && owner == *id =>
+                        {
+                            Ok(Some((16, 8)))
+                        }
+                        StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 13 },
+                        ) if owner == identity(3) => Ok(Some((21, 8))),
+                        _ => Err(StorageGeometryError::InvalidRecordStorage(owner)),
+                    }
+                }
+                fn realization(
+                    &self,
+                    record: StructuralTypeId,
+                    _application: LayoutApplicationId,
+                ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+                    Err(StorageGeometryError::UnresolvedLayout(record))
+                }
+            }
+            let mut physical = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers))
+                .with_record_storage(Physical { unavailable: false });
+            assert_eq!(physical.layout(identity(2)), Ok((16, 8)));
+            assert_eq!(physical.layout(identity(3)), Ok((24, 8)));
+            let region = physical
+                .region(
+                    identity(3),
+                    &[StructuralPathSegment::Field(TerminalIdentityIndex(5))],
+                )
+                .unwrap();
+            assert_eq!(
+                region.byte_offset, 21,
+                "the inline carrier receives its real owner and keeps its unrounded size"
+            );
+            assert_eq!(region.byte_length, 1);
+            let mut unavailable = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers))
+                .with_record_storage(Physical { unavailable: true });
+            assert_eq!(
+                unavailable.layout(identity(2)),
+                Err(StorageGeometryError::UnresolvedLayout(identity(2)))
+            );
         }
 
         #[test]

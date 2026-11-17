@@ -141,9 +141,9 @@ ensures embed(result.live.count) == embed(vector.live.count) + 1,
     result.capacity == vector.capacity
 {
     transition vec::try_push<T, Role>(move vector, move value) {
-        PushOutcome::Inserted { vector } -> move vector
-        PushOutcome::Full { vector, value } -> fail()
-        PushOutcome::Rejected { vector, value, reason } -> fail()
+        PushOutcome::Inserted { vector as inserted_vector } -> move inserted_vector
+        PushOutcome::Full { vector as full_vector, value as full_value } -> fail()
+        PushOutcome::Rejected { vector as rejected_vector, value as rejected_value, reason } -> fail()
     }
 }
 
@@ -155,10 +155,10 @@ ensures result.source.live.count == vector.live.count,
     result.source.spare.length == vector.spare.length
 {
     transition vec::try_push<T, DeniedMemory>(move vector, move value) {
-        PushOutcome::Rejected { vector, value, reason } ->
-            AccessReturn { source: move vector, custody: move value }
-        PushOutcome::Inserted { vector } -> fail()
-        PushOutcome::Full { vector, value } -> fail()
+        PushOutcome::Rejected { vector as rejected_vector, value as rejected_value, reason } ->
+            AccessReturn { source: move rejected_vector, custody: move rejected_value }
+        PushOutcome::Inserted { vector as inserted_vector } -> fail()
+        PushOutcome::Full { vector as full_vector, value as full_value } -> fail()
     }
 }
 
@@ -168,10 +168,10 @@ ensures result.source.live.count == vector.live.count,
     result.source.capacity == vector.capacity
 {
     transition vec::try_push<T, GoodMemory>(move vector, move value) {
-        PushOutcome::Full { vector, value } ->
-            AccessReturn { source: move vector, custody: move value }
-        PushOutcome::Inserted { vector } -> fail()
-        PushOutcome::Rejected { vector, value, reason } -> fail()
+        PushOutcome::Full { vector as full_vector, value as full_value } ->
+            AccessReturn { source: move full_vector, custody: move full_value }
+        PushOutcome::Inserted { vector as inserted_vector } -> fail()
+        PushOutcome::Rejected { vector as rejected_vector, value as rejected_value, reason } -> fail()
     }
 }
 
@@ -180,9 +180,9 @@ crashes Trap
 ensures result.live.count == vector.live.count, result.capacity == vector.capacity
 {
     transition vec::try_grow<T, GoodMemory, GoodMemory>(move vector, CapacityAllocation::Exhausted) {
-        GrowthOutcome::Exhausted { vector } -> move vector
-        GrowthOutcome::Grown { vector, retired_storage } -> fail()
-        GrowthOutcome::Rejected { vector, replacement, capacity, reason } -> fail()
+        GrowthOutcome::Exhausted { vector as exhausted_vector } -> move exhausted_vector
+        GrowthOutcome::Grown { vector as grown_vector, retired_storage } -> fail()
+        GrowthOutcome::Rejected { vector as rejected_vector, replacement, capacity, reason } -> fail()
     }
 }
 
@@ -196,10 +196,10 @@ ensures result.vector.live.count == vector.live.count,
 {
     transition vec::try_grow<T, GoodMemory, DeniedMemory>(move vector,
         CapacityAllocation::Available { storage: move replacement, capacity: capacity }) {
-        GrowthOutcome::Rejected { vector, replacement, capacity, reason } ->
-            ReturnedGrowth { vector: move vector, replacement: move replacement }
-        GrowthOutcome::Grown { vector, retired_storage } -> fail()
-        GrowthOutcome::Exhausted { vector } -> fail()
+        GrowthOutcome::Rejected { vector as rejected_vector, replacement as rejected_replacement, capacity as rejected_capacity, reason } ->
+            ReturnedGrowth { vector: move rejected_vector, replacement: move rejected_replacement }
+        GrowthOutcome::Grown { vector as grown_vector, retired_storage } -> fail()
+        GrowthOutcome::Exhausted { vector as exhausted_vector } -> fail()
     }
 }
 
@@ -213,10 +213,10 @@ ensures result.vector.live.count == vector.live.count, result.vector.capacity ==
 {
     transition vec::try_grow<T, GoodMemory, GoodMemory>(move vector,
         CapacityAllocation::Available { storage: move replacement, capacity: capacity }) {
-        GrowthOutcome::Grown { vector, retired_storage } ->
-            Grown { vector: move vector, retired: move retired_storage }
-        GrowthOutcome::Rejected { vector, replacement, capacity, reason } -> fail()
-        GrowthOutcome::Exhausted { vector } -> fail()
+        GrowthOutcome::Grown { vector as grown_vector, retired_storage } ->
+            Grown { vector: move grown_vector, retired: move retired_storage }
+        GrowthOutcome::Rejected { vector as rejected_vector, replacement as rejected_replacement, capacity as rejected_capacity, reason } -> fail()
+        GrowthOutcome::Exhausted { vector as exhausted_vector } -> fail()
     }
 }
 

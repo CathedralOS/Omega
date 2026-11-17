@@ -1288,26 +1288,8 @@ impl Selector {
     }
 }
 
-/// Builtin strict binary operations on `Exact` integers and `bool`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Strict {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Remainder,
-    ShiftLeft,
-    ShiftRight,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
+/// Scalar operation identities shared by checked expressions and Core’s catalog.
+pub use language_semantics::numeric_intrinsics::ScalarBinaryOperation as Strict;
 
 #[cfg(test)]
 mod qualification_tests {

@@ -80,7 +80,8 @@ impl StaticSourceEnvelope {
 pub(crate) struct SourceSchemaRequirement {
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
-    pub signature: Signature,
+    /// `None` for a template requirement (`StaticRequirementSchema::signature`).
+    pub signature: Option<Signature>,
     pub envelope: StaticSourceEnvelope,
 }
 #[derive(Debug, Clone)]
@@ -236,7 +237,10 @@ impl StaticContracts {
                             Ok(StaticRequirementSchema {
                                 declaration: requirement.declaration,
                                 abstract_types: requirement.abstract_types,
-                                signature: requirement.signature.static_signature(),
+                                signature: requirement
+                                    .signature
+                                    .as_ref()
+                                    .map(Signature::static_signature),
                                 envelope: requirement.envelope.publish(context, services)?,
                             })
                         })

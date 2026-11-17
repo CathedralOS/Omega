@@ -5,9 +5,12 @@ Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
 inline SVG, and opens in any browser. The architecture overview follows the
 original map: outlined Psi representations, filled native forms, a green checker
-verdict and dashed red extra paths. It shows return paths and late code generation. Selecting a
-box opens its cited stage records. Its optional full graph enhances a static SVG
-to Canvas2D with the same model and a DOM text outline. This file holds the rules; `tokens.css`,
+verdict and dashed red extra paths. It shows return paths and late code generation. One connected SVG graph contains each shared component once. Selecting a box
+or arrow highlights its connections and opens source evidence. The bold main
+route runs down through numbered stages; dashed supporting arrows reveal their
+labels on selection. ELK.js orders the main route and Graphviz routes supporting
+connections at build time; D3 Zoom moves the existing SVG in the browser. The
+source disclosures and scrollable SVG remain available without JavaScript. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.
 
@@ -26,10 +29,10 @@ Omega looks like masonry. Build every page from flat, square-edged blocks on
 `--ground`, separated by space and hairlines, never by shadows. Words are set
 in Omega Serif, code in IBM Plex Mono, nothing else. Color carries meaning,
 never decoration: green (`--checked`) means proven or passing, red (`--trap`)
-means a rejection, a trap or a reach-around. The full architecture map also
-uses the named family colors below to distinguish subsystem ownership. The
-owner requested this categorical color extension on 2026-11-17; it does not
-assign proof status to a subsystem.
+means a rejection, a trap or a reach-around. The kit also provides named family
+colors for ownership views, authorized on 2026-11-17. They identify ownership
+without assigning proof status. The connected compiler canvas uses the original
+Psi/native representation colors described above.
 
 ## Page contract
 
@@ -75,8 +78,7 @@ assign proof status to a subsystem.
 | `--checked` | Proven, passing, closed; the checker's verdict |
 | `--trap` | Rejections, traps and reach-arounds; keep it small |
 
-The architecture canvas uses these family token pairs, each with an explicit
-legend label: `--family-psi`, `--family-native`, `--family-build`,
+Ownership views can use these family token pairs with explicit legend labels: `--family-psi`, `--family-native`, `--family-build`,
 `--family-runtime`, `--family-library`, `--family-omega-source`,
 `--family-bootstrap` and `--family-support`. Each has a `-surface` companion
 for its box fill. Family color says who owns the work, not whether a claim was

@@ -142,6 +142,19 @@ source preparation does not prove that judgment. Open static bounds remain
 explicit in static schema questions and never become an empty runtime promise.
 See [effects](../../../../../wiki/spec/language/effects.md).
 
+### Size-generic requirements
+
+A trait requirement whose array formal is sized by its own `const` binder,
+such as `send_string<const Count: u64>(text: &[u8; Count])`, is checked once
+in its own generic check form. That form reads it as a bodyless machine whose
+`const` binders are inputs, so `[u8; Count]` has a symbolic extent owned by
+that machine and its contract is judged for every `Count`. A program that
+reads the trait records the requirement as a template row
+(`StaticRequirementSchema::signature` is `None`) and carries only its closed
+applications, whose arrays have literal extents; a published module never
+holds the open size. See
+[generics](../../../../../wiki/spec/language/generics.md#publication-and-assumptions).
+
 ### What one compilation elaborates
 
 Every machine the check covers is lowered, not only those the entry calls. A

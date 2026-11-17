@@ -28,6 +28,8 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 
 [dev-dependencies]
+syntax-trees = { path = "../../representations/syntax-trees" }
+tokens = { path = "../../representations/tokens" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 mimalloc = { version = "0.1", default-features = false }
 numerics = { path = "../../../foundation/numerics" }

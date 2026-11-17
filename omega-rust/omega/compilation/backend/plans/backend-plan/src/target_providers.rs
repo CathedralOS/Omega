@@ -1232,6 +1232,26 @@ mod tests {
     }
 
     #[test]
+    fn saved_checked_provider_specializations_reproject_without_renumbering() {
+        let (declaration, module) = fixture();
+        let selected =
+            effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration]).unwrap();
+        let original = close_checked_provider_specializations(selected, &module).unwrap();
+        let recovered = original
+            .clone()
+            .without_checked_specializations()
+            .recovery_candidate()
+            .validate()
+            .unwrap();
+        let projected = close_checked_provider_specializations(recovered, &module).unwrap();
+        assert_eq!(
+            projected.identities().entries(),
+            original.identities().entries()
+        );
+        assert_eq!(projected, original);
+    }
+
+    #[test]
     fn canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinates() {
         let (declaration, module) = fixture();
         let selected =

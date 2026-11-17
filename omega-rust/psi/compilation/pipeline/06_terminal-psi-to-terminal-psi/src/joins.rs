@@ -957,22 +957,22 @@ pub(crate) fn rename(proposition: &Proposition, renaming: &[(ValueId, ValueId)])
     renamed
 }
 
-/// What `check` needs from the machine being discharged.
-pub(crate) struct Machine<'a> {
-    pub(crate) module: &'a terminal_psi::TerminalModule,
-    pub(crate) lowered: &'a TerminalMachine,
-    pub(crate) storage: &'a crate::places::Storage<'a>,
+/// The analysis can outlive this check's locally prepared predicates.
+pub(crate) struct Machine<'view, 'analysis> {
+    pub(crate) module: &'analysis terminal_psi::TerminalModule,
+    pub(crate) lowered: &'analysis TerminalMachine,
+    pub(crate) storage: &'view crate::places::Storage<'analysis>,
     pub(crate) id: MachineId,
-    pub(crate) types: &'a semantic_vocabulary::IdTable<ValueId, ScalarType>,
-    pub(crate) graph: &'a Graph,
-    pub(crate) context: &'a PropositionContext,
-    pub(crate) ranking_bindings: &'a crate::rankings::Bindings,
+    pub(crate) types: &'view semantic_vocabulary::IdTable<ValueId, ScalarType>,
+    pub(crate) graph: &'view Graph,
+    pub(crate) context: &'view PropositionContext,
+    pub(crate) ranking_bindings: &'view crate::rankings::Bindings,
     /// Keep the producer's original predicates separate from inferred facts.
     /// An inference can be discarded; a failed declared claim still rejects.
-    pub(crate) declared: &'a [(BlockId, Proposition)],
+    pub(crate) declared: &'view [(BlockId, Proposition)],
     /// The machine's values the integer rules do not reach
     /// (`crate::Unreached`).
-    pub(crate) unreached: &'a [ValueId],
+    pub(crate) unreached: &'view [ValueId],
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
@@ -982,7 +982,7 @@ pub(crate) struct Machine<'a> {
 /// on another's arrival. Each round weakens at least one predicate, so this
 /// ends. Returns the weakened joins.
 pub(crate) fn check<'a>(
-    machine: &Machine<'a>,
+    machine: &Machine<'_, 'a>,
     tables: &mut MachineTables,
     decided: &mut [Option<Checked<Discharged>>],
     activity: &mut crate::ProofSearchActivity,
@@ -1102,9 +1102,11 @@ mod tests {
                     source::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();

@@ -1479,7 +1479,7 @@ impl DeclaredExpressionTypes {
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
                 let operand = self.get(program, owner, unary.operand)?;
-                core_integer_operand(program, operand).map(|_| operand)
+                typed_trees::operator::core_integer_operand(program, operand).map(|_| operand)
             }
             // Selection supplies the exact declared return type before an enclosing
             // cast is accounted. No contract or membership evidence is inferred.
@@ -1557,44 +1557,6 @@ impl DeclaredExpressionTypes {
     }
 }
 
-/// Read the exact carrier and single core policy, without treating ordinary
-/// domain membership as permission to use the core operator signatures.
-fn core_integer_operand(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, BuiltinTypeAtom, ArithmeticDomain)> {
-    use typed_trees::types::TypeConstraintNode;
-    let table = &program.type_reference_table;
-    let (bare, policy) = match table.type_reference(reference) {
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let mut policy = ArithmeticDomain::Exact;
-            for constraint in table.constraint_span(*constraints)? {
-                let TypeConstraintNode::ArithmeticDomain(current) = constraint else {
-                    return None;
-                };
-                if *current != ArithmeticDomain::Exact {
-                    if policy != ArithmeticDomain::Exact {
-                        return None;
-                    }
-                    policy = *current;
-                }
-            }
-            (*base_type, policy)
-        }
-        _ => (reference, ArithmeticDomain::Exact),
-    };
-    let TypeReferenceNode::Named { symbol, .. } = table.type_reference(bare) else {
-        return None;
-    };
-    let atom @ BuiltinTypeAtom::Integer(_) = program.symbols.builtin_type_atom(*symbol)? else {
-        return None;
-    };
-    Some((bare, atom, policy))
-}
-
 /// What a core integer operator returns before any enclosing cast. An
 /// anonymous numeric operand lands in a known carrier as a plain operand.
 fn core_integer_result(
@@ -1605,7 +1567,9 @@ fn core_integer_result(
     right: Option<TypeReferenceHandle>,
 ) -> Option<TypeReferenceHandle> {
     let read = |reference| match reference {
-        Some(reference) => core_integer_operand(program, reference).map(Some),
+        Some(reference) => {
+            typed_trees::operator::core_integer_operand(program, reference).map(Some)
+        }
         None => Some(None),
     };
     let left_type = read(left)?;
@@ -2173,9 +2137,11 @@ mod tests {
                     source::SourceOrigin::User,
                 )
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
             let mut syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut bindings = Vec::new();
             if core {
                 let text = include_str!(concat!(
@@ -2193,8 +2159,10 @@ mod tests {
                         source::SourceOrigin::Toolchain,
                     )
                     .source_id;
-                let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-                tokens_to_syntax_trees::parse(&mut syntax, declaration, &tokens).unwrap();
+                let tokens = crate::frontend_fixture::Lexer::new(text)
+                    .tokenize()
+                    .unwrap();
+                crate::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
                 bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
                     source,
                     declaration,

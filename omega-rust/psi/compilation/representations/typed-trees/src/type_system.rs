@@ -515,7 +515,9 @@ pub mod closed_numeric {
                             program.symbols.get(resolved.selected_symbol()).kind
                                 == symbols::SymbolKind::Domain
                         }
-                        Target::Intrinsic(Intrinsic::BuiltinOperator)
+                        Target::Intrinsic(
+                            Intrinsic::BuiltinOperator | Intrinsic::CoreIntegerOperator(_),
+                        )
                         | Target::LateBound(LateBinding::CheckedOperator) => true,
                         Target::Resolved(resolved) => {
                             program.symbols.get(resolved.selected_symbol()).kind

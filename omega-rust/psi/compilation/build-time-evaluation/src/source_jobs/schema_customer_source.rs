@@ -81,10 +81,10 @@ fn resolved_library_source(
     let mut bindings = Vec::new();
     for (id, text) in units {
         let previous = syntax.root_item_handles().len();
-        let tokens = source_files_to_tokens::Lexer::new(&text)
+        let tokens = crate::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .map_err(|errors| format!("lex source {id:?}: {errors:?}"))?;
-        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens)
+        crate::frontend_fixture::parse(&mut syntax, id, &tokens)
             .map_err(|errors| format!("parse source {id:?}: {errors:?}"))?;
         for root in &syntax.root_item_handles()[previous..] {
             let syntax_trees::item::Item::Use(import) = syntax.root_item(*root) else {

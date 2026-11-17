@@ -535,7 +535,7 @@ mod body_completion {
                 doubled
             }
         "#;
-            let tokens = source_files_to_tokens::Lexer::new(source_text)
+            let tokens = crate::frontend_fixture::Lexer::new(source_text)
                 .tokenize()
                 .unwrap();
             let mut sources = source::SourceMap::default();
@@ -543,7 +543,7 @@ mod body_completion {
                 .add("completion/main.omg".into(), source_text.to_owned())
                 .source_id;
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
             let frontier =
                 super::super::resolve_deferred_numeric_probe(super::super::ResolutionRequest {
                     syntax,
@@ -786,8 +786,10 @@ mod continuations {
         use std::sync::Arc;
 
         fn parse(text: &str, source: source::SourceId) -> SyntaxTrees {
-            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
         }
 
         #[test]
@@ -2659,8 +2661,8 @@ mod call_result_selection_tests {
     */
 
     use super::{ResolutionRequest, resolve, resolve_call_result_selection};
+    use crate::frontend_fixture::Lexer;
     use crate::tables::body_expressions;
-    use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::{
         SymbolResolvedTrees, expression::ExpressionNode, machine::MachineBodyStatus,
     };
@@ -2707,7 +2709,7 @@ mod call_result_selection_tests {
             .source_id;
         let sources = std::sync::Arc::new(sources);
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         let request = |syntax| ResolutionRequest {
             syntax,
             sources: Some(sources.clone()),
@@ -2806,7 +2808,7 @@ mod primitive_family_binding_tests {
     */
 
     use super::{ResolutionRequest, resolve};
-    use source_files_to_tokens::Lexer;
+    use crate::frontend_fixture::Lexer;
 
     const PRIMITIVE_FAMILY: &str = "joins a primitive operator family";
 
@@ -2817,7 +2819,7 @@ mod primitive_family_binding_tests {
             .add("primitive-family/main.omg".into(), source_text.to_owned())
             .source_id;
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         match resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -2893,7 +2895,8 @@ mod primitive_family_binding_tests {
                 )
                 .source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
-            let unit = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let unit =
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             syntax.extend_from(&unit);
         }
         resolve(ResolutionRequest {
@@ -3026,7 +3029,7 @@ mod primitive_family_binding_tests {
                 .source_id;
             let tokens = Lexer::new(&text).tokenize().unwrap();
             let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let result = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
@@ -3087,7 +3090,7 @@ mod domain_lookup_tests {
     */
 
     use super::{ResolutionRequest, resolve};
-    use source_files_to_tokens::Lexer;
+    use crate::frontend_fixture::Lexer;
     use symbol_resolved_trees::domain::ProofFact;
     use symbols::SymbolHandle;
 
@@ -3100,7 +3103,7 @@ mod domain_lookup_tests {
             .add("domain-lookup/main.omg".into(), source_text.to_owned())
             .source_id;
         let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
         resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),

@@ -35,8 +35,24 @@ pub struct Unavailable {
     pub unrestored: bool,
 }
 
+impl Unavailable {
+    /// The ownership walk knows whether storage is vacant at an observation
+    /// or still owed back when a borrow ends; every consumer reports that reason.
+    pub const fn message(&self) -> &'static str {
+        if self.unrestored {
+            "an owned value was moved out of borrowed storage, and the place does not \
+             hold a value again where the machine returns the borrow: a replacement \
+             must be stored into the vacant place on every path that leaves the machine"
+        } else {
+            "owned storage is used after its value was transferred or consumed"
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
+    /// A supported ownership check found unavailable storage at an exact site.
+    Unavailable(Unavailable),
     Unsupported {
         detail: &'static str,
         site: Option<Site>,
@@ -61,6 +77,7 @@ impl Error {
     /// machine or guessing a neighboring source construct.
     fn at(self, at: Site) -> Self {
         match self {
+            Self::Unavailable(unavailable) => Self::Unavailable(unavailable),
             Self::Unsupported { detail, site } => Self::Unsupported {
                 detail,
                 site: site.or(Some(at)),
@@ -74,6 +91,7 @@ impl Error {
 
     pub const fn site(&self) -> Option<Site> {
         match self {
+            Self::Unavailable(unavailable) => Some(unavailable.site),
             Self::Unsupported { site, .. } | Self::Malformed { site, .. } => *site,
         }
     }
@@ -799,11 +817,11 @@ pub fn verify_claims_in(
         None,
         Some(claims::Mode::Verify),
     )?;
-    if let Some(unavailable) = plan.unavailable.first() {
-        return Err(
-            Error::unsupported("claim transport observes unavailable owned storage")
-                .at(unavailable.site),
-        );
+    // Finish reconstructing the claim rows before reporting storage debt:
+    // malformed transport must still refuse as malformed, while an exact
+    // unavailable place is an ordinary ownership error, not missing support.
+    if let Some(unavailable) = plan.unavailable.into_iter().next() {
+        return Err(Error::Unavailable(unavailable));
     }
     plan.claims
         .ok_or(Error::malformed("claim receiver lost its plan"))

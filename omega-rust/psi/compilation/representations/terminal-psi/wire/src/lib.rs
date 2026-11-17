@@ -168,7 +168,7 @@ pub use sections::semantic_module::provider_candidate_wire::{
 pub use codec_error::CodecError;
 pub use obligation_evidence::{
     EvidenceSealValidationError, EvidenceSealValidator, EvidenceSeals, ObligationEvidenceSeal,
-    canonical_certificate_bytes,
+    canonical_certificate_bytes, decode_operation_evidence, encode_operation_evidence,
 };
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,

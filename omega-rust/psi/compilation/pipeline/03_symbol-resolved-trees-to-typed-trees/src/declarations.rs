@@ -1906,7 +1906,12 @@ pub(crate) mod state {
         }
         let statements =
             resolved_statements(lowerer.source_trees).statements(state.statement_nodes);
-        let mut local_types = LocalTypes::new(&lowerer.typed_trees, typed_state)?;
+        let mut local_types = LocalTypes::new(
+            &lowerer.typed_trees,
+            typed_state,
+            lowerer.source_trees,
+            statements,
+        )?;
         let mut pending = Vec::new();
         for (index, statement) in statements.iter().enumerate() {
             let closes_run = matches!(statement,

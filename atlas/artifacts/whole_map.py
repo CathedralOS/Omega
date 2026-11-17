@@ -6,7 +6,6 @@ pipeline order. Source citations reuse the reviewed subsystem documents.
 import html
 import json
 import re
-import textwrap
 
 FAMILIES = {
     "psi": "Psi", "native": "Native & realization", "build": "Build & packages",
@@ -34,7 +33,7 @@ def architecture(atlas):
 
     add("cli", "CLI", "build", 0, 0, "repository", "r02", "The Rust reference application's typed commands invoke Build, execution, inspection and package owners. Inspection and test commands have distinct routes.")
     add("packages", "Packages &\ncustody", "build", 1, 0, "library", "l05", "Acquisition, package review, admitted graph and exact source custody constrain compilation. A directory or a manifest edge alone grants no package authority.")
-    add("build", "Build orchestration", "build", 2, 0, "library", "l09", "Executes Build entries and collects source choices, target, providers and requested product. The compiler's current settlement still retains source-side authority.")
+    add("build", "Build orchestration", "build", 2, 0, "build-and-packages", "source-route", "Executes Build entries and collects source choices, target, providers and requested product. The compiler's current settlement still retains source-side authority.")
     add("library", "Bundled library", "library", 3, 0, "library", "l01", "Core toolchain declarations, std/alloc packages and target provider bindings enter through package and Build ownership. Exceptional sealed intrinsics require compiler custody, not names alone.")
     add("source", "Source driver", "psi", 4, 0, "psi", "source-state", "Coordinates fresh source and retained continuations. Resolution, typing, preparation and compile-time evaluation can resume; this is not one uninterrupted pass over all source.")
     add("evaluation", "Source evaluator", "runtime", 5, 0, "interpreter", "source-execute", "The source compiler requests a compile-time value. This owner prepares and admits its own checked invocation, runs it in the Psi interpreter, and returns the value and work usage to the source caller. The interpreter never calls source stages.")
@@ -174,25 +173,6 @@ def architecture(atlas):
                 families=FAMILIES, relations=RELATIONS)
 
 
-def path_for(a, b, index):
-    ax, ay, bx, by = a["x"], a["y"], b["x"], b["y"]
-    if ay == by and abs(ax-bx) == 212:
-        start, end = (ax+180,bx) if bx>ax else (ax,bx+180)
-        return f"M{start} {ay+40} H{end}", ((start+end)/2,ay-9)
-    if ax == bx and abs(ay-by) == 154:
-        start, end = (ay+80,by) if by>ay else (ay,by+80)
-        return f"M{ax+90} {start} V{end}", (ax+100,(start+end)/2)
-    lane = 13 + index % 3 * 5
-    if ay == by:
-        y = ay-24-index%3*5
-        return f"M{ax+90} {ay} V{y} H{bx+90} V{by}", ((ax+bx)/2+90,y-5)
-    channel = ax+180+lane if bx>=ax else ax-lane
-    end_y = by-25 if by>ay else by+105
-    end = by if by>ay else by+80
-    start = ax+180 if bx>=ax else ax
-    return f"M{start} {ay+40} H{channel} V{end_y} H{bx+90} V{end}", ((channel+bx+90)/2,end_y-5)
-
-
 def render_layers(model, prefix):
     """Show the complete route before exposing per-stage explanations.
 
@@ -232,33 +212,12 @@ def render_layers(model, prefix):
 
 def render_architecture(atlas, prefix):
     model = architecture(atlas)
-    esc = html.escape
-    claim = "Current Omega architecture connects source and native pipelines to Build, realization, runtime, construction and supporting owners. Relationship styles distinguish data, invocation, dependencies and non-execution links."
-    pieces = ['<section class="architecture" id="architecture" aria-labelledby="architecture-title"><header class="arch-header"><div><span class="arch-badge">Current architecture · source map</span><h2 id="architecture-title">Compiler at a glance</h2></div><a href="'+prefix+'foundation-backend-plan.html">Read the proposed migration plan →</a></header>',
-              render_layers(model, prefix),
-              '<details class="arch-full-map"><summary>Explore the full relationship map</summary>',
-              '<div class="arch-legend" aria-label="Subsystem families">' + ''.join(f'<span class="family-{key}"><i aria-hidden="true"></i>{name}</span>' for key,name in FAMILIES.items()) + '</div>',
-              '<div class="arch-toolbar" hidden><div class="arch-zoom"><button type="button" data-map="out" aria-label="Zoom out">−</button><button type="button" data-map="natural" aria-label="Show at natural scale"><output class="arch-scale">100%</output></button><button type="button" data-map="in" aria-label="Zoom in">+</button><button type="button" data-map="fit">Fit all</button><button type="button" data-map="reset">Reset</button><button type="button" data-map="fullscreen">Expand diagram</button></div><label class="arch-extra"><input class="arch-all-relations" type="checkbox"> All relationships</label><label class="arch-jump">Jump to <select aria-label="Find a stage or subsystem"><option value="">Choose a box…</option>' + ''.join(f'<optgroup label="{name}">'+''.join(f'<option value="{n["id"]}">{esc(n["title"].replace(chr(10)," · "))}</option>' for n in model['nodes'] if n['family']==key)+'</optgroup>' for key,name in FAMILIES.items()) + '</select></label></div>',
-              '<details class="arch-key"><summary>Relationship legend · primary paths shown; select a box for every connection</summary><div class="arch-relations">' + ''.join(f'<span><svg class="relation-{key}" viewBox="0 0 40 12" aria-hidden="true"><path d="M0 6 H40"/></svg>{name}</span>' for key,name in RELATIONS.items()) + '</div></details>',
-              '<div class="arch-workspace"><figure class="architecture-figure"><div class="arch-viewport" tabindex="0" role="region" aria-label="Full architecture map. Drag or scroll to pan; Control plus wheel zooms. Arrow keys pan, Home resets, F fits all. Use Jump to select any stage or subsystem."><canvas class="arch-canvas" aria-hidden="true" hidden></canvas><svg class="arch-svg" viewBox="0 0 1760 1104" role="img" aria-label="'+claim+'"><title>'+claim+'</title><defs>'+''.join(f'<marker id="arch-arrow{suffix}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--{token})"/></marker>' for suffix,token in (("","ink-muted"),("-trap","trap"),("-quiet","rule")))+'</defs><g class="arch-scene">']
-    nodes = {n["id"]:n for n in model["nodes"]}
-    for i,e in enumerate(model["edges"]):
-        path,(x,y)=path_for(nodes[e["start"]],nodes[e["end"]],i)
-        pieces.append(f'<g class="arch-edge relation-{e["kind"]}{" main-edge" if e["main"] else ""}" data-edge="{e["id"]}" data-from="{e["start"]}" data-to="{e["end"]}"><title>{esc(e["label"])}</title><path d="{path}" marker-end="url(#arch-arrow{"-trap" if e["kind"] == "bypass" else ""})"/><text x="{x}" y="{y}" text-anchor="middle">{esc(e["label"])}</text></g>')
-    for row,label in enumerate(("Inputs, coordination & supporting ownership", "Source: Psi 00–06", "Realization & execution", "Native lowering: Omega 00–06", "Native encoding & emission", "Products, construction & verification", "Provider policy evaluation")):
-        pieces.append(f'<text class="arch-row-label" x="32" y="{28+154*row}">{esc(label)}</text>')
-    for n in model["nodes"]:
-        pieces.append(f'<g class="arch-node family-{n["family"]}" data-node="{n["id"]}" transform="translate({n["x"]} {n["y"]})"><title>{esc(n["title"])}</title><rect width="180" height="80"/><path class="family-stripe" d="M0 0 H180 V7 H0 Z"/>')
-        lines=[line for part in n["title"].splitlines() for line in textwrap.wrap(part, width=18, break_long_words=False, break_on_hyphens=False)]
-        for i,line in enumerate(lines):
-            pieces.append(f'<text x="90" y="{47-(len(lines)-1)*12+i*24}" text-anchor="middle">{esc(line)}</text>')
-        pieces.append('</g>')
-    pieces.append('</g></svg></div><div class="arch-minimap" hidden><span>Whole map · click to navigate</span><canvas aria-hidden="true"></canvas></div><figcaption>'+claim+'</figcaption></figure><aside class="arch-detail" aria-label="Architecture selection" hidden></aside></div><p class="arch-help">Scroll or drag to pan · Ctrl/⌘ + scroll to zoom · select a box for connections · minimap shows your position. Reset restores readable labels; Fit all shows the whole map. No automatic motion.</p><details class="arch-outline"><summary>Read the complete map as text</summary><dl>')
-    for n in model['nodes']:
-        pieces.append(f'<dt>{esc(n["title"].replace(chr(10)," · "))}</dt><dd><p>{esc(n["description"])}</p><a href="{prefix}{n["page"]}.html">Subsystem page</a> · <a href="{n["source"]}">Pinned source</a><ul>')
-        for e in model['edges']:
-            if e['start']==n['id']:
-                pieces.append(f'<li>{esc(RELATIONS[e["kind"]])} → {esc(nodes[e["end"]]["title"].replace(chr(10)," · "))}: {esc(e["label"])} · <a href="{e["source"]}">Relationship source</a></li>')
-        pieces.append('</ul></dd>')
-    pieces.append('</dl></details></details><script type="application/json" id="architecture-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script></section>')
-    return ''.join(pieces)
+    revision = re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
+    return ('<section class="architecture" id="architecture" aria-labelledby="architecture-title">'
+            f'<header class="arch-header"><div><span class="arch-badge">Compiler snapshot · {revision[:12]}</span>'
+            '<h2 id="architecture-title">The whole compiler</h2></div>'
+            f'<a href="{prefix}foundation-backend-plan.html">Proposed migration plan →</a></header>'
+            + render_layers(model, prefix)
+            + '<script type="application/json" id="component-catalog">'
+            + json.dumps([dict((key,n[key]) for key in ('id','title','family','page','source','description')) for n in model['nodes']],ensure_ascii=False).replace('<','\\u003c')
+            + '</script></section>')

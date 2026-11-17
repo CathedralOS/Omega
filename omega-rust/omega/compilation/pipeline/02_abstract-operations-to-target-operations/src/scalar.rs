@@ -2993,7 +2993,13 @@ mod width_tests {
     #[test]
     fn scalar_geometry_preserves_closed_width_and_refuses_symbolic_native_width() {
         let catalog = abstract_operations::StructuralTypeCatalog::default();
-        let types = crate::structural_type_lookup::StructuralTypeLookup::new(&catalog).unwrap();
+        let types = crate::structural_type_lookup::StructuralTypeLookup::new(
+            &catalog,
+            target::TargetProfile::LinuxX64
+                .native_realization()
+                .unwrap(),
+        )
+        .unwrap();
         let value = ValueId::new(1).unwrap();
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());
         let shape = super::scalar_shape(value, scalar, false, &types).unwrap();

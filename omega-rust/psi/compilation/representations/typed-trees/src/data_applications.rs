@@ -240,9 +240,12 @@ impl<'source> ApplicationPreparation<'source> {
             .type_reference(reference)
             .clone()
         {
-            TypeReferenceNode::Named { symbol, .. } => {
+            TypeReferenceNode::Named { symbol, name } => {
                 if !self.source.symbols.symbols().nodes().is_valid(symbol) {
-                    return Err("data application has an unresolved type argument".into());
+                    return Err(format!(
+                        "data application has an unresolved type argument `{}`",
+                        name.as_str(),
+                    ));
                 }
                 if self.source.symbols.builtin_type_atom(symbol).is_some() {
                     return Ok(true);
@@ -384,7 +387,13 @@ impl<'source> ApplicationPreparation<'source> {
         let mut closed = true;
         for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
             closed &= match parameter.kind {
-                TypeParameterKind::Type => self.reference(*argument)?,
+                TypeParameterKind::Type => self.reference(*argument).map_err(|reason| {
+                    format!(
+                        "data application `{}` argument `{}`: {reason}",
+                        template.name.as_str(),
+                        parameter.name.as_str()
+                    )
+                })?,
                 TypeParameterKind::Const { .. } => {
                     self.source
                         .static_const_literal_from_type_reference(*argument)
