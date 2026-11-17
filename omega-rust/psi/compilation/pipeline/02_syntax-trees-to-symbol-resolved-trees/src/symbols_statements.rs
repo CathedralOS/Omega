@@ -368,7 +368,7 @@ mod routing {
             }
             symbol_resolved_trees::statement::Statement::Transition(transition) => {
                 use symbol_resolved_trees::expression::{
-                    BinaryOperator, ExpressionNode, TableBinaryExpression,
+                    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
                     TableMembershipExpression,
                 };
                 let original_guard = transition
@@ -379,7 +379,7 @@ mod routing {
                     transition.source_guard = Some(original_guard.clone());
                 }
                 let mut selected_guard = None;
-                for retained in &transition.patterns {
+                for retained in transition.patterns.iter_mut() {
                     if retained.pattern.application_type.is_valid() {
                         crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                             symbols,
@@ -417,6 +417,7 @@ mod routing {
                         expression_table.match_field_mut(handle).field_symbol = symbol;
                     }
                     assign_expr!(retained.pattern.condition);
+                    let mut scalar_value = false;
                     let test = if selected.is_valid()
                         && matches!(
                             symbols.get(selected).kind,
@@ -447,6 +448,7 @@ mod routing {
                             },
                         )))
                     } else if !retained.is_structural && retained.pattern.head.is_valid() {
+                        scalar_value = true;
                         let test = expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -493,6 +495,13 @@ mod routing {
                     } else {
                         retained.pattern.condition
                     };
+                    if scalar_value {
+                        // The comparison now owns the value expression and its
+                        // source choice. Later readers consume that condition;
+                        // only case/domain patterns retain a nominal head.
+                        retained.pattern.head = ExpressionHandle::invalid();
+                        retained.pattern.condition = axis;
+                    }
                     selected_guard = Some(if let Some(prior) = selected_guard {
                         expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,

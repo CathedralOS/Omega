@@ -336,7 +336,7 @@ machine main() crashes Trap {
         ("runs_other", program(30), false),
         ("matching_carriers", matching_carriers, true),
         ("one_bit_carriers", one_bit_carriers.to_owned(), true),
-        ("declared_pattern_equality", "machine == never_equal(left:u64 in Trapping,right:u64)->bool {false} machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } } machine main() crashes Trap { transition choose(0u64 as +Trapping)==0 { true->done() _->bad() } machine done(){} machine bad(){crash Trap;} }".to_owned(), true),
+        ("declared_pattern_equality", "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } } machine main() crashes Trap { transition choose(0u64 as +Marked)==0 { true->done() _->bad() } machine done(){} machine bad(){crash Trap;} }".to_owned(), true),
     ] {
         let found = judged(name, &source);
         let RouteVerdict::Accepted(closure) = found else {
@@ -378,8 +378,20 @@ fn scalar_transition_patterns_use_ordinary_selected_equality() {
             "machine choose(value:u64 in Trapping)->u8 { transition value { 0+1->(7) _->(0) } }",
         ),
         (
+            "unary_pattern",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { ~0u64->(7) _->(0) } }",
+        ),
+        (
+            "indexed_pattern",
+            "machine choose(value:u64 in Trapping,values:&[u64;1])->u8 { transition value { values[0]->(7) _->(0) } }",
+        ),
+        (
+            "policy_match",
+            "machine choose(value:u64 in Trapping)->u8 { match value { 0->7 _->0 } }",
+        ),
+        (
             "declared_pattern",
-            "machine == never_equal(left:u64 in Trapping,right:u64)->bool {false} machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } }",
+            "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } }",
         ),
     ] {
         let found = verdict(name, program);
@@ -417,8 +429,51 @@ fn native_and_psi_execute_the_original_policy_transition() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let fixture = "tests/fixtures/run/control/scalar_pattern_operator_selection/main.omg";
     let root = fixture_package_inputs::repo_root().join(fixture);
-    let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
-        .unwrap_or_else(|errors| panic!("{fixture} discovery: {errors:#?}"));
+    // Sealed fixtures retain repository-relative source identity. Keep this
+    // generated neighbor beneath the ignored build root in a private directory.
+    struct ComputedFixture(std::path::PathBuf);
+    impl Drop for ComputedFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let projects = fixture_package_inputs::repo_root().join("build/scalar-pattern-selection");
+    std::fs::create_dir_all(&projects).unwrap();
+    let computed = ComputedFixture(
+        (0u64..)
+            .find_map(|sequence| {
+                let path = projects.join(format!("computed-{}-{sequence}", std::process::id()));
+                match std::fs::create_dir(&path) {
+                    Ok(()) => Some(path),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(error) => panic!("create private computed fixture: {error}"),
+                }
+            })
+            .unwrap(),
+    );
+    let original = std::fs::read_to_string(&root).unwrap();
+    let source = original.replace("0 -> (7)", "0 + 0 -> (7)");
+    assert_ne!(
+        source, original,
+        "the second program computes its pattern value"
+    );
+    let computed_main = computed.0.join("main.omg");
+    std::fs::write(&computed_main, source).unwrap();
+    std::fs::copy(
+        root.with_file_name("build.omg"),
+        computed.0.join("build.omg"),
+    )
+    .unwrap();
+    for (position, root) in [root, computed_main].into_iter().enumerate() {
+        execute_policy_transition_fixture(&root, position == 0);
+        eprintln!("{root:?}: Psi ProcessExit(0) and native exit 0");
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn execute_policy_transition_fixture(root: &std::path::Path, check_consent: bool) {
+    let discovered = fixture_package_inputs::discover_fixture(root, Default::default())
+        .unwrap_or_else(|errors| panic!("{root:?} discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
         retain_native_inputs: false, retain_native_stage_inputs: false,
         installation_assumptions: Vec::new(), image: Default::default(),
@@ -431,16 +486,113 @@ fn native_and_psi_execute_the_original_policy_transition() {
         &[target::TargetProfile::LinuxX64],
         product,
     )
-    .unwrap_or_else(|errors| panic!("{fixture} review: {errors:#?}"));
+    .unwrap_or_else(|errors| panic!("{root:?} review: {errors:#?}"));
+    if check_consent {
+        let checked = fixture_package_inputs::check_fixture(
+            &mut prepared,
+            "linux_x86_64",
+            Default::default(),
+        )
+        .unwrap_or_else(|errors| panic!("{root:?} consent control: {errors:#?}"));
+        assert_direct_process_exit_consent(&checked);
+    }
     let output = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
-        .unwrap_or_else(|errors| panic!("{fixture} production: {errors:#?}"));
+        .unwrap_or_else(|errors| panic!("{root:?} production: {errors:#?}"));
     let report = orchestration::complete_product(output)
         .and_then(compiler::CompilationOutput::into_report)
-        .unwrap_or_else(|error| panic!("{fixture} completion: {error:?}"));
+        .unwrap_or_else(|error| panic!("{root:?} completion: {error:?}"));
     let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
         "scalar-pattern-runtime",
         false,
     )
     .unwrap();
     joined_product_execution::execute_report(report, &directory.path().join("native"), Some(0));
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
+    let accepted = checked.terminal_publication().accepted().unwrap();
+    let module = accepted.module();
+    let realization = checked.execution().realization();
+    let mut boundaries = module.boundary_machines.iter().filter(|boundary| {
+        boundary.completion
+            == semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            )
+    });
+    let (Some(boundary), None) = (boundaries.next(), boundaries.next()) else {
+        panic!("the unchanged fixture calls one canonical exit requirement")
+    };
+    let mut leaves = realization.direct_boundary_leaves().iter().filter(|leaf| {
+        module.identities.text(boundary.identity)
+            == Some(leaf.satisfied_requirement_identity.as_str())
+    });
+    let (Some(leaf), None) = (leaves.next(), leaves.next()) else {
+        panic!("one direct native exit leaf")
+    };
+    let consent = |leaf: &backend_plan::DirectBoundaryLeaf,
+                   receipts: &[effects::provider_plan::EvaluatedNativeBinding],
+                   target: &str| {
+        fixture_package_inputs::provider_acceptance::direct_process_exit_leaf_binding(
+            module,
+            boundary.id,
+            target,
+            leaf,
+            receipts,
+            realization.evaluated_binding_identities(),
+        )
+    };
+    let receipts = realization.evaluated_native_bindings();
+    let binding = consent(leaf, receipts, "linux_x86_64").unwrap();
+    assert_eq!(
+        binding.package(),
+        checked.sources().package_identity().unwrap()
+    );
+    assert_eq!(
+        binding.selected_provider_plan_digest(),
+        Some(leaf.plan.identity_digest())
+    );
+    assert_eq!(
+        binding.normalized_schema_digest(),
+        leaf.plan.schema.identity_digest()
+    );
+    assert_eq!(binding.terminal_authority_permissions().len(), 1);
+    assert_eq!(
+        binding.terminal_authority_permissions()[0]
+            .permitted()
+            .classes(),
+        &[effects::TerminalAuthorityClass::ProcessTermination]
+    );
+    assert!(consent(leaf, receipts, "windows_x86_64").is_err());
+    let missing = consent(leaf, &[], "linux_x86_64").unwrap_err();
+    assert!(
+        missing.iter().any(|error| error
+            .message
+            .contains("unique completed Build locator receipt")),
+        "{missing:?}"
+    );
+    let mut duplicated = receipts.to_vec();
+    duplicated.extend_from_slice(receipts);
+    assert!(consent(leaf, &duplicated, "linux_x86_64").is_err());
+    let mut wrong = leaf.clone();
+    wrong.satisfied_requirement_identity.push_str("::wrong");
+    assert!(consent(&wrong, receipts, "linux_x86_64").is_err());
+    let mut wrong = leaf.clone();
+    let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+        panic!("actual foreign supply")
+    };
+    binding
+        .calling_applications
+        .first_mut()
+        .unwrap()
+        .abi
+        .requirement_identity
+        .push_str("::wrong");
+    let wrong_abi = consent(&wrong, receipts, "linux_x86_64").unwrap_err();
+    assert!(
+        wrong_abi.iter().any(|error| error
+            .message
+            .contains("direct ABI instance changes its original declared method")),
+        "{wrong_abi:?}"
+    );
 }
