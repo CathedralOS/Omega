@@ -137,6 +137,7 @@ Write each item so any agent can start from it alone: current state, files and e
   - Unbounded `i` and `u` classify as unbounded integers (`written_carrier`), but no stage forms them as types yet.
 
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/spec/language/numeric_values.md#policy-operators) and their [declared policy-domain overloads](wiki/spec/language/numeric_values.md#policy-domains). Preserve exact qualified/plain signatures through selection, lowered-form checking and realization; no implicit conversions or surrounding-policy propagation.
+  - Retain each selected operation's exact carrier and policy in canonical callable/index identities. Raw non-Exact recipes require that complete representation before they can publish an exact identity.
   - Verify the SHA-256 and wire customers after static-machine and qualification migration.
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
