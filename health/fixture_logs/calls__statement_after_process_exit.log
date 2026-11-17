@@ -1,0 +1,2 @@
+native compile FAILED:
+  error: entry declaration was not prepared in the shared product roster

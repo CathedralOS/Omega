@@ -1,0 +1,5 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `qualified_atomic_operation_names` with 7 diagnostic(s)
+  error: a data declaration cannot own a machine; declare an ordinary static machine
+    in package `qualified_atomic_operation_names`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/calls/qualified_atomic_operation_names/main.omg:5:9
+    and 6 more with this cause; --verbose lists every one

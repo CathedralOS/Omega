@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `stored_descriptor_boundary` with 1 diagnostic(s)
+  error: not supported yet: boundary contract needs structural domain, reference or content publication in machine `main`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `stored_descriptor_boundary`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/ownership/stored_descriptor_boundary/main.omg:11:9

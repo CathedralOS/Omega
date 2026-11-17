@@ -1,0 +1,104 @@
+arithmetic/trapping_primitives	0	35	expected_native_exit=0 	native exit 0
+calls/caller_chosen_literal_match	0	29	expected_native_exit=0 	native exit 0
+calls/indexed_array_contract	200	13		  error: cannot compile admitted project: checked compilation failed for package `indexed_array_contract` with 1 diagnostic(s)
+calls/indexed_case_discriminator	200	28	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `indexed_discriminator` with 1 diagnostic(s)
+calls/installed_entry_contract_exit	0	28	expected_native_exit=0 	native exit 0
+calls/installed_named_predicate_exit	0	28		native exit 0
+calls/never_returning_call_in_expressions	200	8		  error: entry declaration was not prepared in the shared product roster
+calls/non_returning_call_lends_storage	200	10		  error: entry declaration was not prepared in the shared product roster
+calls/operational_contracts	0	29		native exit 0
+calls/process_exit_conditional_helper	200	5		  error: not supported yet: typing arm value type while reading the body of `require_success`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+calls/published_process_exit	200	116	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `published_process_exit` with 1 diagnostic(s)
+calls/published_scalar_postcondition	200	126	expected_native_exit=37 	  error: cannot compile admitted project: checked compilation failed for package `published_scalar_postcondition` with 1 diagnostic(s)
+calls/qualified_atomic_operation_names	200	7	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `qualified_atomic_operation_names` with 7 diagnostic(s)
+calls/scalar_contract_route_exit	0	34	expected_native_exit=0 	native exit 0
+calls/scalar_receiving_types	0	34	expected_native_exit=0 	native exit 0
+calls/statement_after_process_exit	200	11		  error: entry declaration was not prepared in the shared product roster
+calls/uninhabited_payload_coverage	0	33	expected_native_exit=0 	native exit 0
+calls/uninhabited_result_type	0	34	expected_native_exit=0 	native exit 0
+cli/both_comparison_verdict	0	34		native exit 0
+contracts/projected_state_guard	0	34		native exit 0
+contracts/unnamed_state_field_clause	0	33		native exit 0
+domains/access_plan_issuer	0	47	expected_native_exit=0 	native exit 0
+domains/applied_carriers	0	35	expected_native_exit=0 	native exit 0
+domains/constant_qualified_elements	0	36	expected_native_exit=0 	native exit 0
+effects/native_process_exit_review	200	33	expected_native_exit=37 expected_interpreter_exit=37 	  error: cannot compile admitted project: checked compilation failed for package `native_process_exit_review` with 1 diagnostic(s)
+equality/closed_generic_comparison	0	34		native exit 0
+equality/exact_nested_comparison	0	33		native exit 0
+float/byte_integer_conversion	0	34		native exit 0
+float/canonical_arithmetic	0	34		native exit 0
+float/canonical_comparisons	0	34		native exit 0
+float/canonical_conversions	0	33		native exit 0
+float/exact_integer_cast	200	34		  error: cannot compile admitted project: checked compilation failed for package `exact_float_integer_cast` with 1 diagnostic(s)
+float/exact_integer_to_float	200	34		  error: cannot compile admitted project: checked compilation failed for package `exact_integer_to_float` with 1 diagnostic(s)
+float/exact_narrowing	200	34		  error: cannot compile admitted project: checked compilation failed for package `exact_float_narrowing` with 1 diagnostic(s)
+float/exact_widening	200	35		  error: cannot compile admitted project: checked compilation failed for package `exact_float_widening` with 1 diagnostic(s)
+float/i16_u16_conversion	0	33		native exit 0
+float/inline_literal_comparison	0	35		native exit 0
+float/range_delivery	0	35		native exit 0
+float/reviewed_provider	0	33	expected_native_exit=0 expected_interpreter_exit=0 	native exit 0
+float/saturating_integer_conversion	0	33		native exit 0
+float/trapping_integer_conversion	0	35		native exit 0
+float/unqualified_integer_conversion	0	34		native exit 0
+float/wide_integer_conversion	0	34		native exit 0
+float/zero_constructed_locals	0	35		native exit 0
+generics/finite_family_contract	200	13	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `finite_family_contract` with 1 diagnostic(s)
+generics/implementation_parameter_contract	200	33	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `implementation_parameter_contract` with 1 diagnostic(s)
+generics/inferred_static_call_types	200	8		  error: cannot compile admitted project: checked compilation failed for package `inferred_static_call_types` with 1 diagnostic(s)
+generics/lexical_child_transition	0	35	expected_native_exit=0 	native exit 0
+generics/named_map_own_telescope	200	8	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `named_map_own_telescope` with 1 diagnostic(s)
+generics/nested_static_context	0	34	expected_native_exit=0 	native exit 0
+generics/static_callable_specialization	200	8	expected_native_exit=0 expected_interpreter_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `static_callable_specialization` with 1 diagnostic(s)
+generics/type_parameter_contract	0	35	expected_native_exit=0 	native exit 0
+generics/width_parameter_identity	200	7	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `width_parameter_identity` with 1 diagnostic(s)
+layouts/c_layout_size_alignment_query	200	7	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `c_layout_size_alignment_query` with 1 diagnostic(s)
+literals/explicit_field_omission	0	34		native exit 0
+numeric/policy_operators	200	12	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `policy_operators` with 1 diagnostic(s)
+operators/policy_words	0	34	expected_native_exit=0 expected_interpreter_exit=0 	native exit 0
+operators/qualified_operator_home/app	0	39	expected_native_exit=0 	native exit 0
+operators/qualified_operator_home/provider	200	1		  error: cannot compile admitted project: reviewed native production requires application root `qualified_operator_home_provider`; found Package
+optimizer/selected_allocation_high_pressure_exit	200	34		  error: cannot compile admitted project: checked compilation failed for package `selected_allocation_high_pressure` with 1 diagnostic(s)
+optimizer/selected_allocation_low_pressure_exit	200	34		  error: cannot compile admitted project: checked compilation failed for package `selected_allocation_low_pressure` with 1 diagnostic(s)
+ownership/borrowed_root_replacement	0	34	expected_native_exit=0 	native exit 0
+ownership/borrowed_root_restoration	0	34	expected_native_exit=0 	native exit 0
+ownership/incoming_record_reference_return	0	33	expected_native_exit=0 	native exit 0
+ownership/incoming_reference_match	0	34		native exit 0
+ownership/known_case_payload_store	200	7	expected_native_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `owned_case_store` with 1 diagnostic(s)
+ownership/owned_borrowed_field_restoration	0	34		native exit 0
+ownership/owned_borrowed_root_restoration	0	33		native exit 0
+ownership/owned_record_sequence	0	33	expected_native_exit=0 	native exit 0
+ownership/owned_runtime_indexed_byte_view_writeback	0	33		native exit 0
+ownership/prebound_reference_match	0	33	expected_native_exit=0 	native exit 0
+ownership/reconvergent_copy_joins	0	35	expected_native_exit=0 expected_interpreter_exit=0 	native exit 0
+ownership/retained_borrowed_root_restoration	0	32	expected_native_exit=0 	native exit 0
+ownership/returned_reference_disjoint_field	0	34	expected_native_exit=0 	native exit 0
+ownership/runtime_element_reference_return	0	34	expected_native_exit=0 	native exit 0
+ownership/runtime_indexed_byte_view_writeback	0	34		native exit 0
+ownership/runtime_record_sequence	0	33	expected_native_exit=0 expected_interpreter_exit=0 	native exit 0
+ownership/runtime_sequence_values	0	33	expected_native_exit=0 expected_interpreter_exit=0 	native exit 0
+ownership/shared_reference_formation	0	33	expected_native_exit=0 	native exit 0
+ownership/stored_descriptor_boundary	200	25		  error: cannot compile admitted project: checked compilation failed for package `stored_descriptor_boundary` with 1 diagnostic(s)
+ownership/whole_record_assignment	0	34	expected_native_exit=0 	native exit 0
+proofs/bounded_distance_rank	0	34		native exit 0
+providers/default_console_provider_reached	200	136	expected_native_exit=0 expected_interpreter_exit=0 	  error: cannot compile admitted project: checked compilation failed for package `default_console_provider_reached` with 23 diagnostic(s)
+providers/native_boundary_supply	200	36		  error: cannot compile admitted project: checked compilation failed for package `native_boundary_supply` with 1 diagnostic(s)
+providers/target_selected_implementation	200	34		  error: cannot compile admitted project: checked compilation failed for package `target_selected_implementation` with 1 diagnostic(s)
+reflection/borrowed_context	0	35		native exit 0
+reflection/build_parameter_description/library	200	0		  error: cannot compile admitted project: reviewed native production requires application root `table_descriptions`; found Package
+reflection/build_parameter_description	0	42		native exit 0
+reflection/inspect_record_fields	0	36	expected_native_exit=0 	native exit 0
+reflection/parameter_description	0	35		native exit 0
+views/byte_subslice	0	34		native exit 0
+views/byte_view_edge_retirement	0	34		native exit 0
+views/byte_view_store	200	34		  error: cannot compile admitted project: checked compilation failed for package `byte_view_store` with 1 diagnostic(s)
+views/fixed_array_byte_arguments	200	34		  error: cannot compile admitted project: checked compilation failed for package `fixed_array_byte_arguments` with 1 diagnostic(s)
+views/mutable_byte_view_arrival	200	35		  error: cannot compile admitted project: checked compilation failed for package `mutable_descriptor_boundary` with 1 diagnostic(s)
+views/mutable_byte_view_short_circuit	0	34		native exit 0
+views/projected_aligned_recast	0	35		native exit 0
+views/ranked_slice_iteration	200	31		  error: cannot compile admitted project: checked compilation failed for package `ranked_slice_iteration` with 1 diagnostic(s)
+views/representation_collection	0	34		native exit 0
+views/stored_byte_descriptor_call	0	34		native exit 0
+views/typed_array_partial_window	0	33		native exit 0
+views/typed_slice_field_index	0	33		native exit 0
+views/typed_slice_index	0	33		native exit 0
+views/whole_representation_view	0	34		native exit 0

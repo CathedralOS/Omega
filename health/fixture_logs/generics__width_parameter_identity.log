@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `width_parameter_identity` with 1 diagnostic(s)
+  error: not supported yet: type integer width without an owned const binder while reading the signature of `identity$specialized$32$23959` while reading the local binding of `main::entry::wide` while reading the body of `main`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `width_parameter_identity`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/generics/width_parameter_identity/main.omg:4:9

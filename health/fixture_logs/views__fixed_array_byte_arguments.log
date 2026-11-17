@@ -1,0 +1,3 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `fixed_array_byte_arguments` with 1 diagnostic(s)
+  error: cannot determine executable boundary supply: callable invocation actuals do not match the selected formal telescope

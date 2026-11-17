@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `static_callable_specialization` with 1 diagnostic(s)
+  error: constant `EXPECTED` evaluation: not supported yet: declaration a specialization's template check form has no exact contract; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `static_callable_specialization`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/generics/static_callable_specialization/main.omg:8:7

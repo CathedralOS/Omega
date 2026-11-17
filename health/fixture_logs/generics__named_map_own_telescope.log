@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `named_map_own_telescope` with 1 diagnostic(s)
+  error: not supported yet: static implementation family needs its general binder or region proof while reading the implementation of `Selected`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `named_map_own_telescope`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/generics/named_map_own_telescope/main.omg:4:1

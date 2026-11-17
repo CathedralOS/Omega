@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `c_layout_size_alignment_query` with 1 diagnostic(s)
+  error: layout policy for `Record` on `macos_arm64`: not supported yet: admitted source selection Operator remains unresolved as CheckedOperator in `c_abi_fields::append` at 18446744073709551615 - offset; operator completion: expected (Handle { arena_index: 12305, generation: 1 }, Handle { arena_index: 15743, generation: 1 }, AuthoredDeclarationSelectionOccurrenceId(11853)); related completed reads []; node=binary Subtract; materialization source=Handle { arena_index: 0, generation: 0 }; admitted signature views=0; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `c_layout_size_alignment_query`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/layouts/c_layout_size_alignment_query/main.omg:7:9

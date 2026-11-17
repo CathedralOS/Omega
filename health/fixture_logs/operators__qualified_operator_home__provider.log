@@ -1,0 +1,2 @@
+native compile FAILED:
+  error: cannot compile admitted project: reviewed native production requires application root `qualified_operator_home_provider`; found Package

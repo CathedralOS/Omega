@@ -1,0 +1,3 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `policy_operators` with 1 diagnostic(s)
+  error: not supported yet: admitted source selection Operator remains unresolved as CheckedOperator in `mixed` at value + step; operator completion: expected (Handle { arena_index: 8483, generation: 1 }, Handle { arena_index: 15771, generation: 1 }, AuthoredDeclarationSelectionOccurrenceId(11797)); related completed reads []; node=binary Add; materialization source=Handle { arena_index: 0, generation: 0 }; admitted signature views=0; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong

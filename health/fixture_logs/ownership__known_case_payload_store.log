@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `owned_case_store` with 1 diagnostic(s)
+  error: not supported yet: declaration holding a literal assigned to a place whose declared type is not computed yet while reading the signature of `main`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `owned_case_store`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/ownership/known_case_payload_store/main.omg:7:19

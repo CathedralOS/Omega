@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `ranked_slice_iteration` with 1 diagnostic(s)
+  error: storage is changed while a conflicting reference remains live (conflicting loans)
+    in package `ranked_slice_iteration`, /home/user/Omega/.agents/worktree/worker-1/tests/fixtures/run/views/ranked_slice_iteration/main.omg:21:35

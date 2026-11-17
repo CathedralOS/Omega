@@ -1,0 +1,7 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `default_console_provider_reached` with 23 diagnostic(s)
+  error: not supported yet: admitted source selection Operator remains unresolved as CheckedOperator in `LinuxX86ConsoleIo::read` at descriptor == 0 && count <= 4; operator completion: expected (Handle { arena_index: 10164, generation: 1 }, Handle { arena_index: 24625, generation: 1 }, AuthoredDeclarationSelectionOccurrenceId(11792)); related completed reads []; node=binary And; materialization source=Handle { arena_index: 0, generation: 0 }; admitted signature views=0; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    and 12 more with this cause; --verbose lists every one
+  error: not supported yet: abstract callable has no closed suspension, blocking or progress envelope in machine `emit`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong
+    in package `omega_language_std`, /home/user/Omega/.agents/worktree/worker-1/source/library/std/console.omg:399:16
+    and 9 more with this cause; --verbose lists every one

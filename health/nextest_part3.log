@@ -1,0 +1,127 @@
+warning: unused dependency `syntax-trees-to-symbol-resolved-trees`
+  --> omega-rust/psi/compilation/build-time-evaluation/Cargo.toml:38:1
+   |
+38 | syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `syntax-trees-to-symbol-resolved-trees`
+help: to still use for development builds, move to `dev-dependencies`
+warning: `build-time-evaluation` (manifest) generated 1 warning
+warning: unused dependency `iced-x86`
+  --> omega-rust/omega/compilation/backend/images/image-emission/Cargo.toml:58:1
+   |
+58 | iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `iced-x86`
+help: to still use for development builds, move to `dev-dependencies`
+warning: `image-emission` (manifest) generated 1 warning
+    Finished `test` profile [optimized] target(s) in 2.63s
+────────────
+ Nextest run ID 2472149a-ce84-4809-8cdd-3de614caf828 with nextest profile: default
+    Starting 69 tests across 3 binaries (95 tests and 233 binaries skipped)
+        PASS [   3.205s] ( 1/69) xtask::bin/xtask rules::tests::pr_scope_excludes_files_added_to_main_after_the_topic_forked
+        PASS [   0.529s] ( 2/69) xtask::bin/xtask rules::tests::pr_scope_preserves_ancestor_and_admission_merge_parent_diffs
+        PASS [   0.099s] ( 3/69) xtask::bin/xtask rules::tests::pr_scope_refuses_invalid_or_unrelated_bases_instead_of_empty_coverage
+        PASS [   0.267s] ( 4/69) xtask::bin/xtask rules::tests::pr_scope_requires_an_explicit_ancestor_when_history_has_two_merge_bases
+        PASS [   0.005s] ( 5/69) xtask::bin/xtask rules::tests::proof_line_states_the_tests_and_what_they_showed
+        PASS [   4.003s] ( 6/69) xtask::bin/xtask rules::tests::ratchets_and_dangling_ids_match_checked_in_baselines
+        PASS [   0.005s] ( 7/69) xtask::bin/xtask rules::tests::retired_corpus_and_frozen_facts_accept_no_new_files
+        PASS [   0.005s] ( 8/69) xtask::bin/xtask rules::tests::spec_line_names_an_existing_page_or_says_why_none_governs
+        PASS [   0.004s] ( 9/69) xtask::bin/xtask rules::tests::validates_commit_titles_and_provenance
+        PASS [   0.006s] (10/69) xtask::bin/xtask rust_producer_omission::tests::manifest_path_and_shape_controls_preserve_the_declared_boundary
+        PASS [   0.005s] (11/69) xtask::bin/xtask rust_producer_omission::tests::quoted_and_escaped_producers_cannot_hide_in_steps
+        PASS [   0.005s] (12/69) xtask::bin/xtask rust_producer_omission::tests::verdict_and_record_are_distinct_from_malformed_invocation
+        PASS [   0.006s] (13/69) xtask::bin/xtask samples::result_file_tests::the_results_file_keeps_each_samples_verdict_and_reason
+        PASS [   0.005s] (14/69) xtask::bin/xtask samples::tests::a_rejection_earns_credit_only_as_a_verdict_for_the_pinned_reason
+        PASS [   0.004s] (15/69) xtask::bin/xtask samples::tests::compared_host_request_executes_both_without_compile_only_target
+        PASS [   0.005s] (16/69) xtask::bin/xtask samples::tests::compared_host_request_refuses_a_different_target
+        PASS [   0.006s] (17/69) xtask::bin/xtask samples::tests::each_project_captures_its_own_modules_and_checks_nested_projects_separately
+        PASS [   0.218s] (18/69) xtask::bin/xtask samples::tests::failed_preparation_reports_the_child_status_and_following_diagnostic_lines
+        PASS [   0.006s] (19/69) xtask::bin/xtask samples::tests::intended_invalid_requires_a_nonblank_diagnostic_oracle_before_execution
+        PASS [   0.318s] (20/69) xtask::bin/xtask samples::tests::intended_invalid_requires_the_pinned_reason_and_a_normal_rejection
+        PASS [   0.008s] (21/69) xtask::bin/xtask samples::tests::malformed_source_inventory_cannot_fall_back_to_a_wide_capture
+        PASS [   0.005s] (22/69) xtask::bin/xtask samples::tests::rewrites_pending_decisions_to_accept_preserving_lf
+        PASS [   0.208s] (23/69) xtask::bin/xtask samples::tests::sample_preparation_and_execution_receive_the_same_explicit_inventory
+        PASS [   0.013s] (24/69) xtask::bin/xtask source_closure::tests::exact_order_follows_the_manifest_not_the_paths
+        PASS [   0.026s] (25/69) xtask::bin/xtask source_closure::tests::malformed_manifests_and_inventories_refuse_before_replacing_output
+        PASS [   0.007s] (26/69) xtask::bin/xtask source_closure::tests::prefix_is_prepended_and_refusals_keep_the_previous_output
+        PASS [   0.239s] (27/69) xtask::bin/xtask source_closure::tests::selected_compiler_closures_match_their_pinned_bytes
+        PASS [   0.008s] (28/69) xtask::bin/xtask source_closure::tests::symlinks_refuse_before_replacing_output
+        PASS [   0.006s] (29/69) xtask::bin/xtask sweep::fleet::tests::a_configuration_names_each_host_once
+        PASS [   0.005s] (30/69) xtask::bin/xtask sweep::fleet::tests::a_stalled_job_is_called_stale
+        PASS [   0.005s] (31/69) xtask::bin/xtask sweep::fleet::tests::quoting_survives_the_characters_each_shell_treats_specially
+        PASS [   0.005s] (32/69) xtask::bin/xtask sweep::fleet::tests::stamps_are_utc_minutes
+        PASS [   0.005s] (33/69) xtask::bin/xtask sweep::fleet::tests::start_needs_one_target_and_refuses_local_only_selections
+        PASS [   0.005s] (34/69) xtask::bin/xtask sweep::fleet::tests::the_unix_job_takes_the_lock_and_runs_its_own_shard
+        PASS [   0.008s] (35/69) xtask::bin/xtask sweep::fleet::tests::the_windows_job_quotes_for_both_shells_and_frees_its_lock
+        PASS [   0.004s] (36/69) xtask::bin/xtask sweep::fleet::tests::weights_split_every_unit_once_in_host_order
+        PASS [   0.094s] (37/69) xtask::bin/xtask sweep::record::tests::a_journal_resumes_its_own_run_and_refuses_another
+        PASS [   0.005s] (38/69) xtask::bin/xtask sweep::record::tests::an_output_is_read_back_before_it_counts
+        PASS [   0.005s] (39/69) xtask::bin/xtask sweep::record::tests::merge_takes_every_unit_once_and_names_what_is_missing
+        PASS [   0.004s] (40/69) xtask::bin/xtask sweep::record::tests::shards_split_by_unit_and_parse_both_forms
+        PASS [   0.004s] (41/69) xtask::bin/xtask sweep::tests::a_build_failure_is_the_build_stage
+        PASS [   0.004s] (42/69) xtask::bin/xtask sweep::tests::a_cause_groups_by_its_words_not_its_names
+        PASS [   0.004s] (43/69) xtask::bin/xtask sweep::tests::a_diff_names_the_messages_it_touched
+        PASS [   0.004s] (44/69) xtask::bin/xtask sweep::tests::a_misspelled_target_stops_the_run_not_one_program
+        PASS [   0.004s] (45/69) xtask::bin/xtask sweep::tests::a_negative_earns_credit_only_for_the_refusal_it_pins
+        PASS [   0.004s] (46/69) xtask::bin/xtask sweep::tests::a_path_dependency_resolves_from_its_program
+        PASS [   0.005s] (47/69) xtask::bin/xtask sweep::tests::dependencies_are_followed_to_the_end
+        PASS [   0.005s] (48/69) xtask::bin/xtask sweep::tests::expectations_come_from_the_programs_own_files
+        PASS [   0.004s] (49/69) xtask::bin/xtask sweep::tests::negatives_are_fail_folders_and_invalid_twins
+        PASS [   0.004s] (50/69) xtask::bin/xtask sweep::tests::only_core_and_std_reach_every_program
+        PASS [   0.004s] (51/69) xtask::bin/xtask sweep::tests::quick_keeps_one_positive_and_one_negative_per_fact
+        PASS [   0.008s] (52/69) xtask::bin/xtask sweep::tests::selections_take_one_mode_and_the_earlier_sweep_they_need
+        PASS [   0.008s] (53/69) xtask::bin/xtask sweep::tests::the_previous_sweep_reads_back_its_own_rows
+        PASS [   0.004s] (54/69) xtask::bin/xtask tests::usage_uses_public_psi_name_and_lists_all_subcommands
+        PASS [   0.051s] (55/69) xtask::bin/xtask work_interval::tests::cherry_pick_label_does_not_authorize_a_nonparent_transition
+        PASS [   0.069s] (56/69) xtask::bin/xtask work_interval::tests::direct_parent_cherry_pick_preserves_the_acquired_interval
+        PASS [   0.055s] (57/69) xtask::bin/xtask work_interval::tests::unrelated_checkout_retains_its_existing_source_boundary
+        PASS [   0.035s] (58/69) xtask::bin/xtask worktree::tests::a_cloud_slot_starts_at_its_restored_builds_commit
+        PASS [   0.004s] (59/69) xtask::bin/xtask worktree::tests::listing_marks_a_registration_whose_directory_is_gone
+        PASS [   0.004s] (60/69) xtask::bin/xtask worktree::tests::managed_cloud_markers_enable_warm_builds
+        PASS [   0.157s] (61/69) xtask::bin/xtask worktree::tests::ownership_follows_moved_and_offline_locked_worktrees
+        PASS [   0.356s] (62/69) xtask::bin/xtask worktree::tests::pool_lock_admits_one_holder_and_breaks_stale_locks
+        PASS [   0.128s] (63/69) xtask::bin/xtask worktree::tests::published_checkpoint_without_tracking_ref_is_retained
+        PASS [   0.005s] (64/69) xtask::bin/xtask worktree::tests::recycled_target_keeps_live_storage_and_discards_only_a_dangling_link
+        PASS [   0.004s] (65/69) xtask::bin/xtask worktree::tests::reset_is_refused_whenever_work_would_be_lost
+        PASS [   0.179s] (66/69) xtask::bin/xtask worktree::tests::warm_startup_recognizes_managed_codex_and_keeps_local_sessions_idle
+        PASS [  55.951s] (67/69) terminal-runtime::retained_runtime retained_execution_preserves_identity_and_resumes_without_decoding
+        SLOW [> 60.000s] (─────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [> 60.000s] (─────) orchestration::executed_commands stale_lock_refuses_compilation_before_the_changed_build_runs
+        SLOW [>120.000s] (─────) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+        SLOW [>120.000s] (─────) orchestration::executed_commands stale_lock_refuses_compilation_before_the_changed_build_runs
+        FAIL [ 171.158s] (68/69) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+  stdout ───
+
+    running 1 test
+    test product_entry_queries_reuse_build_across_accepted_targets has been running for over 60 seconds
+    test product_entry_queries_reuse_build_across_accepted_targets ... FAILED
+
+    failures:
+
+    failures:
+        product_entry_queries_reuse_build_across_accepted_targets
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 171.14s
+
+  stderr ───
+
+    thread 'product_entry_queries_reuse_build_across_accepted_targets' (685) panicked at omega-rust/omega/build-system/orchestration/tests/executed_commands.rs:392:87:
+    called `Result::unwrap()` on an `Err` value: PackageCommandError { cause: Change(Compilation(CompileResolvedPackageReviewsError { cause: Compilation { package: PackageKey { name: PackageName("omega_language_std"), source_lineage: ExternalLocal(ExternalLocalLineage { canonical_path: "/home/user/Omega/.agents/worktree/worker-1/source/library/std", source_context: ExternalSourceContext([179, 96, 166, 174, 108, 45, 187, 4, 56, 39, 158, 174, 136, 177, 23, 213, 151, 158, 140, 131, 253, 191, 175, 178, 217, 121, 250, 44, 11, 195, 175, 41]) }) }, failure: SourceCompletion { diagnostics: [Diagnostic { severity: Error, message: "layout policy for `DarwinTimespec` on `windows_x86_64`: not supported yet: admitted source selection Operator remains unresolved as CheckedOperator in `c_abi_fields::append` at 18446744073709551615 - offset; operator completion: expected (Handle { arena_index: 12336, generation: 1 }, Handle { arena_index: 15839, generation: 1 }, AuthoredDeclarationSelectionOccurrenceId(11933)); related completed reads []; node=binary Subtract; materialization source=Handle { arena_index: 0, generation: 0 }; admitted signature views=0; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(272), span: Span { start: 1061, end: 1076 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("omega_language_std"), path: "/home/user/Omega/.agents/worktree/worker-1/source/library/std/targets/macos_arm64/filesystem_abi.omg", line: 37, column: 13 }) }], accounting: SourceCompletionAccounting { receipts: [Invocation(PureTerminalEvaluationReceipt { request_source: TypedTrees { identity: ProgramIdentity(6), product_declaration_frontier: None, excluded_authored_selection_occurrences: AuthoredSelectionExclusions { occurrences: [AuthoredDeclarationSelectionOccurrenceId(176), AuthoredDeclarationSelectionOccurrenceId(177), AuthoredDeclaration ...[truncated]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+       1: core::panicking::panic_fmt
+       2: core::result::unwrap_failed
+       3: executed_commands::publish_candidate
+       4: <executed_commands::product_entry_queries_reuse_build_across_accepted_targets::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [ 180.848s] (69/69) orchestration::executed_commands stale_lock_refuses_compilation_before_the_changed_build_runs
+────────────
+     Summary [ 222.502s] 69 tests run: 68 passed (1 slow), 1 failed, 95 skipped
+        FAIL [ 171.158s] (68/69) orchestration::executed_commands product_entry_queries_reuse_build_across_accepted_targets
+error: test run failed
+exit 100

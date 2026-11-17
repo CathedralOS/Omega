@@ -1,0 +1,2 @@
+native compile FAILED:
+  error: not supported yet: typing arm value type while reading the body of `require_success`; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong

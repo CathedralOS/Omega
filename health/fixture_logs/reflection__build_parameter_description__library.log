@@ -1,0 +1,2 @@
+native compile FAILED:
+  error: cannot compile admitted project: reviewed native production requires application root `table_descriptions`; found Package
