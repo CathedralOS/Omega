@@ -10,6 +10,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> Result<(), String> {
+    let budget =
+        execution_admission::ExecutionBudget::with_workers(1).map_err(|error| error.to_string())?;
+    budget.run(measure)
+}
+
+fn measure() -> Result<(), String> {
     // Cargo supplies this marker even when the benchmark uses its own harness.
     let arguments: Vec<_> = std::env::args()
         .skip(1)

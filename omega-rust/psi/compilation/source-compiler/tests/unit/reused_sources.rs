@@ -75,6 +75,32 @@ fn adopted_discovery_parse_equals_a_fresh_parse_at_admitted_coordinates() {
             .unwrap();
         assert_eq!(offered, 1);
         assert_eq!(actual, expected, "{}", path.display());
+        if path.file_name().is_some_and(|name| name == "extent.omg") {
+            // Equality alone would miss both paths dropping mathematical roots.
+            for forest in [&fresh, &adopted] {
+                let handle = forest
+                    .root_mathematical_definition_handles()
+                    .iter()
+                    .copied()
+                    .find(|handle| {
+                        forest
+                            .root_mathematical_definition(*handle)
+                            .name
+                            .as_str(forest)
+                            == "no_wrap"
+                    })
+                    .expect("the admitted extent predicate remains a root");
+                let definition = forest.root_mathematical_definition(handle);
+                assert_eq!(
+                    definition.name.source_span().source_id,
+                    SourceId(1000 + index)
+                );
+                assert_eq!(
+                    handle.generation(),
+                    expected.sources.span_or_empty(expected.batch)[0].root_items[0].generation()
+                );
+            }
+        }
     }
     assert_eq!(adopted, fresh);
     assert_eq!(adopted.page_count(), fresh.page_count());

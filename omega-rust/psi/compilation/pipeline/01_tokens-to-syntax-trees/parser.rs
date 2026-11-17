@@ -95,19 +95,21 @@ fn parse_source_pages_with_count(
     let source_count = lexed_sources.len();
     let chunk_size = source_count.max(1).div_ceil(desired_pages);
     let page_count = source_count.div_ceil(chunk_size);
-    if page_count != 0
-        && (first_page_identity == 0
-            || u32::try_from(page_count - 1)
-                .ok()
-                .and_then(|last| first_page_identity.checked_add(last))
-                .is_none())
+    // Chunk rounding may use fewer pages than requested. Validate the same
+    // capacity we reserve, including the empty arena's one directory slot.
+    let arena_pages = page_count.max(1);
+    if first_page_identity == 0
+        || u32::try_from(arena_pages)
+            .ok()
+            .and_then(|count| first_page_identity.checked_add(count - 1))
+            .is_none()
     {
         return Err(ParseError::new(
             "parser exhausted its source-page directory",
         ));
     }
     let arena = ConcurrentPagedArena::<SyntaxTrees>::new_with_first_page(
-        desired_pages,
+        arena_pages,
         1,
         first_page_identity,
     );
