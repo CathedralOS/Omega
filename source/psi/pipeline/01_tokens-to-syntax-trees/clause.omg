@@ -245,7 +245,12 @@ crashes Trap
     machine satisfied_label(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping, labelled: bool) {
         transition labelled {
             true -> label(parser, input, owner)
-            _ -> via_word(parser, input, owner, satisfies_clause(parser, end))
+            _ -> capture_satisfied_label_argument(parser, input, owner, end, labelled)
+        }
+
+        machine capture_satisfied_label_argument(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping, labelled: bool) {
+            let unlabelled_clause: Clause = satisfies_clause(parser, end);
+            transition { _ -> via_word(parser, input, owner, unlabelled_clause) }
         }
     }
 
@@ -278,15 +283,20 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedSatisfiesBinding, true, true);
         transition parser.output.accepted {
-            true -> via_bound(parser, input, owner, clause, parser.expression_result)
+            true -> capture_via_argument(parser, input, owner, clause)
             _ -> done()
+        }
+
+        machine capture_via_argument(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
+            let binding_expression: u64 in Trapping = parser.expression_result;
+            transition { _ -> via_bound(parser, input, owner, clause, binding_expression) }
         }
     }
 
     machine via_bound(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, value: u64 in Trapping) {
         let expression: Expression = syntax_trees_expression(&parser.output, value);
-        transition { _ -> satisfaction(parser, input, owner,
-            with_clause_expression(parser, clause, value, expression.source_span.span.end)) }
+        let bound_clause: Clause = with_clause_expression(parser, clause, value, expression.source_span.span.end);
+        transition { _ -> satisfaction(parser, input, owner, bound_clause) }
     }
 
     machine satisfaction(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {

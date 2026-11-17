@@ -2057,7 +2057,9 @@ machine match_frame(
         start: start,
         arm_start: frame.arm_start,
         pattern: frame.pattern,
-        pattern_kind: frame.pattern_kind
+        pattern_kind: frame.pattern_kind,
+        range_start: frame.range_start,
+        range_inclusive: frame.range_inclusive
     }
 }
 
@@ -2073,7 +2075,9 @@ machine match_arm_frame(frame: ExpressionFrame, arm_start: u64 in Trapping) -> E
         start: frame.start,
         arm_start: arm_start,
         pattern: 0u64 as +Trapping,
-        pattern_kind: ArmPatternKind::Wildcard
+        pattern_kind: ArmPatternKind::Wildcard,
+        range_start: frame.range_start,
+        range_inclusive: frame.range_inclusive
     }
 }
 
@@ -2089,7 +2093,9 @@ machine match_value_frame(frame: ExpressionFrame, kind: ArmPatternKind, pattern:
         start: frame.start,
         arm_start: frame.arm_start,
         pattern: pattern,
-        pattern_kind: kind
+        pattern_kind: kind,
+        range_start: frame.range_start,
+        range_inclusive: frame.range_inclusive
     }
 }
 

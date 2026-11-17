@@ -1197,7 +1197,7 @@ crashes Trap
     machine policy_literal(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, peer_expression: u64 in Trapping) {
         let mut bare: TypeRow = row;
         bare.domain = DomainBinding::Unqualified;
-        bare.domain_item = 0 as u64 +Trapping;
+        bare.domain_item = 0u64 as +Trapping;
         let carrier: u64 in Trapping = typer_intern(typer, bare, expression.source_span);
         let admitted: bool = typer_admit(typer, syntax, carrier, peer_expression, false);
     }
