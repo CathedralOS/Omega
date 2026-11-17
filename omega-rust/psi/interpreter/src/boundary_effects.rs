@@ -2558,7 +2558,7 @@ pub(crate) mod results {
             Ok(())
         }
 
-        fn supports_provider_reference_result(
+        pub(crate) fn supports_provider_reference_result(
             &self,
             boundary: &BoundaryMachineDeclaration,
             result: &terminal_psi::StructuralOperationResult,
