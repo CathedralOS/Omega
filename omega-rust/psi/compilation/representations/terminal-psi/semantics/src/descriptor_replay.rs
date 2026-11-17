@@ -5204,23 +5204,6 @@ pub(crate) mod engine {
                 {
                     return None;
                 }
-                if matches!(
-                    definition,
-                    DescriptorDefinition::Arrival {
-                        access: StructuralAccess::SharedBorrow
-                    }
-                ) && !current.path.contains(&DescriptorPathSegment::Referent)
-                    && let Some(Some(origins)) = origins
-                    && origins.len() > 1
-                    && self.shared_input_arrival(machine, root_type, origins)
-                {
-                    // Each choice is held through an original shared input.
-                    // The header names the selected
-                    // contents in this iteration; no single original address
-                    // represents that binding. Keep its local identity while
-                    // arrival_backing retains every choice for result custody.
-                    return Some(StorageResolution::Unique(current));
-                }
                 if borrowed_arrival
                     && let Some(Some(origins)) = origins
                     && origins
