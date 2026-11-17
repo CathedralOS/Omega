@@ -830,11 +830,7 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
 const VERSION: u32 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PressureRematerializationPolicy {
-    SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
-    SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
-}
+pub use register_homes::PressureRematerializationPolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PressureRematerializationPlan {

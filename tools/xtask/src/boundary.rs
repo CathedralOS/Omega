@@ -128,7 +128,7 @@ const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
         dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
     },
     // Object replay and validation rerun stage 02 preparation and stage 03
-    // geometry helpers on the retained earlier program.
+    // geometry helpers on the earlier program an audit request retains.
     Allowance {
         owner: "omega-rust/omega/compilation/backend/images/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
@@ -141,12 +141,8 @@ const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
         owner: "omega-rust/omega/compilation/backend/images/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     },
-    // Fragment emission keeps stage 02's output beside the stage 09 layout,
-    // and frame staging names stage output types that live in stage crates.
-    Allowance {
-        owner: "omega-rust/omega/compilation/backend/machine-emission",
-        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
-    },
+    // Frame staging and the opt-in fixed-frame replay name stage output types
+    // that live in stage crates.
     Allowance {
         owner: "omega-rust/omega/compilation/backend/machine-emission",
         dependency: "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
@@ -503,6 +499,25 @@ const AFTER_PREPARATION: &[&str] = &[
 const SEALED_TERMINAL_MODULE: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/codec";
 
+/// Selection and later forms carry shared contracts, not the prepared plan's
+/// instruction graph. Follow indirect production edges as well as direct ones.
+const AFTER_SELECTION: &[&str] = &[
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+const PREPARED_EXECUTION_PLAN: &str =
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
 /// share, and the leaf vocabulary they carry. Instruction selection is handed
@@ -806,9 +821,20 @@ fn call_violations(
     declarations: &[(&str, &str)],
     reason: &str,
 ) -> Vec<String> {
+    call_violations_in(root, OMEGA, entries, allowed, declarations, reason)
+}
+
+fn call_violations_in(
+    root: &Path,
+    scope: &str,
+    entries: &[&str],
+    allowed: &[&str],
+    declarations: &[(&str, &str)],
+    reason: &str,
+) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
-    collect_rs_files(&root.join(OMEGA), &mut files);
+    collect_rs_files(&root.join(scope), &mut files);
     for path in files {
         let rel = path
             .strip_prefix(root)
@@ -991,6 +1017,22 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
     )
 }
 
+/// Backend publication reads current callable facts and the carried preparation
+/// root, not the stage 02 execution plan or stage 01 optimization output.
+pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
+    call_violations_in(
+        root,
+        "omega-rust/omega/compilation/backend",
+        &["execution_plan", "pre_physical_manifest("],
+        &[
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+        ],
+        &[],
+        "backend production reads an earlier execution plan; read current execution contracts",
+    )
+}
+
 pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
     call_violations(
         root,
@@ -1066,6 +1108,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
         violations.extend(image_replay_read_violations(&root));
+        violations.extend(backend_execution_plan_read_violations(&root));
         violations.extend(installation_mutation_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
@@ -1078,6 +1121,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             AFTER_PREPARATION,
             STAGE_02_WORKING_FORM,
             "a stage or form after the prepared plan reaches stage 02's working program; name the record from target-vocabulary",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            AFTER_SELECTION,
+            PREPARED_EXECUTION_PLAN,
+            "a selected or later form reaches the prepared instruction graph; name shared records from target-vocabulary",
         )?);
         violations.extend(transitive_exact_violations(
             &metadata,
@@ -1313,6 +1362,48 @@ mod tests {
     }
 
     #[test]
+    fn every_later_form_refuses_an_indirect_prepared_graph_dependency() {
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        for &form in AFTER_SELECTION {
+            let metadata = |kind| Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![
+                    pkg("later-form", form, &[("helper", helper, None)]),
+                    pkg(
+                        "helper",
+                        helper,
+                        &[("legalized-operations", PREPARED_EXECUTION_PLAN, kind)],
+                    ),
+                    pkg("legalized-operations", PREPARED_EXECUTION_PLAN, &[]),
+                ],
+            };
+            for kind in [None, Some("build")] {
+                assert_eq!(
+                    transitive_exact_violations(
+                        &metadata(kind),
+                        &[form],
+                        PREPARED_EXECUTION_PLAN,
+                        "no"
+                    )
+                    .unwrap(),
+                    vec!["later-form -> helper -> legalized-operations: no".to_owned()],
+                    "{form}"
+                );
+            }
+            assert!(
+                transitive_exact_violations(
+                    &metadata(Some("dev")),
+                    &[form],
+                    PREPARED_EXECUTION_PLAN,
+                    "no"
+                )
+                .unwrap()
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
     fn single_form_entries_count_parameters_at_the_top_level() {
         let text = "pub fn stage<Source: Into<(u8, u8)>>(\n    source: Source,\n) -> Result<(), ()> {}\n\
                     pub fn joined(a: &[u8], b: Map<K, (V, W)>, c: impl Fn(u8, u8),) {}";
@@ -1448,7 +1539,9 @@ mod tests {
                 format!("{image}/function_fragments/production.rs"),
                 "use crate::retained_working_program as old;\n\
                  use super::source::{retained_source_validation as audit};\n\
-                 let read = TargetStageOutput::working_program_for_validation;\n",
+                 let read = TargetStageOutput::working_program_for_validation;\n\
+                 let plan = TargetStageOutput::execution_plan;\n\
+                 let earlier = current.pre_physical_manifest();\n",
             ),
             (
                 format!("{image}/function_fragments/another_producer.rs"),
@@ -1456,7 +1549,9 @@ mod tests {
             ),
             (
                 format!("{image}/function_fragments/replay/validation.rs"),
-                "crate::retained_working_program::target_operations(input);\n",
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n\
+                 current.pre_physical_manifest();\n",
             ),
             (
                 format!("{image}/function_fragments/source/retained_source_validation.rs"),
@@ -1468,7 +1563,8 @@ mod tests {
             ),
             (
                 format!("{image}/function_fragments/replay/validation.rs_extra.rs"),
-                "crate::retained_working_program::target_operations(input);\n",
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n",
             ),
         ];
         for (relative, text) in files {
@@ -1478,8 +1574,14 @@ mod tests {
         }
         let violations = image_replay_read_violations(&root);
         let raw_accessor_violations = working_program_read_violations(&root);
+        let execution_plan_violations = backend_execution_plan_read_violations(&root);
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(violations.len(), 5, "{violations:?}");
+        assert_eq!(
+            execution_plan_violations.len(),
+            3,
+            "{execution_plan_violations:?}"
+        );
         assert!(
             violations
                 .iter()

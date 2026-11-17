@@ -14,7 +14,10 @@ before admitting any transformation.
 
 #[cfg(test)]
 mod codec_tests;
+mod execution_facts;
 mod fixed_view_copy_codec;
+mod program_contracts;
+mod publication;
 mod selected_blocks;
 mod selected_instructions;
 mod structural_calls;
@@ -601,7 +604,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     bytes.push(0);
                     push_encoded(&mut bytes, defining_instruction.0.to_le_bytes());
                     push_encoded(&mut bytes, source_value.get().to_le_bytes());
-                    legalized_operations::encode_integer(&mut bytes, *value);
+                    target_vocabulary::encode_integer(&mut bytes, *value);
                     encode_classification_provenance(&mut bytes, provenance);
                     length(
                         &mut bytes,
@@ -948,6 +951,13 @@ pub enum FixedViewCopyPolicy {
     SharedSourceExitBeforeFixedUseV1, // Shared copy at a dominating block terminator when leaving one source segment end
 }
 
+/// Where active-resident rematerialization places a chosen immediate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PressureRematerializationPolicy {
+    SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+    SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FixedViewCopySourceEvidence {
     // Recovery consumes these three admitted plans together. There is no
@@ -998,6 +1008,13 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidExecutionFacts(target_vocabulary::NativeExecutionFactsError),
+    InvalidCodeCatalog {
+        catalog: &'static str,
+        cause: terminal_wire::CodecError,
+    },
+    InvalidProgramContracts(&'static str),
+    InvalidStructuralBlockParameters,
     InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {

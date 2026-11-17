@@ -82,6 +82,7 @@ pub mod kind_encoding;
 pub mod live_ranges;
 pub mod liveness;
 pub mod plan_identity;
+mod program_contracts;
 pub mod provenance;
 pub mod structural_case;
 pub mod terminator_encoding;
@@ -105,10 +106,10 @@ pub use constraints::{
 pub use control_flow::{
     SelectedAddressBase, SelectedBlock, SelectedBlockOrigin, SelectedFunction,
     SelectedFunctionContracts, SelectedScalarReferenceSource, SelectedStructuralBinding,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueBinding, SelectedValueTransport, terminator_instruction,
-    terminator_instruction_mut, terminator_return_edge, terminator_successors,
-    terminator_successors_mut,
+    SelectedStructuralBlockParameters, SelectedStructuralTransport, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    terminator_instruction, terminator_instruction_mut, terminator_return_edge,
+    terminator_successors, terminator_successors_mut,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, IsaCatalogValidation,
@@ -142,9 +143,6 @@ pub use instructions::{
     SelectedInstructionKind, float_bit_transfer_properties, ieee_float_arithmetic_is_trapping,
     instruction_position, is_float_bit_transfer,
 };
-pub use legalized_operations::{
-    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
-};
 pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
@@ -159,10 +157,14 @@ pub use liveness::{
     liveness_identity_from_digests,
 };
 pub use plan_identity::selected_instruction_plan_identity;
+pub use program_contracts::SelectedProgramContracts;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{
     SelectedCaseDispatchSource, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
     SelectedStructuralCaseEdge,
+};
+pub use target_vocabulary::{
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 pub use terminal_psi::{
     ByteSequencePredicate, ControlRegister, GlobalDescriptorTableOperation, InterruptControlKind,
@@ -174,11 +176,6 @@ pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct SelectedProgramContracts {
-    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstructionPlan {

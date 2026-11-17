@@ -798,6 +798,20 @@ impl<'program> DeclaredCallTargets<'program> {
         if !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
             return false;
         }
+        if let Some(receiver) = receiver
+            && receiver.is_valid()
+            && program.symbols.symbols().nodes().is_valid(receiver)
+            && matches!(
+                program.static_record_bound_requirement(
+                    program.symbols.get(receiver).parent,
+                    receiver,
+                    symbol,
+                ),
+                Ok(Some(_))
+            )
+        {
+            return true;
+        }
         if program.machine_by_own_or_state_symbol(symbol).is_some()
             || program.operator_definition_by_symbol(symbol).is_some()
             || program.trait_machine_signature(symbol).is_some()
@@ -860,14 +874,43 @@ impl<'program> DeclaredCallTargets<'program> {
         matches!(
             self.program.named_conformance_member(namespace, target),
             Ok(Some(_))
-        )
+        ) || (namespace.is_valid()
+            && self.program.symbols.symbols().nodes().is_valid(namespace)
+            && matches!(
+                self.program.static_record_bound_requirement(
+                    self.program.symbols.get(namespace).parent,
+                    namespace,
+                    target,
+                ),
+                Ok(Some(_))
+            ))
     }
 
     fn named_expression_call(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
         matches!(
             self.program.named_conformance_call_member(call),
             Ok(Some(_))
-        )
+        ) || self
+            .program
+            .expression_table
+            .name_path_node(call.receiver)
+            .is_some_and(|receiver| {
+                receiver.symbol.is_valid()
+                    && self
+                        .program
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(receiver.symbol)
+                    && matches!(
+                        self.program.static_record_bound_requirement(
+                            self.program.symbols.get(receiver.symbol).parent,
+                            receiver.symbol,
+                            call.target_symbol,
+                        ),
+                        Ok(Some(_))
+                    )
+            })
     }
 
     /// What a call typing did not bind still asks of a later pass, or `None`
@@ -2616,12 +2659,18 @@ mod tests {
         );
         let requirement = members.handle_at(0);
         let missing = members.handle_at(1);
-        let receiver_value = symbols
-            .insert_children(
-                caller,
-                [(SymbolKind::Local, symbols::SymbolNameRef::Static("value"))],
-            )
-            .handle_at(0);
+        let receivers = symbols.insert_children(
+            caller,
+            [
+                (SymbolKind::Local, symbols::SymbolNameRef::Static("value")),
+                (
+                    SymbolKind::TypeParameter,
+                    symbols::SymbolNameRef::Static("Selected"),
+                ),
+            ],
+        );
+        let receiver_value = receivers.handle_at(0);
+        let record_receiver = receivers.handle_at(1);
         let mut program = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
@@ -2638,6 +2687,36 @@ mod tests {
             machines: signatures,
             ..Default::default()
         });
+        let record_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: owner,
+                name: typed_trees::name::Identifier::generated("Api"),
+            });
+        let parameters =
+            program
+                .data_type_parameters
+                .insert_many([typed_trees::data::TypeParameter {
+                    symbol: record_receiver,
+                    name: typed_trees::name::Identifier::generated("Selected"),
+                    kind: typed_trees::data::TypeParameterKind::Const {
+                        type_reference: record_type,
+                    },
+                    ..Default::default()
+                }]);
+        program.push_machine(typed_trees::machine::Machine {
+            symbol: caller,
+            type_parameters: parameters,
+            ..Default::default()
+        });
+        assert!(
+            DeclaredCallTargets::new(&program).declares(requirement, Some(record_receiver)),
+            "the exact Const schema member is not unsupported runtime receiver dispatch"
+        );
+        assert!(
+            !DeclaredCallTargets::new(&program).declares(missing, Some(record_receiver)),
+            "an absent member does not acquire the schema's authority"
+        );
         let receiver = program
             .expression_table
             .insert(ExpressionNode::Name(TableNamePath::new(

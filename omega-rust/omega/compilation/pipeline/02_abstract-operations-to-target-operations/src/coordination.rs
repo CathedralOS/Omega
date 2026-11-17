@@ -609,6 +609,9 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         });
     }
     let mut target_plan = TargetOperationPlan {
+        publication: native_preparation::capture_source_publication(plan).map_err(|reason| {
+            LoweringError::Publication { machine: plan.entry, reason }
+        })?,
         borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts::seal(
             super::borrowed_storage::capture(plan, &structural_types),
         )

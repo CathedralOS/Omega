@@ -422,11 +422,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     };
     // Its type and value parameters, then each implementation parameter
     // its bounds declare: the order a call's static arguments are given in.
-    let parameters = program
-        .machine_callable_parameters(machine)
-        .into_iter()
-        .map(|parameter| (parameter.symbol, parameter.kind))
-        .collect::<Vec<_>>();
+    let parameters = program.machine_callable_parameters(machine);
     if parameters.is_empty() {
         return Ok(());
     }
@@ -495,14 +491,14 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
 fn specialize_application(
     program: &mut TypedTrees,
     callee: SymbolHandle,
-    parameters: &[(SymbolHandle, TypeParameterKind)],
+    parameters: &[typed_trees::data::TypeParameter],
     application: StaticMachineApplicationHandle,
     arguments: &mut [StaticMachineArgument],
     generated: &mut GeneratedMachines,
 ) -> Served<Option<(SymbolHandle, SymbolHandle)>> {
     let mut open_callback = false;
-    for ((_, kind), argument) in parameters.iter().zip(arguments.iter_mut()) {
-        if matches!(kind, TypeParameterKind::Machine { .. })
+    for (parameter, argument) in parameters.iter().zip(arguments.iter_mut()) {
+        if matches!(parameter.kind, TypeParameterKind::Machine { .. })
             && argument.application.is_some()
             && !close_machine_argument(program, application, argument, generated)?
         {
@@ -517,15 +513,15 @@ fn specialize_application(
         return Ok(None);
     }
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments.iter()) {
-        operands.push(Operand::read(program, *parameter, kind, argument).map_err(
-            |stop| match stop {
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        operands.push(
+            Operand::read(program, parameter, argument).map_err(|stop| match stop {
                 Stop::Unserved(None) => {
                     unserved("a static argument could not be read under its declared binder")
                 }
                 other => other,
-            },
-        )?);
+            })?,
+        );
     }
     // Explicit groups keep the original callable's formals and the caller's
     // supplying scope. Authenticate that relation before copying; absent groups
@@ -603,11 +599,7 @@ fn close_machine_argument(
             "an applied callback needs its exact own lifetime application",
         ));
     }
-    let parameters = program
-        .machine_callable_parameters(machine)
-        .into_iter()
-        .map(|parameter| (parameter.symbol, parameter.kind))
-        .collect::<Vec<_>>();
+    let parameters = program.machine_callable_parameters(machine);
     let selected_name = machine.name.clone();
     let mut arguments = selected.arguments.to_vec();
     if parameters.len() != arguments.len() {
@@ -889,8 +881,8 @@ fn bound_arguments(
             .binary_search_by_key(&symbol_order(parameter.symbol), |(symbol, _)| *symbol)
             .map_err(|_| Stop::Unserved(None))?;
         let actual = &selected[position].1;
-        let operand = Operand::read(program, parameter.symbol, &parameter.kind, argument)?;
-        let existing = Operand::read(program, parameter.symbol, &parameter.kind, actual)?;
+        let operand = Operand::read(program, parameter, argument)?;
+        let existing = Operand::read(program, parameter, actual)?;
         if operand.is_open(program) || operand.identity != existing.identity {
             return Err(Stop::Unserved(None));
         }
@@ -920,20 +912,22 @@ fn bind_requirement(
         .data_type_parameters
         .span_or_empty(requirement.type_parameters)
         .iter()
-        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .cloned()
         .collect::<Vec<_>>();
-    if !parameters
-        .iter()
-        .all(|(_, kind)| matches!(kind, typed_trees::data::TypeParameterKind::Const { .. }))
-    {
+    if !parameters.iter().all(|parameter| {
+        matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Const { .. }
+        )
+    }) {
         return Ok(());
     }
     if parameters.len() != arguments.len() {
         return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, parameter, argument)?);
     }
     program
         .expression_table
@@ -988,7 +982,7 @@ pub(crate) fn prepare_requirement_application(
     let parameters = program
         .state_signature_type_parameters(requirement)
         .iter()
-        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .cloned()
         .collect::<Vec<_>>();
     if parameters.is_empty() {
         return Ok(None);
@@ -1003,8 +997,8 @@ pub(crate) fn prepare_requirement_application(
     let environment =
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, parameter, argument)?);
     }
     bind(program, application, &operands);
     // Open at a parameter of the enclosing generic machine: closed in each
@@ -1042,6 +1036,8 @@ enum Identity {
     /// A closed scalar value, by its canonical spelling. The parameter it is
     /// given to fixes its type.
     Scalar(String),
+    /// A structural static value, keyed by its complete canonical encoding.
+    Value(String),
 }
 
 /// Applications are indexed in sorted order ([`GeneratedMachines`]). The
@@ -1053,7 +1049,9 @@ impl Ord for Identity {
             (Self::Declaration(left), Self::Declaration(right)) => {
                 symbol_order(*left).cmp(&symbol_order(*right))
             }
-            (Self::Scalar(left), Self::Scalar(right)) => left.cmp(right),
+            (Self::Scalar(left), Self::Scalar(right)) | (Self::Value(left), Self::Value(right)) => {
+                left.cmp(right)
+            }
             _ => self.rank().cmp(&other.rank()),
         }
     }
@@ -1071,6 +1069,7 @@ impl Identity {
             Self::Type(_) => 0,
             Self::Declaration(_) => 1,
             Self::Scalar(_) => 2,
+            Self::Value(_) => 3,
         }
     }
 }
@@ -1096,15 +1095,24 @@ struct Operand {
 impl Operand {
     fn read(
         program: &mut TypedTrees,
-        parameter: SymbolHandle,
-        kind: &typed_trees::data::TypeParameterKind,
+        binder: &typed_trees::data::TypeParameter,
         argument: &StaticMachineArgument,
     ) -> Served<Self> {
         use typed_trees::data::TypeParameterKind;
+        let parameter = binder.symbol;
+        let kind = &binder.kind;
+        if !matches!(kind, TypeParameterKind::Type)
+            && binder.bounds != typed_trees::data::DataProperties::default()
+        {
+            return Err(unserved(
+                "a non-type binder carries a property bound no application judges",
+            ));
+        }
         let mut scalar = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument)?;
+                type_argument_meets_bounds(program, binder, reference)?;
                 let identity = if argument.symbol.is_valid()
                     && program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter
                 {
@@ -1119,19 +1127,47 @@ impl Operand {
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
             TypeParameterKind::Const { type_reference }
-                if static_record_schema(
-                    program,
-                    *type_reference,
-                    program.symbols.get(parameter).parent,
-                )
-                .is_some() =>
+                if program
+                    .static_record_schema(*type_reference, program.symbols.get(parameter).parent)
+                    .is_some() =>
             {
                 let selected = named_static_record(program, parameter, *type_reference, argument)?;
                 let reference = program
                     .static_operand_type_reference(argument)
                     .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                let identity = if program.symbols.get(selected).kind == SymbolKind::TypeParameter {
+                    Identity::Declaration(selected)
+                } else {
+                    let sources = source::source_identity::toolchain_source_identities(
+                        program.symbols.source_files(),
+                    )
+                    .map_err(|_| unserved("a static record lost its exact source registry"))?;
+                    let value = program
+                        .canonical_operation_record_value(selected, &sources)
+                        .map_err(unserved)?;
+                    Identity::Value(value.index_identity().ok_or(unserved(
+                        "a static record lost its canonical value identity",
+                    ))?)
+                };
+                (identity, StaticMachineBindingValue::Const(reference))
+            }
+            TypeParameterKind::Const { type_reference }
+                if program.primitive_type_reference(*type_reference).is_none()
+                    && argument.symbol.is_valid()
+                    && program
+                        .const_declaration_by_symbol(argument.symbol)
+                        .is_some() =>
+            {
+                let value = program
+                    .canonical_aggregate_argument(*type_reference, argument)
+                    .map_err(unserved)?;
+                let reference = program
+                    .static_operand_type_reference(argument)
+                    .map_err(|reason| Stop::Unserved(Some(reason)))?;
                 (
-                    Identity::Declaration(selected),
+                    Identity::Value(value.index_identity().ok_or(unserved(
+                        "a static aggregate lost its canonical value identity",
+                    ))?),
                     StaticMachineBindingValue::Const(reference),
                 )
             }
@@ -1186,6 +1222,11 @@ impl Operand {
     fn declaration(&self) -> Option<SymbolHandle> {
         match &self.identity {
             Identity::Declaration(symbol) => Some(*symbol),
+            Identity::Value(_) => self
+                .argument
+                .symbol
+                .is_valid()
+                .then_some(self.argument.symbol),
             Identity::Scalar(_) | Identity::Type(_) => None,
         }
     }
@@ -1208,6 +1249,7 @@ impl Operand {
         match &self.identity {
             Identity::Declaration(symbol) => program.symbols.name(*symbol).to_owned(),
             Identity::Scalar(value) => value.clone(),
+            Identity::Value(_) => "value".to_owned(),
             Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         }
     }
@@ -1364,26 +1406,6 @@ fn named_implementation(
     }
 }
 
-/// A const operation record is a value of its authored schema. This query
-/// supplies no alternate binder category or callable refinement evidence.
-fn static_record_schema(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    owner: SymbolHandle,
-) -> Option<typed_trees::trait_definition::AppliedTraitScope<'_>> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(reference)
-        || !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-        )
-    {
-        return None;
-    }
-    typed_trees::trait_definition::AppliedTraitScope::from_type_reference(program, reference, owner)
-}
-
 fn named_static_record(
     program: &TypedTrees,
     parameter: SymbolHandle,
@@ -1398,14 +1420,11 @@ fn named_static_record(
             "a static record operand needs its exact named value",
         ));
     }
-    let required = static_record_schema(
-        program,
-        declared_type,
-        program.symbols.get(parameter).parent,
-    )
-    .ok_or(unserved(
-        "a static record parameter lost its exact declared schema",
-    ))?;
+    let required = program
+        .static_record_schema(declared_type, program.symbols.get(parameter).parent)
+        .ok_or(unserved(
+            "a static record parameter lost its exact declared schema",
+        ))?;
     let symbol = argument.symbol;
     if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
         let declaration = program
@@ -1415,11 +1434,11 @@ fn named_static_record(
         else {
             return Err(unserved("a forwarded static record is not a const value"));
         };
-        let actual =
-            static_record_schema(program, type_reference, program.symbols.get(symbol).parent)
-                .ok_or(unserved(
-                    "a forwarded static record lost its declared schema",
-                ))?;
+        let actual = program
+            .static_record_schema(type_reference, program.symbols.get(symbol).parent)
+            .ok_or(unserved(
+                "a forwarded static record lost its declared schema",
+            ))?;
         if !required.same_application(program, &actual) {
             return Err(Stop::Rejected(
                 "a forwarded static record has another declared schema".into(),
@@ -1527,6 +1546,49 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
         }
     }
     Ok(selected)
+}
+
+/// A type binder's `[copy]` or `[linear]` property fixes the multiplicity
+/// every use of the parameter receives (ownership.md, "Property
+/// declarations"), so each application must supply a type with exactly that
+/// multiplicity (generics.md: an application validates its complete tuple,
+/// including constraints). The copied body is later checked as a closed
+/// machine, but that check judges the body's uses, not the declared contract
+/// callers rely on. An unbounded (affine) binder admits any type and leaves
+/// the uses to that closed check. A `carry` bound has no judgment against a
+/// supplied type yet, so the application is refused, as the other
+/// application paths refuse it.
+fn type_argument_meets_bounds(
+    program: &TypedTrees,
+    binder: &typed_trees::data::TypeParameter,
+    reference: TypeReferenceHandle,
+) -> Served<()> {
+    use language_semantics::Multiplicity;
+    if binder.bounds.carry.is_some() {
+        return Err(unserved(
+            "a type binder's carry bound has no judgment against its argument yet",
+        ));
+    }
+    let required = binder.bounds.multiplicity;
+    if required == Multiplicity::Affine {
+        return Ok(());
+    }
+    let actual = program.type_multiplicity(reference);
+    if actual == required {
+        return Ok(());
+    }
+    let property = |multiplicity| match multiplicity {
+        Multiplicity::Unrestricted => "`[copy]`",
+        Multiplicity::Linear => "`[linear]`",
+        Multiplicity::Affine => "neither `[copy]` nor `[linear]`",
+    };
+    Err(Stop::Rejected(format!(
+        "type argument `{}` for `{}` has {} but the binder requires {}",
+        program.display_type_reference(reference),
+        program.symbols.name(binder.symbol),
+        property(actual),
+        property(required),
+    )))
 }
 
 /// A retained type parameter stays open until its enclosing call is specialized;
@@ -2540,7 +2602,7 @@ fn copied_record_receivers(
     expression_count: usize,
     statements: HandleSpan<StatementNode>,
     operands: &[Operand],
-) -> Vec<(Site, SymbolHandle, TypeReferenceHandle)> {
+) -> Vec<(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)> {
     let mut records = operands
         .iter()
         .filter_map(|operand| {
@@ -2560,7 +2622,13 @@ fn copied_record_receivers(
                 symbol_order(*parameter)
             })
             .ok()
-            .map(|position| (records[position].1, records[position].2))
+            .map(|position| {
+                (
+                    records[position].0,
+                    records[position].1,
+                    records[position].2,
+                )
+            })
     };
     let mut receivers = program
         .expression_table
@@ -2571,7 +2639,9 @@ fn copied_record_receivers(
                 .expression_table
                 .name_path_node(call.receiver)
                 .and_then(|path| selected_record(path.symbol))
-                .map(|(selected, reference)| (Site::Expression(handle), selected, reference)),
+                .map(|(binder, selected, reference)| {
+                    (Site::Expression(handle), binder, selected, reference)
+                }),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2582,8 +2652,9 @@ fn copied_record_receivers(
             .as_call()
             .filter(|call| call.receiver_root_symbol == call.receiver_symbol)
             .and_then(|call| {
-                selected_record(call.receiver_symbol)
-                    .map(|(selected, reference)| (Site::Statement(handle), selected, reference))
+                selected_record(call.receiver_symbol).map(|(binder, selected, reference)| {
+                    (Site::Statement(handle), binder, selected, reference)
+                })
             });
         if let Some(record) = record {
             receivers.push(record);
@@ -2594,9 +2665,9 @@ fn copied_record_receivers(
 
 fn substitute_record_receivers(
     program: &mut TypedTrees,
-    receivers: &[(Site, SymbolHandle, TypeReferenceHandle)],
+    receivers: &[(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)],
 ) -> Served<()> {
-    for &(site, selected, reference) in receivers {
+    for &(site, binder, selected, reference) in receivers {
         let call = site.call(program).ok_or(Stop::Defect(
             "a copied static record call changed its statement or expression kind",
         ))?;
@@ -2604,6 +2675,27 @@ fn substitute_record_receivers(
             StaticArgumentCall::Expression(_, call) => call.target_symbol,
             StaticArgumentCall::Statement(call) => call.target_symbol,
         };
+        program
+            .static_record_bound_requirement(program.symbols.get(binder).parent, binder, target)
+            .map_err(Stop::Rejected)?
+            .ok_or(unserved("record receiver lost its declared schema"))?;
+        let application = call.application();
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            return Err(Stop::Defect("record receiver lost its source application"));
+        }
+        let source = program
+            .expression_table
+            .static_machine_application_mut(application);
+        if source
+            .source_record_receiver
+            .is_some_and(|known| known != binder)
+        {
+            return Err(Stop::Defect("record call changed its original receiver"));
+        }
+        source.source_record_receiver = Some(binder);
         program
             .named_conformance_member(selected, target)
             .map_err(|reason| Stop::Unserved(Some(reason)))?

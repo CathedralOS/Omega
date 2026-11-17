@@ -98,7 +98,9 @@ tail loops carry values and ownership without growing the call stack.
 [Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
 
 ## Data
-The `data` keyword is the only way to describe data in Omega.
+The `data` keyword is the only way to describe data in Omega. A declaration
+holds fields or cases, never both. Common fields belong in a record holding
+a sum:
 
 ```omega
 data User {
@@ -108,30 +110,34 @@ data User {
 
 data Command {
     command_id: u64;
+    op: Operation;
 
-    case GetUser(user_id: u64);
-    case CountUsers;
-    case DeleteUser(user_id: u64);
+    data Operation {
+        case GetUser(user_id: u64);
+        case CountUsers;
+        case DeleteUser(user_id: u64);
+    }
 }
 
 machine targets_one_user(command: &Command) -> bool {
-    let Command { command_id as _, case as operation } = command;
+    let Command { command_id as _, op as operation } = command;
 
     match operation {
-        Command::GetUser { user_id as _ } -> true
-        Command::CountUsers -> false
-        Command::DeleteUser { user_id as _ } -> true
+        Command::Operation::GetUser { user_id as _ } -> true
+        Command::Operation::CountUsers -> false
+        Command::Operation::DeleteUser { user_id as _ } -> true
     }
 }
 ```
 
-`command_id` is present in every case and can be read as `command.command_id`
-without matching first. `user_id` exists only in GetUser and DeleteUser. The
-`let` pattern reads the common fields once and binds the case-specific part with
-`case as operation`. This pattern cannot fail for a valid Command; an equivalent
-one-arm match is also allowed. The match patterns name only
+`command_id` is present regardless of the operation and can be read as
+`command.command_id` without matching first. `user_id` exists only in GetUser
+and DeleteUser. The `let` pattern reads the common field once and binds the
+operation held in `op`. This pattern cannot fail for a valid Command; an
+equivalent one-arm match is also allowed. The match patterns name only
 payload fields; `as _` explicitly ignores values this helper does not need.
-All inline cases follow the common fields. See
+Nesting `Operation` scopes its name; the `op` field stores its value. See
+[records and sums](wiki/spec/language/data_and_literals.md#records-sums-and-nested-declarations),
 [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
 and [irrefutable bindings](wiki/spec/language/patterns.md#irrefutable-data-bindings).
 
@@ -197,21 +203,30 @@ Suppose commands are sent as data. GetUser should produce a User, CountUsers a u
 ```omega
 data Command<T>
 requires
-    ((self in Command::GetUser) && T == User)
-    || ((self in Command::CountUsers) && T == u64)
-    || ((self in Command::DeleteUser) && T == bool)
+    ((self.op in Operation::GetUser) && T == User)
+    || ((self.op in Operation::CountUsers) && T == u64)
+    || ((self.op in Operation::DeleteUser) && T == bool)
 {
     #1 request_id: u64;
     #2 requested_at_ms: u64;
     #3 sequence: u32;
+    #4 op: Operation;
 
-    #10 case GetUser(#1 user_id: u64);
-    #11 case CountUsers;
-    #12 case DeleteUser(#1 user_id: u64);
+    data Operation {
+        #10 case GetUser(#1 user_id: u64);
+        #11 case CountUsers;
+        #12 case DeleteUser(#1 user_id: u64);
+    }
 }
 
-let accepted: Command<User> = Command::GetUser { user_id: 42, .. }; // Accepted.
-let rejected: Command<bool> = Command::GetUser { user_id: 42, .. }; // Rejected: GetUser requires T == User.
+let accepted: Command<User> = Command<User> {
+    op: Command<User>::Operation::GetUser { user_id: 42 },
+    ..
+}; // Accepted.
+let rejected: Command<bool> = Command<bool> {
+    op: Command<bool>::Operation::GetUser { user_id: 42 },
+    ..
+}; // Rejected: GetUser requires T == User.
 
 machine execute<T>(
     connection: &mut Database,
@@ -221,14 +236,14 @@ machine execute<T>(
     let (_, _, _, operation) = command;
 
     transition operation {
-        Command::GetUser { user_id } -> database::get_user(connection, user_id)
-        Command::CountUsers -> database::count_users(connection)
-        Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
+        Command<T>::Operation::GetUser { user_id } -> database::get_user(connection, user_id)
+        Command<T>::Operation::CountUsers -> database::count_users(connection)
+        Command<T>::Operation::DeleteUser { user_id } -> database::delete_user(connection, user_id)
     }
 }
 ```
 
-The positional binding follows declaration order: request_id, requested_at_ms, sequence, then the case-specific part. `_` ignores each metadata field. The transition keeps the original Command's domain facts, so each case arm knows the matching equality for T.
+The positional binding follows declaration order: request_id, requested_at_ms, sequence, then the `op` field. `_` ignores each metadata field. The transition keeps the original Command's domain facts, so each case arm knows the matching equality for T.
 
 `Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
 
@@ -236,21 +251,18 @@ GetUser carries only an ID, not a User: T describes what executing the command p
 
 The `#N` identities are neither offsets nor runtime tags, and each payload numbers its fields separately. The two Command declarations above are alternative examples, not declarations for one module.
 
-The same data can be stored in different layouts. A custom layout policy uses compile-time reflection to choose a layout, and the compiler checks it. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
+The same data can be stored in different layouts. A custom layout policy uses compile-time reflection to choose a layout, and the compiler checks it. The declarations below illustrate storage types, not implicit conversions. The unnumbered `User` record above is eligible for C layout:
 
 ```omega
 // Instantiate under the standard Omega layout.
-let command: Command<User>;
+let user: User;
 
 // Select C layout, which may be mandated by foreign API calls.
-let command_c: CLayout<Command<User>>;
-
-// Select a library-authored protobuf representation.
-use protobuf;
-let command_proto: ProtobufLayout<Command<User>>;
+let user_c: CLayout<User>;
 ```
 
-Variable-length protobuf encoding needs explicit byte storage and checked encode and decode operations; it is not just a fixed C-style layout.
+The numbered Command schema with its nested sum is not automatically eligible for that C-record policy. A library can instead encode it as protobuf using explicit byte storage and checked encode and decode operations; variable-length encoding is not just a fixed C-style layout.
+[Layouts](wiki/spec/layouts/plans.md) · [Codecs](wiki/spec/layouts/codecs.md)
 
 ## Reach Reporting
 
@@ -294,11 +306,13 @@ boundary trait WindowsWallClock:
     Calling<MicrosoftX64Policy>
 {
     machine read(output: &mut CLayout<FileTime>)
-        reaches ClockObservation;
+        reaches ClockObservation
+        crashes none;
 }
 
 machine read_wall_clock(output: &mut CLayout<FileTime>)
 reaches ClockObservation
+crashes none
 {
     WindowsWallClock::read(output);
 }

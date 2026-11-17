@@ -121,6 +121,8 @@ pub(crate) fn publish_write_frames(
             .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?
             else {
                 revised.extend_from_slice(old);
+                carried_referent_writes(module, machine, tables, operation, &mut revised)
+                    .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?;
                 continue;
             };
             if old.iter().any(|row| row.content != Content::Overwritten) {
@@ -222,6 +224,84 @@ pub(crate) fn publish_write_frames(
         tables.writes = semantic_vocabulary::IdTable::default();
         for row in revised {
             bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        }
+    }
+    Ok(())
+}
+
+/// A callee lent or given a value can store through the `&mut` references
+/// it carries: `update(&mut carrier)` may write `carrier.cell`'s referent,
+/// which is the caller's `cell`. With no narrower frame, the call writes
+/// each such referent, after the rows for the arguments themselves, so the
+/// caller's facts about that storage end at the call (dependent_values.md,
+/// "Mutation frames": "aliases included"). The checker derives the same
+/// rows and resolves each referent to its backing.
+fn carried_referent_writes(
+    module: &terminal_psi::TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    tables: &mut terminal_check_tables::MachineTables,
+    operation: &terminal_psi::Operation,
+    revised: &mut Vec<terminal_check_tables::bindings::WriteRow>,
+) -> Result<(), String> {
+    use terminal_check_tables::bindings::{self, Content, WriteRow};
+    let kind = &operation.kind;
+    if kind.module_invocation().is_none()
+        && kind.callable_invocation().is_none()
+        && !matches!(kind, OperationKind::BoundaryCall { .. })
+    {
+        return Ok(());
+    }
+    for argument in kind.structural_arguments() {
+        if !matches!(
+            argument.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::Owned
+        ) {
+            continue;
+        }
+        let root = machine
+            .structural_place_type(argument.place)
+            .ok_or("a call argument has no structural type")?;
+        let path = terminal_semantics::resolved_structural_path(
+            module.structural_types.iter(),
+            root,
+            &argument.path,
+        )?;
+        let Some(lent) = terminal_semantics::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            root,
+            &argument.path,
+        ) else {
+            continue;
+        };
+        let referents = terminal_semantics::borrowed_storage::carried_exclusive_referents(
+            &module.structural_types,
+            lent.id,
+            argument.access,
+        )
+        .ok_or("a call argument carries references whose referents have no exact paths")?;
+        if referents.is_empty() {
+            continue;
+        }
+        let mut place = *tables
+            .roots
+            .get(argument.place)
+            .ok_or("a call argument has no exact root")?;
+        for segment in path {
+            place = bindings::intern_projection(machine.id, &mut tables.places, place, segment)
+                .map_err(|refusal| refusal.detail)?;
+        }
+        for referent in referents {
+            let mut written = place;
+            for segment in referent {
+                written =
+                    bindings::intern_projection(machine.id, &mut tables.places, written, segment)
+                        .map_err(|refusal| refusal.detail)?;
+            }
+            revised.push(WriteRow {
+                place: written,
+                at: ProgramPoint::AfterOperation(operation.id),
+                content: Content::Overwritten,
+            });
         }
     }
     Ok(())
@@ -990,6 +1070,23 @@ impl Lowering<'_> {
             acknowledgement,
         )?;
         let _ = self.loans(&arguments.loans, before, source);
+        // The callee may write anything beneath an exclusively lent place,
+        // so the call writes into each value above it, as a field store
+        // does: it owes the `requires` of each type on the lent path
+        // (dependent_values.md, "Invariant windows"). The lent place's own
+        // type is the callee's formal, proved at handback.
+        let mut owed = 0;
+        for (_, steps, access) in &arguments.structural {
+            if matches!(
+                access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) {
+                for step in steps {
+                    owed += self.record_type(step.owner())?.requires.len();
+                }
+            }
+        }
+        self.owe_domains(operation, owed, source)?;
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {

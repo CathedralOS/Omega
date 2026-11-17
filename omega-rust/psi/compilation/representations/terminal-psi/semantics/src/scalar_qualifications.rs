@@ -602,13 +602,17 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                         },
                     )
                     .map_err(ScalarQualificationError::MalformedStructuralFoundation)?;
-                    let retained = match case {
-                        None => retains_predicate(&expected, owner.requires.iter()),
-                        Some(case) => owner.requires.iter().any(|clause| {
-                            case_guarded(clause, root, case, cases.len())
-                                .is_some_and(|owed| retains_predicate(&expected, owed.iter()))
-                        }),
-                    };
+                    // A true predicate imposes no default-domain clause,
+                    // including on an inactive case. Issuer permission is a
+                    // separate obligation and is not granted by this check.
+                    let retained = expected == Proposition::Truth
+                        || match case {
+                            None => retains_predicate(&expected, owner.requires.iter()),
+                            Some(case) => owner.requires.iter().any(|clause| {
+                                case_guarded(clause, root, case, cases.len())
+                                    .is_some_and(|owed| retains_predicate(&expected, owed.iter()))
+                            }),
+                        };
                     if !retained {
                         return malformed(
                             "scalar field's default domain lost its declared predicate",

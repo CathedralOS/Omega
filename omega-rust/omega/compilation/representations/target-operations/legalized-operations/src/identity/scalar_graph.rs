@@ -19,8 +19,8 @@ use super::calling::{encode_call_plan, encode_placement};
 use super::structural::{encode_effect, encode_ownership_roster};
 use super::{
     encode_bindings, encode_ids, encode_integer, encode_integer_type, encode_layout, encode_len,
-    encode_option, encode_read_byte_payload, encode_scalar_type, encode_structural_contract,
-    encode_work,
+    encode_option, encode_read_byte_payload, encode_runtime_indices, encode_scalar_type,
+    encode_structural_contract, encode_work,
 };
 use crate::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarFunction,
@@ -76,7 +76,7 @@ pub(super) fn encode(
     for block in &function.blocks {
         crate::codec_bytes::push_encoded(bytes, block.id.get().to_le_bytes());
         encode_len(bytes, block.structural_parameters.len());
-        for parameter in &block.structural_parameters {
+        for parameter in block.structural_parameters.iter() {
             super::structural_types::encode_structural_parameter(bytes, parameter);
         }
         encode_len(bytes, block.parameters.len());
@@ -1813,23 +1813,6 @@ fn encode_case_pointer_slots(bytes: &mut Vec<u8>, slots: &[crate::LegalizedCaseP
         crate::codec_bytes::push_encoded(bytes, slot.index_start.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, slot.index_end.to_le_bytes());
         bytes.push(u8::from(slot.scalar_descriptor));
-    }
-}
-
-pub(super) fn encode_runtime_indices(
-    bytes: &mut Vec<u8>,
-    indices: &[crate::LegalizedRuntimeIndexOperand],
-) {
-    crate::codec_bytes::push_encoded(bytes, (indices.len() as u32).to_le_bytes());
-    for index in indices {
-        crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
-        encode_scalar_type(bytes, index.operand.scalar_type);
-        crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
-        encode_option(bytes, index.extent, |bytes, extent| {
-            crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes())
-        });
-        crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
-        bytes.extend_from_slice(&index.accepted_fact.bytes());
     }
 }
 

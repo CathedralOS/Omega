@@ -2,7 +2,7 @@
 
 A build keeps its compiler working state in memory and leaves none of it behind
 for a later build to recover. The filesystem holds only what someone
-deliberately keeps: acquired sources, `Omega.lock`, pending review transactions,
+deliberately keeps: acquired sources, `omega.lock`, pending review transactions,
 requested outputs and explicitly published artifacts. So an old compiler-cache
 directory, whether stale, damaged or unwritable, cannot affect a build, and no
 build needs a cache cleared before it behaves predictably.
@@ -42,7 +42,7 @@ termination is safe to delete and is never read by a later build.
 | Kept on disk | Governed by |
 | --- | --- |
 | Acquired dependency sources and their offline copies | [Source selection](../packages/sources.md) and [resolver security](../packages/resolver_security.md) |
-| `Omega.lock` and lock acceptance, including skipping package review when the lock matches | [Acceptance](../packages/acceptance.md#ordinary-compilation) |
+| `omega.lock` and lock acceptance, including skipping package review when the lock matches | [Acceptance](../packages/acceptance.md#ordinary-compilation) |
 | Pending review and publication transactions, which are recovered after an interruption and never deleted as disposable state | [Review transaction](../packages/acceptance.md#review-transaction) |
 | Requested outputs and explicitly published products | [Component publication](component_publication.md) |
 | How bundled and fetched libraries are distributed and selected | [Toolchain](../packages/toolchain.md) and [package sources](../packages/sources.md) |

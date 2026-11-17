@@ -87,6 +87,13 @@ pub(crate) struct SourceSchemaRequirement {
 pub(crate) struct SourceSchema {
     pub declaration: SymbolHandle,
     pub requirements: Vec<SourceSchemaRequirement>,
+    pub bindings: Vec<SourceRecordBinding>,
+}
+#[derive(Debug, Clone)]
+pub(crate) struct SourceRecordBinding {
+    pub account: terminal_check_tables::contracts::StaticRecordBinding,
+    /// Applied signatures stay with the prepared schema; calls only select a member.
+    pub signatures: Vec<typed_trees::signature::StateSignature>,
 }
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SourceImplementation {
@@ -103,13 +110,89 @@ pub(crate) struct SourceConformance {
     pub envelope: StaticSourceEnvelope,
     pub provider: Option<StaticProviderCandidate<SymbolHandle>>,
 }
+#[derive(Debug, Clone, Copy)]
+struct RecordBindingLocation {
+    parameter: SymbolHandle,
+    schema: SymbolHandle,
+    binding: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StaticContracts {
     pub schemas: Vec<SourceSchema>,
     pub conformances: Vec<SourceConformance>,
     pub formed: Vec<SymbolHandle>,
+    /// Only prepared record binders are indexed; scalar formals need no rows.
+    record_bindings: Vec<RecordBindingLocation>,
 }
+
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
 impl StaticContracts {
+    fn record_binding_position(&self, parameter: SymbolHandle) -> Option<(usize, usize)> {
+        let position = self
+            .record_bindings
+            .binary_search_by_key(&symbol_key(parameter), |binding| {
+                symbol_key(binding.parameter)
+            })
+            .ok()?;
+        let location = &self.record_bindings[position];
+        let schema = self
+            .schemas
+            .binary_search_by_key(&symbol_key(location.schema), |schema| {
+                symbol_key(schema.declaration)
+            })
+            .ok()?;
+        Some((schema, location.binding))
+    }
+
+    pub(crate) fn record_binding(&self, parameter: SymbolHandle) -> Option<&SourceRecordBinding> {
+        let (schema, binding) = self.record_binding_position(parameter)?;
+        self.schemas[schema].bindings.get(binding)
+    }
+
+    pub(crate) fn record_binding_mut(
+        &mut self,
+        parameter: SymbolHandle,
+    ) -> Option<&mut SourceRecordBinding> {
+        let (schema, binding) = self.record_binding_position(parameter)?;
+        self.schemas[schema].bindings.get_mut(binding)
+    }
+
+    pub(crate) fn insert_record_binding(
+        &mut self,
+        declaration: SymbolHandle,
+        binding: SourceRecordBinding,
+    ) -> Result<(), &'static str> {
+        let schema = self
+            .schemas
+            .binary_search_by_key(&symbol_key(declaration), |schema| {
+                symbol_key(schema.declaration)
+            })
+            .map_err(|_| "static record lost its formed complete schema")?;
+        let parameter = binding.account.parameter;
+        let position = match self
+            .record_bindings
+            .binary_search_by_key(&symbol_key(parameter), |binding| {
+                symbol_key(binding.parameter)
+            }) {
+            Ok(_) => return Err("static record binder already has its prepared schema"),
+            Err(position) => position,
+        };
+        // Schema insertion can move its row; its full handle stays stable. Binding
+        // rows are append-only, so their ordinal stays valid as instances are added.
+        let location = RecordBindingLocation {
+            parameter,
+            schema: declaration,
+            binding: self.schemas[schema].bindings.len(),
+        };
+        self.schemas[schema].bindings.push(binding);
+        self.record_bindings.insert(position, location);
+        Ok(())
+    }
+
     pub(crate) fn service_roots(&self, roots: &mut Vec<ServiceReachId>) {
         for schema in &self.schemas {
             for requirement in &schema.requirements {
@@ -141,6 +224,11 @@ impl StaticContracts {
             .map(|schema| {
                 Ok(StaticSchemaQuestion {
                     declaration: schema.declaration,
+                    bindings: schema
+                        .bindings
+                        .iter()
+                        .map(|binding| binding.account.clone())
+                        .collect(),
                     requirements: schema
                         .requirements
                         .iter()

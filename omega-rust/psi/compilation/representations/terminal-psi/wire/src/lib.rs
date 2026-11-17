@@ -3,8 +3,8 @@
 /*
 We implement the canonical binary wire codec (`PSITERM\0`), cryptographic domain fingerprinting
 (`SemanticFingerprint`, `TerminalPsiIdentity`), and receiving structural-foundation validation for
-`TerminalModule` and its companion sections (`TerminalArtifactManifest`, `TerminalDebugMap`,
-`OptimizationExecutionReceipt`, and `TerminalTraceV1`), together with the canonical encoders of
+`TerminalModule` and its companion sections (`TerminalArtifactManifest`, `TerminalDebugMap`
+and `OptimizationExecutionReceipt`), together with the canonical encoders of
 Terminal vocabulary (propositions, crash routes, access and quotient catalogs) that native forms
 use for their own identities.
 
@@ -33,6 +33,8 @@ decoding, structural validation and carried proof data.
 */
 
 mod block_wire;
+mod callable_invocations_wire;
+pub use callable_invocations_wire::{decode_callable_invocations, encode_callable_invocations};
 mod closed_types;
 pub mod contract_forms;
 pub use closed_types::ClosedTypeCatalog;
@@ -49,6 +51,8 @@ mod obligation_evidence;
 mod sections;
 mod semantic_module;
 mod service_schema_wire;
+#[cfg(test)]
+mod spec_tag_tables;
 mod structural_wire;
 mod term_table;
 mod term_wire;
@@ -206,6 +210,12 @@ pub use sections::semantic_module::module_wire::access_view_plan_wire::{
 };
 pub use sections::semantic_module::module_wire::access_view_wire::{
     decode_access_view_input_catalog, encode_access_view_input_catalog,
+};
+pub use sections::semantic_module::module_wire::callable_values_wire::{
+    decode_callable_catalog, encode_callable_catalog,
+};
+pub use sections::semantic_module::module_wire::dynamic_dispatch_wire::{
+    decode_dynamic_dispatch_catalog, encode_dynamic_dispatch_catalog,
 };
 pub use sections::semantic_module::module_wire::quotient_wire::{
     decode_quotient_catalog, encode_quotient_catalog,

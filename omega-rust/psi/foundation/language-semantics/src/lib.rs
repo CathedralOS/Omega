@@ -925,7 +925,7 @@ pub mod conformance_identity {
 
     /// A generated body's source publisher and receiver calculate its identity
     /// from the same complete arguments. Value arguments retain the checked
-    /// binder's carrier as well as their canonical scalar value.
+    /// binder's carrier as well as their canonical static value.
     pub struct MachineApplicationCommitment(DomainDigestEncoder);
 
     impl MachineApplicationCommitment {
@@ -955,8 +955,8 @@ pub mod conformance_identity {
             value: &crate::const_value::CanonicalConstValue,
         ) -> Result<(), &'static str> {
             use std::hash::Hash;
-            if value.type_name.is_empty() || !value.is_scalar() {
-                return Err("machine application has no checked scalar carrier and value");
+            if !value.is_canonical_static_value() {
+                return Err("machine application has no checked static carrier and value");
             }
             (
                 "canonical-value.v2",
@@ -1069,6 +1069,61 @@ pub mod conformance_identity {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn machine_const_commitments_preserve_scalars_and_exact_callable_records() {
+            use crate::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+            use std::hash::Hash;
+            let scalar = CanonicalConstValue::boolean(true);
+            let mut current = MachineApplicationCommitment::new("template").unwrap();
+            current.const_argument(&scalar).unwrap();
+            let mut previous = MachineApplicationCommitment::new("template").unwrap();
+            (
+                "canonical-value.v2",
+                scalar.type_name.as_str(),
+                scalar.encoding.as_str(),
+            )
+                .hash(&mut previous);
+            assert_eq!(current.finish(), previous.finish());
+            let callable =
+                |declaration: &str, requirement: &str| DecodedCanonicalConstValue::Record {
+                    type_name: "Operations".into(),
+                    fields: vec![(
+                        "write".into(),
+                        DecodedCanonicalConstValue::StaticCallable {
+                            declaration: declaration.into(),
+                            application: Some("selected-application".into()),
+                            requirement: Some(requirement.into()),
+                        },
+                    )],
+                };
+            let commitment = |value| {
+                let value = CanonicalConstValue::from_decoded(&value, "same display").unwrap();
+                let mut commitment = MachineApplicationCommitment::new("template").unwrap();
+                commitment.const_argument(&value).unwrap();
+                commitment.finish()
+            };
+            let expected = commitment(callable("selected-write", "required-write"));
+            assert_ne!(
+                expected,
+                commitment(callable("another-write", "required-write"))
+            );
+            assert_ne!(
+                expected,
+                commitment(callable("selected-write", "another-requirement"))
+            );
+            for value in [
+                CanonicalConstValue::new("bool", "broken", "true"),
+                CanonicalConstValue::new("u8", "integer2:u83:256", "256"),
+            ] {
+                assert!(
+                    MachineApplicationCommitment::new("template")
+                        .unwrap()
+                        .const_argument(&value)
+                        .is_err()
+                );
+            }
+        }
 
         fn description<'identity>(
             lanes: &'identity [Vec<String>; 4],

@@ -257,6 +257,33 @@ fn a_typed_slice_read_needs_a_bound_on_its_own_descriptor() {
     assert_eq!(verdict(&source("peer", 0)), "rejected");
 }
 
+/// A window of a shared typed slice, as in the tail recursion `s[1..]`, keeps
+/// the slice's backing and checks its endpoints against that view's own
+/// length. A mutable typed slice is not given a window by this read path.
+#[test]
+fn a_typed_slice_window_needs_bounds_on_its_own_descriptor() {
+    let source = |view: &str, window: &str| {
+        format!(
+            "machine build_entry(numbers: &[u32], peer: &[u32]) requires {view}.len > 1 {{
+                 let rest: &[u32] = numbers[{window}]; use(rest[0]);
+             }}
+             machine use(number: u32) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("numbers", "1..")), "accepted");
+    assert_eq!(verdict(&source("numbers", "1..2")), "accepted");
+    assert!(verdict(&source("numbers", "1..3")).starts_with("rejected"));
+    assert!(verdict(&source("peer", "1..")).starts_with("rejected"));
+    assert_ne!(
+        verdict(
+            "machine build_entry(numbers: &mut [u32]) requires numbers.len > 1 {
+                 let rest: &[u32] = numbers[1..];
+             }"
+        ),
+        "accepted"
+    );
+}
+
 /// The lowered form of an accepted read is the measurement of the view and
 /// then the read that names it, with nothing between.
 #[test]
@@ -575,7 +602,12 @@ fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
             let length: u64 = prefix_length("foo/bar" as +Path, 3);
         }
     "#;
-    assert_eq!(verdict(program), "accepted");
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("qualified byte range must be accepted: {other:?}"),
+    }
 
     let outside = program.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
     assert_eq!(verdict(&outside), "rejected");
@@ -1598,4 +1630,66 @@ machine use(same: bool) {}"), "accepted");
             "fault {fault} accepted"
         );
     }
+}
+
+/// Adding a primitive byte domain is checked even when its result is unused.
+/// Later destination facts cannot excuse a literal that fails introduction.
+#[test]
+fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
+    let program = r#"
+        domain [u8]::Path requires no_nul(self);
+        machine build_entry() {
+            let other: &[u8] in Path = "trusted" as +Path;
+            let path: &[u8] in Path = "foo/bar" as +Path;
+        }
+    "#;
+    assert_eq!(verdict(program), "accepted");
+    let invalid = program.replace("foo/bar", r"foo\x00bar");
+    let rejected = judge_build(&invalid).unwrap();
+    assert!(
+        matches!(&rejected, RouteVerdict::Rejected { unestablished, .. }
+        if unestablished.iter().any(|row| {
+            matches!(row.at, Construct::Edge(_))
+                && row.detail == "a byte transfer's source does not establish its primitive byte-domain qualifications"
+        })),
+        "the literal itself must establish no_nul: {rejected:?}"
+    );
+}
+
+/// Both arrivals retain their own descriptor extent. A long arrival cannot
+/// supply the short arrival's length, while both retain their byte domain.
+#[test]
+fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
+    let program = r#"
+        domain [u8]::Path requires no_nul(self);
+        machine require_path(path: &[u8] in Path, position: u64)
+        requires position <= path.len { }
+        machine build_entry(flag: bool) {
+            let selected: &[u8] in Path = match flag {
+                true -> "foo/bar" as +Path,
+                _ -> "other" as +Path
+            };
+            require_path(selected, 3);
+        }
+    "#;
+    match judge_build(program).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("both qualified arrivals have at least three bytes: {other:?}"),
+    }
+    let short = program.replace(r#""other" as +Path"#, r#""xy" as +Path"#);
+    let rejected = judge_build(&short).unwrap();
+    assert!(
+        matches!(&rejected, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded
+        } if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
+            && conflicts.is_empty() && exceeded.is_empty() && !unproved.is_empty()
+            && unproved.iter().all(|row| {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+                    && row.statement.contains("for call require_path from build_entry")
+                    && row.statement.contains("needs fact `position <= path.len`")
+            })),
+        "the short arrival must fail only its own length requirement: {rejected:?}"
+    );
 }

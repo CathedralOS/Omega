@@ -119,7 +119,7 @@ impl Program<'_> {
         expression: ExpressionHandle,
         value: &Expression,
     ) -> Checked<()> {
-        // Byte inequality is formed as the negation of its checked equality.
+        // Inequality is formed as the negation of its checked equality.
         // The source question still belongs to that binary operation, whose
         // actual operand types are on the equality rather than the outer Not.
         let value = match &value.kind {
@@ -141,30 +141,46 @@ impl Program<'_> {
                     ExpressionNode::Indexed(_)
                 ) =>
             {
-                let Some(ValueType::Record(record, Qualification::NONE, _)) = base.result else {
+                let Some(ValueType::Record(record, qualification, _)) = base.result else {
                     return Ok(());
                 };
+                if qualification != Qualification::NONE {
+                    // byte_subslice forms a qualified range only after typing
+                    // retained its exact builtin selection and this reader
+                    // validated the selected plain shared-view result. Keep
+                    // that selection; the storage row erases operand domains.
+                    let selected = self
+                        .typed
+                        .expression_table
+                        .constructed_value_type_reference(expression);
+                    let range = matches!(
+                        self.typed.expression_table.expression(expression),
+                        ExpressionNode::Indexed(indexed)
+                            if matches!(
+                                self.typed.expression_table.expression(indexed.index),
+                                ExpressionNode::Range(_)
+                            )
+                    );
+                    if range
+                        && matches!(value.kind, ExpressionKind::CollectionSubslice { .. })
+                        && self.is_readable_byte_view(machine, record)?
+                        && self
+                            .typed
+                            .type_reference_table
+                            .contains_type_reference(selected)
+                    {
+                        return self.complete_operator(machine, owner, expression, &[], true);
+                    }
+                    return Ok(());
+                }
                 let [collection, count] = self.collection_index_operand_types(machine, record);
                 let operands = [collection, count, count];
                 self.complete_builtin_operator(machine, owner, expression, &operands)
             }
             _ => {
-                // Inequality negates the same validated comparison. A case
-                // test has already resolved its case within the subject's
+                // A case test has already resolved its case within the subject's
                 // exact sum, so both operands have that retained carrier.
-                let operation = match &value.kind {
-                    ExpressionKind::Not(inner)
-                        if matches!(
-                            self.typed.expression_table.expression(expression),
-                            ExpressionNode::Binary(binary)
-                                if binary.operator == typed_trees::expression::BinaryOperator::NotEqual
-                        ) =>
-                    {
-                        &inner.kind
-                    }
-                    operation => operation,
-                };
-                let operands = match operation {
+                let operands = match &value.kind {
                     ExpressionKind::Strict { left, right, .. }
                     | ExpressionKind::ShortCircuit { left, right, .. } => {
                         [left.result, right.result]
@@ -212,7 +228,7 @@ impl Program<'_> {
         source_owner: SymbolHandle,
         expression: ExpressionHandle,
         operands: &[Option<TypeReferenceHandle>],
-        type_equation: bool,
+        known_intrinsic: bool,
     ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
@@ -289,7 +305,7 @@ impl Program<'_> {
         // declaration. Bare operations still check their actual operand types.
         let suffixed = matches!(node, ExpressionNode::Binary(binary)
             if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact);
-        if matches!(node, ExpressionNode::Indexed(_)) {
+        if !known_intrinsic && matches!(node, ExpressionNode::Indexed(_)) {
             let Some(spelling) = spelling else {
                 return Ok(());
             };
@@ -307,11 +323,11 @@ impl Program<'_> {
                 return Ok(());
             }
         }
-        // Type-role equality is exact normalized identity (generics.md,
-        // "Static type equality"). Value-operator declarations do not select
-        // it. Only the existing static evaluator supplies that receipt.
+        // The static evaluator supplies exact type-equality receipts; typed
+        // byte-range formation retains its already selected builtin meaning.
+        // Every other bare operation still resolves its actual operand types.
         if !suffixed
-            && !type_equation
+            && !known_intrinsic
             && let Some(spelling) = spelling
             && !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 typed, owner, expression, spelling, operands,

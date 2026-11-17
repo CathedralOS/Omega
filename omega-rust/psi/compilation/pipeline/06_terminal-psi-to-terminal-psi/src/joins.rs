@@ -31,6 +31,10 @@ dominates the join. Authored invariant scope follows control_flow.md.
   the first's predicate is the one alternative that produced it, and that
   is what the second join can still say.
 
+Demanded entry snapshots of structural formals also gain candidate equalities
+to the contents supplied by each incoming edge. The ordinary arrival check
+substitutes those snapshots again and proves every alternative before use.
+
 An exact storage snapshot has the same scope as the formal that owns it.
 A block formal's snapshot is rebound at every entry. A read with no
 overlapping store sees that snapshot, so a guard over a field crosses the
@@ -51,7 +55,7 @@ Nothing here reads a name or text: values are compared by identity.
 
 use proof_admission::{check_value_equality_denotation, check_value_equality_substitution};
 use semantic_vocabulary::{
-    BlockId, EdgeId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm,
+    BlockId, EdgeId, MachineId, ObligationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::edges::Destination;
@@ -119,7 +123,9 @@ pub(crate) fn prepare<'a>(
         );
         declared.push((invariant.header, predicate));
     }
-    infer(lowered, id, tables, graph, context, activity)?;
+    infer(
+        lowered, id, tables, graph, context, storage, references, activity,
+    )?;
     Ok(declared)
 }
 
@@ -175,10 +181,91 @@ fn in_scope(
     proposition: &Proposition,
 ) -> bool {
     let mut inside = true;
-    proposition.visit_value_ids(|value| {
+    let scalar_only = proposition.visit_value_ids(|value| {
         inside &= available_value(lowered, tables, dominating_bindings, block, value);
     });
+    if !inside || scalar_only {
+        return inside;
+    }
+    proposition.visit_scalar_terms(|term| {
+        if let semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, ..)
+        | ScalarTerm::StructuralRead { root, .. } = term
+        {
+            inside &= available_place(lowered, dominating_bindings, block, *root);
+        }
+    });
+    // Structural propositions have no scalar-term traversal. They are not
+    // candidates for this scalar arrival protocol, even when they name no
+    // ValueId that the check above could reject.
+    let mut pending = vec![proposition];
+    while let Some(proposition) = pending.pop() {
+        match proposition {
+            Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+                pending.extend(parts);
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                pending.push(premise);
+                pending.push(conclusion);
+            }
+            Proposition::Atom(_)
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::StructuralIdentity { .. }
+            | Proposition::StructuralCaseMembership { .. }
+            | Proposition::ContentConservation(_) => inside = false,
+            _ => {}
+        }
+    }
     inside
+}
+
+/// A raw storage term needs an actual formal at a binding that is in scope.
+/// An operation-created or branch-local place cannot become a destination
+/// fact merely because visiting its term finds no scalar IDs.
+fn available_place(
+    lowered: &TerminalMachine,
+    dominating_bindings: Option<&Graph>,
+    destination: BlockId,
+    place: PlaceId,
+) -> bool {
+    let Some(root) = usize::try_from(place.get() - 1)
+        .ok()
+        .and_then(|position| lowered.structural_places.get(position))
+        .filter(|root| root.id == place)
+    else {
+        return false;
+    };
+    let (formals, position) = match root.kind {
+        StructuralPlaceKind::Parameter { position } => {
+            (lowered.structural_parameters.as_slice(), position)
+        }
+        StructuralPlaceKind::BlockParameter {
+            block: owner,
+            position,
+        } if owner == destination
+            || dominating_bindings.is_some_and(|graph| {
+                graph
+                    .dominates(
+                        ProgramPoint::BlockEntry(owner),
+                        ProgramPoint::BlockEntry(destination),
+                    )
+                    .is_ok_and(|dominates| dominates)
+            }) =>
+        {
+            let Some(owner) = block(lowered, owner) else {
+                return false;
+            };
+            (owner.structural_parameters.as_slice(), position)
+        }
+        _ => return false,
+    };
+    usize::try_from(position)
+        .ok()
+        .and_then(|position| formals.get(position))
+        .is_some_and(|formal| formal.place == place && formal.position == position)
 }
 
 /// An inferred predicate may also name an integer operation result whose
@@ -276,17 +363,80 @@ pub(crate) fn project(
 /// at its entry. `check` must run before any other obligation reads it. A
 /// declared predicate keeps its own scope and gains incoming facts expressed
 /// in that scope.
-pub(crate) fn infer(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn infer<'a>(
     lowered: &TerminalMachine,
     id: MachineId,
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
+    storage: &crate::places::Storage<'a>,
+    references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
+    // Only actual demanded snapshots participate. Group them once by the
+    // owning block, using the already validated dense block roster rather
+    // than scanning all values again for each join or allocating by raw IDs.
+    let mut snapshots = vec![Vec::new(); lowered.blocks.len()];
+    for (value, row) in tables.values.iter() {
+        let ValueOrigin::StorageContent { place, after: None } = row.origin else {
+            continue;
+        };
+        let Some(root) = crate::places::content_root(lowered, tables, place) else {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Value(value),
+                "a storage snapshot names no structural root",
+            ));
+        };
+        let StructuralPlaceKind::BlockParameter {
+            block,
+            position: formal_position,
+        } = root.kind
+        else {
+            continue;
+        };
+        let position = usize::try_from(block.get() - 1)
+            .ok()
+            .filter(|position| {
+                lowered
+                    .blocks
+                    .get(*position)
+                    .is_some_and(|row| row.id == block)
+            })
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Value(value),
+                    "a join snapshot names no actual block",
+                )
+            })?;
+        if !usize::try_from(formal_position)
+            .ok()
+            .and_then(|formal| lowered.blocks[position].structural_parameters.get(formal))
+            .is_some_and(|formal| formal.place == root.id && formal.position == formal_position)
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Value(value),
+                "a join snapshot is not rooted at its exact destination formal",
+            ));
+        }
+        if matches!(
+            row.scalar_type,
+            ScalarType::Boolean | ScalarType::Integer(_)
+        ) {
+            snapshots[position].push((value, row.scalar_type));
+        }
+    }
     for &block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
-        if join.parameters.is_empty() {
+        let snapshots = &snapshots[usize::try_from(block.get() - 1).expect("dense block position")];
+        let byte_predicates = storage.byte_arrival_predicates(join)?;
+        if join.parameters.is_empty() && snapshots.is_empty() && byte_predicates.is_empty() {
             continue;
         }
         let entry = ProgramPoint::BlockEntry(join.id);
@@ -315,6 +465,44 @@ pub(crate) fn infer(
             let bounds = argument_bounds(
                 id, tables, graph, context, join, at_edge, arguments, activity,
             );
+            let mut snapshot_bindings = Vec::new();
+            if !snapshots.is_empty() {
+                let concerns = Construct::Edge(edge);
+                let (target, _, structural) = storage.arrival(edge, concerns)?;
+                if target != join.id || arguments.len() != join.parameters.len() {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        concerns,
+                        "a snapshot arrival differs from its destination telescope",
+                    ));
+                }
+                let renaming = join
+                    .parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(formal, actual)| (formal.id, *actual))
+                    .collect::<Vec<_>>();
+                let mut inputs = storage.at_join(
+                    references,
+                    tables,
+                    &join.structural_parameters,
+                    structural,
+                    &renaming,
+                    at_edge,
+                    concerns,
+                )?;
+                for &(value, scalar_type) in snapshots {
+                    match crate::Bindings::value(&mut inputs, value, scalar_type) {
+                        Ok(actual) => snapshot_bindings.push(Proposition::Equal(
+                            ScalarTerm::value(value, scalar_type),
+                            actual,
+                        )),
+                        Err(crate::Unbound::Unproved(_) | crate::Unbound::Unsupported(_)) => {}
+                        Err(crate::Unbound::Refused(refused)) => return Err(refused),
+                    }
+                }
+            }
             disjuncts.push(describe(
                 lowered,
                 id,
@@ -325,13 +513,22 @@ pub(crate) fn infer(
                 at_edge,
                 dominating_bindings,
                 arguments,
+                snapshot_bindings,
                 bounds,
             )?);
         }
-        if skip {
+        if skip || disjuncts.is_empty() {
             continue;
         }
-        let predicate = connective(disjuncts, false);
+        // Qualifications are conclusions at the destination, never premises
+        // on the edges that introduce them. The same arrival obligation
+        // substitutes these templates onto each actual and proves them there.
+        let predicate = connective(
+            std::iter::once(connective(disjuncts, false))
+                .chain(byte_predicates)
+                .collect(),
+            true,
+        );
         if predicate != Proposition::Truth {
             if let Some(row) = declared {
                 let previous = tables
@@ -438,6 +635,7 @@ fn describe(
     at_edge: ProgramPoint,
     dominating_bindings: Option<&Graph>,
     arguments: &[ValueId],
+    snapshot_bindings: Vec<Proposition>,
     bounds: Vec<Proposition>,
 ) -> Checked<Proposition> {
     let entry = ProgramPoint::BlockEntry(join.id);
@@ -473,6 +671,19 @@ fn describe(
                 if available_value(lowered, tables, dominating_bindings, join.id, *id)
         ))
     };
+    // A value the join can already name stays itself when its definition
+    // names something the join cannot. A read after a call is the usual case:
+    // `let mid = main.pout` is defined as the field's contents after that
+    // call, which no join predicate can restate. Expanding `mid` into that
+    // contents would drop every guard over it at the scope filter, so
+    // `mid >= 0 && mid < 26` would cross the `&&` join as `Truth`. The read
+    // result itself dominates the join and is in scope, so the fact is
+    // stated over it instead.
+    let visible_as_itself = |subject: &ScalarTerm, proposition: &Proposition| {
+        matches!(subject, ScalarTerm::Value { id, .. }
+            if available_value(lowered, tables, dominating_bindings, join.id, *id))
+            && !in_scope(proposition)
+    };
     let mut equations: Vec<&Proposition> = available
         .iter()
         .filter(|(justification, proposition, _)| {
@@ -480,8 +691,9 @@ fn describe(
                 && matches!(
                     proposition,
                     Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                        if matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
-                            || entry_content(definition)
+                        if (matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
+                            || entry_content(definition))
+                            && !visible_as_itself(subject, proposition)
                 )
         })
         .map(|(_, proposition, _)| *proposition)
@@ -561,14 +773,18 @@ fn describe(
         .copied()
         .zip(join.parameters.iter().map(|parameter| parameter.id))
         .collect();
-    for (parameter, argument) in join.parameters.iter().zip(arguments) {
-        if matches!(parameter.scalar_type, ScalarType::Callable(_)) {
-            continue;
-        }
-        let binding = Proposition::Equal(
-            ScalarTerm::value(parameter.id, parameter.scalar_type),
-            ScalarTerm::value(*argument, parameter.scalar_type),
-        );
+    let scalar_bindings = join
+        .parameters
+        .iter()
+        .zip(arguments)
+        .filter(|(parameter, _)| !matches!(parameter.scalar_type, ScalarType::Callable(_)))
+        .map(|(parameter, argument)| {
+            Proposition::Equal(
+                ScalarTerm::value(parameter.id, parameter.scalar_type),
+                ScalarTerm::value(*argument, parameter.scalar_type),
+            )
+        });
+    for binding in scalar_bindings.chain(snapshot_bindings) {
         // Reuse the kernel's bounded definition traversal. Expanding an
         // arithmetic DAG by recursive cloning here can grow exponentially.
         // A failed or exhausted transport leaves the original binding for

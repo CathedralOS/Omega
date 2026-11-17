@@ -694,11 +694,18 @@ mod tests {
     }
 
     #[test]
-    fn an_authored_service_audit_requires_its_original_formation() {
-        assert_eq!(
-            refusals(&[request(BuildOperation::ServiceAudit)], &[]),
-            ["service audit lost its original Build formations"]
-        );
+    fn an_authored_audit_or_test_group_requires_its_original_formation() {
+        for operation in [
+            BuildOperation::ServiceAudit,
+            BuildOperation::TestGroupRegistration,
+            BuildOperation::TestGroupService,
+        ] {
+            assert_eq!(
+                refusals(&[request(operation)], &[]),
+                ["Build declaration lost its original Build formations"],
+                "{operation:?}"
+            );
+        }
     }
 
     /// The twins: each unimplemented operation is refused by its own admission,
@@ -712,14 +719,6 @@ mod tests {
             ),
             (
                 BuildOperation::WireCompatibilityRequest,
-                "Build product declaration admission",
-            ),
-            (
-                BuildOperation::TestGroupRegistration,
-                "Build product declaration admission",
-            ),
-            (
-                BuildOperation::TestGroupService,
                 "Build product declaration admission",
             ),
             (

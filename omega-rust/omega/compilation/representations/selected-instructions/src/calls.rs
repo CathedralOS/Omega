@@ -17,11 +17,11 @@ pub mod constraints {
         CallSignature, IndirectPointerLocation, MachineRegister, NativePlace, ValueClass,
         ValueLocation, ValueShape,
     };
-    use legalized_operations::LegalizedNormalizedForeignCall;
     use register_model::{
         RegisterConstraintFamily, RegisterInstructionConstraint, RegisterOperandAccess,
         RegisterOperandConstraint, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     };
+    use target_vocabulary::LegalizedNormalizedForeignCall;
     use target_vocabulary::NormalizedForeignCallMechanism;
 
     use crate::{
@@ -290,7 +290,7 @@ pub mod normalized_foreign {
     pub struct SelectedNormalizedForeignCall {
         pub instruction: SelectedInstructionId,
         pub invocation_site: InvocationSite,
-        pub call: legalized_operations::LegalizedNormalizedForeignCall,
+        pub call: target_vocabulary::LegalizedNormalizedForeignCall,
         pub effect: EffectLink,
         pub ownership: Vec<OwnershipEvent>,
     }
@@ -883,7 +883,7 @@ pub mod normalized_foreign {
                 let record = SelectedNormalizedForeignCall {
                     instruction: SelectedInstructionId(1),
                     invocation_site: operation.into(),
-                    call: legalized_operations::LegalizedNormalizedForeignCall {
+                    call: target_vocabulary::LegalizedNormalizedForeignCall {
                         boundary,
                         provider_execution:
                             target_vocabulary::ExternalExecutionBinding::NativeBinding(
@@ -946,6 +946,7 @@ pub mod normalized_foreign {
                 };
                 let function = SelectedFunction {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        structural_block_parameters: Vec::new(),
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
                         provenance: Default::default(),
@@ -1076,6 +1077,7 @@ pub mod normalized_foreign {
                 let register = VirtualRegisterId(0);
                 let mut function = SelectedFunction {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        structural_block_parameters: Vec::new(),
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
                         provenance: Default::default(),
@@ -1184,12 +1186,12 @@ pub mod normalized_foreign {
 }
 pub mod ordinary {
     use crate::{SelectedBlockId, SelectedInstructionId};
-    use legalized_operations::encode_hosted_read_byte_identity;
-    use legalized_operations::identity::encode_boundary_execution_identity;
     use native_vocabulary::provenance::EffectLink;
     use native_vocabulary::provenance::OwnershipEvent;
     use semantic_vocabulary::InvocationSite::ExternalCompletion;
     use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
+    use target_vocabulary::encode_hosted_read_byte_identity;
+    use target_vocabulary::identity::encode_boundary_execution_identity;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct OutgoingArgumentSlotId {
@@ -1394,7 +1396,7 @@ pub mod ordinary {
     pub struct SelectedCallContract {
         pub instruction: SelectedInstructionId,
         pub owner: target_vocabulary::CallSiteOwner,
-        pub call: legalized_operations::LegalizedScalarCall,
+        pub call: target_vocabulary::LegalizedScalarCall,
         pub effect: EffectLink,
         pub ownership: Vec<OwnershipEvent>,
     }
@@ -1537,9 +1539,10 @@ pub mod ordinary {
             boundary: semantic_vocabulary::BoundaryMachineId,
             source: semantic_vocabulary::ValueId,
         },
-        ClaimCompletion(legalized_operations::LegalizedBoundarySettlement),
+        ClaimCompletion(target_vocabulary::LegalizedBoundarySettlement),
         HostedWriteByteI32 {
             operation: OperationId,
+            execution: target_vocabulary::BoundaryExecutionBinding,
             boundary: semantic_vocabulary::BoundaryMachineId,
             source: semantic_vocabulary::ValueId,
         },
@@ -1587,11 +1590,13 @@ pub mod ordinary {
                 }
                 Self::HostedWriteByteI32 {
                     operation,
+                    execution,
                     boundary,
                     source,
                 } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+                    encode_boundary_execution_identity(&mut bytes, *execution);
                     crate::codec_bytes::push_encoded(&mut bytes, boundary.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
                 }

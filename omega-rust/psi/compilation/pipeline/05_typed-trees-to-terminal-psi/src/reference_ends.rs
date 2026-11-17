@@ -1,5 +1,5 @@
 //! Turn the descriptor lifetime frontier into explicit storage disposition.
-//! Releases precede the operation after the last use; ordinary edge cleanup
+//! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
@@ -110,7 +110,11 @@ pub(crate) fn install(
             let mut before = ProgramPoint::BlockEntry(block.id);
             let old = std::mem::take(&mut block.operations);
             let mut operations = Vec::with_capacity(old.len());
-            for (position, operation) in old.into_iter().enumerate() {
+            let count = old.len();
+            let mut old = old.into_iter();
+            // Releases precede the operation at each position; those at
+            // the final position precede the block's terminator.
+            for position in 0..=count {
                 let at = (
                     block.id,
                     u32::try_from(position).map_err(|_| {
@@ -188,6 +192,9 @@ pub(crate) fn install(
                 if revised_before != before {
                     relocated.push((before, revised_before));
                 }
+                let Some(operation) = old.next() else {
+                    break;
+                };
                 before = ProgramPoint::AfterOperation(operation.id);
                 operations.push(operation);
             }

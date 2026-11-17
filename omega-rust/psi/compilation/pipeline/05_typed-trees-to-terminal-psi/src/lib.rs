@@ -954,9 +954,10 @@ fn capture_source_questions(
     entry: MachineId,
 ) -> Checked<selection_questions::RawSelectionQuestions> {
     program.completed_operators.finish();
-    selection_questions::capture(
+    selection_questions::capture_with_bodies(
         program.typed,
         &program.admitted_declarations,
+        &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
     )
@@ -1401,6 +1402,16 @@ fn lower_program<'source>(
         signatures.machines.map(|_, signature| RequirementCeilings {
             reaches: signature.reaches.clone(),
             invokes: signature.invokes.clone(),
+            suspension: signature.operational.suspension,
+            blocking: signature.operational.blocking,
+            // The signature reader refuses unsupported progress premises before
+            // lowering. A missing promise remains NoGuarantee, never a body proof.
+            termination: match signature.termination {
+                Termination::Silent => terminal_psi::TerminalCallableTermination::NotGuaranteed,
+                Termination::Promised => terminal_psi::TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
+                },
+            },
         })
     };
     // One source owner fixes the local inference boundary. Result clauses

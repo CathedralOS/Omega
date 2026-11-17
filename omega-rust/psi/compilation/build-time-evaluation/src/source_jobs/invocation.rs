@@ -412,6 +412,7 @@ fn materialize_argument(
                 });
             }
             ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: destination,
                 type_name: data.definition.name,
                 type_symbol: data.definition.symbol,

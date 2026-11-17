@@ -1,6 +1,6 @@
 /*
 Companion artifact section codecs for `TerminalArtifactManifest` (`artifact_manifest`),
-`TerminalDebugMap` (`debug_map`), and `OptimizationExecutionReceipt` / `TerminalTraceV1`
+`TerminalDebugMap` (`debug_map`), and `OptimizationExecutionReceipt`
 (`optimization_execution`), plus re-export of `semantic_module`.
 */
 
@@ -268,11 +268,7 @@ pub(crate) mod debug_map {
         for _ in 0..file_count {
             let raw_file = reader.u32()?;
             let id = DebugFileId::new(raw_file).ok_or(DebugMapError::ZeroFileIdentity)?;
-            let origin = match reader.u8()? {
-                1 => DebugSourceOrigin::User,
-                2 => DebugSourceOrigin::Toolchain,
-                tag => return Err(DebugMapError::InvalidTag("DebugSourceOrigin", tag)),
-            };
+            let origin = decode_source_origin(&mut reader)?;
             let byte_len = reader.u64()?;
             let digest = DebugSourceDigest::from_bytes(reader.array()?);
             let path = reader.string("debug source path")? /* debug source path */;
@@ -423,7 +419,17 @@ pub(crate) mod debug_map {
         }
     }
 
-    fn decode_subject(reader: &mut Reader<'_>) -> Result<DebugSubject, DebugMapError> {
+    pub(crate) fn decode_source_origin(
+        reader: &mut Reader<'_>,
+    ) -> Result<DebugSourceOrigin, DebugMapError> {
+        Ok(match reader.u8()? {
+            1 => DebugSourceOrigin::User,
+            2 => DebugSourceOrigin::Toolchain,
+            tag => return Err(DebugMapError::InvalidTag("DebugSourceOrigin", tag)),
+        })
+    }
+
+    pub(crate) fn decode_subject(reader: &mut Reader<'_>) -> Result<DebugSubject, DebugMapError> {
         Ok(match reader.u8()? {
             1 => DebugSubject::Machine(reader.id("debug MachineId")?),
             2 => DebugSubject::Block(reader.id("debug BlockId")?),

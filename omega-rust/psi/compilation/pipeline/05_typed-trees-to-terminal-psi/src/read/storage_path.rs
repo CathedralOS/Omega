@@ -41,6 +41,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
+            | ExpressionKind::Zero
             | ExpressionKind::Boolean(_)
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Array { .. }

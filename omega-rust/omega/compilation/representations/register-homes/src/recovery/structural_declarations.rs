@@ -11,16 +11,16 @@ metadata while ordinary address paths (`decode_path`) and reference origin paths
 (`decode_reference_origin_path`) reject wildcards.
 */
 
-pub(super) use legalized_operations::identity::encode_structural_place as encode_place;
+pub(super) use target_vocabulary::identity::encode_structural_place as encode_place;
 
 use ::selected_instructions::effects::program::identity::encode_path;
-use legalized_operations::identity::encode_authored_field_storage;
-use legalized_operations::{
-    LegalizedCallUnitParameter, encode_integer, encode_placement, encode_shape,
-};
 use semantic_vocabulary::{
     AffineConstructionElement, BlockId, BoundedIntegerType, IeeeFloatFormat, OperationId, PlaceId,
     ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+};
+use target_vocabulary::identity::encode_authored_field_storage;
+use target_vocabulary::{
+    LegalizedCallUnitParameter, encode_integer, encode_placement, encode_shape,
 };
 use target_vocabulary::{
     TargetStructuralArgument, TargetStructuralParameter, TargetStructuralRuntimeIndex,
@@ -551,6 +551,14 @@ fn decode_target_parameter(
         shape: decode_shape(cursor)?,
         placement: decode_placement(cursor)?,
     })
+}
+
+pub(super) fn decode_abi_parameter(
+    cursor: &mut Cursor<'_>,
+) -> Result<TargetStructuralParameter, FixedViewCopyDecodeError> {
+    let mut parameter = decode_target_parameter(cursor)?;
+    parameter.projected_qualifications = decode_projected(cursor, true)?;
+    Ok(parameter)
 }
 
 pub(super) fn encode_semantic_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {

@@ -21,7 +21,10 @@ use semantic_vocabulary::{
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
 use target_vocabulary::TerminalPsiProvenance;
-use terminal_psi::CrashRouteBucket;
+pub use target_vocabulary::{
+    LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand, LegalizedScalarArgument,
+    LegalizedScalarCall, LegalizedValueDefinition,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarFunction {
@@ -127,7 +130,7 @@ impl LegalizedScalarFunction {
     ) -> impl Iterator<Item = &terminal_psi::StructuralParameterDeclaration> + '_ {
         self.blocks
             .iter()
-            .flat_map(|block| &block.structural_parameters)
+            .flat_map(|block| block.structural_parameters.iter())
     }
 }
 
@@ -143,7 +146,7 @@ pub struct LegalizedScalarParameter {
 pub struct LegalizedScalarBlock {
     pub id: BlockId,
     pub parameters: Vec<LegalizedValueDefinition>,
-    pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub structural_parameters: std::sync::Arc<[terminal_psi::StructuralParameterDeclaration]>,
     pub instructions: Vec<LegalizedScalarInstruction>,
     pub terminator: LegalizedScalarTerminator,
 }
@@ -167,13 +170,6 @@ pub struct LegalizedScalarInstruction {
     pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LegalizedValueDefinition {
-    pub value: ValueId,
-    pub scalar_type: ClosedScalarType,
-    pub definition_site: ValueDefinitionSite,
 }
 
 impl LegalizedScalarInstruction {
@@ -1264,28 +1260,6 @@ pub enum LegalizedScalarComparison {
     LessOrEqual,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LegalizedRuntimeIndexOperand {
-    pub operand: native_vocabulary::values::AbstractResult,
-    pub stride: u32,
-    pub extent: Option<u64>,
-    pub obligation: semantic_vocabulary::ObligationId,
-    pub accepted_fact: optimization_core::AcceptedObligationFactIdentity,
-}
-
-impl LegalizedRuntimeIndexOperand {
-    /// Compares the selector's semantic identity, geometry and proof key across
-    /// the target handoff. The target operand's ABI location is checked by its
-    /// own source-correspondence rules, not by this semantic comparison.
-    pub fn matches_target(&self, target: &target_vocabulary::TargetStructuralRuntimeIndex) -> bool {
-        self.operand.value == target.operand.source_value()
-            && self.operand.scalar_type == target.operand.scalar_type()
-            && self.stride == target.stride
-            && self.extent == target.extent
-            && self.obligation == target.obligation
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralBinding {
     pub semantic: native_vocabulary::values::AbstractStructuralBinding, // Source custody and destination identity.
@@ -1537,62 +1511,6 @@ impl LegalizedScalarTerminator {
 }
 
 pub use target_vocabulary::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedScalarCall {
-    pub descriptor_origins: Vec<LegalizedDescriptorOrigin>, // Conservative backing union for returned descriptors.
-    pub access_bindings: Vec<target_vocabulary::TargetAccessCallBinding>,
-    pub source: crate::NativeCallOrigin,
-    pub target: target_vocabulary::NativeCallTarget,
-    pub call_plan: CallPlan,
-    pub arguments: Vec<LegalizedScalarArgument>,
-    pub result_placement: Option<ValuePlacement>,
-    pub structural_result: Option<terminal_psi::StructuralOperationResult>,
-    pub claim_transfers: Vec<terminal_psi::ClaimTransfer>,
-    pub requirement_obligations: Vec<ObligationId>,
-    pub crash_continuations: Vec<CrashRouteBucket>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizedScalarArgument {
-    Scalar {
-        source: ValueId,
-        placement: ValuePlacement,
-    },
-    Structural {
-        semantic: terminal_psi::StructuralArgument,
-        target: target_vocabulary::TargetStructuralArgument,
-        indices: Vec<LegalizedRuntimeIndexOperand>, // One joined row per `RuntimeIndex` segment in `semantic.path`, in path order.
-    },
-}
-
-impl LegalizedScalarArgument {
-    pub fn scalar_source(&self) -> Option<ValueId> {
-        match self {
-            Self::Scalar { source, .. } => Some(*source),
-            Self::Structural { .. } => None,
-        }
-    }
-    pub fn placement(&self) -> &ValuePlacement {
-        match self {
-            Self::Scalar { placement, .. } => placement,
-            Self::Structural { target, .. } => &target.destination,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedNormalizedForeignCall {
-    pub boundary: BoundaryMachineId,
-    pub provider_execution: target_vocabulary::ExternalExecutionBinding,
-    pub binding: target_vocabulary::NormalizedForeignCallBinding,
-    pub scalar_arguments: Vec<target_vocabulary::NormalizedForeignScalarArgument>,
-    pub structural_arguments: Vec<target_vocabulary::NormalizedForeignStructuralArgument>,
-    pub structural_indices: Vec<Vec<LegalizedRuntimeIndexOperand>>, // Exact bound operands, in structural argument order and then path order.
-    pub result: target_vocabulary::TargetBoundaryResult,
-    pub callbacks: Vec<target_vocabulary::TargetNativeCallbackArgument>,
-    pub descriptor_input: Option<target_vocabulary::DescriptorInputGuard>, // Target producer's count guard for a descriptor-reading import.
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarReturnValue {

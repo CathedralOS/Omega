@@ -108,6 +108,38 @@ fn application_identity(typed: &TypedTrees, scope: &AppliedTraitScope<'_>) -> Op
 }
 
 impl Program<'_> {
+    /// Calling metadata admits the same complete source header as a call does,
+    /// without supplying a body or creating a boundary invocation. Read the
+    /// prepared application, not its unapplied declaration's clause handles.
+    fn read_calling_requirement_header(
+        &mut self,
+        context: MachineId,
+        scope: &AppliedTraitScope<'_>,
+        requirement: SymbolHandle,
+    ) -> Checked<crate::body::Signature> {
+        let typed = self.typed;
+        let (owner, declared) = typed
+            .trait_machine_signature(requirement)
+            .filter(|(owner, _)| owner.is_boundary && owner.symbol == scope.declaration.symbol)
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "Calling requirement lost its exact declaring boundary header",
+                )
+            })?;
+        let source = typed
+            .applied_callable_signature(scope, requirement)
+            .or_else(|| scope.keeps_declared_signatures(typed).then_some(declared))
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "Calling requirement lost its prepared source contract application",
+                )
+            })?;
+        let (signature, _) = self.boundary_signature(context, source)?;
+        self.admitted_declarations.include(owner.symbol);
+        Ok(signature)
+    }
     pub(crate) fn require_complete_boundary_parent_contracts(
         &self,
         context: MachineId,
@@ -356,9 +388,7 @@ impl Program<'_> {
                             "Calling signature lost its exact declaring application",
                         )
                     })?;
-                self.admitted_declarations
-                    .include(declaring.declaration.symbol);
-                self.admitted_declarations.include(source.symbol);
+                self.read_calling_requirement_header(context, &declaring, source.symbol)?;
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
                         .abi_signatures()
@@ -619,5 +649,274 @@ mod inherited_contract_owner_tests {
                 "boundary parent contract has no admitted contract owner"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod header_reading_tests {
+    use super::*;
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+    };
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::domain::ProofFact;
+    use typed_trees::expression::{
+        BinaryOperator, ExpressionNode, TableBinaryExpression, TableNamePath, TableUnaryExpression,
+        UnaryOperator,
+    };
+    use typed_trees::signature::{
+        SignatureContract, SignatureContractKind, StateParameter, StateSignature,
+    };
+    use typed_trees::trait_definition::{TraitApplicationArguments, TraitDefinition};
+    use typed_trees::types::TypeReferenceNode;
+
+    fn fixture(valid_predicate: bool) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Trait, SymbolNameRef::Static("Raw")),
+                (SymbolKind::Trait, SymbolNameRef::Static("Other")),
+            ]),
+        );
+        let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let other = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let requirement = builder
+            .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("read"))])
+            .start();
+        let parameters = builder.insert_children(
+            requirement,
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("left")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+            ],
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let boolean_symbol = typed
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::Bool)
+            .unwrap();
+        let boolean = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: boolean_symbol,
+            name: "bool".into(),
+        });
+        let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let formals = typed
+            .state_parameters
+            .insert_many(
+                parameters
+                    .handles()
+                    .enumerate()
+                    .map(|(i, symbol)| StateParameter {
+                        symbol,
+                        name: if i == 0 {
+                            "left".into()
+                        } else {
+                            "right".into()
+                        },
+                        type_reference: boolean,
+                        ..Default::default()
+                    }),
+            );
+        let mut left_members = Default::default();
+        typed
+            .expression_table
+            .push_name_path_member(&mut left_members, "left".into());
+        let mut right_members = Default::default();
+        typed
+            .expression_table
+            .push_name_path_member(&mut right_members, "right".into());
+        let left = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members: left_members,
+                head_symbol: parameters.handle_at(0),
+                symbol: parameters.handle_at(0),
+                ..Default::default()
+            }));
+        let right = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members: right_members,
+                head_symbol: parameters.handle_at(1),
+                symbol: parameters.handle_at(1),
+                ..Default::default()
+            }));
+        let negation = typed
+            .expression_table
+            .insert(ExpressionNode::Unary(TableUnaryExpression {
+                operator: UnaryOperator::LogicalNot,
+                operand: right,
+            }));
+        let predicate =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::And,
+                    right: negation,
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                }));
+        for expression in [predicate, negation] {
+            let occurrence = typed
+                .record_late_bound_authored_declaration_selection(
+                    Default::default(),
+                    Exposure::PublicInterface,
+                    Kind::Operator,
+                    Binding::CheckedOperator,
+                )
+                .unwrap();
+            typed
+                .expression_table
+                .attach_authored_selection_occurrences(expression, [occurrence]);
+        }
+        let predicate = if valid_predicate {
+            predicate
+        } else {
+            typed
+                .expression_table
+                .insert(ExpressionNode::TypeExpression(unit))
+        };
+        let facts = typed
+            .proof_facts
+            .insert_many([ProofFact::Expression(predicate)]);
+        let contracts = typed.signature_contracts.insert_many([SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts,
+            binding: None,
+            ..Default::default()
+        }]);
+        let no_services = typed.service_reach_rows.intern(Vec::new());
+        let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            symbol: requirement,
+            name: "read".into(),
+            parameters: formals,
+            return_type: unit,
+            contracts,
+            service_reach_row: no_services,
+            declares_no_crash_route: true,
+            ..Default::default()
+        }]);
+        for (symbol, name, machines) in [
+            (owner, "Raw", machines),
+            (other, "Other", Default::default()),
+        ] {
+            typed.push_trait_definition(TraitDefinition {
+                symbol,
+                name: name.into(),
+                is_boundary: true,
+                machines,
+                ..Default::default()
+            });
+        }
+        (typed, owner, other, requirement)
+    }
+
+    #[test]
+    fn calling_header_admission_reads_the_complete_bodyless_precondition() {
+        let (typed, owner, _, requirement) = fixture(true);
+        let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+        let scope = AppliedTraitScope::new(
+            &typed,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program.admitted_declarations.include(owner);
+        program.completed_operators.finish();
+        let unresolved = crate::selection_questions::capture(
+            &typed,
+            &program.admitted_declarations,
+            &program.completed_operators,
+            &program.admitted_signature_views,
+        )
+        .unwrap_err();
+        assert!(unresolved.to_string().contains("CheckedOperator"));
+        let signature = program
+            .read_calling_requirement_header(context, &scope, requirement)
+            .unwrap();
+        assert!(!signature.requires.is_empty());
+        assert_eq!(program.admitted_signature_views.len(), 1);
+        assert_eq!(program.admitted_signature_views[0].symbol, requirement);
+        program.completed_operators.finish();
+        crate::selection_questions::capture(
+            &typed,
+            &program.admitted_declarations,
+            &program.completed_operators,
+            &program.admitted_signature_views,
+        )
+        .expect("the exact And and negation have actual checked reader completions");
+        assert!(program.signatures.is_empty());
+        assert!(program.boundaries.rows.is_empty());
+        assert!(program.fixed_inputs.is_empty());
+    }
+
+    #[test]
+    fn calling_header_admission_refuses_another_declaring_scope() {
+        let (typed, _, other, requirement) = fixture(true);
+        let declaration = typed.trait_definition_by_symbol(other).unwrap();
+        let scope = AppliedTraitScope::new(
+            &typed,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: other,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let mut program = Program::new(&typed, false);
+        let refusal = program
+            .read_calling_requirement_header(MachineId::new(1).unwrap(), &scope, requirement)
+            .unwrap_err();
+        assert!(refusal.detail.contains("exact declaring boundary header"));
+        assert!(program.admitted_signature_views.is_empty());
+    }
+
+    #[test]
+    fn calling_header_admission_does_not_skip_an_unformed_contract() {
+        let (typed, owner, _, requirement) = fixture(false);
+        let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+        let scope = AppliedTraitScope::new(
+            &typed,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let mut program = Program::new(&typed, false);
+        let refusal = program
+            .read_calling_requirement_header(MachineId::new(1).unwrap(), &scope, requirement)
+            .expect_err(
+                "ABI metadata cannot admit a contract that the callable reader cannot form",
+            );
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert!(program.admitted_signature_views.is_empty());
+        assert!(program.boundaries.rows.is_empty());
     }
 }

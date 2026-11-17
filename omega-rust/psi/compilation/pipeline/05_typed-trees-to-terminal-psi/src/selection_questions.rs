@@ -99,6 +99,29 @@ impl CompletedOperators {
         Ok(())
     }
 
+    // This is failure evidence only. Matching another coordinate never
+    // authorizes the exact source occurrence queried by `contains`.
+    fn diagnostic_reads(
+        &self,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> String {
+        let related = self
+            .reads
+            .iter()
+            .filter(|read| {
+                read.occurrence == occurrence
+                    || (read.owner == owner && read.expression == expression)
+            })
+            .take(4)
+            .map(|read| (read.owner, read.expression, read.occurrence))
+            .collect::<Vec<_>>();
+        format!(
+            "expected ({owner:?}, {expression:?}, {occurrence:?}); related completed reads {related:?}"
+        )
+    }
+
     pub(crate) fn finish(&mut self) {
         self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
         self.reads.dedup();
@@ -217,6 +240,7 @@ struct ExpressionScope {
 struct Capture<'a> {
     typed: &'a TypedTrees,
     admitted: &'a DeclarationSelection,
+    bodies: &'a DeclarationSelection,
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [typed_trees::signature::StateSignature],
     closed_signature_templates: Vec<SymbolHandle>,
@@ -679,6 +703,9 @@ impl Extend<SymbolHandle> for Capture<'_> {
 }
 
 impl TypedReferences for Capture<'_> {
+    fn machine_body(&mut self, machine: &typed_trees::machine::Machine) -> bool {
+        self.bodies.contains(machine.symbol)
+    }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         if !self.admitted.contains(symbol) {
             return false;
@@ -916,11 +943,35 @@ impl TypedReferences for Capture<'_> {
                             let expression = self.expressions.last().map(|scope| {
                                 self.typed.expression_table.display_name(scope.expression)
                             });
+                            let completion = self.expressions.last().map(|scope| {
+                                let table = &self.typed.expression_table;
+                                let node = match table.expression(scope.expression) {
+                                    ExpressionNode::Binary(binary) => {
+                                        format!("binary {:?}", binary.operator)
+                                    }
+                                    node => format!("{:?}", std::mem::discriminant(node)),
+                                };
+                                let views = self
+                                    .signature_views
+                                    .iter()
+                                    .filter(|view| view.symbol == self.owner)
+                                    .count();
+                                format!(
+                                    "{}; node={node}; materialization source={:?}; admitted signature views={views}",
+                                    self.completed_operators.diagnostic_reads(
+                                        self.owner,
+                                        scope.expression,
+                                        occurrence,
+                                    ),
+                                    table.materialization_source(scope.expression),
+                                )
+                            });
                             self.fail(format!(
-                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}",
+                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}; operator completion: {}",
                                 row.kind(),
                                 self.typed.symbols.display_path(self.owner, "::"),
                                 expression.as_deref().unwrap_or("a declaration"),
+                                completion.as_deref().unwrap_or("no expression scope"),
                             ));
                             return;
                         };
@@ -981,9 +1032,12 @@ impl TypedReferences for Capture<'_> {
     }
     fn static_application(
         &mut self,
-        _: typed_trees::static_applications::StaticMachineApplicationHandle,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
         formation_owner: SymbolHandle,
     ) {
+        if let Err(reason) = self.typed.static_record_source_receiver(application) {
+            self.fail(format!("invalid retained const-record receiver: {reason}"));
+        }
         // A Product use can share a header formed by Build. Retain and validate
         // that forming declaration without claiming the use selects its code.
         if self.valid_symbol(formation_owner, "static application formation owner") {
@@ -1006,9 +1060,26 @@ impl TypedReferences for Capture<'_> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn capture(
     typed: &TypedTrees,
     admitted: &DeclarationSelection,
+    completed_operators: &CompletedOperators,
+    signature_views: &[typed_trees::signature::StateSignature],
+) -> Result<RawSelectionQuestions, SelectionCaptureError> {
+    capture_with_bodies(
+        typed,
+        admitted,
+        admitted,
+        completed_operators,
+        signature_views,
+    )
+}
+
+pub(crate) fn capture_with_bodies(
+    typed: &TypedTrees,
+    admitted: &DeclarationSelection,
+    bodies: &DeclarationSelection,
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
@@ -1018,6 +1089,14 @@ pub(crate) fn capture(
                 .into(),
         )
     })?;
+    let body_roots = bodies.explicit_symbols().ok_or_else(|| {
+        SelectionCaptureError("source body capture requires an explicit finite body roster".into())
+    })?;
+    if body_roots.iter().any(|symbol| !admitted.contains(*symbol)) {
+        return Err(SelectionCaptureError(
+            "source body capture names a declaration this form did not admit".into(),
+        ));
+    }
     for &symbol in roots {
         if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
             return Err(SelectionCaptureError(
@@ -1036,6 +1115,7 @@ pub(crate) fn capture(
     let mut capture = Capture {
         typed,
         admitted,
+        bodies,
         completed_operators,
         signature_views,
         closed_signature_templates,
@@ -1467,21 +1547,34 @@ mod tests {
             cast_form::{CastEntry, CastEntryKind, CastForm},
         };
         use numerics::arithmetic::ArithmeticDomain;
-        let policy_entry = CastForm::Entry(CastEntry {
-            kind: CastEntryKind::Add,
-            first: true,
-            after_carrier: false,
-        });
-        for (form, policy) in [
+        let mut cases = vec![
             (CastForm::Value, ArithmeticDomain::Exact),
             (
                 CastForm::Recast(ReferenceAccess::Shared),
                 ArithmeticDomain::Exact,
             ),
-            (policy_entry, ArithmeticDomain::Wrapping),
-            (policy_entry, ArithmeticDomain::Saturating),
-            (policy_entry, ArithmeticDomain::Trapping),
+        ];
+        for kind in [
+            CastEntryKind::Add,
+            CastEntryKind::Keep,
+            CastEntryKind::Remove,
         ] {
+            for policy in [
+                ArithmeticDomain::Wrapping,
+                ArithmeticDomain::Saturating,
+                ArithmeticDomain::Trapping,
+            ] {
+                cases.push((
+                    CastForm::Entry(CastEntry {
+                        kind,
+                        first: true,
+                        after_carrier: false,
+                    }),
+                    policy,
+                ));
+            }
+        }
+        for (form, policy) in cases {
             let (mut typed, owner, target, expression) = cast_source(form);
             let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression)
             else {

@@ -143,6 +143,22 @@ mod carriers {
                 .map(|replay| &replay.0)
         }
 
+        /// Stage 02's output for the root object, present only when the
+        /// compile retained native stage inputs for a correspondence audit.
+        pub fn retained_target_operations(
+            &self,
+        ) -> Option<&abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
+        {
+            self.composition_source
+                .as_deref()
+                .unwrap_or(self)
+                .fragment_replay
+                .as_ref()?
+                .1
+                .as_ref()
+                .map(crate::RetainedTargetOperations::target)
+        }
+
         pub fn native_instruction_source_rows(&self) -> Option<NativeInstructionSourceRows<'_>> {
             let source = self.composition_source.as_deref().unwrap_or(self);
             let current = source
@@ -254,7 +270,7 @@ mod carriers {
                 return Ok(None);
             };
             replay.selected_terminal_entry(artifact, self.entry, self.target)?;
-            let facts = replay.0.lowering_facts();
+            let facts = &replay.0.emission_facts().lowering;
             facts.native_execution_scope_for(
                 artifact.view().identity(),
                 self.target,
@@ -1304,7 +1320,7 @@ pub(crate) mod installed_stack {
                 ));
             }
             ram::validate(
-                current.optimized_target().optimized().plan(),
+                &current.facts().abstract_program,
                 selected,
                 body.installation_authority.installed_interrupts(),
                 execution,
@@ -1946,7 +1962,6 @@ mod normalized_foreign_calls {
     ) -> Result<Vec<ObjectForeignCall>, ObjectError> {
         let section = source.source().text_section();
         let emissions = source.source().source().source().source();
-        let optimized = emissions.optimized_target();
         let selected = emissions.physical_program();
         let layout = emissions.frame_layout();
         let architecture = source.source().source().fragments().target.architecture;
@@ -1958,9 +1973,9 @@ mod normalized_foreign_calls {
                 continue;
             }
             let home_offsets = durable_home_offsets(function);
-            let mut abstracted_functions = optimized
-                .optimized()
-                .plan()
+            let mut abstracted_functions = emissions
+                .facts()
+                .abstract_program
                 .functions
                 .iter()
                 .filter(|candidate| candidate.machine == function.machine);

@@ -1,0 +1,10 @@
+use omega::language::core::ProcessExit;
+use omega_language_std::Clock;
+
+// `Clock::sleep` holds the caller's worker for the whole wait, so std declares
+// it `blocks`. This call omits the `block` marker and the checker refuses it.
+// Its twin under `pass/effects/clock_sleep_acknowledged` writes the marker.
+machine entry_start() reaches ProcessExit + Clock {
+    Clock::sleep(200);
+    ProcessExit::exit_process(70);
+}

@@ -17,7 +17,7 @@ pub(crate) mod byte_sequences {
         use crate::engine::execution::TerminalExecution;
         use crate::engine::execution::frame_field_mut;
         use crate::storage::byte_sequences::ByteSequenceView;
-        use semantic_vocabulary::StructuralTypeId;
+        use semantic_vocabulary::{EdgeId, StructuralTypeId};
         use terminal_psi::{
             ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
             StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
@@ -775,6 +775,7 @@ pub(crate) mod byte_sequences {
                 parameter: &StructuralParameterDeclaration,
                 argument: &StructuralArgument,
                 resolved: &TerminalStructuralValue,
+                arrival: Option<EdgeId>,
             ) -> Result<
                 Option<(TerminalStructuralValue, ByteSequenceBinding)>,
                 TerminalInterpretError,
@@ -798,12 +799,16 @@ pub(crate) mod byte_sequences {
                 };
                 let selected =
                     self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
-                if self.present_owned_descriptor(
+                let mut presented = self.present_owned_descriptor(
                     selected.clone(),
                     parameter.structural_type,
                     parameter.multiplicity,
-                )? != *resolved
-                {
+                )?;
+                if let Some(edge) = arrival {
+                    presented =
+                        self.present_arrival_memberships(edge, parameter, argument, presented)?;
+                }
+                if presented != *resolved {
                     return Err(malformed());
                 }
                 let owned_source = self.owned_source_for(

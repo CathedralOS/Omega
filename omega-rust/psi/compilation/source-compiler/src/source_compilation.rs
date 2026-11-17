@@ -467,7 +467,10 @@ mod product_policy {
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
                     request.operation,
-                    BuildOperation::NativeBinding | BuildOperation::ServiceAudit
+                    BuildOperation::NativeBinding
+                        | BuildOperation::ServiceAudit
+                        | BuildOperation::TestGroupRegistration
+                        | BuildOperation::TestGroupService
                 ) || super::provider_requests::has_provider_application(request)
             })?;
             let providers = self.admit_product_provider_requests(
@@ -476,9 +479,16 @@ mod product_policy {
                 request.executed,
                 &formations,
             )?;
-            let audit_formations = formations
+            let declaration_formations = formations
                 .iter()
-                .filter(|(request, _)| request.operation == BuildOperation::ServiceAudit)
+                .filter(|(request, _)| {
+                    matches!(
+                        request.operation,
+                        BuildOperation::ServiceAudit
+                            | BuildOperation::TestGroupRegistration
+                            | BuildOperation::TestGroupService
+                    )
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             let mut native_formations = formations
@@ -524,7 +534,7 @@ mod product_policy {
                 request.activation,
                 request.declared,
                 request.executed,
-                &audit_formations,
+                &declaration_formations,
             )?;
             let exclusions = build_time_evaluation::product_policy::collect_behavior_exclusions(
                 typed,

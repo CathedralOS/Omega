@@ -1690,6 +1690,40 @@ pub(crate) mod identity_context {
             let remembered_policy =
                 application(&mut program, policy, "Policy", vec![remembered_seven]);
             let authored_policy = application(&mut program, policy, "Policy", vec![authored_seven]);
+            // A retained Generic reference still denotes the supplied value
+            // application. Its type description is a separate operand role.
+            let explicit = program
+                .static_operand_from_type_reference(authored_policy)
+                .expect("the exact generic implementation operand");
+            let mut retained = explicit.clone();
+            retained.type_reference = authored_policy;
+            let value = crate::type_identity::applied_index_identity(
+                &program,
+                crate::type_identity::IndexIdentityArgument::StaticArgument(&explicit),
+                caller,
+                &[],
+            )
+            .expect("the explicit value application has an identity");
+            assert_eq!(
+                crate::type_identity::applied_index_identity(
+                    &program,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(&retained),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "a retained generic reference must preserve its explicit value application",
+            );
+            assert_ne!(
+                crate::type_identity::applied_index_identity(
+                    &program,
+                    crate::type_identity::IndexIdentityArgument::TypeArgument(authored_policy),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "an explicit type description keeps its separate nominal role",
+            );
             let wrong_value_policy = application(&mut program, policy, "Policy", vec![eight]);
             let wrong_declaration_policy = application(
                 &mut program,
@@ -2366,21 +2400,28 @@ pub(crate) mod identity_context {
                 .symbol_source_origin(symbol)
                 .is_some_and(source::SourceOrigin::is_toolchain)
             {
-                program
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .and_then(|span| {
-                        self.exact_toolchain_sources
-                            .iter()
-                            .find(|(source_id, _)| *source_id == span.source_id)
-                    })
-                    .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
-                    .unwrap_or_else(|| {
-                        if let Some(missing) = self.missing_exact_nominal_owner {
-                            missing.set(true);
-                        }
-                        PackageQualifiedNominalOwner::Toolchain
-                    })
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
             } else {
                 if let Some(missing) = self.missing_exact_nominal_owner {
                     missing.set(true);
@@ -2623,7 +2664,6 @@ pub(crate) mod identity_context {
                 symbols::SymbolKind::Data
                     | symbols::SymbolKind::BuiltinType
                     | symbols::SymbolKind::TypeParameter
-                    | symbols::SymbolKind::Conformance
                     | symbols::SymbolKind::ConformanceParameter
             )
         {
@@ -3366,6 +3406,11 @@ pub(crate) mod identity_context {
                     Label::Type,
                     &context.name(program, literal.type_symbol, literal.type_name.as_str()),
                 ))
+                .chain(
+                    literal
+                        .zero_omitted_fields
+                        .then(|| atom(Label::Kind, "zero-omitted-fields")),
+                )
                 .chain(
                     literal
                         .case_name
@@ -4164,7 +4209,7 @@ pub(crate) mod package_policy_reading_tests {
                 });
                 let toolchain_source = sources
                     .add_with_metadata(
-                        PathBuf::from("toolchain.omg"),
+                        PathBuf::from("toolchain").join("toolchain.omg"),
                         text.clone(),
                         PathBuf::from("toolchain"),
                         None,
@@ -5318,6 +5363,7 @@ pub(crate) mod package_policy_reading_tests {
                         value,
                     }]);
             let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: Identifier::generated("Record"),
                 type_symbol: fixture.symbol("Record"),
@@ -5540,6 +5586,40 @@ pub(crate) mod package_policy_reading_tests {
             failures.len(),
             witnesses.len(),
             failures.join("\n"),
+        );
+    }
+
+    #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
         );
     }
 
@@ -6354,6 +6434,188 @@ pub(crate) mod portable_machine_applications {
         Ok(result)
     }
 
+    pub fn portable_machine_selection_identity(
+        program: &TypedTrees,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let result = projection.selection(program, selected, application, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("selected callable lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_machine_selection_identity_in_context(
+        program: &TypedTrees,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        match context.portable_machine_applications {
+            Some(projection) => projection.selection(program, selected, application, context),
+            None => portable_machine_selection_identity(
+                program,
+                selected,
+                application,
+                context.exact_toolchain_sources,
+            ),
+        }
+    }
+
+    pub(crate) fn portable_operation_record_value(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    /// Compute a record value for an operand named inside a larger identity.
+    /// The record's toolchain owners follow the enclosing identity's own rule:
+    /// when the enclosing request requires exact toolchain owners, a missing
+    /// one is reported to that request, which then refuses exactly as it does
+    /// for its other names. When it does not require them, the record names
+    /// toolchain declarations with the same plain owner its other names use.
+    /// Every other loss of identity still refuses the record.
+    pub(crate) fn portable_operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            context.exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get()
+            && let Some(missing) = context.missing_exact_nominal_owner
+        {
+            missing.set(true);
+        }
+        Ok(result)
+    }
+
+    fn portable_operation_record_value_under_owner_policy(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        missing_exact_owner: &Cell<bool>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(missing_exact_owner),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let result = projection.record_value(program, symbol, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_record_schema_identity_in_context(
+        program: &TypedTrees,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<String, String> {
+        // The existing schema production, with the current projection kept
+        // through every supplying scope instead of starting a fresh query.
+        scope.with_identity_scopes(program, |scopes| {
+            let mut arguments = Vec::new();
+            for parameter in program.trait_type_parameters(scope.declaration) {
+                let (reference, outer) = scope
+                    .parameter_application(parameter.symbol)
+                    .ok_or("static record schema lost a complete argument")?;
+                let supplying = scopes
+                    .get(..outer)
+                    .ok_or("static record schema lost its supplying scope")?;
+                let argument_context = TypeIdentityContext {
+                    application_owner: scope.argument_owner,
+                    application_argument_owner: scope.argument_owner,
+                    application_scopes: supplying,
+                    ..*context
+                };
+                let operand = if parameter.kind.is_const_or_value()
+                    || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                {
+                    IndexIdentityArgument::TypeReference(reference)
+                } else {
+                    IndexIdentityArgument::TypeArgument(reference)
+                };
+                arguments.push(super::substitution::index_argument(
+                    program,
+                    operand,
+                    &argument_context,
+                ));
+            }
+            let lifetime_context = TypeIdentityContext {
+                application_owner: scope.argument_owner,
+                application_argument_owner: scope.argument_owner,
+                application_scopes: scopes,
+                ..*context
+            };
+            Ok::<_, String>(compound(
+                CoordinateTag::TraitApplication,
+                [
+                    atom(
+                        CoordinateTag::Declaration,
+                        &context.name(program, scope.declaration.symbol, ""),
+                    ),
+                    compound(CoordinateTag::Arguments, arguments),
+                    compound(
+                        CoordinateTag::Lifetimes,
+                        scope
+                            .declaration
+                            .lifetime_parameters
+                            .iter()
+                            .map(|parameter| {
+                                lifetime_context.lifetime(program, parameter.as_str())
+                            }),
+                    ),
+                ],
+            ))
+        })
+    }
+
     #[derive(Default)]
     pub(crate) struct PortableMachineApplications {
         active: RefCell<Vec<SymbolHandle>>,
@@ -6361,6 +6623,305 @@ pub(crate) mod portable_machine_applications {
     }
 
     impl PortableMachineApplications {
+        pub(crate) fn record_value(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+            if self.active.borrow().contains(&symbol) {
+                return Err("static record has a cyclic selected argument identity".into());
+            }
+            self.active.borrow_mut().push(symbol);
+            let result = program
+                .canonical_operation_record_value_in_context(
+                    symbol,
+                    context.exact_toolchain_sources,
+                    context,
+                )
+                .map_err(str::to_owned);
+            self.active.borrow_mut().pop();
+            if let Err(reason) = &result {
+                self.error
+                    .borrow_mut()
+                    .get_or_insert_with(|| reason.clone());
+            }
+            result
+        }
+
+        fn selection(
+            &self,
+            program: &TypedTrees,
+            selected: &crate::expression::StaticMachineArgument,
+            supplied: crate::static_applications::StaticMachineApplicationHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<(SymbolHandle, Option<String>), String> {
+            if !program.symbols.symbols().nodes().is_valid(selected.symbol)
+                || selected.const_literal.is_some()
+                || selected.evidence_projection.is_some()
+            {
+                return Err("selected callable has no exact declaration operand".into());
+            }
+            let machine = program
+                .machine_by_symbol(selected.symbol)
+                .or_else(|| program.machine_holding_state(selected.symbol))
+                .ok_or("selected callable has no machine declaration")?;
+            if selected.symbol != machine.symbol
+                && !program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == selected.symbol)
+            {
+                return Err("selected callable has no exact initial entry".into());
+            }
+            let receipt = program
+                .machine_instantiation(machine.symbol)
+                .map_err(|reason| reason.to_string())?;
+            let declaration = receipt.map_or(machine.symbol, |receipt| receipt.template());
+            let receipt_binding_declaration = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                _ => declaration,
+            };
+            let identity = self.identity(program, selected.symbol, context)?;
+            let retained = if supplied.is_valid() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(supplied)
+                {
+                    return Err("selected callable has a stale source application".into());
+                }
+                Some(program.static_machine_application(supplied))
+            } else {
+                None
+            };
+            if let Some(source) = retained {
+                if !program
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+                {
+                    return Err(
+                        "selected callable source application has no actual supplying owner".into(),
+                    );
+                }
+                let registered = source.registration_operation;
+                let original = program
+                    .machine_by_symbol(declaration)
+                    .ok_or("selected callable lost its original declaration")?;
+                let retained_enclosing_application = matches!(receipt,
+                    Some(MachineInstantiation::Specialization(receipt))
+                        if supplied == receipt.binding_application
+                            && source.binding_declaration == receipt_binding_declaration);
+                if !retained_enclosing_application
+                    && registered != selected.symbol
+                    && registered != machine.symbol
+                    && registered != declaration
+                    && !program
+                        .machine_states(original)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == registered)
+                {
+                    return Err(
+                        "selected callable source application names another operation".into(),
+                    );
+                }
+            }
+            let explicit = selected.application.as_deref();
+            if explicit.is_some_and(|source| source.member.is_valid()) {
+                return Err("selected callable retains an unresolved member application".into());
+            }
+            if let Some(MachineInstantiation::Capture(capture)) = receipt {
+                // The complete capture account is normalized by identity().
+                // A distinct own application requires its actual specialization
+                // receipt rather than reinterpreting the implementation tuple.
+                let empty_explicit = explicit.is_none_or(|source| {
+                    source.arguments.is_empty() && source.lifetime_arguments.is_empty()
+                });
+                let empty_retained = retained.is_none_or(|source| {
+                    (source.binding_declaration == machine.symbol
+                        || source.binding_declaration == capture.template)
+                        && program
+                            .static_machine_application_bindings(supplied)
+                            .is_empty()
+                        && program
+                            .static_machine_application_lifetimes(supplied)
+                            .is_empty()
+                });
+                if !empty_explicit || !empty_retained {
+                    return Err(
+                        "captured callable needs its exact own specialization account".into(),
+                    );
+                }
+                return Ok((declaration, identity));
+            }
+            let template = program
+                .machine_by_symbol(declaration)
+                .ok_or("selected callable lost its original declaration")?;
+            let (parameters, checked_conformances, checked_declarations) = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => (
+                    program
+                        .data_type_parameters
+                        .span(receipt.template_parameters)
+                        .ok_or("selected callable lost its original parameters")?
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    receipt.conformance_applications.as_slice(),
+                    receipt.conformance_arguments.as_slice(),
+                ),
+                _ => (
+                    program
+                        .machine_type_parameters(template)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    &[][..],
+                    &[][..],
+                ),
+            };
+            let receipt_application = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => {
+                    Some(receipt.binding_application)
+                }
+                _ => None,
+            };
+            // An empty frame of an already selected executable adds no tuple.
+            let empty_selected_frame = retained.is_some_and(|source| {
+                source.binding_declaration == machine.symbol
+                    && machine.symbol != declaration
+                    && program
+                        .static_machine_application_bindings(supplied)
+                        .is_empty()
+                    && program
+                        .static_machine_application_lifetimes(supplied)
+                        .is_empty()
+            });
+            let source_application = if retained.is_some() && !empty_selected_frame {
+                Some(supplied)
+            } else {
+                receipt_application
+            };
+            let binding_declaration =
+                if source_application == receipt_application && receipt_application.is_some() {
+                    receipt_binding_declaration
+                } else {
+                    declaration
+                };
+            if let Some(source) = retained
+                && source.binding_declaration != binding_declaration
+                && !empty_selected_frame
+            {
+                return Err("selected callable source bindings name another declaration".into());
+            }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("selected callable lost its exact binding declaration")?;
+            if let Some(source) = explicit {
+                if source.arguments.len() != parameters.len()
+                    || source.lifetime_arguments.len() != binding_owner.lifetime_parameters.len()
+                {
+                    return Err("selected callable explicit tuple is incomplete".into());
+                }
+                let source_application = source_application
+                    .ok_or("explicit callable tuple has no retained binding account")?;
+                let row = program.static_machine_application(source_application);
+                let argument_context = TypeIdentityContext {
+                    application_owner: row.lexical_owner,
+                    application_argument_owner: row.lexical_owner,
+                    ..*context
+                };
+                let bindings = program.static_machine_application_bindings(source_application);
+                for (parameter, argument) in parameters.iter().zip(source.arguments.iter()) {
+                    let mut matches = bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let binding = matches
+                        .next()
+                        .ok_or("explicit callable tuple lost a parameter binding")?;
+                    if matches.next().is_some() {
+                        return Err("explicit callable tuple repeats a parameter binding".into());
+                    }
+                    let (_, operand) = static_binding_operand(&parameter.kind, &binding.value)?;
+                    if super::substitution::index_argument(program, operand, &argument_context)
+                        != super::substitution::index_argument(
+                            program,
+                            IndexIdentityArgument::StaticArgument(argument),
+                            &argument_context,
+                        )
+                    {
+                        return Err(
+                            "explicit callable tuple differs from its retained binding account"
+                                .into(),
+                        );
+                    }
+                }
+                let lifetimes = program
+                    .static_application_lifetimes_for_declaration(
+                        source_application,
+                        binding_declaration,
+                    )
+                    .map_err(str::to_owned)?;
+                for (parameter, actual) in binding_owner
+                    .lifetime_parameters
+                    .iter()
+                    .zip(source.lifetime_arguments.iter())
+                {
+                    let binding = lifetimes
+                        .iter()
+                        .find(|binding| &binding.parameter == parameter)
+                        .ok_or("explicit callable tuple lost a lifetime binding")?;
+                    if argument_context.lifetime(program, actual.as_str())
+                        != argument_context.lifetime(program, binding.argument.as_str())
+                    {
+                        return Err("explicit callable lifetime tuple differs from its retained binding account".into());
+                    }
+                }
+            }
+            let Some(source_application) = source_application else {
+                if explicit.is_some() {
+                    return Err("selected callable lost its explicit binding account".into());
+                }
+                return Ok((declaration, identity));
+            };
+            let source = program.static_machine_application(source_application);
+            if parameters.is_empty() && binding_owner.lifetime_parameters.is_empty() {
+                if !program
+                    .static_machine_application_bindings(source_application)
+                    .is_empty()
+                    || !program
+                        .static_machine_application_lifetimes(source_application)
+                        .is_empty()
+                {
+                    return Err("monomorphic callable retains unexpected static bindings".into());
+                }
+                return Ok((declaration, identity));
+            }
+            if !source.lexical_owner.is_valid() {
+                return Err("selected callable lost its actual supplying scope".into());
+            }
+            let supplied_identity = self.bound_application(
+                program,
+                machine.symbol,
+                declaration,
+                &parameters,
+                source_application,
+                binding_declaration,
+                checked_conformances,
+                checked_declarations,
+                context,
+            )?;
+            if identity
+                .as_ref()
+                .is_some_and(|identity| identity != &supplied_identity)
+            {
+                return Err(
+                    "selected callable source tuple differs from its generated receipt".into(),
+                );
+            }
+            Ok((declaration, Some(supplied_identity)))
+        }
+
         pub(crate) fn nominal_name(
             &self,
             program: &TypedTrees,
@@ -6480,34 +7041,67 @@ pub(crate) mod portable_machine_applications {
             receipt: &crate::MachineSpecialization,
             context: &TypeIdentityContext<'_>,
         ) -> Result<String, String> {
-            if !receipt.binding_application.is_valid() {
+            let parameters = program
+                .data_type_parameters
+                .span(receipt.template_parameters)
+                .ok_or("specialized callable lost its original static parameters")?
+                .iter()
+                .collect::<Vec<_>>();
+            self.bound_application(
+                program,
+                receipt.instance,
+                receipt.template,
+                &parameters,
+                receipt.binding_application,
+                program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                &receipt.conformance_applications,
+                &receipt.conformance_arguments,
+                context,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn bound_application(
+            &self,
+            program: &TypedTrees,
+            instance: SymbolHandle,
+            template_symbol: SymbolHandle,
+            parameters: &[&crate::data::TypeParameter],
+            binding_application: crate::static_applications::StaticMachineApplicationHandle,
+            binding_declaration: SymbolHandle,
+            conformance_applications: &[crate::ClosedConformanceApplication],
+            conformance_arguments: &[SymbolHandle],
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            if !binding_application.is_valid() {
                 return Err(
                     "specialized callable lost its original declaration or binding application"
                         .into(),
                 );
             }
-            let application = program.static_machine_application(receipt.binding_application);
-            if application.binding_declaration != receipt.template {
+            let application = program.static_machine_application(binding_application);
+            if application.binding_declaration != binding_declaration {
                 return Err("specialized callable bindings belong to another declaration".into());
             }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("specialized callable lost its actual binding declaration")?;
             let template = program
-                .machine_by_symbol(receipt.template)
+                .machine_by_symbol(template_symbol)
                 .ok_or("specialized callable lost its original machine declaration")?;
             let template_identity = program
                 .machine_callable_identity_text(template)
                 .ok_or("specialized callable lost its original overload identity")?;
-            let parameters = program
-                .data_type_parameters
-                .span(receipt.template_parameters)
-                .ok_or("specialized callable lost its original static parameters")?;
-            let bindings = program.static_machine_application_bindings(receipt.binding_application);
+            let bindings = program.static_machine_application_bindings(binding_application);
             if parameters.len() != bindings.len() {
                 return Err("specialized callable has an incomplete static argument list".into());
             }
             let declaration = self.origin(
                 program,
-                receipt.instance,
-                receipt.template,
+                instance,
+                template_symbol,
                 &template_identity,
                 context,
             )?;
@@ -6517,9 +7111,9 @@ pub(crate) mod portable_machine_applications {
                 ..*context
             };
             let mut arguments = Vec::with_capacity(parameters.len());
-            let mut conformances = receipt.conformance_applications.iter();
-            let mut conformance_declarations = receipt.conformance_arguments.iter();
-            for parameter in parameters {
+            let mut conformances = conformance_applications.iter();
+            let mut conformance_declarations = conformance_arguments.iter();
+            for &parameter in parameters {
                 let mut matches = bindings
                     .iter()
                     .filter(|binding| binding.parameter == parameter.symbol);
@@ -6564,15 +7158,15 @@ pub(crate) mod portable_machine_applications {
             }
             let bindings = program
                 .static_application_lifetimes_for_declaration(
-                    receipt.binding_application,
-                    receipt.template,
+                    binding_application,
+                    binding_declaration,
                 )
                 .map_err(str::to_owned)?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("specialized callable has an incomplete lifetime argument list".into());
             }
             let mut lifetimes = Vec::with_capacity(bindings.len());
-            for parameter in &template.lifetime_parameters {
+            for parameter in &binding_owner.lifetime_parameters {
                 let binding = bindings
                     .iter()
                     .find(|binding| &binding.parameter == parameter)
@@ -6827,11 +7421,20 @@ pub(crate) mod static_operand_identity {
             let template = self
                 .machine_by_symbol(receipt.template)
                 .ok_or("source application lost its original declaration")?;
-            let source = self.static_machine_application(receipt.binding_application);
-            if source.binding_declaration != receipt.template {
-                return Err("source application bindings belong to another declaration");
+            let binding_declaration = self.specialization_binding_declaration(receipt)?;
+            let binding_owner = self
+                .machine_by_symbol(binding_declaration)
+                .ok_or("source application lost its binding declaration")?;
+            let parameters = self.machine_callable_parameters(binding_owner);
+            // The enclosing tuple does not supply a child's additional own arguments.
+            if self.machine_callable_parameters(template).len() != parameters.len()
+                || (binding_declaration != receipt.template
+                    && !template.lifetime_parameters.is_empty())
+            {
+                return Err(
+                    "source callable still needs its remaining own static or lifetime arguments",
+                );
             }
-            let parameters = self.machine_callable_parameters(template);
             let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let authored = self.static_machine_application_arguments(receipt.binding_application);
             if parameters.len() != bindings.len() || parameters.len() != authored.len() {
@@ -6885,12 +7488,12 @@ pub(crate) mod static_operand_identity {
             }
             let bindings = self.static_application_lifetimes_for_declaration(
                 receipt.binding_application,
-                receipt.template,
+                binding_declaration,
             )?;
-            if bindings.len() != template.lifetime_parameters.len() {
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
                 return Err("source application has an incomplete lifetime tuple");
             }
-            let lifetimes = template
+            let lifetimes = binding_owner
                 .lifetime_parameters
                 .iter()
                 .map(|parameter| {
@@ -7231,13 +7834,16 @@ pub(crate) mod substitution {
                             context,
                         );
                     }
-                    // A retained scalar reference supplies the same value as
-                    // its literal operand, not a type with a numeric name.
+                    // A retained value reference and its explicit operand
+                    // must identify the same value, including record fields
+                    // and selected operations.
                     if matches!(
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
                     ) || selected.as_ref().is_some_and(|selected| {
                         crate::static_const_argument_value(program, selected).is_some()
+                            || (selected.symbol.is_valid()
+                                && program.conformance_by_symbol(selected.symbol).is_some())
                     }) {
                         return index_reference(program, argument.type_reference, context);
                     }
@@ -7419,6 +8025,20 @@ pub(crate) mod substitution {
         if let Some(value) = boolean(program, symbol, spelling) {
             return atom(IndexForm::Boolean, &value.to_string());
         }
+        if let Some(record) = program.conformance_by_symbol(symbol)
+            && record.lifetime_parameters.is_empty()
+            && program.conformance_type_parameters(record).is_empty()
+        {
+            return match context.portable_machine_applications {
+                Some(projection) => projection.record_value(program, symbol, context),
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
+                    program, symbol, context,
+                ),
+            }
+            .ok()
+            .and_then(|value| value.index_identity())
+            .unwrap_or_else(|| rejected(context));
+        }
         if let Some(declaration) = program.const_declaration_by_symbol(symbol)
             && let Some(encoding) = declaration
                 .evaluated_value
@@ -7518,7 +8138,9 @@ pub(crate) mod substitution {
             && selected.symbol.is_valid()
             && matches!(
                 program.symbols.get(selected.symbol).kind,
-                symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::State
+                    | symbols::SymbolKind::Conformance
             )
         {
             return index_argument(
@@ -7528,16 +8150,6 @@ pub(crate) mod substitution {
             );
         }
         match program.type_reference_table.type_reference(reference) {
-            // A named implementation is a declaration, not a constant. Written
-            // directly as a trait argument it is identified as a nominal, so an
-            // implementation that arrives here through a binder keeps that same
-            // identity. Otherwise one map compared with itself would differ
-            // only in whether it was forwarded.
-            TypeReferenceNode::Named { symbol, .. }
-                if program.conformance_by_symbol(*symbol).is_some() =>
-            {
-                normalize_type_reference(program, reference, context)
-            }
             TypeReferenceNode::Named { symbol, name } => {
                 index_name(program, *symbol, name.as_str(), context)
             }
@@ -7659,7 +8271,12 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
-pub use portable_machine_applications::portable_machine_application_identity;
+pub use portable_machine_applications::{
+    portable_machine_application_identity, portable_machine_selection_identity,
+};
+pub(crate) use portable_machine_applications::{
+    portable_machine_selection_identity_in_context, portable_record_schema_identity_in_context,
+};
 pub use static_operand_identity::{
     DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
 };

@@ -613,45 +613,123 @@ impl<'t> Program<'t> {
         self.names.push(names);
         self.value_parameters.push(value_parameters);
         self.value_arguments.push(Vec::new());
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let parameters = self.typed.machine_type_parameters(machine);
+            if !parameters.is_empty()
+                && parameters
+                    .iter()
+                    .all(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+            {
+                if parameters.len() != scope.len()
+                    || !parameters
+                        .iter()
+                        .zip(&scope)
+                        .all(|(parameter, (binder, _))| parameter.symbol == *binder)
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("generic entry has another type-argument scope"),
+                    ));
+                }
+                self.applied
+                    .push((id, scope.iter().map(|(_, value)| *value).collect(), None));
+            }
+        }
         self.scopes.push(scope);
         self.const_scopes.push(widths);
         Ok(())
     }
 
-    /// The `MachineId` that stands for the generic machine `symbol` applied
-    /// at `arguments`, the types a call in a generic check form's entry
-    /// gives its type parameters, in declaration order: its signature and
-    /// contract at those types, and no body. The machine's own body is
-    /// checked once as the entry of its own generic check form, so here it
-    /// is only what its callers are held to, like a requirement.
+    /// Read the generic callee at the actual type tuple. Its body supplies
+    /// inferred effects through the ordinary closure reader, while its
+    /// template remains an independent checking obligation.
     pub(super) fn application(
         &mut self,
+        caller: MachineId,
         symbol: SymbolHandle,
         arguments: Vec<ValueType>,
     ) -> Checked<MachineId> {
-        if let Some((id, _)) = self
-            .applied
-            .iter()
-            .find(|(id, applied)| self.symbols.get(*id) == Some(&symbol) && *applied == arguments)
-        {
+        if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
+            self.symbols.get(*id) == Some(&symbol) && *applied == arguments
+        }) {
             return Ok(*id);
+        }
+        // Exact recurrence reuses the tuple above. A new tuple cannot revisit
+        // its introducing template: expanding changing-type recursion has no
+        // established finite body closure. Every stored parent is an earlier
+        // machine, so this walk cannot itself follow a cycle.
+        let mut ancestor = Some(caller);
+        while let Some(current) = ancestor {
+            let source = self.symbols.get(current).ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application has no exact caller"),
+                )
+            })?;
+            if *source == symbol {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("recursive generic type application changes its arguments"),
+                ));
+            }
+            let Ok(position) = self.applied.binary_search_by_key(&current, |row| row.0) else {
+                break;
+            };
+            ancestor = self.applied[position].2;
+            if ancestor.is_some_and(|parent| parent >= current) {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application has an invalid caller ancestry"),
+                ));
+            }
         }
         let id = self.next_identity()?;
         self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
-        self.applied.push((id, arguments));
-        self.requirements.push(id);
+        self.applied.push((id, arguments, Some(caller)));
+        // The body is read under its own public input contract. Reading it
+        // for effect inference does not let caller facts narrow that boundary.
+        self.fixed_inputs.push(id);
         self.applications.push(id);
         Ok(id)
     }
 
     pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
-        if let Some(id) = self.applications.iter().copied().find(|id| {
-            self.symbols.get(*id) == Some(&symbol)
-                && self
-                    .value_parameters
-                    .get(*id)
-                    .is_some_and(|count| *count != 0)
-        }) {
+        if let Some(id) = self
+            .applications
+            .iter()
+            .copied()
+            .find(|id| self.symbols.get(*id) == Some(&symbol))
+        {
+            return Ok(id);
+        }
+        // Inherited binder occurrences belong to this same generic body graph.
+        // Independently declared generic callees retain their dependency/SCC edge.
+        let root = self
+            .symbols
+            .get(MachineId::new(1).expect("one is nonzero"))
+            .and_then(|symbol| self.typed.machine_by_symbol(*symbol));
+        let local =
+            self.typed
+                .machine_by_symbol(symbol)
+                .zip(root)
+                .is_some_and(|(machine, root)| {
+                    let parameters = self.typed.machine_type_parameters(machine);
+                    !parameters.is_empty()
+                        && parameters.iter().all(|parameter| {
+                            self.typed.symbols.get(parameter.symbol).parent != machine.symbol
+                                && self
+                                    .typed
+                                    .machine_type_parameters(root)
+                                    .iter()
+                                    .any(|original| original == parameter)
+                        })
+                });
+        if local && let Some((id, _)) = self.symbols.iter().find(|(_, known)| **known == symbol) {
             return Ok(id);
         }
         let id = self.next_identity()?;
@@ -660,7 +738,9 @@ impl<'t> Program<'t> {
         // read the actual generic body and infer its complete effects. A
         // bodyless placeholder cannot infer an omitted service ceiling.
         // Retain the application for its independent template check too.
-        self.applications.push(id);
+        if !local {
+            self.applications.push(id);
+        }
         Ok(id)
     }
 
@@ -759,7 +839,7 @@ impl<'t> Program<'t> {
 
     pub(crate) fn witnessed_signature(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
@@ -831,7 +911,7 @@ impl<'t> Program<'t> {
     /// contract differs with them.
     pub(super) fn requirement(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
         self.requirement_form(declared, RequirementValues::Bound(arguments))
@@ -839,7 +919,7 @@ impl<'t> Program<'t> {
 
     fn requirement_form(
         &mut self,
-        declared: &'t StateSignature,
+        declared: &StateSignature,
         values: RequirementValues<'_>,
     ) -> Checked<MachineId> {
         let symbol = declared.symbol;
@@ -862,6 +942,7 @@ impl<'t> Program<'t> {
         }
         let id = self.next_identity()?;
         let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
+        self.retain_requirement_policy(id, declared, declared.symbol)?;
         if matches!(values, RequirementValues::Rigid) {
             self.generic_binders.extend(
                 self.typed
@@ -1339,10 +1420,18 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
+        for parameter in typed.machine_type_parameters(machine) {
+            self.prepare_record_parameter(id, machine.symbol, parameter)?;
+        }
         let binders = typed
             .machine_type_parameters(machine)
             .iter()
             .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { .. }
+                    if self.record_parameter(parameter.symbol).is_some() =>
+                {
+                    None
+                }
                 TypeParameterKind::Const { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
@@ -1452,6 +1541,10 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Spelling("value parameter without a symbol"),
                 ));
+            }
+            if self.record_parameter(parameter.symbol).is_some() {
+                // The complete source-only schema account owns this value and its members.
+                continue;
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
             if !matches!(
@@ -3699,6 +3792,7 @@ impl<'t> Program<'t> {
                 ));
             }
         }
+        self.admitted_bodies.include(machine.symbol);
         Ok(Body {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
@@ -3935,6 +4029,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Array { elements } => {
@@ -4148,6 +4243,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {
             for element in elements {

@@ -28,6 +28,11 @@ fn byte_float_integer_conversions_publish_all_result_policies() {
     assert_integer_conversion_policies("byte_integer_conversion", 8);
 }
 
+#[test]
+fn i16_u16_float_integer_conversions_publish_all_result_policies() {
+    assert_integer_conversion_policies("i16_u16_conversion", 16);
+}
+
 fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -1505,14 +1510,15 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                 main.clone(),
                 std::env::temp_dir().join(format!("omega-saturating-custody-{}", std::process::id())),
                 vec![Some(target::TargetProfile::MacosArm64)],
-            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+            .with_retained_native_stage_inputs(true);
             let outcomes = orchestration::compile_sources(
                 &mut compiler::CompilationSession::default(), request,
             ).unwrap_or_else(|errors| panic!("{errors:?}"));
             let outcome = &outcomes.outcomes()[0];
             let report = outcome.report().unwrap_or_else(|| panic!("{:?}", outcome.diagnostics()));
             let target = report.retained_native_artifact().unwrap().object()
-                .retained_fragment_source().unwrap().source().source().source().source().optimized_target();
+                .retained_target_operations().unwrap();
             let optimized = target.optimized();
             let verify = |plan, abstracted, unit| {
                 native_preparation::verify_target_operation_plan_with_closed_module(
@@ -1682,6 +1688,45 @@ fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
                 "1.0f64 / 0.0f64",
                 NumericType::F64,
                 FixedInteger::unsigned(8),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn i16_u16_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::integer_carrier::FixedInteger;
+    assert_bad_integer_conversion_inputs(
+        "i16_u16_conversion",
+        &[
+            (
+                "nan",
+                "signed32_trapping",
+                "0.0f32 / 0.0f32",
+                NumericType::F32,
+                FixedInteger::signed(16),
+            ),
+            (
+                "overflow",
+                "signed64_trapping",
+                "32768.0f64",
+                NumericType::F64,
+                FixedInteger::signed(16),
+            ),
+            (
+                "negative",
+                "unsigned32_trapping",
+                "-1.0f32",
+                NumericType::F32,
+                FixedInteger::unsigned(16),
+            ),
+            (
+                "infinity",
+                "unsigned64_trapping",
+                "1.0f64 / 0.0f64",
+                NumericType::F64,
+                FixedInteger::unsigned(16),
             ),
         ],
     );

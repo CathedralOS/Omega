@@ -28,17 +28,17 @@ use calling_conventions::{
     ValueShape, validate_boundary_entry_plan,
 };
 use function_identity::MachineFunctionIdentity;
-use legalized_operations::{
-    LegalizedNormalizedForeignCall, LegalizedScalarArgument, LegalizedScalarCall,
-    encode_call_binding, encode_call_plan, encode_external_execution, encode_integer,
-    encode_native_callback_argument, encode_placement, encode_shape,
-};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
     ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use target::{
     ForeignLocatorCandidate, NormalizedComponentLocator, TargetProfile, normalize_foreign_locator,
+};
+use target_vocabulary::{
+    LegalizedNormalizedForeignCall, LegalizedScalarArgument, LegalizedScalarCall,
+    encode_call_binding, encode_call_plan, encode_external_execution, encode_integer,
+    encode_native_callback_argument, encode_placement, encode_shape,
 };
 use target_vocabulary::{
     NormalizedForeignCallBinding, TargetAccessCallAssociation, TargetAccessCallBinding,
@@ -220,7 +220,7 @@ pub(super) fn encode_call(
         }
     }
     let call = &row.call;
-    legalized_operations::encode_access_call_bindings(bytes, &call.access_bindings);
+    target_vocabulary::encode_access_call_bindings(bytes, &call.access_bindings);
     encode_call_source(bytes, &call.source, true);
     bytes.extend_from_slice(&call.target.canonical_bytes());
     encode_call_plan(bytes, &call.call_plan);
@@ -261,9 +261,9 @@ pub(super) fn encode_call(
     length(bytes, call.descriptor_origins.len());
     for origin in &call.descriptor_origins {
         match origin {
-            legalized_operations::LegalizedDescriptorOrigin::Opaque => bytes.push(3),
-            legalized_operations::LegalizedDescriptorOrigin::Empty => bytes.push(2),
-            legalized_operations::LegalizedDescriptorOrigin::Argument {
+            target_vocabulary::LegalizedDescriptorOrigin::Opaque => bytes.push(3),
+            target_vocabulary::LegalizedDescriptorOrigin::Empty => bytes.push(2),
+            target_vocabulary::LegalizedDescriptorOrigin::Argument {
                 source,
                 exact,
                 indirect,
@@ -273,7 +273,7 @@ pub(super) fn encode_call(
                 bytes.push(u8::from(*exact));
                 bytes.push(u8::from(*indirect));
             }
-            legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place } => {
+            target_vocabulary::LegalizedDescriptorOrigin::Literal { machine, place } => {
                 bytes.push(1);
                 crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
@@ -297,6 +297,24 @@ pub(super) fn encode_call(
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
     Ok(())
+}
+
+pub(super) fn decode_native_call_target(
+    cursor: &mut Cursor<'_>,
+) -> Result<target_vocabulary::NativeCallTarget, FixedViewCopyDecodeError> {
+    Ok(match cursor.byte()? {
+        0 => target_vocabulary::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
+        1 => target_vocabulary::NativeCallTarget::Dynamic {
+            selector: decode_id(cursor, ValueId::new)?,
+            interface: cursor.u32()?,
+            slot: cursor.u32()?,
+        },
+        2 => target_vocabulary::NativeCallTarget::Callable {
+            callee: decode_id(cursor, ValueId::new)?,
+            contract: decode_id(cursor, semantic_vocabulary::CallableContractId::new)?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    })
 }
 
 pub(super) fn decode_call(
@@ -323,15 +341,7 @@ pub(super) fn decode_call(
     };
     let access_bindings = decode_access_bindings(cursor)?;
     let source = decode_call_source(cursor, true)?;
-    let target = match cursor.byte()? {
-        0 => target_vocabulary::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
-        1 => target_vocabulary::NativeCallTarget::Dynamic {
-            selector: decode_id(cursor, ValueId::new)?,
-            interface: cursor.u32()?,
-            slot: cursor.u32()?,
-        },
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let target = decode_native_call_target(cursor)?;
     let call_plan = decode_call_plan(cursor)?;
     let count = cursor.length()?;
     let mut arguments = Vec::new();
@@ -380,18 +390,18 @@ pub(super) fn decode_call(
                     1 => true,
                     tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
                 };
-                legalized_operations::LegalizedDescriptorOrigin::Argument {
+                target_vocabulary::LegalizedDescriptorOrigin::Argument {
                     source,
                     exact,
                     indirect,
                 }
             }
-            1 => legalized_operations::LegalizedDescriptorOrigin::Literal {
+            1 => target_vocabulary::LegalizedDescriptorOrigin::Literal {
                 machine: decode_id(cursor, MachineId::new)?,
                 place: decode_id(cursor, PlaceId::new)?,
             },
-            2 => legalized_operations::LegalizedDescriptorOrigin::Empty,
-            3 => legalized_operations::LegalizedDescriptorOrigin::Opaque,
+            2 => target_vocabulary::LegalizedDescriptorOrigin::Empty,
+            3 => target_vocabulary::LegalizedDescriptorOrigin::Opaque,
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         });
     }
@@ -431,7 +441,7 @@ pub(super) fn decode_call(
 
 pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
-    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    indices: &[target_vocabulary::LegalizedRuntimeIndexOperand],
 ) -> Result<(), terminal_wire::CodecError> {
     length(bytes, indices.len());
     for index in indices {
@@ -447,9 +457,9 @@ pub(super) fn encode_runtime_indices(
 
 pub(super) fn decode_runtime_indices(
     cursor: &mut Cursor<'_>,
-) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
+) -> Result<Vec<target_vocabulary::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
     decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
-        Ok(legalized_operations::LegalizedRuntimeIndexOperand {
+        Ok(target_vocabulary::LegalizedRuntimeIndexOperand {
             operand: native_vocabulary::values::AbstractResult {
                 value: decode_id(cursor, ValueId::new)?,
                 scalar_type: decode_scalar(cursor)?,
@@ -471,6 +481,7 @@ pub(super) fn decode_call_plan(
         3 => CallingPolicy::Aapcs64,
         4 => CallingPolicy::LinuxSyscallX86_64,
         5 => CallingPolicy::LinuxSyscallAarch64,
+        6 => CallingPolicy::DarwinAapcs64,
         tag => return Err(FixedViewCopyDecodeError::UnknownCallingPolicy(tag)),
     };
     let parameters = decode_list(cursor, decode_placement)?;
@@ -1607,13 +1618,48 @@ mod tests {
     };
     use crate::recovery::structural_declarations::encode_string;
     use calling_conventions::{CallSignature, encode_state_plan_identity};
-    use legalized_operations::encode_locator;
     use native_vocabulary::provenance::EffectLink;
     use semantic_vocabulary::{IntegerSign, IntegerType};
     use target::ForeignLocatorCandidate;
     use target_vocabulary::ProviderPlanReportIdentity;
+    use target_vocabulary::encode_locator;
 
     const REQUIREMENT_INDEX: u32 = 1;
+
+    #[test]
+    fn native_call_target_wire_keeps_direct_dynamic_and_callable_routes() {
+        use semantic_vocabulary::{CallableContractId, MachineId, ValueId};
+        use target_vocabulary::NativeCallTarget;
+        for target in [
+            NativeCallTarget::Machine(MachineId::new(1).unwrap()),
+            NativeCallTarget::Dynamic {
+                selector: ValueId::new(2).unwrap(),
+                interface: 3,
+                slot: 4,
+            },
+            NativeCallTarget::Callable {
+                callee: ValueId::new(5).unwrap(),
+                contract: CallableContractId::new(6).unwrap(),
+            },
+        ] {
+            let bytes = target.canonical_bytes();
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(
+                super::decode_native_call_target(&mut cursor).unwrap(),
+                target
+            );
+            assert_eq!(cursor.remaining(), 0);
+            for prefix in 0..bytes.len() {
+                assert!(
+                    super::decode_native_call_target(&mut Cursor::new(&bytes[..prefix])).is_err()
+                );
+            }
+        }
+        assert_eq!(
+            super::decode_native_call_target(&mut Cursor::new(&[255])).unwrap_err(),
+            FixedViewCopyDecodeError::UnknownOption(255)
+        );
+    }
 
     #[test]
     fn argument_source_round_trip_preserves_origin_and_establishment() {
@@ -1725,7 +1771,7 @@ mod tests {
             },
         ] {
             let mut encoded = Vec::new();
-            legalized_operations::encode_placement(&mut encoded, &placement);
+            target_vocabulary::encode_placement(&mut encoded, &placement);
             let mut cursor = Cursor::new(&encoded);
             assert_eq!(decode_placement(&mut cursor).unwrap(), placement);
             assert_eq!(cursor.remaining(), 0);
@@ -1741,7 +1787,7 @@ mod tests {
         let identity = function_identity::MachineFunctionIdentity::callback_thunk(caller, 17)
             .expect("valid callback identity");
         let mut bytes = Vec::new();
-        legalized_operations::encode_machine_function_identity(&mut bytes, &identity);
+        target_vocabulary::encode_machine_function_identity(&mut bytes, &identity);
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_machine_function_identity(&mut cursor), Ok(identity));
         assert_eq!(cursor.remaining(), 0);
@@ -1987,7 +2033,7 @@ mod tests {
         assert_eq!(cursor.remaining(), 0);
 
         let mut execution_bytes = Vec::new();
-        legalized_operations::encode_external_execution(
+        target_vocabulary::encode_external_execution(
             &mut execution_bytes,
             source.call.provider_execution,
         );
@@ -2032,7 +2078,7 @@ mod tests {
         let indices = [(21, 64, 20, 4, 31), (22, 32, 4, 5, 32)]
             .into_iter()
             .map(|(value, width, stride, extent, obligation)| {
-                legalized_operations::LegalizedRuntimeIndexOperand {
+                target_vocabulary::LegalizedRuntimeIndexOperand {
                     operand: native_vocabulary::values::AbstractResult {
                         value: ValueId::new(value).unwrap(),
                         scalar_type: ScalarType::Integer(

@@ -300,6 +300,14 @@ pub(crate) fn content_root_kind(
     tables: &MachineTables,
     place: ExactPlaceId,
 ) -> Option<StructuralPlaceKind> {
+    content_root(lowered, tables, place).map(|root| root.kind)
+}
+
+pub(crate) fn content_root<'a>(
+    lowered: &'a TerminalMachine,
+    tables: &MachineTables,
+    place: ExactPlaceId,
+) -> Option<&'a terminal_psi::StructuralPlaceDeclaration> {
     lineage(lowered.id, &tables.places, place)
         .ok()
         .and_then(|source| {
@@ -308,7 +316,6 @@ pub(crate) fn content_root_kind(
                 .get(index(source.root.get()))
                 .filter(|root| root.id == source.root)
         })
-        .map(|root| root.kind)
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -394,9 +401,41 @@ enum QueryKind {
 
 /// What reaches one equation: a real store, entry, or case selection, or
 /// the result of another equation before a copy or block argument transfer.
+/// How many enclosing path segments were established together at a call or
+/// invocation boundary on every arriving path.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BoundaryDepth {
+    Cycle,
+    Established(usize),
+    Local,
+}
+
+impl BoundaryDepth {
+    fn within(self, limit: usize) -> Self {
+        match self {
+            Self::Established(depth) => Self::Established(depth.min(limit)),
+            other => other,
+        }
+    }
+
+    fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Cycle, supply) | (supply, Self::Cycle) => supply,
+            (Self::Established(left), Self::Established(right)) => {
+                Self::Established(left.min(right))
+            }
+            (Self::Local, _) | (_, Self::Local) => Self::Local,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Supply {
     Direct(Reached),
+    Boundary {
+        value: ValueId,
+        depth: usize,
+    },
     Transfer {
         source: usize,
         depth: usize,
@@ -416,6 +455,10 @@ impl Supply {
     fn within(self, limit: usize) -> Self {
         match self {
             Self::Direct(reached) => Self::Direct(reached.within(limit)),
+            Self::Boundary { value, depth } => Self::Boundary {
+                value,
+                depth: depth.min(limit),
+            },
             Self::Transfer {
                 source,
                 depth,
@@ -431,6 +474,7 @@ impl Supply {
     fn without_identity(self) -> Self {
         match self {
             Self::Direct(reached) => Self::Direct(reached.without_identity()),
+            Self::Boundary { .. } => Self::Direct(Reached::Unknown),
             Self::Transfer { source, depth, .. } => Self::Transfer {
                 source,
                 depth,
@@ -447,16 +491,35 @@ struct Transfer {
     loses_identity: bool,
 }
 
+#[derive(Clone, Copy)]
+struct EntryFallback {
+    upstream: usize,
+    destination: usize,
+    value: ValueId,
+}
+
 struct ReachingEquation {
+    seed: Reached,
+    seed_boundary: BoundaryDepth,
     direct: Reached,
+    boundary: BoundaryDepth,
     transfers: Vec<Transfer>,
 }
 
-struct Reaching {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Observations {
+    None,
+    Boundary,
+    All,
+}
+
+pub(super) struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
+    fallbacks: Vec<EntryFallback>,
+    boundary: BoundaryDepth,
     initialization_only: bool,
-    observe_block_entries: bool,
+    observations: Observations,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -468,7 +531,10 @@ impl Reaching {
     fn add_equation(&mut self) -> usize {
         let address = self.equations.len();
         self.equations.push(ReachingEquation {
+            seed: Reached::Cycle,
+            seed_boundary: BoundaryDepth::Cycle,
             direct: Reached::Cycle,
+            boundary: BoundaryDepth::Cycle,
             transfers: Vec::new(),
         });
         address
@@ -477,12 +543,32 @@ impl Reaching {
     fn add_supply(&mut self, destination: usize, supply: Supply) {
         match supply {
             Supply::Direct(reached) => {
-                let entry = &mut self.equations[destination].direct;
-                *entry = entry.merge(if self.initialization_only {
+                let boundary = match reached {
+                    Reached::Cycle => BoundaryDepth::Cycle,
+                    Reached::Established(depth) if !self.initialization_only => {
+                        BoundaryDepth::Established(depth)
+                    }
+                    _ => BoundaryDepth::Local,
+                };
+                let equation = &mut self.equations[destination];
+                equation.seed = equation.seed.merge(if self.initialization_only {
                     reached.without_identity()
                 } else {
                     reached
                 });
+                equation.seed_boundary = equation.seed_boundary.merge(boundary);
+            }
+            Supply::Boundary { value, depth } => {
+                let equation = &mut self.equations[destination];
+                if self.initialization_only {
+                    equation.seed = equation.seed.merge(Reached::Unknown);
+                    equation.seed_boundary = equation.seed_boundary.merge(BoundaryDepth::Local);
+                } else {
+                    equation.seed = equation.seed.merge(Reached::Value(value));
+                    equation.seed_boundary = equation
+                        .seed_boundary
+                        .merge(BoundaryDepth::Established(depth));
+                }
             }
             Supply::Transfer {
                 source,
@@ -501,8 +587,10 @@ impl Reaching {
     fn solve(&mut self, root: usize) -> Reached {
         let mut pending = Vec::new();
         let mut queued = vec![false; self.equations.len()];
-        for (address, row) in self.equations.iter().enumerate() {
-            if row.direct != Reached::Cycle {
+        for (address, row) in self.equations.iter_mut().enumerate() {
+            row.direct = row.seed;
+            row.boundary = row.seed_boundary;
+            if row.direct != Reached::Cycle || row.boundary != BoundaryDepth::Cycle {
                 queued[address] = true;
                 pending.push(address);
             }
@@ -513,17 +601,23 @@ impl Reaching {
         while let Some(source) = pending.pop() {
             queued[source] = false;
             let previous = self.equations[source].direct;
+            let previous_boundary = self.equations[source].boundary;
             for position in 0..self.equations[source].transfers.len() {
                 let transfer = self.equations[source].transfers[position];
-                let reached = if transfer.loses_identity {
-                    previous.without_identity()
+                let (reached, boundary) = if transfer.loses_identity {
+                    (previous.without_identity(), BoundaryDepth::Local)
                 } else {
-                    previous.within(transfer.depth)
+                    (
+                        previous.within(transfer.depth),
+                        previous_boundary.within(transfer.depth),
+                    )
                 };
-                let output = &mut self.equations[transfer.destination].direct;
-                let merged = output.merge(reached);
-                if merged != *output {
-                    *output = merged;
+                let destination = &mut self.equations[transfer.destination];
+                let merged = destination.direct.merge(reached);
+                let merged_boundary = destination.boundary.merge(boundary);
+                if merged != destination.direct || merged_boundary != destination.boundary {
+                    destination.direct = merged;
+                    destination.boundary = merged_boundary;
                     if !std::mem::replace(&mut queued[transfer.destination], true) {
                         pending.push(transfer.destination);
                     }
@@ -593,10 +687,15 @@ impl<'q> Asked<'q> {
     }
 
     /// Whether a logged row ends a path of the walk. For contents, any
-    /// write to an overlapping place. For a case, a write to the sum or to
-    /// a place above it (structural_access.md: "A write to the sum or any
-    /// prefix retires these facts"); a store beneath the sum changes a
-    /// payload and not the case. For a window, the write that opened it, a
+    /// write to an overlapping place. For a case, any write that may
+    /// overlap the sum except one beneath it: a write to the sum or to a
+    /// place above it (structural_access.md: "A write to the sum or any
+    /// prefix retires these facts"), and a write that may reach it through
+    /// another path, such as a store to `items[j]` while the case of
+    /// `items[0]` is known (a store crossing a runtime element "overlaps
+    /// every element of that array"). A store beneath the sum changes a
+    /// payload and not the case. Both questions use the one `overlap`
+    /// relation, so a refinement of it reaches case facts too. For a window, the write that opened it, a
     /// write that replaces the place whole (to it or to a place above it:
     /// the new contents arrived as an established value) and a restoring
     /// store; any other store beneath the place only changes the contents
@@ -605,7 +704,9 @@ impl<'q> Asked<'q> {
         match self {
             Self::Contents(leaf) => overlap(&row.lineage, leaf),
             Self::Case(sum) => {
-                row.lineage.root == sum.root && sum.segments.starts_with(&row.lineage.segments)
+                overlap(&row.lineage, sum)
+                    && !(row.lineage.segments.len() > sum.segments.len()
+                        && row.lineage.segments.starts_with(&sum.segments))
             }
             Self::Window {
                 place,
@@ -957,8 +1058,22 @@ impl<'a> Storage<'a> {
         else {
             return Err(unresolved());
         };
-        let path = projection.captured_storage_path().ok_or_else(unresolved)?;
-        let mut resolved = self.stored_at(root, &path, concerns)?;
+        let mut resolved = match projection.captured_storage_path() {
+            Some(path) => self.stored_at(root, &path, concerns)?,
+            // A reference this machine received names storage it cannot see
+            // past, so its projection is indirect: `carrier.cell` of a
+            // borrowed `carrier`. The replay's unique location still names
+            // that referent exactly, by the path through the reference.
+            None => {
+                let unique = references
+                    .location(self.machine, (block, before), &location)
+                    .ok_or_else(unresolved)?;
+                Lineage {
+                    root: unique.root,
+                    segments: unique.path,
+                }
+            }
+        };
         resolved.segments.extend_from_slice(suffix);
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -967,15 +1082,23 @@ impl<'a> Storage<'a> {
     /// Whether `operation` writes into storage that already holds a value: a
     /// scalar field store or a replacement of a field. A construction and a
     /// zero establishment make a value; they do not write into one.
+    /// A call that borrows a place exclusively writes into the value above
+    /// that place the same way.
     pub(crate) fn store(&self, operation: OperationId) -> Checked<bool> {
+        let kind = &self
+            .operation(operation, Construct::Operation(operation))?
+            .kind;
         Ok(matches!(
-            self.operation(operation, Construct::Operation(operation))?
-                .kind,
+            kind,
             OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StoreStructuralField { .. }
                 | OperationKind::StructuralByteViewFieldStore { .. }
-        ))
+        ) || (is_call(kind)
+            && kind
+                .structural_arguments()
+                .iter()
+                .any(|argument| exclusive(argument.access))))
     }
 
     pub(crate) fn zero_establishment(&self, operation: OperationId) -> Checked<bool> {
@@ -1185,8 +1308,37 @@ impl<'a> Storage<'a> {
                 }
                 carrier
             }
+            kind if is_call(kind) => {
+                // The callee may write anything beneath a place lent to it
+                // exclusively, so each value above that place changes.
+                // dependent_values.md: "Otherwise the write opens a window
+                // on the place". The lent place's own type is the formal's:
+                // the callee proves it at handback, as a replacement
+                // arrives formed, so only strict ancestors owe again.
+                let mut owners = Vec::new();
+                for argument in kind.structural_arguments() {
+                    if !exclusive(argument.access) {
+                        continue;
+                    }
+                    let mut lent = self.argument(argument, concerns)?;
+                    if lent.segments.pop().is_some() {
+                        owners.extend(self.owners_of(&lent, concerns)?);
+                    }
+                }
+                return Ok(owners);
+            }
             _ => return Ok(Vec::new()),
         };
+        self.owners_of(&carrier, concerns)
+    }
+
+    /// `carrier` and each place above it that holds a value of a data type,
+    /// innermost first: the values a write at or beneath `carrier` changes.
+    fn owners_of(
+        &self,
+        carrier: &Lineage,
+        concerns: Construct,
+    ) -> Checked<Vec<(Lineage, StructuralTypeId)>> {
         let mut owners = Vec::new();
         for length in (0..=carrier.segments.len()).rev() {
             let owner = Lineage {
@@ -1628,8 +1780,19 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         concerns: Construct,
     ) -> Checked<bool> {
-        let Some(stored) = self.field_destination(self.operation(operation, concerns)?)? else {
-            return Ok(false);
+        let found = self.operation(operation, concerns)?;
+        let stored = match self.field_destination(found)? {
+            Some(stored) => vec![stored],
+            // What the write log says the call stored: each region it may
+            // write beneath its exclusive loans, and its fresh result, which
+            // no clause of a lender names.
+            None if is_call(&found.kind) => self
+                .log
+                .iter()
+                .filter(|row| row.operation == operation)
+                .map(|row| row.lineage.clone())
+                .collect(),
+            None => return Ok(false),
         };
         let mut names = Named {
             place: &owner.place,
@@ -1642,7 +1805,10 @@ impl<'a> Storage<'a> {
             Err(crate::Unbound::Unsupported(_)) => return Ok(false),
             Err(crate::Unbound::Refused(refused)) => return Err(refused),
         }
-        Ok(names.found.iter().all(|named| !overlap(named, &stored)))
+        Ok(names
+            .found
+            .iter()
+            .all(|named| stored.iter().all(|stored| !overlap(named, stored))))
     }
 
     fn unsupported(&self, concerns: Construct, detail: &str) -> terminal_check_tables::Refusal {
@@ -2029,66 +2195,16 @@ impl<'a> Storage<'a> {
         path: &[StructuralPathSegment],
         concerns: Construct,
     ) -> Checked<Lineage> {
-        let mut segments = Vec::with_capacity(path.len());
-        if !path.is_empty() {
-            let root_type = self.root_type(root, concerns)?;
-            for (position, segment) in path.iter().enumerate() {
-                // A case step carries its identity; a field step is resolved
-                // by the lowered form against the prefix before it, which
-                // may end in the case whose payload holds the field.
-                match segment {
-                    StructuralPathSegment::Case(case) => {
-                        segments.push(Segment::Case(*case));
-                        continue;
-                    }
-                    StructuralPathSegment::FixedIndex(index) => {
-                        segments.push(Segment::FixedIndex(*index));
-                        continue;
-                    }
-                    StructuralPathSegment::RuntimeIndex { index, .. } => {
-                        segments.push(Segment::RuntimeIndex { selector: *index });
-                        continue;
-                    }
-                    StructuralPathSegment::Referent => {
-                        segments.push(Segment::Referent);
-                        continue;
-                    }
-                    StructuralPathSegment::RepresentationView {
-                        structural_type,
-                        stored_scalar,
-                    } => {
-                        // The view keeps the same backing and changes how
-                        // later fields are resolved. Retain it for the shared
-                        // shape and overlap judgments, rather than erasing it.
-                        segments.push(Segment::RepresentationView {
-                            structural_type: *structural_type,
-                            stored_scalar: *stored_scalar,
-                        });
-                        continue;
-                    }
-                    StructuralPathSegment::Field(_) => {}
-                    StructuralPathSegment::AllElements
-                    | StructuralPathSegment::FixedRange { .. } => {
-                        return Err(self.unsupported(
-                            concerns,
-                            "storage projection outside plain records and fixed array elements",
-                        ));
-                    }
-                }
-                let field = terminal_semantics::runtime_structural_field(
-                    self.types.iter(),
-                    root_type,
-                    &path[..=position],
-                )
-                .ok_or_else(|| {
-                    self.unsupported(
-                        concerns,
-                        "a storage path that is not a path of fields and cases",
-                    )
-                })?;
-                segments.push(Segment::Field(field.id));
-            }
-        }
+        let segments = if path.is_empty() {
+            Vec::new()
+        } else {
+            terminal_semantics::resolved_structural_path(
+                self.types.iter(),
+                self.root_type(root, concerns)?,
+                path,
+            )
+            .map_err(|detail| self.unsupported(concerns, detail))?
+        };
         let place = Lineage { root, segments };
         // Resolving the shape checks each case against the sum it is
         // applied to.
@@ -2642,18 +2758,30 @@ impl<'a> Storage<'a> {
                     Reached::Extent(row.operation)
                 }
                 (Stored::Established, Asked::Contents(leaf)) => {
-                    let named = self.interned(tables, leaf, concerns)?.and_then(|place| {
-                        self.returned_contents
-                            .get(index(row.operation.get()))
-                            .and_then(|values| {
-                                values
-                                    .binary_search_by_key(&place, |(place, _)| *place)
-                                    .ok()
-                                    .map(|found| values[found].1)
-                            })
-                    });
+                    let named = (budget.observations != Observations::None)
+                        .then(|| self.interned(tables, leaf, concerns))
+                        .transpose()?
+                        .flatten()
+                        .and_then(|place| {
+                            self.returned_contents
+                                .get(index(row.operation.get()))
+                                .and_then(|values| {
+                                    values
+                                        .binary_search_by_key(&place, |(place, _)| *place)
+                                        .ok()
+                                        .map(|found| values[found].1)
+                                })
+                        });
                     if let Some(named) = named {
-                        Reached::Value(named)
+                        let supply = Supply::Boundary {
+                            value: named,
+                            depth: beneath.len(),
+                        };
+                        return Ok(if weakened {
+                            supply.without_identity()
+                        } else {
+                            supply
+                        });
                     } else if row.lineage.segments.is_empty()
                         && matches!(self.root_kind(leaf.root, concerns)?,
                             StructuralPlaceKind::OperationResult { producer, .. }
@@ -2726,6 +2854,11 @@ impl<'a> Storage<'a> {
     ///   tested case, when the test stands in the branching block and no
     ///   write to the sum or a place above it follows the test there.
     ///
+    /// A membership whose path crosses a runtime element reads "some
+    /// element": it "names no canonical sum and keys no case fact"
+    /// (structural_access.md, case observation), so its true edge
+    /// establishes nothing either.
+    ///
     /// The false edge establishes nothing: "Otherwise the case holds when
     /// every other declared case of that sum is refuted" needs proof about
     /// the other cases and is not decided here.
@@ -2776,7 +2909,12 @@ impl<'a> Storage<'a> {
                 else {
                     return Ok(None);
                 };
-                if self.stored_at(*source, path, concerns)? != *sum {
+                if self.stored_at(*source, path, concerns)? != *sum
+                    || sum
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+                {
                     return Ok(None);
                 }
                 let retired = self.log.iter().any(|row| {
@@ -2863,6 +3001,97 @@ impl<'a> Storage<'a> {
         Ok(covered)
     }
 
+    /// Whether `block` is the machine entry or belongs to a control-flow
+    /// cycle: at such a block incoming facts do not dominate across backedges,
+    /// so head contracts and input inference name the block's entry snapshots.
+    fn cuts_incoming_facts(&self, block: BlockId) -> Checked<bool> {
+        Ok(block == self.graph.entry() || self.graph.in_cycle(block)?)
+    }
+
+    /// Whether a window on a block formal is closed at a point outside the
+    /// formal's scope. A block formal names storage only in its own block and
+    /// the blocks that block dominates; an edge that passes it on renames it
+    /// to the receiving block's formal. Walk forward from the formal's block:
+    /// an edge that passes the formal on whole is a whole use that consumes
+    /// the window, so the clause is proved there (dependent_values.md,
+    /// "Invariant windows"), and the receiving formal's binding establishes a
+    /// whole value, so that path ends; an edge into a dominated block keeps
+    /// the formal in scope and the walk continues. When the opening write
+    /// lies in the walked scope, the asked point does not, and no edge leaves
+    /// the scope without passing the formal, every path from the opening
+    /// write to the point is closed: a path that never enters the scope never
+    /// passed the opening write. Any other shape, including a dispatch arm
+    /// that binds the formal, keeps the ordinary walk, which refuses a
+    /// backing it cannot name.
+    fn window_handed_off(
+        &self,
+        place: &Lineage,
+        opened_by: OperationId,
+        (block, up_to): (BlockId, usize),
+        used: Option<ProgramPoint>,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let StructuralPlaceKind::BlockParameter { block: owner, .. } =
+            self.root_kind(place.root, concerns)?
+        else {
+            return Ok(false);
+        };
+        let used = match used {
+            Some(used) => used,
+            None => {
+                let operations = &self.block(block)?.operations;
+                match up_to.min(operations.len()).checked_sub(1) {
+                    Some(last) => ProgramPoint::AfterOperation(operations[last].id),
+                    None => ProgramPoint::BlockEntry(block),
+                }
+            }
+        };
+        let scope = ProgramPoint::BlockEntry(owner);
+        if self.graph.dominates(scope, used)? {
+            return Ok(false);
+        }
+        let (opened_in, _) = self.graph.locate(ProgramPoint::AfterOperation(opened_by))?;
+        let mut walked = vec![false; self.graph.block_count()];
+        let mut pending = vec![owner];
+        while let Some(current) = pending.pop() {
+            let slot = walked
+                .get_mut(index(current.get()))
+                .ok_or_else(|| self.foreign(concerns, "a block is outside its machine"))?;
+            if std::mem::replace(slot, true) {
+                continue;
+            }
+            let terminator = &self.block(current)?.terminator;
+            let successors = terminator.successor_edges();
+            let bindings = terminator.successor_block_arguments();
+            if successors.len() != bindings.len() {
+                return Err(self.foreign(concerns, "an edge has no complete binding roster"));
+            }
+            // Only a jump's arguments are a whole use that consumes the
+            // window (`touches`); a dispatch arm's binding is not.
+            let consumes = matches!(terminator, Terminator::Jump { .. });
+            for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                let mut passed = false;
+                for argument in arguments.iter().filter(|_| consumes) {
+                    let argument = self.argument(argument, Construct::Edge(edge))?;
+                    passed |= argument.root == place.root
+                        && place.segments.starts_with(&argument.segments);
+                }
+                if passed {
+                    continue;
+                }
+                if into == owner
+                    || !self
+                        .graph
+                        .dominates(scope, ProgramPoint::BlockEntry(into))?
+                {
+                    return Ok(false);
+                }
+                pending.push(into);
+            }
+        }
+        Ok(walked.get(index(opened_in.get())).copied().unwrap_or(false))
+    }
+
     fn reaching(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -2872,6 +3101,11 @@ impl<'a> Storage<'a> {
         trace: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
+        if let Asked::Window { place, by, .. } = asked
+            && self.window_handed_off(place, by, (block, up_to), trace.used, concerns)?
+        {
+            return Ok(Reached::Closed);
+        }
         let root =
             self.reaching_supply(references, tables, asked, block, up_to, trace, concerns)?;
         let Supply::Transfer { source, depth, .. } = root else {
@@ -2880,14 +3114,34 @@ impl<'a> Storage<'a> {
         for equation in &mut trace.equations {
             // Entry crossings discovered anywhere in the query retire reads
             // from an earlier iteration, even if we saw the read first.
-            if let Reached::Value(value) = equation.direct
+            if let Reached::Value(value) = equation.seed
                 && let Some(owner) = self.observation_block(tables, value, concerns)?
                 && trace.crossed_entries[index(owner.get())]
             {
-                equation.direct = Reached::Unknown;
+                equation.seed = Reached::Unknown;
+                equation.seed_boundary = BoundaryDepth::Local;
             }
         }
-        Ok(match trace.solve(source).within(depth) {
+        let mut solved = trace.solve(source);
+        for position in (0..trace.fallbacks.len()).rev() {
+            let fallback = trace.fallbacks[position];
+            let arrival = match trace.equations[fallback.upstream].direct {
+                Reached::Unknown | Reached::Established(_) => Reached::Value(fallback.value),
+                Reached::Extent(producer) if !self.current_extent(producer, trace)? => {
+                    Reached::Value(fallback.value)
+                }
+                other => other,
+            };
+            trace.equations[fallback.destination].seed =
+                trace.equations[fallback.destination].seed.merge(arrival);
+            trace.equations[fallback.destination].seed_boundary = trace.equations
+                [fallback.destination]
+                .seed_boundary
+                .merge(trace.equations[fallback.upstream].boundary);
+            solved = trace.solve(source);
+        }
+        trace.boundary = trace.equations[source].boundary.within(depth);
+        Ok(match solved.within(depth) {
             Reached::Cycle if matches!(asked, Asked::Window { .. }) => Reached::Unknown,
             Reached::Cycle => Reached::Unestablished,
             reached => reached,
@@ -2951,8 +3205,8 @@ impl<'a> Storage<'a> {
             }
             // Each block is walked whole at most once, so a cycle ends the walk.
             let mut walked = vec![false; self.graph.block_count()];
-            let mut pending = vec![(block, up_to)];
-            while let Some((block, up_to)) = pending.pop() {
+            let mut pending = vec![(block, address, up_to)];
+            while let Some((block, mut destination, up_to)) = pending.pop() {
                 // The last row in this block, at or before the point, that ends
                 // the path: the latest position, and in one position the later
                 // log entry.
@@ -2980,14 +3234,14 @@ impl<'a> Storage<'a> {
                     }
                 }
                 if !budget.initialization_only
+                    && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && let Some(observations) = self.observations[index(block.get())].get(leaf)
                 {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
                     if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
-                        && (budget.observe_block_entries
-                            || !matches!(observation.point, ProgramPoint::BlockEntry(_)))
+                        && !matches!(observation.point, ProgramPoint::BlockEntry(_))
                         && last.is_none_or(|(_, row)| row.position < observation.position)
                         && !budget.crossed_entries[index(block.get())]
                         && self.graph.dominates(
@@ -2997,16 +3251,55 @@ impl<'a> Storage<'a> {
                             })?,
                         )?
                     {
-                        budget
-                            .add_supply(address, Supply::Direct(Reached::Value(observation.value)));
+                        budget.add_supply(
+                            destination,
+                            Supply::Direct(Reached::Value(observation.value)),
+                        );
                         continue;
                     }
                 }
                 if let Some((index, _)) = last {
                     let supply =
                         self.supplied(references, tables, index, asked, budget, concerns)?;
-                    budget.add_supply(address, supply);
+                    budget.add_supply(destination, supply);
                     continue;
+                }
+                if !budget.initialization_only
+                    && budget.observations == Observations::All
+                    && let Asked::Contents(leaf) = asked
+                    && !budget.crossed_entries[index(block.get())]
+                    && let Some(observation) = self.observations[index(block.get())]
+                        .get(leaf)
+                        .and_then(|rows| rows.first())
+                        .filter(|row| matches!(row.point, ProgramPoint::BlockEntry(_)))
+                    && self.graph.dominates(
+                        observation.point,
+                        budget.used.ok_or_else(|| {
+                            self.foreign(concerns, "a storage trace has no use point")
+                        })?,
+                    )?
+                {
+                    // A header with a head contract or cycle cuts incoming
+                    // facts except its head contract, which names the entry
+                    // snapshot, so the snapshot is the value later proofs use.
+                    if self.cuts_incoming_facts(block)? {
+                        budget.add_supply(
+                            destination,
+                            Supply::Direct(Reached::Value(observation.value)),
+                        );
+                        continue;
+                    }
+                    // Elsewhere, walk incoming arrivals first so uninitialized
+                    // paths, single upstream values and current slice
+                    // endpoints survive; name the entry snapshot only when
+                    // initialized arrivals share no upstream identity.
+                    let upstream = budget.add_equation();
+                    budget.fallbacks.push(EntryFallback {
+                        upstream,
+                        destination,
+                        value: observation.value,
+                    });
+                    destination = upstream;
                 }
                 // A block formal is a new owner of the selected edge's actual
                 // value. Follow that exact region before the edge consumes it;
@@ -3034,7 +3327,7 @@ impl<'a> Storage<'a> {
                     // closes any window on the destination. A window on its
                     // source is owed at the edge's ordinary consumption point.
                     if matches!(asked, Asked::Window { .. }) {
-                        budget.add_supply(address, Supply::Direct(Reached::Closed));
+                        budget.add_supply(destination, Supply::Direct(Reached::Closed));
                         continue;
                     }
                     budget.crossed_entries[index(block.get())] = true;
@@ -3101,7 +3394,7 @@ impl<'a> Storage<'a> {
                                     concerns,
                                 )?
                                 .within(beneath.len());
-                            budget.add_supply(address, supply);
+                            budget.add_supply(destination, supply);
                         }
                     }
                     if !found {
@@ -3112,23 +3405,31 @@ impl<'a> Storage<'a> {
                     continue;
                 }
                 if block == self.graph.entry() {
-                    let reached = match (asked, self.root_kind(asked_root(asked), concerns)?) {
+                    let supply = match (asked, self.root_kind(asked_root(asked), concerns)?) {
                         // A path that never passed the opening write.
-                        (Asked::Window { .. }, _) => Reached::Closed,
+                        (Asked::Window { .. }, _) => Supply::Direct(Reached::Closed),
                         // A formal arrives with its declared type established.
                         // A selected field need not name one entry value,
                         // especially when its index changes in a ranked loop.
-                        (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
-                            .interned(tables, leaf, concerns)?
-                            .and_then(|place| {
-                                self.initial_contents.get(index(place.get())).copied()
-                            })
-                            .flatten()
-                            .map_or(Reached::Established(leaf.segments.len()), Reached::Value),
+                        (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => {
+                            let depth = leaf.segments.len();
+                            if budget.observations == Observations::None {
+                                Supply::Direct(Reached::Established(depth))
+                            } else {
+                                self.interned(tables, leaf, concerns)?
+                                    .and_then(|place| {
+                                        self.initial_contents.get(index(place.get())).copied()
+                                    })
+                                    .flatten()
+                                    .map_or(Supply::Direct(Reached::Established(depth)), |value| {
+                                        Supply::Boundary { value, depth }
+                                    })
+                            }
+                        }
                         // Which case a formal holds at entry is not known, and
                         // other storage holds nothing there; that it holds
                         // nothing is the contents question's answer to give.
-                        (Asked::Case(_), _) => Reached::Unknown,
+                        (Asked::Case(_), _) => Supply::Direct(Reached::Unknown),
                         (
                             Asked::Contents(_),
                             StructuralPlaceKind::BlockParameter { .. }
@@ -3137,9 +3438,9 @@ impl<'a> Storage<'a> {
                             | StructuralPlaceKind::ByteSequenceLiteral { .. }
                             | StructuralPlaceKind::ProviderAttachment { .. }
                             | StructuralPlaceKind::TrivialAffineLocal { .. },
-                        ) => Reached::Unestablished,
+                        ) => Supply::Direct(Reached::Unestablished),
                     };
-                    budget.add_supply(address, Supply::Direct(reached));
+                    budget.add_supply(destination, supply);
                 }
                 budget.crossed_entries[index(block.get())] = true;
                 let mut asked_of: Vec<BlockId> = Vec::new();
@@ -3150,14 +3451,14 @@ impl<'a> Storage<'a> {
                     }
                     asked_of.push(*predecessor);
                     if let Some(changed) = self.cleanup_arrival(asked, *predecessor, block)? {
-                        budget.add_supply(address, Supply::Direct(changed));
+                        budget.add_supply(destination, Supply::Direct(changed));
                         continue;
                     }
                     if let Asked::Case(sum) = asked
                         && let Some(selected) =
                             self.edge_selects(tables, sum, *predecessor, block, concerns)?
                     {
-                        budget.add_supply(address, Supply::Direct(selected));
+                        budget.add_supply(destination, Supply::Direct(selected));
                         continue;
                     }
                     let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
@@ -3167,7 +3468,7 @@ impl<'a> Storage<'a> {
                         )
                     })?;
                     if !std::mem::replace(slot, true) {
-                        pending.push((*predecessor, usize::MAX));
+                        pending.push((*predecessor, destination, usize::MAX));
                     }
                 }
             }
@@ -3182,13 +3483,29 @@ impl<'a> Storage<'a> {
         Reaching {
             keys: BTreeMap::new(),
             equations: Vec::new(),
+            fallbacks: Vec::new(),
+            boundary: BoundaryDepth::Cycle,
             initialization_only: false,
-            observe_block_entries: true,
+            observations: Observations::None,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
             #[cfg(test)]
             scanned_rows: 0,
+        }
+    }
+
+    fn provenance_budget(&self) -> Reaching {
+        Reaching {
+            observations: Observations::Boundary,
+            ..self.budget()
+        }
+    }
+
+    pub(super) fn snapshot_budget(&self) -> Reaching {
+        Reaching {
+            observations: Observations::All,
+            ..self.budget()
         }
     }
 
@@ -3237,7 +3554,7 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
-        let mut budget = self.budget();
+        let mut budget = self.snapshot_budget();
         let reached = self.reaching(
             references,
             tables,
@@ -3355,25 +3672,31 @@ impl<'a> Storage<'a> {
         // contents retain their original path. With no single name, the
         // trace retains only the part of the current path established on
         // every arrival, inside the value supplied by another machine.
-        let mut budget = Reaching {
-            // A block snapshot gives the current value a name. Independently
-            // follow its actual back to an established data type boundary.
-            observe_block_entries: false,
-            ..self.budget()
-        };
-        let arrived = match self.reaching(
+        let mut budget = self.provenance_budget();
+        let reached = self.reaching(
             references,
             tables,
             Asked::Contents(leaf),
             (block, before),
             &mut budget,
             concerns,
-        )? {
+        )?;
+        let shared = match budget.boundary {
+            BoundaryDepth::Established(depth) => Some(depth),
+            BoundaryDepth::Cycle | BoundaryDepth::Local => None,
+        };
+        let arrived = match reached {
             Reached::Established(depth) => leaf
                 .segments
                 .len()
                 .checked_sub(depth)
-                .map(|start| (leaf.clone(), start)),
+                .map(|start| (leaf.clone(), start, depth)),
+            Reached::Unknown => shared.and_then(|depth| {
+                leaf.segments
+                    .len()
+                    .checked_sub(depth)
+                    .map(|start| (leaf.clone(), start, depth))
+            }),
             Reached::Value(held) => {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
@@ -3381,13 +3704,23 @@ impl<'a> Storage<'a> {
                     ValueOrigin::StorageContent { place, after } => {
                         let arrived = lineage(self.machine, &tables.places, place)?;
                         let start = match after {
-                            None => 0,
-                            Some(call) => self
-                                .call_content_boundary(call, &arrived, concerns)?
-                                .segments
-                                .len(),
+                            None if matches!(
+                                self.root_kind(arrived.root, concerns)?,
+                                StructuralPlaceKind::Parameter { .. }
+                            ) =>
+                            {
+                                Some(0)
+                            }
+                            None => None,
+                            Some(call) => Some(
+                                self.call_content_boundary(call, &arrived, concerns)?
+                                    .segments
+                                    .len(),
+                            ),
                         };
-                        Some((arrived, start))
+                        start
+                            .zip(shared)
+                            .map(|(start, shared)| (arrived, start, shared))
                     }
                     ValueOrigin::MachineParameter { .. }
                     | ValueOrigin::MachineResult
@@ -3397,13 +3730,12 @@ impl<'a> Storage<'a> {
             }
             Reached::Case(_)
             | Reached::Extent(_)
-            | Reached::Unknown
             | Reached::Unestablished
             | Reached::Cycle
             | Reached::Open
             | Reached::Closed => None,
         };
-        let Some((arrived, start)) = arrived else {
+        let Some((arrived, start, shared)) = arrived else {
             return Ok(Vec::new());
         };
         let mut premises = Vec::new();
@@ -3423,10 +3755,9 @@ impl<'a> Storage<'a> {
             // arrived in may have been written since. A type above the
             // observed storage has no such place.
             let beneath = arrived.segments.len() - length;
-            let selected = leaf
-                .segments
-                .len()
-                .checked_sub(beneath)
+            let selected = (beneath <= shared)
+                .then(|| leaf.segments.len().checked_sub(beneath))
+                .flatten()
                 .map(|kept| Lineage {
                     root: leaf.root,
                     segments: leaf.segments[..kept].to_vec(),
@@ -3512,7 +3843,7 @@ impl<'a> Storage<'a> {
         let concerns = Construct::Block(block.id);
         let mut equations = Vec::new();
         for bound in self.bound_payloads(block)? {
-            let mut budget = self.budget();
+            let mut budget = self.snapshot_budget();
             let Reached::Value(held) = self.reaching(
                 references,
                 tables,
@@ -3765,6 +4096,75 @@ impl<'a> Storage<'a> {
             changes.push(StorageEffect::Storage(self.argument(value, concerns)?));
         }
         Ok(changes)
+    }
+
+    /// What a block's terminator reads and changes, judged against retained
+    /// loans as an operation's effects are. A dispatch or an empty-domain
+    /// observation reads its subject; an owned transfer on an edge or a
+    /// return relinquishes its storage; a borrowed argument is read, and an
+    /// exclusive one may also be changed by the callee. Cleanup actions are
+    /// judged on their own rosters.
+    fn terminator_effects(&self, block: &Block) -> Checked<(Vec<Lineage>, Vec<Lineage>)> {
+        let mut reads = Vec::new();
+        let mut changes = Vec::new();
+        let mut transfer = |argument: &StructuralArgument, concerns: Construct| -> Checked<()> {
+            let place = self.argument(argument, concerns)?;
+            match argument.access {
+                StructuralAccess::Owned => changes.push(place),
+                StructuralAccess::SharedBorrow => reads.push(place),
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                    reads.push(place.clone());
+                    changes.push(place);
+                }
+            }
+            Ok(())
+        };
+        match &block.terminator {
+            Terminator::StructuralCase { source, path, .. } => {
+                reads.push(self.stored_at(*source, path, Construct::Block(block.id))?);
+            }
+            Terminator::EliminateEmpty { edge, source, path } => {
+                reads.push(self.stored_at(*source, path, Construct::Edge(*edge))?);
+            }
+            Terminator::ReturnStructural { edge, source, .. } => transfer(
+                &StructuralArgument::whole(*source, StructuralAccess::Owned),
+                Construct::Edge(*edge),
+            )?,
+            Terminator::Jump {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::InvokeNoNormal {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::ExternalCompletion {
+                edge,
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    transfer(argument, Construct::Edge(*edge))?;
+                }
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for successor in [when_true, when_false] {
+                    for argument in &successor.structural_arguments {
+                        transfer(argument, Construct::Edge(successor.edge))?;
+                    }
+                }
+            }
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => {}
+        }
+        Ok((reads, changes))
     }
 
     fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {
@@ -6122,7 +6522,7 @@ impl Held<'_, '_> {
                 "a clause names storage with another scalar type",
             ));
         }
-        let mut budget = storage.budget();
+        let mut budget = storage.snapshot_budget();
         budget.used = self.point;
         let reached = storage
             .reaching(
@@ -6442,6 +6842,21 @@ impl crate::Bindings for Observed<'_, '_> {
         ))?;
         self.held.at_place(place).case(root, path, case)
     }
+}
+
+/// An operation that invokes a machine, a callable or a boundary.
+fn is_call(kind: &OperationKind) -> bool {
+    kind.module_invocation().is_some()
+        || kind.callable_invocation().is_some()
+        || matches!(kind, OperationKind::BoundaryCall { .. })
+}
+
+/// A loan through which the callee may write.
+fn exclusive(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
 }
 
 #[cfg(test)]
@@ -6889,5 +7304,284 @@ machine entry() {
             saved > 0,
             "the descriptor captured before the backedge must be exercised"
         );
+    }
+
+    #[test]
+    fn block_entry_snapshots_keep_arrivals_sound_across_vacated_single_and_merged_paths() {
+        let prepare_storage = |source: &str| {
+            let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
+            let root = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "entry")
+                .unwrap()
+                .symbol;
+            let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
+                    declaration_metadata: &[],
+                    entries: &[root],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program;
+            let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+                prepared
+            else {
+                panic!("the block-entry snapshot test must prepare");
+            };
+            prepared
+                .closure
+                .unwrap_or_else(|error| panic!("{}", error.detail))
+        };
+
+        // Acyclic match join: merged distinct arrivals fall back to the
+        // block-entry snapshot, a single upstream value survives, and an
+        // uninitialized path still fails closed.
+        let acyclic = prepare_storage(
+            r#"
+data Point { x: u32; y: u32; }
+domain Point::Small requires self.x < 100u32;
+machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
+    let raw: Point = match choose {
+        true -> Point { x: v, y: 0u32 }
+        false -> Point { x: 7u32, y: 0u32 }
+    };
+    let p: Point in Small = raw as +Small;
+    let plain: Point = p as -Small;
+    plain.x
+}
+"#,
+        );
+        {
+            let module = &acyclic.module;
+            let machine = &module.machines[0];
+            let tables = acyclic.tables.machines.get(machine.id).unwrap();
+            let graph = Graph::new(machine.id, machine, tables).unwrap();
+            let types = tables.values.map(|_, row| row.scalar_type);
+            let descriptor_graph = reference_graph(module, machine.id).unwrap();
+            let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.structural_types,
+                &descriptor_graph,
+            );
+            let mut storage = Storage::new(
+                machine.id,
+                machine,
+                module,
+                &acyclic.domains,
+                &graph,
+                tables,
+                &types,
+                &mut references,
+            )
+            .unwrap();
+            let operation = machine
+                .operations()
+                .find(|operation| storage.read_leaf(operation).unwrap().is_some())
+                .expect("join reads p.x");
+            let leaf = storage.read_leaf(operation).unwrap().unwrap();
+            let (block, after) = graph
+                .locate(ProgramPoint::AfterOperation(operation.id))
+                .unwrap();
+            assert!(!graph.in_cycle(block).unwrap());
+
+            let mut snapshot = storage.snapshot_budget();
+            let reached = storage
+                .reaching(
+                    &mut references,
+                    tables,
+                    Asked::Contents(&leaf),
+                    (block, after - 1),
+                    &mut snapshot,
+                    Construct::Operation(operation.id),
+                )
+                .unwrap();
+            let Reached::Value(entry_value) = reached else {
+                panic!(
+                    "merged initialized arrivals must expose the block-entry snapshot: {reached:?}"
+                );
+            };
+            assert!(matches!(
+                tables.values.get(entry_value).unwrap().origin,
+                ValueOrigin::StorageContent { after: None, .. }
+            ));
+            assert!(
+                storage
+                    .read_premises(&mut references, tables, operation)
+                    .unwrap()
+                    .is_empty(),
+                "locally constructed values arriving at a block parameter are not inter-machine boundary contents"
+            );
+
+            let x_writes: Vec<usize> = storage
+                .log
+                .iter()
+                .enumerate()
+                .filter_map(|(pos, row)| {
+                    (row.lineage.segments == leaf.segments
+                        && matches!(row.stored, Stored::Value(_)))
+                    .then_some(pos)
+                })
+                .collect();
+            assert_eq!(x_writes.len(), 2, "both branches initialize Point.x");
+            let Stored::Value(shared_value) = storage.log[x_writes[0]].stored else {
+                unreachable!()
+            };
+            let saved_second = std::mem::replace(
+                &mut storage.log[x_writes[1]].stored,
+                Stored::Value(shared_value),
+            );
+            let mut single = storage.snapshot_budget();
+            assert_eq!(
+                storage
+                    .reaching(
+                        &mut references,
+                        tables,
+                        Asked::Contents(&leaf),
+                        (block, after - 1),
+                        &mut single,
+                        Construct::Operation(operation.id),
+                    )
+                    .unwrap(),
+                Reached::Value(shared_value)
+            );
+
+            storage.log[x_writes[1]].stored = Stored::Vacated;
+            for mut trace in [
+                storage.snapshot_budget(),
+                storage.provenance_budget(),
+                storage.budget(),
+                storage.initialization_budget(),
+            ] {
+                assert_eq!(
+                    storage
+                        .reaching(
+                            &mut references,
+                            tables,
+                            Asked::Contents(&leaf),
+                            (block, after - 1),
+                            &mut trace,
+                            Construct::Operation(operation.id),
+                        )
+                        .unwrap(),
+                    Reached::Unestablished
+                );
+            }
+            storage.log[x_writes[1]].stored = saved_second;
+        }
+
+        // Cyclic head: even with a single upstream write, a cycle member uses
+        // its entry snapshot so inferred and declared head contracts apply,
+        // while initialization checks still refuse a vacated arrival.
+        let cyclic = prepare_storage(
+            r#"
+data Point requires self.x < 100u32 { x: u32; y: u32; }
+machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
+    transition { _ -> block left(choose, v) }
+    machine left(choose: bool, v: u32) -> u32 {
+        transition { _ -> block step(Point { x: v, y: 0u32 }, choose, v) }
+    }
+    machine step(p: Point, choose: bool, v: u32) -> u32 {
+        let found: u32 = p.x;
+        transition choose {
+            true -> found
+            false -> block left(choose, v)
+        }
+    }
+}
+"#,
+        );
+        {
+            let module = &cyclic.module;
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| {
+                    machine.operations().any(|operation| {
+                        matches!(
+                            operation.kind,
+                            OperationKind::ScalarStructuralField { .. }
+                                | OperationKind::PrimitiveScalarRead { .. }
+                        )
+                    })
+                })
+                .unwrap();
+            let tables = cyclic.tables.machines.get(machine.id).unwrap();
+            let graph = Graph::new(machine.id, machine, tables).unwrap();
+            let types = tables.values.map(|_, row| row.scalar_type);
+            let descriptor_graph = reference_graph(module, machine.id).unwrap();
+            let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.structural_types,
+                &descriptor_graph,
+            );
+            let mut storage = Storage::new(
+                machine.id,
+                machine,
+                module,
+                &cyclic.domains,
+                &graph,
+                tables,
+                &types,
+                &mut references,
+            )
+            .unwrap();
+            let operation = machine
+                .operations()
+                .find(|operation| storage.read_leaf(operation).unwrap().is_some())
+                .expect("step reads p.x");
+            let leaf = storage.read_leaf(operation).unwrap().unwrap();
+            let (block, after) = graph
+                .locate(ProgramPoint::AfterOperation(operation.id))
+                .unwrap();
+            assert!(graph.in_cycle(block).unwrap());
+            let mut snapshot = storage.snapshot_budget();
+            let Reached::Value(entry_value) = storage
+                .reaching(
+                    &mut references,
+                    tables,
+                    Asked::Contents(&leaf),
+                    (block, after - 1),
+                    &mut snapshot,
+                    Construct::Operation(operation.id),
+                )
+                .unwrap()
+            else {
+                panic!("a cyclic head must expose its block-entry snapshot");
+            };
+            assert!(matches!(
+                tables.values.get(entry_value).unwrap().origin,
+                ValueOrigin::StorageContent { after: None, .. }
+            ));
+
+            let x_write = storage
+                .log
+                .iter()
+                .position(|row| {
+                    row.lineage.segments == leaf.segments && matches!(row.stored, Stored::Value(_))
+                })
+                .unwrap();
+            storage.log[x_write].stored = Stored::Vacated;
+            let mut init = storage.initialization_budget();
+            assert_eq!(
+                storage
+                    .reaching(
+                        &mut references,
+                        tables,
+                        Asked::Contents(&leaf),
+                        (block, after - 1),
+                        &mut init,
+                        Construct::Operation(operation.id),
+                    )
+                    .unwrap(),
+                Reached::Unestablished
+            );
+        }
     }
 }

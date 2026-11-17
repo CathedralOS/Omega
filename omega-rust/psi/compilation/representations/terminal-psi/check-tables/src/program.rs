@@ -305,6 +305,13 @@ pub struct Elaboration {
 pub struct SelectedSourceOperand {
     pub identity: String,
     pub supplier: SymbolHandle,
+    pub static_record: Option<SelectedStaticRecordOperand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedStaticRecordOperand {
+    pub parameter: SymbolHandle,
+    pub application: String,
 }
 
 /// The source of a retained predicate, ordered by its module declaration identity.

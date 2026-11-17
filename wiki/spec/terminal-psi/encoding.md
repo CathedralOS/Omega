@@ -108,7 +108,7 @@ rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
 | --- | --- |
-| domain definitions | domain id + semantic domain id + `u32` canonical identity-table index + scalar carrier type + optional predicate + counted establishment routes |
+| domain definitions | domain id + semantic domain id + optional required memberships + `u32` canonical identity-table index + scalar carrier type + optional predicate + optional establishment routes |
 | return qualifications | machine id + edge id + source value id + result value id + return site + domain id + counted return origins |
 | normalized sets | `u64` set identity + counted domain identities |
 | scalar field qualifications | field id + scalar carrier type + `u64` qualification-set identity |
@@ -116,6 +116,15 @@ rather than selecting an optional dialect:
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
+
+In both domain rows an optional field is a `bool` presence flag followed by
+the field when present. Required memberships are counted semantic domain ids,
+and establishment routes are counted routes from the
+[domain establishment-route table](#domain-establishment-routes). An absent
+list and a present empty list are different values: absent establishment
+routes put no issuer restriction on the domain, while a present empty list
+permits no issuer. The vacuous and proved return origins below need absent
+establishment routes and present, empty required memberships.
 
 Canonical identity-table references retain
 [stable index identity](../proofs/contracts.md#stable-canonical-index-identity).
@@ -209,14 +218,18 @@ still requires an established origin independently of its predicate proof.
 Primitive scalar storage rows retain the same complete scalar type for homes,
 references and array elements; field rows do so at the exact declared field.
 
-Each scalar domain establishment route is a `u8` tag:
+#### Domain establishment routes
 
-<!-- scalar-domain-establishment-route-tags -->
-| Tag | Scalar domain establishment route | Fields after the tag |
+Scalar and structural domains share one establishment-route space. Each route
+is a `u8` tag followed by the `u32` identity-table index of the declaration that
+owns the route, then one more `u32` identity-table index:
+
+<!-- domain-establishment-route-tags -->
+| Tag | Domain establishment route | Fields after the tag |
 | --- | --- | --- |
-| 0 | CheckedRequirement | `u32` requirement identity-table index |
-| 1 | BoundaryRequirement | `u32` requirement identity-table index |
-| 2 | ExactMachine | `u32` machine callable identity-table index |
+| 4 | CheckedRequirement | `u32` declaration identity-table index + `u32` requirement identity-table index |
+| 5 | ExactMachine | `u32` declaration identity-table index + `u32` machine callable identity-table index |
+| 6 | BoundaryRequirement | `u32` declaration identity-table index + `u32` requirement identity-table index |
 
 Definitions bind their local and semantic identities, canonical theory
 identity, and scalar carrier, and are strictly ordered by domain identity.
@@ -387,6 +400,24 @@ producer's logical judgments requires host authorization for the exact artifact;
 receiving structural and installation checks retain their own obligations.
 These contract records add no executable call variant or work rule.
 
+A const telescope argument retains its existing tag `1` and counted UTF-8
+`CanonicalConstValue.atom()` string. The canonical static-value profile admits
+ordered arrays, records and variants containing scalar values and exact static
+callable selections. A callable atom is the literal tag `static-callable`
+followed by exactly three UTF-8 pieces in order: selected declaration identity,
+selected application identity, and named requirement identity. Each piece uses
+canonical decimal **byte length**, `:`, then those bytes; lengths have no
+leading zero except `0`. The declaration is nonempty. An empty application or
+requirement piece represents absence; a present identity is nonempty. Existing
+record field order remains semantic. The enclosing canonical value retains its
+actual declared carrier; display text contributes no identity or authority.
+
+This atom adds no telescope tag or envelope field and reinterprets no prior
+scalar or aggregate encoding. Unknown atom tags, trailing bytes and
+noncanonical framing refuse through the existing canonical-profile receiving
+check. The identities commit to exact selections; their framing grants no
+source visibility, executable binding, provider installation or proof premise.
+
 An unused selected family retains its selected identity, public contract
 commitment, reach row, and requirement bound without requiring an executable
 application or schema join header. If the same selection has retained
@@ -422,7 +453,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | IEEE float value | `u8`: 1 + `u32` bits; 2 + `u64` bits |
 | IEEE float format | `u8`: 1 binary32; 2 binary64 |
 | IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
-| IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
+| IEEE float comparison kind | `u8` per the [comparison-kind table](#ieee-comparison-kinds); propositions only — a distinct space from the relation byte |
 | structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; 10 all elements (qualification paths only); retired tag 5 rejects |
 | canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent |
 | canonical structural field | root place id + counted canonical path segments |
@@ -441,8 +472,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | claim transfer | claim id + `u32` argument index + structural path relative to the selected argument; Case segments retain conditional payload guards |
 | completion receipt | claim id + `u32` argument index + structural path relative to the selected argument |
 | crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
-| successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
-| trivial discard | place id; appears only inside a counted roster |
+| successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted affine cleanup actions |
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 4 + place id; 6 + structural argument + structural type id + machine id + counted claim transfers + obligation id list; retired tags 3 and 5 reject |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
@@ -501,11 +531,20 @@ The closed `u8` spaces behind the scalar field forms:
 | 4 | Greater |
 | 5 | GreaterOrEqual |
 
+<a id="ieee-comparison-kinds"></a>
+A comparison kind is the IEEE comparison a proposition asserts. `LessThan` and
+`LessOrEqual` are false when either operand is NaN; their `Not` forms are the
+exact negations and are therefore true on NaN.
+
 <!-- ieee-comparison-kind-tags -->
 | Tag | IEEE float comparison kind |
 | --- | --- |
 | 1 | Equal |
 | 2 | NotEqual |
+| 3 | LessThan |
+| 4 | LessOrEqual |
+| 5 | NotLessThan |
+| 6 | NotLessOrEqual |
 
 <!-- boolean-tags -->
 | Tag | Boolean |
@@ -523,6 +562,8 @@ The closed `u8` spaces behind the scalar field forms:
 | --- | --- | --- |
 | 1 | Field | field id |
 | 2 | FixedIndex | `u64` index |
+| 3 | Case | case id |
+| 4 | Referent | — |
 
 The optional-identity byte 0 records absence and carries no fields; the
 shared optional-identity reader decodes it as the absent form rather than a
@@ -660,6 +701,8 @@ record/enum carrier construction and never stands in for a runtime operand.
 | 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
 | 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
 | 7 | InvocationFormal | `u32` position in the machine contract proof roster |
+| 8 | MixedMathematicalApplication | tag 6's fields, except each counted argument is a `u8` kind: 0 + `u32` caller proof-formal position; 1 + scalar source carrier identity string + scalar term table |
+| 9 | Projection | type identity string + `u32` formal position + counted field identity strings |
 
 ## Content terms and places
 
@@ -905,6 +948,11 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+| 133 | GlobalDescriptorTable | service id + `u8` operation (0 Store, 1 Load) + structural argument |
+| 134 | ActivateTaskRegister | service id + `u16` descriptor-table entry count + descriptor-table structural argument + task-state structural argument + selector value id + scratch structural argument |
+| 135 | ReadTaskRegister | service id |
+| 136 | ReloadSegmentDescriptors | service id + `u16` descriptor-table entry count + `u8` reload (0 Code, 1 Data) + descriptor-table structural argument + selector value id + scratch structural argument |
+| 137 | ReadSegmentSelector | service id + `u8` segment register (0 Code, 1 Data, 2 Extra, 3 Stack, 4 Fs, 5 Gs) |
 | 138 | SelectMachine | descriptor id; the scalar result has the descriptor's callable contract type |
 | 139 | CallMachine | callee value id + callable contract id + counted scalar argument value ids + erased scalar terms + erased proof terms + structural arguments + claim transfers + requirement obligation ids + crash continuations |
 | 140 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
@@ -984,24 +1032,27 @@ A terminator row is a `u8` tag followed by its fields.
 <!-- terminator-tags -->
 | Tag | Terminator | Fields after the tag |
 | --- | --- | --- |
-| 1 | Jump | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
-| 10 | Jump | the tag-1 fields + counted residual discards; residual list must be nonempty |
+| 1 | retired | former Jump with trivial discards; rejected |
 | 2 | Return | edge id + value id + counted affine cleanup actions |
-| 3 | Conditional | condition value id + successor edge + successor edge |
+| 3 | retired | former Conditional; rejected |
 | 4 | Crash | edge id + `u8` cause (1 Trap, 2 Abort) + counted propositions + counted claim ids |
-| 5 | ReturnUnit | edge id + counted trivial discards |
-| 18 | ReturnStructural | edge id + source place id + counted bindings (claim id + structural path relative to the returned value) + counted trivial discards |
-| 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
-| 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
+| 5 | retired | former ReturnUnit with trivial discards; rejected |
+| 7 | retired | former ReturnUnitPartialAffine; rejected |
+| 8 | retired | former ReturnUnitNominalAffine; rejected |
+| 10 | retired | former Jump with residual discards; rejected |
+| 13 | ReturnUnit | edge id + counted affine cleanup actions |
+| 14 | Jump | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted affine cleanup actions |
+| 15 | Conditional | condition value id + successor edge + successor edge |
 | 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted structural arguments + counted affine cleanup actions) |
-| 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 17 | ExternalCompletion | edge id + boundary machine id + `u8` completion kind (1 ProcessExit; others reject) + counted value ids + counted structural arguments + obligation id list + counted frontier claim ids |
+| 18 | ReturnStructural | edge id + source place id + counted bindings (claim id + structural path relative to the returned value) + counted affine cleanup actions |
+| 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + `bool` required-contract presence (when present contract id) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 20 | EliminateEmpty | edge id + source place id + structural observation path (a final case segment selects its payload namespace) |
 
-A Jump with no residual affine discards uses tag 1; a nonempty residual list
-uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is
-noncanonical. Each residual retains place, ordered structural path, and exact
-subtree type; ownership validation reconstructs the complement rather than
-trusting this list.
+Jumps, returns and successor edges all carry one counted list of affine cleanup
+actions; there is no separate residual-discard form. A `DiscardResidual`
+action retains place, ordered structural path, and exact subtree type;
+ownership validation reconstructs the complement rather than trusting the list.
 
 The affine cleanup actions a terminator carries are a closed `u8` space:
 
@@ -1124,8 +1175,10 @@ The shared certificate checks a closed `TwoZero : Two` judgment under its
 complete signature. Each listed declaration is a transparent type-valued
 function over the retained subject telescope. Its body reduces to the actual
 kernel `Id` constructor after those lambdas. This checks formation; it proves
-neither endpoint equality nor a runtime value correspondence. Source-bound
-receiving additionally compares the shared signature and ordered application
+neither endpoint equality nor a runtime value correspondence. Like other carried
+certificates, decoding checks only the catalog's canonical shape and does not
+run the kernel; source-bound receiving replays the signature check and the
+reduction to `Id`, and additionally compares the shared signature and ordered application
 judgments with roots supplied independently by the checked-source authority.
 Owner labels and source positions alone supply no such authority. Same-compile
 lowering encodes the completed checked plan without repeating those decisions.
@@ -1210,24 +1263,25 @@ Older markers are rejected before their payload is read.
 | 33 | float-meaning projections | counted projection rows |
 | 34 | float-meaning equalities | counted equality rows |
 | 35 | proposition declarations | counted proposition declaration rows |
-| 36 | proposition applications | counted proposition application rows |
-| 37 | evidence terms | counted evidence term rows |
-| 38 | evidence contract lanes | counted evidence lane rows |
-| 39 | proof-output invocations | counted proof-output call rows |
-| 40 | proof recursive components | counted recursive component rows |
-| 41 | closed conformance applications | counted conformance application rows |
-| 42 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 43 | scalar block invariants | the counted invariant rows above |
-| 44 | operation crash contracts | counted operation crash contract rows |
-| 45 | public declaration contracts | counted exact selected-call contracts and closed applications |
-| 46 | machines | counted machine rows |
-| 47 | target layout applications | counted complete checked policy alternatives |
-| 48 | native layout catalog | counted nominal records and complete native reports, below |
-| 49 | boundary application demands | counted exact requirement/application rows |
-| 50 | callback applications | counted checked registrar occurrences |
-| 51 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 52 | boundary application candidates | counted checked bodies for closed applications |
-| 53 | task activation demands | counted task activation demand rows |
+| 36 | scalar predicate definitions | counted rows: `u32` declaration identity-table index + counted parameter value declarations + body proposition |
+| 37 | proposition applications | counted proposition application rows |
+| 38 | evidence terms | counted evidence term rows |
+| 39 | evidence contract lanes | counted evidence lane rows |
+| 40 | proof-output invocations | counted proof-output call rows |
+| 41 | proof recursive components | counted recursive component rows |
+| 42 | closed conformance applications | counted conformance application rows |
+| 43 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 44 | scalar block invariants | the counted invariant rows above |
+| 45 | operation crash contracts | counted operation crash contract rows |
+| 46 | public declaration contracts | counted exact selected-call contracts and closed applications |
+| 47 | machines | counted machine rows |
+| 48 | target layout applications | counted complete checked policy alternatives |
+| 49 | native layout catalog | counted nominal records and complete native reports, below |
+| 50 | boundary application demands | counted exact requirement/application rows |
+| 51 | callback applications | counted checked registrar occurrences |
+| 52 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 53 | boundary application candidates | counted checked bodies for closed applications |
+| 54 | task activation demands | counted task activation demand rows |
 
 Marker 258 stores each normalized service schema as its module identity-table
 indices for the source declaration and full applied owner, followed by the
@@ -1816,7 +1870,7 @@ BlockParameter places are machine-local and reject at content positions:
 | 5 | ProviderAttachment | attachment structural type id + field id + boundary machine id |
 | 6 | OperationResult | producer operation id + structural type id |
 | 7 | TrivialAffineLocal | `u32` declaration ordinal + structural type id + root structural type id + `u64` construction index |
-| 8 | — | retired at content positions: BlockParameter places are machine-local |
+| 8 | retired | BlockParameter places are machine-local and reject at content positions |
 
 <!-- content-place-version-tags -->
 | Tag | Content place version | Fields after the tag |
@@ -1976,9 +2030,9 @@ producer state and rederives every ordering rule.
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + `u32` source declaration identity + binding relevance + structural field type |
 | structural case | `u32` source declaration identity + structural case id + identity string + counted payload structural fields |
-| structural domain declaration | domain id + semantic domain id + complete-predicate-theory Boolean + identity string + carrier structural type id + `u32` subject declaration identity + optional predicate + optional byte predicate + optional content projection + optional establishment routes + optional domain access policy |
+| structural domain declaration | domain id + semantic domain id + optional required memberships + complete-predicate-theory Boolean + `u32` identity-table index + carrier structural type id + `u32` subject declaration identity + optional predicate + optional byte predicate + optional content projection + optional establishment routes + optional domain access policy |
 | optional content projection | `u8` 0 absent; `u8` 1 + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression |
-| structural establishment route | `u8` tag per the establishment-route table |
+| structural establishment route | `u8` tag per the [domain establishment-route table](#domain-establishment-routes) |
 | structural qualification change | machine id + edge id + `u32` structural argument ordinal + source place id + destination place id + counted qualification establishments (domain id + `u64` route index) |
 | service declaration | service id + identity string + counted parent service ids |
 | concrete root service reach | counted service ids |
@@ -2038,18 +2092,27 @@ bound strictly ordered.
 
 <!-- structural-type-shape-tags -->
 
-| tag | Structural type shape |
-| --- | --- |
+| tag | Structural type shape | Fields after the tag |
+| --- | --- | --- |
 | 1 | Record | counted structural fields |
-| 2 | FixedArray | element structural type id + `u64` length |
+| 2 | FixedArray | element structural type id + `u8` extent (0 + `u64` length; 1 + scalar application id) |
 | 3 | Sum | counted structural cases |
 | 4 | ByteSequence | byte-sequence carrier |
 | 5 | Mixed | counted structural fields + counted structural cases |
 | 6 | PrimitiveScalar | scalar type |
 | 7 | Reference | referent structural type id + structural access |
-| 8 | ElementView | element structural type id |
+| 8 | ElementView | element structural type id + `bool` access presence + optional structural access |
 | 9 | retired | former Fused-only carrier; reject |
+| 10 | Record (authored storage) | `u64` byte size + `u64` byte alignment + counted structural fields + one field storage per field: `u8` 0 none; 1 + `u64` byte offset; 2 + `u64` byte offset + stored scalar type; 3 + `u64` byte offset + `u64` element stride; 4 + `u64` byte offset; 6 + nonempty counted bit fragments of five `u64`s |
 | 11 | retired | former routed `Binding<R>` carrier; reject |
+| 12 | PrimitiveScalar (refined) | scalar type + structural field type restricting its values |
+| 13 | Record (target layout) | `u32` layout application + counted structural fields |
+| 14 | Record (access view) | tag 10's fields |
+| 15 | Record (accessor) | tag 10's fields |
+| 16 | AtomicCell | structural field type; only `Atomic` and `AtomicBoundedInteger` are admitted |
+| 17 | Record with requires | record storage tag (1, 10, 13, 14 or 15) + that tag's fields + nonempty counted propositions |
+| 18 | Sum with requires | tag 3's fields + nonempty counted propositions |
+| 19 | Opaque | — |
 
 Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
 them. Checking rejects a boundary trait in every runtime value position, so no
@@ -2057,10 +2120,11 @@ structural declaration carries a supplied provider.
 
 <!-- byte-sequence-carrier-tags -->
 
-| tag | Byte-sequence carrier |
-| --- | --- |
-| 1 | BorrowedView |
+| tag | Byte-sequence carrier | Fields after the tag |
+| --- | --- | --- |
+| 1 | BorrowedView | optional structural access (`u8` 0 absent, else an access tag) |
 | 2 | BoundedOwned | `u64` capacity |
+| 3 | BoundedView | optional structural access + `u64` capacity |
 
 <!-- binding-relevance-tags -->
 
@@ -2071,8 +2135,8 @@ structural declaration carries a supplied provider.
 
 <!-- structural-field-type-tags -->
 
-| tag | Structural field type |
-| --- | --- |
+| tag | Structural field type | Fields after the tag |
+| --- | --- | --- |
 | 1 | Scalar | scalar type |
 | 2 | Structural | structural type id |
 | 3 | Erased | type identity string |
@@ -2081,6 +2145,8 @@ structural declaration carries a supplied provider.
 | 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
 | 7 | PredicateByteSequence | byte-sequence carrier + predicate-set bits |
 | 8 | Atomic | scalar type; only Boolean and fixed-width, non-address integers are admitted |
+| 9 | RefinedScalar | scalar type + proposition the value satisfies |
+| 10 | AtomicBoundedInteger | integer type + integer value minimum + integer value maximum |
 
 <!-- structural-access-tags -->
 
@@ -2103,11 +2169,14 @@ structural declaration carries a supplied provider.
 
 | tag | Structural path segment | Fields after the tag |
 | --- | --- | --- |
-| 1 | Field | field identity string |
+| 1 | Field | `u32` interned field identity |
 | 2 | FixedIndex | `u64` index |
 | 3 | Referent | none |
 | 4 | FixedByteRange | `u64` start + `u64` end |
 | 6 | RuntimeIndex | selector value id + obligation id |
+| 7 | Case | case id |
+| 8 | RepresentationView | structural type id + `bool` scalar-codec presence + optional scalar type |
+| 10 | AllElements | none; qualification paths only |
 
 `RuntimeIndex` selects one element of the fixed array its prefix resolves to
 by the runtime integer the selector value holds. The operation carrying the
@@ -2125,19 +2194,12 @@ checks remain required by [byte views](byte_views.md#calls-and-control-transfers
 
 <!-- canonical-path-segment-tags -->
 
-| tag | Canonical structural path segment |
-| --- | --- |
+| tag | Canonical structural path segment | Fields after the tag |
+| --- | --- | --- |
 | 1 | Field | structural field id |
 | 2 | FixedIndex | `u64` index |
 | 3 | Case | structural case id |
-
-<!-- structural-establishment-route-tags -->
-
-| tag | Structural establishment route | Fields after the tag |
-| --- | --- | --- |
-| 1 | Requirement | requirement identity string |
-| 2 | ExactMachine | machine identity string |
-| 3 | BoundaryRequirement | requirement identity string |
+| 4 | Referent | — |
 
 A canonical structural field path is a root place id + counted canonical path
 segments. An IEEE float field path is a root place id + counted canonical
@@ -2168,12 +2230,15 @@ operand handle:
 
 ### Access-view inputs and reborrow custody
 
-These rosters are positional: entries decode in producer-declared order and
-are not re-sorted by the canonical-order checker.
+Access-view inputs are strictly ordered by machine id, then runtime position;
+a repeated `(machine, runtime position)` pair is a duplicate and rejects. The
+reborrow rosters are positional: entries decode in producer-declared order and
+are not re-sorted by the canonical-order checker. Every identity below is a
+`u32` identity-table index.
 
 | Row | Fields |
 | --- | --- |
-| access-view input | machine id + `u32` position + source machine identity string + source state identity string + source parameter identity string + structural access + `bool` const binding + `bool` mutable binding + view identity string + policy identity string + policy-plan machine identity string + schema identity string + `u64` access-plan report fingerprint + 32-byte access-plan commitment |
+| access-view input | machine id + `u32` position + `u32` runtime position (index into the machine's structural parameters) + carrier identity + source machine identity + source state identity + source parameter identity + structural access + `bool` const binding + `bool` mutable binding + view identity + policy identity + policy-plan machine identity + schema identity + `u64` access-plan report fingerprint + 32-byte access-plan commitment |
 | reborrow place | root identity string + counted place segments |
 | reborrow restored call use | machine id + operation id + restoration class + call boundary + call target machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + activation boundary + weakening boundary + direct-root lifetime identity string + child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary + counted shared cohort |
 | shared cohort member | child owner identity string + counted owner path segments + child place + child access + child activation boundary + child weakening boundary |
@@ -3025,8 +3090,8 @@ modes; a report-only compact coordinate; and the validated plan's
 domain-separated layout/access/reach commitment.
 
 Reject missing machines, owned access in this view role, non-hermetic identities,
-zero required report coordinates or commitments, duplicates, and noncanonical
-order. The row grants no runtime storage, accessor, provider, physical address,
+zero required report coordinates or commitments, and rows not strictly ordered
+by `(machine, runtime position)`, which includes duplicates. The row grants no runtime storage, accessor, provider, physical address,
 or ABI authority.
 
 ## Installation and semantic-code attribution
@@ -3061,9 +3126,10 @@ Register events with service authority retain operation tag 121, followed by
 the nonzero `ServiceId`, the `u16` catalog operation identity and its declared
 scalar input IDs. Tag 126 encodes a register observation without service
 authority, followed by the catalog identity and declared input IDs. The
-no-authority observation is exactly `SystemRead(Rflags)`, whose semantics are
-the x86 PUSHFQ image. Both decoding and structural admission reject a tag whose
-service presence differs from the catalog. Target and environment admission
+no-authority observations are exactly `SystemRead(Rflags)`, whose semantics
+are the x86 PUSHFQ image, and the `MemoryFence` ordering events 0x500–0x505
+listed after the operation table. Both decoding and structural admission reject
+a tag whose service presence differs from the catalog. Target and environment admission
 remain required; an absent service supplies neither a target nor environment.
 
 A canonical `Referent` step observes the current live reference descriptor and

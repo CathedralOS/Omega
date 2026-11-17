@@ -1334,6 +1334,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn declaration(&mut self, _: SymbolHandle) -> bool {
         true
     }
+    /// Whether this form reads the machine's implementation. Its signature,
+    /// contracts and type metadata remain visible when only the header is read.
+    fn machine_body(&mut self, _: &Machine) -> bool {
+        true
+    }
     fn expression(&mut self, _: ExpressionHandle) -> bool {
         true
     }
@@ -2471,6 +2476,13 @@ fn visit_static_machine_bindings_inner(
     }
     let source = program.static_machine_application(application);
     retained.static_application(application, source.lexical_owner);
+    if let Ok(Some((binder, owner))) = program.static_record_source_receiver(application) {
+        // Only the authenticated retained application can re-enter its original scope.
+        // Source capture reports malformed receiver metadata through static_application.
+        retained.enter_lexical_scope(owner);
+        retained.declaration_description_dependency(binder);
+        retained.leave_lexical_scope();
+    }
     visit_static_machine_bindings_inner(
         program,
         retained,
@@ -3920,6 +3932,7 @@ fn visit_machine_with_sidecars(
     sidecars: Option<&MachineSidecarIndex>,
 ) {
     retained.enter_lexical_scope(machine.symbol);
+    let body = retained.machine_body(machine);
     if retained.derived_declaration_references() {
         if let Some(declaration) = program.const_declaration_for_evaluation_entry(machine.symbol) {
             visit_symbol(retained, declaration.symbol);
@@ -3970,7 +3983,7 @@ fn visit_machine_with_sidecars(
         for specialization in program.machine_specializations.for_instance(machine.symbol) {
             visit_specialization(specialization);
         }
-        if !program.ranking_expression_custody.is_empty() {
+        if body && !program.ranking_expression_custody.is_empty() {
             for custody in program
                 .ranking_expression_custody
                 .iter()
@@ -3987,7 +4000,7 @@ fn visit_machine_with_sidecars(
                 }
             }
         }
-        if !program.proof_output_calls.is_empty() {
+        if body && !program.proof_output_calls.is_empty() {
             for output in program
                 .proof_output_calls
                 .iter()
@@ -4042,7 +4055,9 @@ fn visit_machine_with_sidecars(
 
     for owned in program.machine_owned_data(machine) {
         visit_type_reference(program, retained, owned.type_reference);
-        visit_expression(program, retained, owned.initial_value);
+        if body {
+            visit_expression(program, retained, owned.initial_value);
+        }
     }
 
     for bound in &machine.conformance_bounds {
@@ -4060,12 +4075,14 @@ fn visit_machine_with_sidecars(
         for contract in program.state_contracts(state) {
             visit_proof_facts(program, retained, contract.facts);
         }
-        for (handle, statement) in program
-            .statement_table
-            .iter_statements(state.statement_nodes)
-        {
-            retained.statement_handle(handle);
-            visit_statement(program, retained, statement);
+        if body {
+            for (handle, statement) in program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
+                retained.statement_handle(handle);
+                visit_statement(program, retained, statement);
+            }
         }
     }
     retained.leave_lexical_scope();

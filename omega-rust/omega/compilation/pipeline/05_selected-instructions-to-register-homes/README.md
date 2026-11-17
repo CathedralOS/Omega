@@ -8,14 +8,34 @@ selected-to-selected stage owns rewrites and reusable control-flow analyses;
 allocation does not rerun it. The [optimization overview](../../../../optimization.md)
 gives the stage order.
 
+## One entrance
+
+Omega 04 hands this stage one `SelectedAllocationInput`, whatever it did: the
+current program, the analyses Omega 04 already established for it, and the
+program's `SelectedOptimizationRecord` (the completed rewrite phase, if any,
+and the transformations it applied). The entrance takes the selected
+allocation-recovery catalog entry, if any, and gets the legality analysis:
+Omega 04's own when it built one (after a rewrite phase), otherwise a new one
+under the allocator availability the entry requires (all allocatable views
+when nothing is selected). It then runs the procedure the entry's rule names
+(plain assignment, fixed-view copies, or pressure rematerialization), each
+falling back to runtime spilling under remaining pressure, and admits the
+result. The record only enters the allocation manifest as evidence; which
+Omega 04 phase ran never chooses a procedure. A selected rule that needs
+different allocator availability than the analysis Omega 04 handed over is
+refused rather than recomputed or ignored; Omega 04 itself refuses a selection
+that combines its phases with each other or with a recovery rule.
+
 ## Current facts and evidence
 
 [RetainedAllocation](src/output.rs) holds the current program and the facts
-this stage produced for it. Building it checks that the recovery used matches the
-declared allocation-recovery selection and drops the producer. Later stages
-never replay allocation history, because each fact was checked when produced ([verification placement](../../../../pipeline.md#verification-placement)).
-Baseline, literal-fold, fixed-view-copy, rematerialization and executable-spill
-results share one allocation view.
+this stage produced for it. Building it checks that the recovery rule that ran
+is exactly the declared allocation-recovery selection, and that the manifest
+carries the program's Omega 04 record unchanged, then drops the producer.
+Later stages never replay allocation history, because each fact was checked
+when produced ([verification placement](../../../../pipeline.md#verification-placement)).
+Plain, fixed-view-copy, rematerialization and executable-spill results share
+one allocation view.
 
 Liveness and live-range record types live in `selected-instructions`;
 legality, home and pressure record types live in `register-homes`. Algorithms,
@@ -160,7 +180,7 @@ final frame authority. These private eight-byte slots hold full GPR payloads;
 they do not widen source reads, change scalar signedness or normalize
 floating-point bits.
 
-The [assignment group](src/assignment.rs) holds the stages the route runs.
+The [assignment group](src/assignment.rs) holds the procedures the entrance runs.
 Runtime-spill recovery rewrites physical victims directly; there is no logical
 spill plan or stack-slot coloring.
 

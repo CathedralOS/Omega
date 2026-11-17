@@ -1981,6 +1981,8 @@ pub mod values {
             compiler_storage::Record,
         )]
         pub struct TableStructLiteral {
+            /// A final source `..` requests ordinary zero values for missing runtime fields.
+            pub zero_omitted_fields: bool,
             pub application_type: crate::types::TypeReferenceHandle,
             pub constructor_name: Identifier,
             pub fields: HandleSpan<TableStructLiteralField>,
@@ -1989,6 +1991,7 @@ pub mod values {
         impl Default for TableStructLiteral {
             fn default() -> Self {
                 Self {
+                    zero_omitted_fields: false,
                     application_type: Default::default(),
                     constructor_name: Identifier::generated(""),
                     fields: HandleSpan::empty(),

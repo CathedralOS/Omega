@@ -4,10 +4,6 @@ Structural contract, function metadata, and boundary settlement codecs for regis
 Once the recovery codec has decoded structural type declarations and call descriptors, it must assemble the complete function contract (`encode_contracts` / `decode_contracts`), structural signature (`encode_signature` / `decode_signature`), local storage and outgoing argument slots, memory access descriptors, and boundary settlements (`encode_boundary_settlement` / `decode_boundary_settlement`). Recovery preserves the full structural type catalog—including quotient representations, access views, placed input demands, and access lifecycles—because storage declarations alone cannot reconstruct view demands or lifecycle plans after register allocation.
 */
 
-use legalized_operations::{
-    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
-    encode_provider_execution,
-};
 use native_vocabulary::completion_claims::CompletionClaimSource;
 use native_vocabulary::provenance::{EffectLink, OwnershipEvent};
 use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
@@ -28,6 +24,10 @@ use semantic_vocabulary::{
 };
 use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+};
+use target_vocabulary::{
+    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
+    encode_provider_execution,
 };
 use terminal_psi::{
     ClaimContentProjection, CompletionReceipt, ContentEntryClaim, StructuralReferenceOrigin,
@@ -156,6 +156,10 @@ pub(super) fn encode_contracts(
             encode_signature(bytes, value)?;
         }
     }
+    selected_instructions::plan_identity::encode_structural_block_parameters(
+        bytes,
+        &function.structural_block_parameters,
+    );
     length(bytes, function.local_storage_slots.len());
     for slot in &function.local_storage_slots {
         slot.id.encode_identity(bytes);
@@ -199,6 +203,7 @@ pub(super) fn decode_contracts(
         decode_signature,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
+    function.structural_block_parameters = decode_block_parameters(cursor)?;
     function.local_storage_slots = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(selected_instructions::SelectedLocalStorageSlot {
             id: decode_local_slot(cursor)?,
@@ -348,6 +353,66 @@ pub(super) fn decode_contracts(
     Ok(())
 }
 
+fn decode_block_parameters(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<selected_instructions::SelectedStructuralBlockParameters>, FixedViewCopyDecodeError>
+{
+    // A nonempty family needs a block ID, a count and at least one 46-byte
+    // declaration. Check wire space before reserving either roster.
+    let count = cursor.length()?;
+    if count > cursor.remaining() / 62 {
+        return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+    }
+    let mut families: Vec<selected_instructions::SelectedStructuralBlockParameters> =
+        Vec::with_capacity(count);
+    for _ in 0..count {
+        let block = decode_id(cursor, BlockId::new)?;
+        if families
+            .last()
+            .is_some_and(|(previous, _)| *previous >= block)
+        {
+            return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+        }
+        let count = cursor.length()?;
+        if count == 0 || count > cursor.remaining() / 46 {
+            return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+        }
+        let mut parameters = Vec::with_capacity(count);
+        for _ in 0..count {
+            parameters.push(super::structural_declarations::decode_semantic_parameter(
+                cursor, true,
+            )?);
+        }
+        families.push((block, parameters.into()));
+    }
+    Ok(families)
+}
+
+#[cfg(test)]
+mod block_parameter_tests {
+    use super::*;
+
+    #[test]
+    fn counts_must_fit_nonempty_declaration_wire_space() {
+        let oversized = u64::MAX.to_le_bytes();
+        assert!(decode_block_parameters(&mut Cursor::new(&oversized)).is_err());
+        let mut encoded = Vec::new();
+        length(&mut encoded, 1);
+        push_encoded(&mut encoded, 1_u64.to_le_bytes());
+        push_encoded(&mut encoded, u64::MAX.to_le_bytes());
+        encoded.extend_from_slice(&[0; 46]);
+        assert!(matches!(
+            decode_block_parameters(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters)
+        ));
+        encoded[16..24].copy_from_slice(&0_u64.to_le_bytes());
+        assert!(matches!(
+            decode_block_parameters(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters)
+        ));
+    }
+}
+
 pub(super) fn encode_boundary_settlement(
     bytes: &mut Vec<u8>,
     payload: &SelectedBoundarySettlementPayload,
@@ -373,20 +438,12 @@ pub(super) fn encode_boundary_settlement(
         } => {
             bytes.push(2);
             push_encoded(bytes, edge.get().to_le_bytes());
-            match execution {
-                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(provider) => {
-                    bytes.push(0);
-                    encode_provider_execution(bytes, *provider);
-                }
-                target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
-                    target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
-                ) => bytes.push(1),
-                _ => {
-                    return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
-                        "process exit settlement has an incompatible execution binding",
-                    ));
-                }
-            }
+            encode_hosted_execution(
+                bytes,
+                *execution,
+                target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
+                "process exit settlement has an incompatible execution binding",
+            )?;
             push_encoded(bytes, boundary.get().to_le_bytes());
             push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
@@ -397,11 +454,18 @@ pub(super) fn encode_boundary_settlement(
         }
         SelectedBoundarySettlementPayload::HostedWriteByteI32 {
             operation,
+            execution,
             boundary,
             source,
         } => {
             bytes.push(1);
             push_encoded(bytes, operation.get().to_le_bytes());
+            encode_hosted_execution(
+                bytes,
+                *execution,
+                target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
+                "byte output settlement has an incompatible execution binding",
+            )?;
             push_encoded(bytes, boundary.get().to_le_bytes());
             push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
@@ -430,6 +494,48 @@ pub(super) fn encode_boundary_settlement(
     Ok(())
 }
 
+// Each hosted operation permits its own exact built-in or an admitted provider.
+// Sharing the wire primitive keeps output and exit custody equally strict.
+fn encode_hosted_execution(
+    bytes: &mut Vec<u8>,
+    execution: target_vocabulary::BoundaryExecutionBinding,
+    builtin: target_vocabulary::CompilerBuiltinExecution,
+    incompatible: &'static str,
+) -> Result<(), terminal_wire::CodecError> {
+    match execution {
+        target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(provider) => {
+            bytes.push(0);
+            encode_provider_execution(bytes, provider);
+        }
+        target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(actual)
+            if actual == builtin =>
+        {
+            bytes.push(1);
+        }
+        _ => {
+            return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                incompatible,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn decode_hosted_execution(
+    cursor: &mut Cursor<'_>,
+    builtin: target_vocabulary::CompilerBuiltinExecution,
+) -> Result<target_vocabulary::BoundaryExecutionBinding, FixedViewCopyDecodeError> {
+    match cursor.byte()? {
+        0 => Ok(
+            target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(
+                decode_provider_execution(cursor)?,
+            ),
+        ),
+        1 => Ok(target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(builtin)),
+        tag => Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag)),
+    }
+}
+
 pub(super) fn decode_boundary_settlement(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedBoundarySettlementPayload, FixedViewCopyDecodeError> {
@@ -448,17 +554,10 @@ pub(super) fn decode_boundary_settlement(
         2 => {
             return Ok(SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                 edge: decode_id(cursor, EdgeId::new)?,
-                execution: match cursor.byte()? {
-                    0 => target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(
-                        decode_provider_execution(cursor)?,
-                    ),
-                    1 => target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
-                    ),
-                    tag => {
-                        return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
-                    }
-                },
+                execution: decode_hosted_execution(
+                    cursor,
+                    target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
+                )?,
                 boundary: decode_id(cursor, BoundaryMachineId::new)?,
                 source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             });
@@ -467,6 +566,10 @@ pub(super) fn decode_boundary_settlement(
         1 => {
             return Ok(SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                 operation: decode_id(cursor, OperationId::new)?,
+                execution: decode_hosted_execution(
+                    cursor,
+                    target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
+                )?,
                 boundary: decode_id(cursor, BoundaryMachineId::new)?,
                 source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             });
@@ -1162,6 +1265,7 @@ mod local_slot_tests {
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
         let empty = || SelectedFunction {
             contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                structural_block_parameters: Vec::new(),
                 machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                 attachment: None,
                 provenance: Default::default(),

@@ -5,7 +5,7 @@ bodies, folded constants, quotients, scalar applications, and task-activation de
 */
 
 pub use crate::types_and_values::{types, values};
-pub use crate::{boundary, control_flow, identity, observation, ownership, proof};
+pub use crate::{boundary, control_flow, identity, ownership, proof};
 
 pub use boundary::*;
 pub(crate) mod folded_constants {
@@ -939,7 +939,6 @@ pub use control_flow::{
     TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub use identity::*;
-pub use observation::*;
 pub use ownership::*;
 pub use proof::*;
 pub use proof_application_scope::{
@@ -1327,6 +1326,18 @@ impl TerminalModule {
     }
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {
         self.machines.iter().flat_map(|machine| &machine.blocks)
+    }
+
+    /// Whether any block can end the whole process (`ProcessExit`) instead of
+    /// returning to its caller. A native host sees such an end only as an exit
+    /// status, which a normal return can also produce.
+    pub fn can_end_the_process(&self) -> bool {
+        self.blocks().any(|block| {
+            matches!(
+                block.terminator,
+                crate::Terminator::ExternalCompletion { .. }
+            )
+        })
     }
 
     pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {

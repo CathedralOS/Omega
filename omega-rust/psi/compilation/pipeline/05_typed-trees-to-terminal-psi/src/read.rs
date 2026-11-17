@@ -50,6 +50,7 @@ mod predicates;
 mod provider_selections;
 mod providers;
 mod rankings;
+mod record_parameters;
 mod references;
 mod reflection;
 mod regions;
@@ -120,6 +121,9 @@ pub(crate) struct Program<'t> {
     pub(super) typed: &'t TypedTrees,
     /// Exact declarations admitted by this reader form, before source questions are captured.
     pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
+    /// Source implementations actually read by this form. Synthetic witness
+    /// bodies and signature-only requirements do not admit private source code.
+    pub(crate) admitted_bodies: typed_trees::references::DeclarationSelection,
     /// Applied signatures can share a declaration symbol while owning
     /// different source expressions. Capture the views this reader formed.
     pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
@@ -228,11 +232,13 @@ pub(crate) struct Program<'t> {
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// The generic machines a generic check form's entry calls at its own
-    /// type parameters, each read once per tuple of type arguments as its
-    /// contract with no body (`Elaboration::applications`).
+    /// type parameters, each read once per tuple with its actual body. These
+    /// applications also retain their independent template checks.
     pub applications: Vec<MachineId>,
-    /// The type arguments each of those was read at.
-    applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// Exact type instances, ordered by machine ID, and the first caller that
+    /// introduced each. Root forms have no caller. This bounds recursive
+    /// expansion while allowing the same tuple to reuse its existing body.
+    applied: Vec<(MachineId, Vec<ValueType>, Option<MachineId>)>,
     /// The source types a static alternative fixes the entry's parameters to.
     /// Materialize them under this reader's numbering before checking its body;
     /// record IDs from the reader that discovered the family cannot cross here.
@@ -411,6 +417,7 @@ impl<'t> Program<'t> {
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
+            admitted_bodies: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
             boundary_parent_contracts: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
@@ -734,6 +741,65 @@ mod tests {
             requires: Vec::new(),
             authored_layout: false,
         }
+    }
+
+    #[test]
+    fn zero_values_require_complete_types_and_cannot_invent_reference_backing() {
+        use terminal_psi::StructuralAccess;
+        let typed = TypedTrees::default();
+        let mut program = Program::new(&typed, false);
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let empty = program.records.push(plain_record());
+        program.record_sources.push(places::RecordSource {
+            declaration: SymbolHandle::invalid(),
+            application: None,
+            region_owner: SymbolHandle::invalid(),
+            fields: Vec::new(),
+            cases: Vec::new(),
+        });
+        assert!(matches!(
+            program
+                .zero_value(machine(), ValueType::record(empty), source)
+                .unwrap()
+                .kind,
+            ExpressionKind::Record { fields } if fields.is_empty()
+        ));
+        for (shape, expected) in [
+            (
+                crate::StorageShape::Reference {
+                    referent: empty,
+                    access: StructuralAccess::SharedBorrow,
+                },
+                "zero-established reference without backing",
+            ),
+            (
+                crate::StorageShape::ElementView {
+                    element: empty,
+                    qualification: crate::body::Qualification::NONE,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                "zero-established mutable sequence",
+            ),
+            (
+                crate::StorageShape::Opaque,
+                "opaque initialization requires boundary-supplied contents",
+            ),
+        ] {
+            let record = program.records.push(RecordType {
+                shape,
+                ..plain_record()
+            });
+            let refusal = program
+                .zero_value(machine(), ValueType::record(record), source)
+                .unwrap_err();
+            assert!(refusal.detail.contains(expected), "{}", refusal.detail);
+        }
+        let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
+        assert!(
+            program
+                .zero_value(machine(), ValueType::record(missing), source)
+                .is_err()
+        );
     }
 
     #[test]

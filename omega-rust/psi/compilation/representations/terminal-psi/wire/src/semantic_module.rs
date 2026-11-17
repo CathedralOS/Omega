@@ -2067,7 +2067,9 @@ pub(crate) mod machine_wire {
         Ok(())
     }
 
-    fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
+    pub(crate) fn decode_ranked_scc(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<TerminalRankedScc>, CodecError> {
         match reader.u8()? {
             0 => Ok(None),
             3 => {
@@ -2416,8 +2418,10 @@ pub(crate) mod reach_application_wire {
                     }
                     writer.boolean(binding.upper_bound_may_suspend);
                     writer.boolean(binding.upper_bound_may_block);
+                    writer.boolean(binding.upper_bound_crashes_none);
                     writer.boolean(binding.selected_may_suspend);
                     writer.boolean(binding.selected_may_block);
+                    writer.boolean(binding.selected_may_crash);
                     writer.u32(binding.selected_identity.0);
                     writer.bytes(&binding.selected_contract_commitment);
                     encode_service_ceiling(writer, &binding.selected_reach)?;
@@ -2504,7 +2508,9 @@ pub(crate) mod reach_application_wire {
         }))
     }
 
-    fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParameter>, CodecError> {
+    pub(crate) fn decode_telescope(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ClosedReachParameter>, CodecError> {
         decode_counted(reader, |reader| {
             Ok(match reader.u8()? {
                 0 => ClosedReachParameter::Type {
@@ -2540,8 +2546,10 @@ pub(crate) mod reach_application_wire {
                         },
                         upper_bound_may_suspend: reader.boolean()?,
                         upper_bound_may_block: reader.boolean()?,
+                        upper_bound_crashes_none: reader.boolean()?,
                         selected_may_suspend: reader.boolean()?,
                         selected_may_block: reader.boolean()?,
+                        selected_may_crash: reader.boolean()?,
                         selected_identity: TerminalIdentityIndex(reader.u32()?),
                         selected_contract_commitment: reader.array()?,
                         selected_reach: decode_ids(reader, "ServiceId")?,
@@ -4132,6 +4140,29 @@ mod routed_scalar_tests {
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
         public.termination = semantic_vocabulary::Termination::Terminates;
+        // Receiving validation refuses a public declaration without its own
+        // operational envelope, so publish one that repeats what the contract
+        // already promises: no services, no suspension, guaranteed termination.
+        module
+            .callables
+            .declaration_envelopes
+            .push(terminal_psi::TerminalDeclarationEnvelope {
+                contract: required,
+                envelope: terminal_psi::TerminalCallableEnvelope {
+                    service_reach: public.published_service_ceiling.clone(),
+                    invocations: public
+                        .published_synchronous_entries
+                        .iter()
+                        .copied()
+                        .map(terminal_psi::TerminalCallableInvocation::Service)
+                        .collect(),
+                    suspends: public.published_may_suspend,
+                    blocks: public.published_may_block,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+            });
         module.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
@@ -4289,6 +4320,163 @@ mod routed_scalar_tests {
     }
 
     #[test]
+    fn const_telescope_wire_round_trips_static_callable_records_and_refuses_bad_profiles() {
+        use language_semantics::conformance_identity::MachineApplicationCommitment;
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use terminal_psi::ClosedReachParameter;
+
+        let mut module = module();
+        let template = module.identities.text(TerminalIdentityIndex(3)).unwrap();
+        let argument = CanonicalConstValue::from_decoded(
+            &DecodedCanonicalConstValue::Record {
+                type_name: "Operations".into(),
+                fields: vec![
+                    (
+                        "write".into(),
+                        DecodedCanonicalConstValue::StaticCallable {
+                            declaration: template.to_owned(),
+                            application: None,
+                            requirement: None,
+                        },
+                    ),
+                    ("enabled".into(), DecodedCanonicalConstValue::Boolean(true)),
+                ],
+            },
+            "Operations { write, enabled: true }",
+        )
+        .unwrap();
+        let mut commitment = MachineApplicationCommitment::new(template).unwrap();
+        commitment.const_argument(&argument).unwrap();
+        let commitment = commitment.finish();
+        let declaration = module.machines[0].declaration.as_mut().unwrap();
+        declaration.callable = TerminalIdentityIndex(2);
+        declaration.specialization = Some(CheckedMachineSpecialization {
+            capture: None,
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template_callable: TerminalIdentityIndex(3),
+            template_semantic_declaration: TerminalIdentityIndex(1),
+            commitment,
+        });
+        let mut application = ClosedReachApplication {
+            template_identity: TerminalIdentityIndex(1),
+            template_base_commitment: [7; 32],
+            template_commitment: [0; 32],
+            suspension_dependency: false.into(),
+            blocking_dependency: false.into(),
+            conditional_carry: Vec::new(),
+            specialization_commitment: commitment,
+            parameter_kinds: vec![1],
+            telescope: vec![ClosedReachParameter::Const {
+                argument: argument.clone(),
+            }],
+            capture: None,
+            fixed: Vec::new(),
+            dependencies: Vec::new(),
+            calls: Vec::new(),
+        };
+        application.template_commitment = terminal_psi::closed_reach_template_commitment(
+            application.template_base_commitment,
+            application.parameters(),
+            &application.suspension_dependency,
+            &application.blocking_dependency,
+            &application.conditional_carry,
+            |_| None,
+        )
+        .unwrap();
+        module.machines[0].closed_reach_application = Some(application);
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
+        let ClosedReachParameter::Const {
+            argument: transported,
+        } = &decoded.machines[0]
+            .closed_reach_application
+            .as_ref()
+            .unwrap()
+            .telescope[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(transported, &argument);
+        assert_eq!(transported.decode_encoding(), argument.decode_encoding());
+
+        for encoding in [
+            "unknown-static-atom0:".to_owned(),
+            format!("{}junk", argument.encoding),
+            argument.encoding.replacen("record", "record0", 1),
+        ] {
+            let mut malformed = module.clone();
+            let ClosedReachParameter::Const { argument } = &mut malformed.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[0]
+            else {
+                unreachable!()
+            };
+            argument.encoding = encoding;
+            let error = decode_module(&encode_raw(&malformed).unwrap()).unwrap_err();
+            assert_eq!(
+                error,
+                crate::CodecError::MalformedStructuralFoundation(
+                    "closed reach telescope has no canonical static carrier and value",
+                )
+            );
+        }
+        for mutation in 0..5 {
+            let mut changed = argument.decode_encoding().unwrap();
+            let DecodedCanonicalConstValue::Record { type_name, fields } = &mut changed else {
+                unreachable!()
+            };
+            if mutation == 0 {
+                fields[1].1 = DecodedCanonicalConstValue::Boolean(false);
+            } else if mutation == 4 {
+                type_name.push_str("Other");
+            } else {
+                let DecodedCanonicalConstValue::StaticCallable {
+                    declaration,
+                    application,
+                    requirement,
+                } = &mut fields[0].1
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    1 => declaration.push_str("::another-selected-declaration"),
+                    2 => *application = Some("another-selected-application".into()),
+                    _ => *requirement = Some("another-required-callable".into()),
+                }
+            }
+            let changed =
+                CanonicalConstValue::from_decoded(&changed, argument.display.clone()).unwrap();
+            assert!(
+                changed.is_canonical_static_value(),
+                "the replay forgery is well formed"
+            );
+            let mut stale = module.clone();
+            let ClosedReachParameter::Const { argument } = &mut stale.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope[0]
+            else {
+                unreachable!()
+            };
+            *argument = changed;
+            let error = decode_module(&encode_raw(&stale).unwrap()).unwrap_err();
+            assert_eq!(
+                error,
+                crate::CodecError::MalformedStructuralFoundation(
+                    "machine application arguments differ from their retained commitment",
+                ),
+                "mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
     fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
         // Even an empty application commits to its original callable. A
@@ -4405,8 +4593,10 @@ mod routed_scalar_tests {
                     upper_bound: Some(Vec::new()),
                     upper_bound_may_suspend: true,
                     upper_bound_may_block: false,
+                    upper_bound_crashes_none: false,
                     selected_may_suspend: false,
                     selected_may_block: false,
+                    selected_may_crash: false,
                     selected_identity: TerminalIdentityIndex(2),
                     selected_contract_commitment: [3; 32],
                     selected_reach: Vec::new(),
@@ -4462,6 +4652,56 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+        // effects.md: a binder's `crashes none` admits only crash-free
+        // selections, so a selected callee that publishes a crash route,
+        // authored or inferred, is refused. The bound is committed, so a
+        // record cannot drop it without changing its template commitment.
+        {
+            let crash_bound = |bound: bool, crashes: bool, recommit: bool| {
+                let mut changed = module.clone();
+                let application = changed.machines[0]
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap();
+                let terminal_psi::ClosedReachParameter::Machine(binding) =
+                    &mut application.telescope[0]
+                else {
+                    panic!("the telescope holds one machine binder");
+                };
+                binding.upper_bound_crashes_none = bound;
+                binding.selected_may_crash = crashes;
+                if recommit {
+                    application.template_commitment =
+                        terminal_psi::closed_reach_template_commitment(
+                            application.template_base_commitment,
+                            application.parameters(),
+                            &application.suspension_dependency,
+                            &application.blocking_dependency,
+                            &application.conditional_carry,
+                            |_| None,
+                        )
+                        .unwrap();
+                }
+                changed
+            };
+            let crash_free = crash_bound(true, false, true);
+            assert_eq!(
+                decode_module(&encode_module(&crash_free).unwrap()).unwrap(),
+                crash_free
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, true, true)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "selected callback may crash, and its requirement declares `crashes none`",
+                ))
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, false, false)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+                ))
+            );
+        }
         // A captured helper still uses the callback supplied to its method.
         // The guard names that method slot after the capture's type slot.
         let capture_commitment = {
@@ -4846,10 +5086,9 @@ pub fn decode_closed_parts(
     // checker does; an artifact cannot carry a domain the checker would refuse.
     terminal_semantics::structural_qualifications::validate(&module)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
-    crate::identity_formations::validate_identity_formations(
-        &module,
-        &mut proof_admission::Budget::default(),
-    )?;
+    // Canonical shape only; source-bound `verify_identity_formations` replays
+    // the kernel. Decoding does not re-decide a carried judgment.
+    crate::identity_formations::validate_identity_formations(&module)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
     types.record_callables(&module);

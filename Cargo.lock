@@ -427,6 +427,7 @@ dependencies = [
  "proof-admission",
  "provider-planning",
  "provider-selection",
+ "register-homes",
  "register-model",
  "review-evidence",
  "runtime-abi",
@@ -743,6 +744,7 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "native-preparation",
+ "native-vocabulary",
  "object-file",
  "optimization-core",
  "optimization-unit",
@@ -760,6 +762,7 @@ dependencies = [
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
@@ -1073,7 +1076,6 @@ name = "machine-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-target-operations",
  "arena",
  "calling-conventions",
  "diagnostics",
@@ -1084,7 +1086,6 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "optimization-core",
- "optimization-unit",
  "post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "provider-admission",
@@ -1095,13 +1096,13 @@ dependencies = [
  "resolved-layout-to-resolved-layout",
  "runtime-abi",
  "selected-form-encoding-to-resolved-layout",
+ "selected-instruction-analyses",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-work",
  "verified-optimization-input",
 ]
 
@@ -1210,6 +1211,7 @@ dependencies = [
  "resolved-layout-to-resolved-layout",
  "runtime-abi",
  "selected-form-encoding-to-resolved-layout",
+ "selected-instruction-analyses",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
@@ -1221,6 +1223,7 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -1232,16 +1235,19 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
  "provider-admission",
  "register-environment",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
@@ -1311,7 +1317,6 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "legalized-operations",
  "native-vocabulary",
  "register-model",
  "selected-instructions",
@@ -1341,13 +1346,11 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "optimization-core",
- "provider-admission",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-psi",
- "verified-optimization-input",
 ]
 
 [[package]]
@@ -1553,6 +1556,7 @@ dependencies = [
 name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "isa-x86_64",
  "optimization-core",
  "register-environment",
@@ -1803,7 +1807,6 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "legalized-operations",
  "native-vocabulary",
  "optimization-core",
  "register-environment",
@@ -1976,6 +1979,7 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
+ "optimization-core",
  "post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -2011,7 +2015,6 @@ dependencies = [
  "arena",
  "calling-conventions",
  "function-identity",
- "legalized-operations",
  "native-vocabulary",
  "optimization-core",
  "register-model",
@@ -2403,12 +2406,14 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
  "task-plans",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2801,6 +2806,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "semantic-vocabulary",
  "source",
  "symbols",
  "typed-trees",

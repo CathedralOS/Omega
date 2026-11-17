@@ -17,8 +17,11 @@ name and `omega packages update`, rather than running an inline audit.
 Ordinary dependency product checking follows the consumer's imported modules
 and their transitive imports, not each dependency's package root. The compiled
 program still undergoes normal language, proof, representation, and native
-checks. Unlocked check-only observation can report findings without creating
-acceptance; missing accepted state stops native production before Build.
+checks. Without a lock, development checking, native production and
+`omega run` still compile through the same package route, but they create no
+acceptance and supply no accepted bindings, restricted-build grants or
+receiver permissions; see [locks](locks.md). A malformed, obsolete or stale lock
+is rejected, never treated as missing.
 See [ordinary compilation](acceptance.md#ordinary-compilation).
 
 ## Complete checked findings

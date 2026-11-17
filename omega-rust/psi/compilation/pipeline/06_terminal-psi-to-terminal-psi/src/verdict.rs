@@ -1694,21 +1694,45 @@ fn carried<'a>(
     witnesses: &'a [Witnessed<'a>],
     specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
 ) -> Vec<crate::Carried<'a>> {
+    // Prepare the actual record-binding family once for each immutable check form.
+    // Borrow profiles; only the instance membership roster owns copied IDs.
+    let forms: Vec<_> = forms
+        .iter()
+        .filter_map(|form| {
+            let GenericForm::Examined { template, examined } = form else {
+                return None;
+            };
+            let mut bindings: Vec<_> = examined
+                .elaboration
+                .static_schemas
+                .iter()
+                .flat_map(|schema| &schema.bindings)
+                .collect();
+            bindings.sort_unstable_by_key(|binding| {
+                (
+                    binding.parameter.arena_index(),
+                    binding.parameter.generation(),
+                )
+            });
+            let mut record_instances: Vec<_> = bindings
+                .iter()
+                .flat_map(|binding| &binding.members)
+                .flat_map(|member| &member.instances)
+                .map(|instance| instance.machine)
+                .collect();
+            record_instances.sort_unstable();
+            record_instances.dedup();
+            Some((template, examined, bindings, record_instances))
+        })
+        .collect();
     let mut carried = Vec::new();
     for (specialization, _) in closure.machines.iter() {
         let Some(Some(template)) = specializations.get(specialization) else {
             continue;
         };
         let mut candidates = Vec::new();
-        for form in forms {
-            let GenericForm::Examined {
-                template: declared,
-                examined,
-            } = form
-            else {
-                continue;
-            };
-            if declared != template {
+        for (declared, examined, bindings, record_instances) in &forms {
+            if *declared != template {
                 continue;
             }
             let generic = &examined.elaboration;
@@ -1720,12 +1744,54 @@ fn carried<'a>(
                 if selected.caller != specialization {
                     continue;
                 }
-                let requirement = generic.machines.iter().find(|(machine, symbol)| {
-                    **symbol == selected.requirement
-                        && generic.requirements.contains(machine)
-                        && generic.value_arguments.get(*machine) == Some(&selected.value_arguments)
-                });
-                if let Some((requirement, _)) = requirement {
+                let record = selected
+                    .source_operand
+                    .as_ref()
+                    .and_then(|operand| operand.static_record.as_ref());
+                let requirement = if let Some(record) = record {
+                    let parameter = (
+                        record.parameter.arena_index(),
+                        record.parameter.generation(),
+                    );
+                    let start = bindings.partition_point(|binding| {
+                        (
+                            binding.parameter.arena_index(),
+                            binding.parameter.generation(),
+                        ) < parameter
+                    });
+                    let end = bindings.partition_point(|binding| {
+                        (
+                            binding.parameter.arena_index(),
+                            binding.parameter.generation(),
+                        ) <= parameter
+                    });
+                    let mut instances = bindings[start..end].iter().filter_map(|binding| {
+                        binding.instance(
+                            record.parameter,
+                            &record.application,
+                            selected.declaring_trait,
+                            selected.requirement,
+                            &selected.value_arguments,
+                        )
+                    });
+                    match (instances.next(), instances.next()) {
+                        (Some(instance), None) => Some(instance),
+                        _ => None,
+                    }
+                } else {
+                    generic
+                        .machines
+                        .iter()
+                        .find(|(machine, symbol)| {
+                            **symbol == selected.requirement
+                                && generic.requirements.contains(machine)
+                                && generic.value_arguments.get(*machine)
+                                    == Some(&selected.value_arguments)
+                                && record_instances.binary_search(machine).is_err()
+                        })
+                        .map(|(machine, _)| machine)
+                };
+                if let Some(requirement) = requirement {
                     selections.push(crate::Selection {
                         requirement,
                         witness: &witnessed.examined.elaboration,
