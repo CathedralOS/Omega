@@ -1,5 +1,6 @@
 //! Register identities, ABI constraints and physical frame plans for x86_64.
 
+pub mod import_thunk;
 mod constraint_keys;
 pub mod frame_protocol;
 mod preservation_storage;

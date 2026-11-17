@@ -345,28 +345,3 @@ mod reuse_tests;
 #[cfg(test)]
 #[path = "../tests/unit/source_parsing.rs"]
 mod batch_tests;
-
-pub struct ParsedText<'text> {
-    pub tokens: tokens::TokenStream<'text>,
-    pub syntax: SyntaxTrees,
-}
-
-#[derive(Debug)]
-pub enum SourceParseError {
-    Lex { message: String },
-    Parse { message: String },
-}
-
-pub fn parse_text(text: &str) -> Result<ParsedText<'_>, SourceParseError> {
-    let tokens = crate::lexing::lex_unit_reusing(text, &mut tokens::TokenScratch::default())
-        .map_err(|error| SourceParseError::Lex {
-            message: error.message,
-        })?;
-    let mut syntax = SyntaxTrees::new(source_text::SourceId::default());
-    crate::parsing::parse_into(&mut syntax, source_text::SourceId::default(), &tokens).map_err(|error| {
-        SourceParseError::Parse {
-            message: error.message,
-        }
-    })?;
-    Ok(ParsedText { tokens, syntax })
-}

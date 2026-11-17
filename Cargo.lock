@@ -220,7 +220,6 @@ dependencies = [
  "filesystem-authority",
  "language-core",
  "layout-plans",
- "native-program-planning",
  "optimization-core",
  "optimization-requests",
  "package-compilation",
@@ -915,12 +914,12 @@ dependencies = [
  "diagnostics",
  "image",
  "image-fixtures",
- "isa-x86_64",
  "machine-code",
  "object-file",
  "optimization-core",
  "sha2",
  "target",
+ "target-x86_64",
  "wire",
 ]
 
@@ -1809,7 +1808,7 @@ dependencies = [
  "source-acquisition",
  "source-admission",
  "source-capture",
- "source-compiler",
+ "source-syntax",
  "source-text",
  "syntax-trees",
  "target",
@@ -2500,6 +2499,7 @@ dependencies = [
  "source-capture",
  "source-lexer",
  "source-parser",
+ "source-syntax",
  "source-text",
  "storage-access",
  "symbols",
@@ -2543,6 +2543,17 @@ dependencies = [
  "rayon",
  "source-admission",
  "source-lexer",
+ "source-text",
+ "syntax-trees",
+ "tokens",
+]
+
+[[package]]
+name = "source-syntax"
+version = "0.1.0"
+dependencies = [
+ "source-lexer",
+ "source-parser",
  "source-text",
  "syntax-trees",
  "tokens",

@@ -36,7 +36,7 @@ semantic-vocabulary = { path = "../../../psi/compilation/representations/semanti
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof-admission" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-syntax = { path = "../../../psi/compilation/pipeline/01_source-compilation/src/operations/source-syntax" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }

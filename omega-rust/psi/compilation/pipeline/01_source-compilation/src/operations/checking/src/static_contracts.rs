@@ -1,9 +1,10 @@
 //! Static declarations are formed without runtime facsimiles. Each selected
 //! public implementation proves the required header in its positional scope.
 
+use arena::IdTable;
 use semantic_vocabulary::CallableCrashPolicy;
 use semantic_vocabulary::{
-    IdTable, MachineId, ObligationId, PlaceId, PropositionContext, StructuralPlaceKind, ValueId,
+    MachineId, ObligationId, PlaceId, PropositionContext, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::contracts::{
     CallableHeader, StaticCallableEnvelope, StaticImplementation, StaticRequirementSchema,

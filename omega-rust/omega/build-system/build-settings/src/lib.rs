@@ -114,10 +114,6 @@ pub use package_compilation::build_execution::{
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use products::{BuildConfig, ComputedBuildConfig};
-pub use native_program_planning::program_entry::{
-    SelectedCompilerProgramEntry,
-    SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
-};
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;

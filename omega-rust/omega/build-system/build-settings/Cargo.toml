@@ -31,7 +31,6 @@ build-output = { path = "../../packages/build-output" }
 effects = { path = "../../compilation/representations/native-effects" }
 optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }
-native-program-planning = { path = "../../compilation/pipeline/03_native-program-planning" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 target = { path = "../../compilation/target-description/target" }

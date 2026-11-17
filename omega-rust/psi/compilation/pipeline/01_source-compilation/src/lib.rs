@@ -126,7 +126,7 @@ pub use source_checking::{
     FrozenSource, JudgedSource, ProductRepresentationInput, SourceAdmission,
     SourcePreparationFailure, SourcePreparationRequest,
 };
-pub use source_parsing::{ParsedText, SourceParseError, parse_text};
+pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 
 pub use source_compilation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,

@@ -213,11 +213,19 @@ pub fn forbidden_rules() -> Vec<Rule> {
         FRONTEND_OPERATIONS.to_vec(),
         "portable publication takes the accepted source result",
     ));
-    rules.push(rule(
-        vec![PACKAGE_MANAGER],
-        STAGES.to_vec(),
-        "package management does not execute compiler stages",
-    ));
+    // Dependency edits preserve the spelling and trivia of a single Build
+    // file. The text reader's production closure is checked in linear_pipeline.
+    rules.push(Rule {
+        allowed: vec![Allowance {
+            owner: PACKAGE_MANAGER,
+            dependency: linear_pipeline::TEXT_READER,
+        }],
+        ..rule(
+            vec![PACKAGE_MANAGER],
+            STAGES.to_vec(),
+            "package management does not execute compiler stages",
+        )
+    });
     for stage in 3..=9 {
         let mut external = rule(
             vec!["omega-rust"],
@@ -1136,6 +1144,8 @@ mod tests {
             (LIBRARY, linear_pipeline::STAGES[4], Some("build"), false),
             (LIBRARY, linear_pipeline::STAGES[4], Some("dev"), true),
             (PACKAGES, linear_pipeline::STAGES[3], None, false),
+            (PACKAGES, linear_pipeline::STAGES[1], None, false),
+            (PACKAGES, linear_pipeline::TEXT_READER, None, true),
             (
                 LIBRARY,
                 "omega-rust/omega/compilation/pipeline/03_native-program-planning/runtime-provisions",

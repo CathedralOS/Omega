@@ -23,6 +23,9 @@ const RETIRED: [&str; 3] = [
     "omega-rust/omega/compilation/realization",
     "omega-rust/omega/foundation",
 ];
+pub(super) const TEXT_READER: &str =
+    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/source-syntax";
+
 pub(super) const FRONTEND: [&str; 4] = [
     "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lexing",
     "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/parsing",
@@ -37,6 +40,7 @@ fn stage(path: &str) -> Option<usize> {
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
     let [lexer, parser, tokens, syntax] = FRONTEND;
     match start {
+        TEXT_READER => stage(dependency).is_some() && ![lexer, parser].contains(&dependency),
         path if path == lexer => [parser, syntax].contains(&dependency),
         path if path == parser => dependency == lexer,
         path if path == tokens || path == syntax => FRONTEND.contains(&dependency),
@@ -65,7 +69,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
             errors.push(format!("numbered pipeline owner has no package: {root}"));
         }
     }
-    for root in FRONTEND {
+    for root in FRONTEND.into_iter().chain([TEXT_READER]) {
         if !names.contains_key(root) {
             errors.push(format!(
                 "streaming frontend boundary has no package: {root}"
@@ -117,34 +121,39 @@ mod tests {
 
     #[test]
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
-        let mut paths = STAGES.to_vec();
-        paths.extend(FRONTEND);
-        paths.extend([
-            "shared",
-            "omega-rust/omega/compilation/pipeline/06_native-encoding/test-encoder",
-        ]);
+        const SHARED: &str = "shared";
+        const ENCODER: &str =
+            "omega-rust/omega/compilation/pipeline/06_native-encoding/test-encoder";
+        let paths = STAGES
+            .into_iter()
+            .chain(FRONTEND)
+            .chain([TEXT_READER, SHARED, ENCODER]);
         let mut packages: Vec<_> = paths
-            .iter()
             .map(|path| Package {
                 name: path.rsplit('/').next().unwrap().to_string(),
                 manifest_path: format!("/repo/{path}/Cargo.toml"),
                 dependencies: Vec::new(),
             })
             .collect();
-        let edge = |path, kind: Option<&str>| Dependency {
-            name: "alias".to_owned(),
-            path: Some(format!("/repo/{path}")),
-            kind: kind.map(str::to_owned),
+        let mut edge = |from: &str, to: &str, kind: Option<&str>| {
+            let manifest = format!("/repo/{from}/Cargo.toml");
+            let owner = packages
+                .iter_mut()
+                .find(|pkg| pkg.manifest_path == manifest)
+                .unwrap();
+            owner.dependencies.push(Dependency {
+                name: "alias".to_owned(),
+                path: Some(format!("/repo/{to}")),
+                kind: kind.map(str::to_owned),
+            });
         };
-        packages[4].dependencies.push(edge("shared", None));
-        packages[11]
-            .dependencies
-            .push(edge(FRONTEND[1], Some("dev")));
-        packages[12]
-            .dependencies
-            .push(edge("shared", Some("build")));
-        packages[15].dependencies.push(edge(paths[16], None));
-        packages[15].dependencies.push(edge(FRONTEND[0], None));
+        edge(TEXT_READER, SHARED, None);
+        edge(STAGES[4], SHARED, None);
+        edge(FRONTEND[0], FRONTEND[1], Some("dev"));
+        edge(FRONTEND[1], SHARED, Some("build"));
+        edge(SHARED, ENCODER, None);
+        edge(SHARED, FRONTEND[0], None);
+        edge(SHARED, STAGES[1], None);
         let errors = violations(&Metadata {
             workspace_root: "/repo".into(),
             packages,
@@ -161,5 +170,20 @@ mod tests {
                 .any(|v| v.contains("parsing -> shared -> lexing"))
         );
         assert!(!errors.iter().any(|v| v.contains("lexing -> parsing")));
+        assert!(
+            errors
+                .iter()
+                .any(|v| v.contains("source-syntax -> shared -> 01_source-compilation"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|v| v.contains("source-syntax -> shared -> test-encoder"))
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|v| v.contains("source-syntax -> shared -> lexing"))
+        );
     }
 }

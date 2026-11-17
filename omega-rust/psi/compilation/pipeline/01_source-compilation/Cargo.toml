@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+source-syntax = { path = "src/operations/source-syntax" }
 source-parser = { path = "src/operations/parsing" }
 source-lexer = { path = "src/operations/lexing" }
 access-vocabulary = { path = "../../representations/access-vocabulary" }

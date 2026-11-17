@@ -70,6 +70,7 @@ members = [
     "omega-rust/psi/compilation/representations/optimization-policy",
     "omega-rust/psi/compilation/representations/terminal-psi",
     "omega-rust/psi/compilation/pipeline/01_source-compilation",
+    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/source-syntax",
     "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/parsing",
     "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lexing",
     "omega-rust/psi/compilation/proof-admission",

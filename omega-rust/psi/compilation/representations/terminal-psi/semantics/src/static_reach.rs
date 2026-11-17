@@ -353,7 +353,7 @@ pub fn template_commitment<'identity>(
     }
     projections.sort_unstable();
     projections.dedup();
-    let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.generic-callable-reach-contract.v1\0",
     );
     digest.raw(&base);
