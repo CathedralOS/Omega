@@ -169,6 +169,17 @@ pub struct SuppliedRequirement {
 /// The result of elaborating everything one compilation is responsible for:
 /// its entries, what its Build selected, every declaration of its subject,
 /// and every machine those call.
+/// A source binder's declared bound remains independent of its runtime
+/// carrier. The checker rejoins every symbolic row to this retained context.
+#[derive(Debug, Clone)]
+pub struct GenericStorageBinding {
+    pub parameter: SymbolHandle,
+    pub ordinal: u32,
+    pub storage: StructuralTypeId,
+    pub identity: String,
+    pub multiplicity: terminal_psi::StructuralMultiplicity,
+}
+
 #[derive(Debug, Clone)]
 pub struct Elaboration {
     /// A proof-only conformance root for an installation-bound requirement.
@@ -244,6 +255,7 @@ pub struct Elaboration {
     /// quantifies, including unused binders. They are not runtime formals.
     /// Closed instances have none; a nonempty roster cannot be published.
     pub generic_binders: Vec<SymbolHandle>,
+    pub generic_storage: Vec<GenericStorageBinding>,
     /// The literals a requirement's value parameters are bound to in the
     /// machine that stands for it, in declaration order: a requirement read
     /// at the static arguments of a call (`Step::apply<7>(x)`), in a generic

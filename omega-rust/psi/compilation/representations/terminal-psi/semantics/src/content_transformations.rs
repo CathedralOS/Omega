@@ -1617,6 +1617,7 @@ pub(crate) mod boundary_correspondence {
                     }
                 }
                 StructuralTypeShape::Opaque
+                | StructuralTypeShape::TypeParameter
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::ElementView { .. } => {
@@ -2809,6 +2810,7 @@ pub mod quotients {
                     return true;
                 }
                 match &declaration.shape {
+                    S::TypeParameter => return true,
                     S::Record { fields, .. } => pending.extend(children(fields)),
                     S::Sum { cases } => {
                         for case in cases {
@@ -3452,6 +3454,7 @@ pub mod quotients {
                 }
             };
             match &declaration.shape {
+                S::TypeParameter => return Err("quotient carrier requires specialized storage"),
                 S::Opaque => return Err("quotient carrier has no visible storage representation"),
                 S::AtomicCell(_) => return Err("quotient carrier contains atomic storage"),
                 S::Reference { .. }

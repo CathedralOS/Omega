@@ -65,6 +65,7 @@ mod storage_path;
 mod subjects;
 mod traits;
 mod transitions;
+mod type_parameters;
 mod types;
 
 use semantic_vocabulary::{CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
@@ -230,7 +231,9 @@ pub(crate) struct Program<'t> {
     /// A generic declaration checks its contract without claiming executable
     /// storage for a compound symbolic type. These types belong only to that
     /// schema form; demanded applications use ordinary formals and loans.
-    schema_types: Option<Vec<typed_trees::type_identity::NormalizedTypeIdentity>>,
+    reading_schema: bool,
+    /// Runtime carriers keep their original binder even in applied callees.
+    rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -463,7 +466,8 @@ impl<'t> Program<'t> {
             outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
-            schema_types: None,
+            reading_schema: false,
+            rigid_storage: Vec::new(),
             scopes: IdTable::default(),
             const_scope: Vec::new(),
             const_scopes: IdTable::default(),

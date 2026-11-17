@@ -3118,6 +3118,9 @@ pub(crate) mod calling_storage {
                 children.push(selected.carrier);
             } else {
                 match &declaration.shape {
+                    StructuralTypeShape::TypeParameter => {
+                        return Err("a boundary value requires a specialized storage type".into());
+                    }
                     StructuralTypeShape::Opaque => {
                         return Err(
                             "opaque boundary value has no selected storage representation".into(),

@@ -123,14 +123,16 @@ pub use references::reference_completion::{
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
-    ReferenceCallResult, ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding,
-    ReferenceResultMemberships, bind_public_reference_call_results, bind_reference_call_results,
-    bind_reference_origin, borrowed_result_leaves, captured_reference_origin_type,
-    collection_element_type, descriptor_input_origin_path, reference_call_preserved_memberships,
+    ReferenceCallResult, ReferenceCallSource, ReferenceInventory, ReferenceLeaf,
+    ReferenceOriginBinding, ReferenceResultMemberships, UnknownReferenceContents,
+    bind_public_reference_call_results, bind_reference_call_results, bind_reference_origin,
+    borrowed_result_leaves, captured_reference_origin_type, collection_element_type,
+    descriptor_input_origin_path, reference_call_preserved_memberships, reference_inventory,
     reference_leaves, reference_origin_is_covered, reference_origin_paths_may_overlap,
-    reference_origin_type, reference_result_memberships_weaken, reference_result_refines_regions,
-    reference_result_sources, validate_boundary_reference_regions,
-    validate_descriptor_result_regions, validate_dynamic_reference_regions,
+    reference_origin_type, reference_result_contents, reference_result_memberships_weaken,
+    reference_result_refines_regions, reference_result_sources,
+    validate_boundary_reference_regions, validate_descriptor_result_regions,
+    validate_dynamic_reference_regions,
 };
 pub use references::reference_storage_geometry::{
     RecordStorageResolver, ReferenceArrayWindow, ReferenceRecordField, ReferenceRepeatedField,

@@ -254,6 +254,7 @@ pub(crate) fn declare<'a, 'b>(
         let shape = match &record.shape {
             crate::StorageShape::AtomicCell(cell) => StructuralTypeShape::AtomicCell(*cell),
             crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
+            crate::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
             crate::StorageShape::Record(_) => {
                 // The natural layout row of a record with no authored layout:
                 // no policy and no realization. Its nominal native identities
@@ -359,9 +360,13 @@ pub(crate) fn declare<'a, 'b>(
         {
             children.push(*element);
         }
-        let mut contains_claim = false;
-        let mut no_code =
-            record.multiplicity != StructuralMultiplicity::Linear && record.cleanup.is_none();
+        // A bound describes the carrier's permitted uses, not whether its
+        // unknown contents own claims or need executable cleanup.
+        let parameter = matches!(shape, StructuralTypeShape::TypeParameter);
+        let mut contains_claim = parameter && !record.is_copyable();
+        let mut no_code = !parameter
+            && record.multiplicity != StructuralMultiplicity::Linear
+            && record.cleanup.is_none();
         let mut descriptor_cleanup = no_code;
         for child in children {
             let raw = usize::try_from(child.get() - 1).map_err(|_| {
@@ -402,7 +407,11 @@ pub(crate) fn declare<'a, 'b>(
                     cleanup_machine: cleanup.machine,
                 });
         structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
+            declaration_identity: if parameter {
+                identities.intern(&record.identity)
+            } else {
+                Default::default()
+            },
             requires: record.requires.clone(),
             quotient_carrier: None,
             id,
@@ -4647,6 +4656,11 @@ impl<'a> Lowering<'a> {
     ) -> Checked<()> {
         let data = self.record_type(record)?;
         match data.shape {
+            StorageShape::TypeParameter(_) => {
+                return Err(
+                    self.internal("zero initialization requires a specialized storage type")
+                );
+            }
             StorageShape::AtomicCell(_) => return Ok(()),
             StorageShape::Opaque => {
                 return Err(

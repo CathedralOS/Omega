@@ -243,6 +243,9 @@ impl Program<'_> {
             };
             let data = self.data_type(id, record)?;
             match &data.shape {
+                StorageShape::TypeParameter(_) => {
+                    return unserved("zero initialization requires a specialized storage type");
+                }
                 StorageShape::Opaque => {
                     return unserved("opaque initialization requires boundary-supplied contents");
                 }

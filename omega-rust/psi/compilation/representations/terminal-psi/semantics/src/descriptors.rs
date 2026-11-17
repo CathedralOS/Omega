@@ -751,7 +751,9 @@ pub mod descriptor_lifetimes {
             if path.iter().any(|step| {
                 matches!(
                     step,
-                    DescriptorPathSegment::RuntimeIndex { .. } | DescriptorPathSegment::Extent
+                    DescriptorPathSegment::RuntimeIndex { .. }
+                        | DescriptorPathSegment::Extent
+                        | DescriptorPathSegment::UnknownContents
                 )
             }) {
                 return None;
@@ -3475,6 +3477,7 @@ pub mod descriptor_results {
                         DescriptorContentsStep::Address(
                             DescriptorPathSegment::RepresentationView { .. }
                             | DescriptorPathSegment::RuntimeIndex { .. }
+                            | DescriptorPathSegment::UnknownContents
                             | DescriptorPathSegment::Extent,
                         ) => return None,
                         DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => false,
@@ -8225,6 +8228,7 @@ pub mod descriptor_results {
                     }
                     DescriptorPathSegment::RepresentationView { .. }
                     | DescriptorPathSegment::RuntimeIndex { .. }
+                    | DescriptorPathSegment::UnknownContents
                     | DescriptorPathSegment::Extent => None,
                 })
                 .collect()
@@ -15035,6 +15039,7 @@ pub mod descriptor_results {
                     }
                 };
                 let supported = match &declaration.shape {
+                    StructuralTypeShape::TypeParameter => false,
                     // Moving opaque contents exposes no nested references.
                     // Their claim and boundary contracts remain separate.
                     StructuralTypeShape::Opaque => true,
@@ -17900,16 +17905,26 @@ pub mod descriptor_results {
                             *failure_detail = Some(
                                 "descriptor normal exit has no complete borrowed parameter slots",
                             );
+                            let inventory = slot_kind.inventory(
+                                &module.structural_types,
+                                parameter.place,
+                                parameter.structural_type,
+                            )?;
                             step.inputs.extend(
-                                slot_kind
-                                    .slots(
-                                        &module.structural_types,
-                                        parameter.place,
-                                        parameter.structural_type,
-                                    )?
-                                    .into_iter()
-                                    .map(|input| (Some(input), None)),
+                                inventory.slots.into_iter().map(|input| (Some(input), None)),
                             );
+                            for contents in inventory.unknown_contents {
+                                if contents.kind != super::UnknownContentsKind::Value {
+                                    return None;
+                                }
+                                let mut carrier = contents.location;
+                                if carrier.path.pop()? != DescriptorPathSegment::UnknownContents {
+                                    return None;
+                                }
+                                // Handback owes the intact unknown value. It
+                                // does not resolve or end a hidden referent.
+                                step.inputs.push((Some(carrier), None));
+                            }
                         }
                     }
                 }
@@ -18151,10 +18166,11 @@ pub mod descriptor_results {
         public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
     };
     pub use replay::{
-        DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind,
+        DescriptorAnalysis, DescriptorResultContents, DescriptorSlotInventory, DescriptorSlotKind,
         DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredCallEffect,
-        DescriptorStoredEffect, DescriptorStoredOrigin, descriptor_slot_inventory,
-        descriptor_slots, reconstruct_source_origins, reconstruct_stored_effects,
+        DescriptorStoredEffect, DescriptorStoredOrigin, UnknownContentsKind,
+        UnknownDescriptorContents, descriptor_slot_inventory, descriptor_slots,
+        reconstruct_source_origins, reconstruct_stored_effects,
     };
 
     #[derive(Clone)]

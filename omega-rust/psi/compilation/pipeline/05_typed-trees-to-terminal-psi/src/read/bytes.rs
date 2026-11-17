@@ -1269,7 +1269,7 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         let formals = typed.state_parameters.span(parameters).unwrap();
         let formal = &formals[0];
-        let (operand, erased, borrowed) = program.formal(machine, formal, None).unwrap();
+        let (operand, erased, borrowed) = program.formal(machine, formal).unwrap();
         assert!(!erased);
         assert_eq!(borrowed.unwrap().access, ReferenceAccess::Mutable);
         let owned_descriptor = program.value_type(machine, references[0]).unwrap();

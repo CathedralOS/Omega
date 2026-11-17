@@ -1341,10 +1341,8 @@ impl<'t> Program<'t> {
             Reading::Closed | Reading::Implementation | Reading::Provider => {
                 return unserved_parameters("generic machine read without arguments");
             }
-            // A type parameter is opaque here: a value of it can be named,
-            // passed and returned, and nothing selects on it. One declared
-            // `[linear]` must be used exactly once, which this route does
-            // not judge, so only the default and `[copy]` are read.
+            // The storage checker carries each parameter's declared bound
+            // and unknown contents through ordinary transfers and borrows.
             Reading::GenericEntry => {
                 for parameter in parameters {
                     match parameter.kind {
@@ -1353,12 +1351,7 @@ impl<'t> Program<'t> {
                         | typed_trees::data::TypeParameterKind::Machine {
                             contract: typed_trees::data::MachineParameterContract::Structural(_),
                         } => {}
-                        typed_trees::data::TypeParameterKind::Type
-                            if parameter.bounds.multiplicity
-                                != language_core::Multiplicity::Linear => {}
-                        typed_trees::data::TypeParameterKind::Type => {
-                            return unserved_parameters("linear type parameter");
-                        }
+                        typed_trees::data::TypeParameterKind::Type => {}
                         _ => {
                             return unserved_parameters(
                                 "parameter without a supported static contract",
@@ -2435,7 +2428,7 @@ impl<'t> Program<'t> {
             .parameters
             .iter()
             .map(|formal| {
-                let (value_type, erased, borrowed) = self.formal(id, formal, None)?;
+                let (value_type, erased, borrowed) = self.formal(id, formal)?;
                 if erased || borrowed.is_some() || formal.is_const || formal.is_mutable {
                     return Err(unavailable("numeric primitive has a noncanonical formal"));
                 }
@@ -2623,8 +2616,7 @@ impl<'t> Program<'t> {
         // Reading that metadata must preserve the executable closure's scope;
         // a standalone generic check form owns its binders in generic_trait.
         let outer = std::mem::replace(&mut self.scope, scope);
-        let schema_types =
-            std::mem::replace(&mut self.schema_types, abstract_schema.then(Vec::new));
+        let reading_schema = std::mem::replace(&mut self.reading_schema, abstract_schema);
         let declared = if abstract_schema {
             Declarer::Schema {
                 declares_no_crash_route: signature.declares_no_crash_route,
@@ -2661,7 +2653,7 @@ impl<'t> Program<'t> {
         );
         self.lifetime_owner = owner;
         self.elision = elision;
-        self.schema_types = schema_types;
+        self.reading_schema = reading_schema;
         self.scope = outer;
         if let Some((_, count)) = self
             .elided_lifetimes
@@ -2926,13 +2918,8 @@ impl<'t> Program<'t> {
         let mut erased = Vec::new();
         let mut borrowed = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
-        let mut abstract_borrows = Vec::new();
         for (position, formal) in formals.iter().enumerate() {
-            let (value_type, is_erased, reference) = self.formal(
-                id,
-                formal,
-                matches!(declared, Declarer::Schema { .. }).then_some(&mut abstract_borrows),
-            )?;
+            let (value_type, is_erased, reference) = self.formal(id, formal)?;
             parameters.push(value_type);
             if is_erased {
                 erased.push(position);
@@ -3320,16 +3307,6 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
-    fn copies(&self, machine: &Machine, rigid: terminal_check_tables::values::RigidType) -> bool {
-        self.typed
-            .machine_type_parameters(machine)
-            .get(rigid.0 as usize)
-            .is_some_and(|parameter| {
-                parameter.bounds.multiplicity == language_core::Multiplicity::Unrestricted
-            })
-    }
-
     /// Whether a clause states nothing: it is the Boolean literal `true`,
     /// or static type propositions decide it as true (`clause_truth`).
     ///
@@ -3496,12 +3473,6 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         formal: &StateParameter,
-        _abstract_borrows: Option<
-            &mut Vec<(
-                typed_trees::type_identity::NormalizedTypeIdentity,
-                terminal_check_tables::values::RigidType,
-            )>,
-        >,
     ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
@@ -3593,39 +3564,6 @@ impl<'t> Program<'t> {
             }
         }
         let value_type = self.formal_value_type(id, carrier, referent)?;
-        if matches!(value_type, ValueType::Rigid(_))
-            && let Some(types) = &mut self.schema_types
-        {
-            // A bodyless generic schema has no caller storage to borrow. Its
-            // whole reference type is an opaque logical input, distinct from T
-            // and from other reference types. Rigid inputs grant no facts. The
-            // applied callable later checks its real referent and outer loan.
-            let identity = self
-                .typed
-                .package_qualified_type_identity(formal.type_reference);
-            if !identity.is_valid() {
-                return unserved("symbolic reference without its complete type identity");
-            }
-            let position = match types.iter().position(|candidate| *candidate == identity) {
-                Some(position) => position,
-                None => {
-                    types.push(identity);
-                    types.len() - 1
-                }
-            };
-            let position = u32::try_from(self.scope.len() + position).map_err(|_| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Parameter("schema type count"),
-                )
-            })?;
-            return Ok((
-                ValueType::Rigid(terminal_check_tables::values::RigidType(position)),
-                false,
-                None,
-            ));
-        }
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -4031,28 +3969,6 @@ impl<'t> Program<'t> {
                 value_exits(statement, &mut names.exits);
             }
         }
-        // ownership.md, "Property declarations": "every use of `T` receives
-        // the property fixed by `T`'s declaration". A value of a type
-        // parameter not declared `[copy]` may be used at most once, and
-        // this route has no judgment of moves, so a body that names such a
-        // slot twice anywhere is refused, whichever paths the two uses are
-        // on.
-        let mut uses = vec![0_usize; slots.len()];
-        for statement in &body {
-            statement_slot_uses(statement, &mut uses);
-        }
-        for (slot, uses) in slots.iter().zip(&uses) {
-            if let ValueType::Rigid(rigid) = slot.value_type
-                && *uses > 1
-                && !self.copies(machine, rigid)
-            {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Expression("second use of a value of a type parameter"),
-                ));
-            }
-        }
         self.admitted_bodies.include(machine.symbol);
         Ok(Body {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
@@ -4441,139 +4357,4 @@ enum Reading {
     /// generic machine with its body, each type parameter fixed to that
     /// alternative's type (`elaborate_alternatives`).
     Alternative(Vec<ValueType>),
-}
-
-/// Counts, per slot, how often `statement` names it.
-fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
-    let target = |target: &Target, uses: &mut [usize]| {
-        if let Target::Value(value) = target {
-            expression_slot_uses(value, uses);
-        };
-    };
-    match statement {
-        Statement::Bind { value, .. } | Statement::Decompose { subject: value } => {
-            expression_slot_uses(value, uses)
-        }
-        Statement::Store {
-            destination, value, ..
-        } => {
-            expression_slot_uses(destination, uses);
-            expression_slot_uses(value, uses);
-        }
-        Statement::Evaluate {
-            expression: value, ..
-        } => expression_slot_uses(value, uses),
-        // Counted although nothing evaluates it: a type parameter's value is
-        // never an erased term, so counting it can only refuse more.
-        Statement::Witness { term, .. } => expression_slot_uses(term, uses),
-        Statement::Arm {
-            guard, target: arm, ..
-        } => {
-            if let Some(guard) = guard {
-                expression_slot_uses(guard, uses);
-            }
-            target(arm, uses);
-        }
-        Statement::Dispatch { arms, default, .. } => {
-            for (_, arm, _) in arms {
-                target(arm, uses);
-            }
-            if let Some((arm, _)) = default {
-                target(arm, uses);
-            }
-        }
-        Statement::CaptureReference { original, .. } => uses[*original] += 1,
-        Statement::Declare { .. } => {}
-    }
-}
-
-fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
-    match &expression.kind {
-        ExpressionKind::Atomic(operation) => {
-            for operand in operation.inputs() {
-                expression_slot_uses(operand, uses);
-            }
-        }
-        ExpressionKind::Slot(slot) => {
-            if let Some(count) = uses.get_mut(*slot) {
-                *count += 1;
-            }
-        }
-        ExpressionKind::SavedSubject(_)
-        | ExpressionKind::Integer(_)
-        | ExpressionKind::Float(_)
-        | ExpressionKind::ScalarApplication { .. }
-        | ExpressionKind::ByteLiteral(_)
-        | ExpressionKind::MachineValue { .. }
-        | ExpressionKind::Zero
-        | ExpressionKind::Boolean(_) => {}
-        ExpressionKind::Array { elements } => {
-            for element in elements {
-                expression_slot_uses(element, uses);
-            }
-        }
-        ExpressionKind::CollectionSubslice { base, start, end } => {
-            for operand in std::iter::once(base.as_ref())
-                .chain(start.as_deref())
-                .chain(end.as_deref())
-            {
-                expression_slot_uses(operand, uses);
-            }
-        }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
-            expression_slot_uses(base, uses);
-            expression_slot_uses(index, uses);
-        }
-        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
-            for (_, field) in fields {
-                expression_slot_uses(field, uses);
-            }
-        }
-        ExpressionKind::Field { base, .. }
-        | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::CollectionView { base, .. }
-        | ExpressionKind::CollectionMeasure { base, .. }
-        | ExpressionKind::ByteSequencePredicate { base, .. } => {
-            expression_slot_uses(base, uses);
-        }
-        ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),
-        ExpressionKind::Borrow { place, .. } => expression_slot_uses(place, uses),
-        ExpressionKind::Match {
-            subject,
-            arms,
-            default,
-            ..
-        } => {
-            expression_slot_uses(subject, uses);
-            for (_, arm) in arms {
-                expression_slot_uses(arm, uses);
-            }
-            if let Some(default) = default {
-                expression_slot_uses(default, uses);
-            }
-        }
-        ExpressionKind::Strict { left, right, .. }
-        | ExpressionKind::ShortCircuit { left, right, .. } => {
-            expression_slot_uses(left, uses);
-            expression_slot_uses(right, uses);
-        }
-        ExpressionKind::Not(operand)
-        | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand)
-        | ExpressionKind::Referent(operand)
-        | ExpressionKind::Establish { operand, .. } => {
-            expression_slot_uses(operand, uses);
-        }
-        ExpressionKind::Call {
-            callee, arguments, ..
-        } => {
-            if let Some(operand) = callee.operand() {
-                expression_slot_uses(operand, uses);
-            }
-            for argument in arguments {
-                expression_slot_uses(argument, uses);
-            }
-        }
-    }
 }

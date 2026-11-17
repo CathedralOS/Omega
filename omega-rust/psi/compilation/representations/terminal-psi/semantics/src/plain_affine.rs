@@ -570,12 +570,22 @@ fn reference_backing_uses(
             let ty = *graph.place_types.get(&input.root).ok_or(Error::malformed(
                 "reference observation lost its source type",
             ))?;
-            let slots = DescriptorSlotKind::References
-                .owned_slots(types, input.root, ty)
+            let inventory = DescriptorSlotKind::References
+                .owned_inventory(types, input.root, ty)
                 .ok_or(Error::unsupported(
-                    "reference observation has no finite owned slots",
+                    "reference observation has no owned contents inventory",
                 ))?;
-            'slots: for mut slot in slots {
+            for unknown in inventory.unknown_contents {
+                if input.contains(&unknown.location) || unknown.location.contains(&input) {
+                    // An unknown packet has no address we can resolve. Keep
+                    // its entire carrier live; this supplies no access to its
+                    // hidden referents and does not authorize their release.
+                    uses.entry(*at)
+                        .or_insert_with(IdSet::new)
+                        .insert(input.root);
+                }
+            }
+            'slots: for mut slot in inventory.slots {
                 if !input.contains(&slot) && !slot.contains(&input) {
                     continue;
                 }
@@ -2140,10 +2150,29 @@ impl Analysis<'_> {
             .ok_or(Error::unsupported(
                 "reference closure has no selected carrier type",
             ))?;
-        let leaves = crate::reference_leaves(self.types.iter(), selected.id, usize::MAX).ok_or(
-            Error::unsupported("reference closure has no finite descriptor roster"),
-        )?;
-        for leaf in leaves {
+        let inventory = crate::reference_inventory(self.types.iter(), selected.id, usize::MAX)
+            .ok_or(Error::unsupported(
+                "reference closure has no complete contents inventory",
+            ))?;
+        for unknown in inventory.unknown_contents {
+            let mut carrier = path.to_vec();
+            carrier.extend(unknown.path);
+            let carrier = self.canonical(source, &carrier)?;
+            // Hidden references cannot be opened through this carrier. Keep
+            // the entire value established when handing it on; a whole move
+            // does not claim that its referents were individually released.
+            if !state.regions[index(source.get())?]
+                .as_ref()
+                .is_some_and(|region| region.available(&carrier))
+            {
+                self.unavailable.push(Unavailable {
+                    site,
+                    place: source,
+                    unrestored: true,
+                });
+            }
+        }
+        for leaf in inventory.references {
             let declaration = self
                 .types
                 .get(index(leaf.structural_type.get())?)

@@ -1810,6 +1810,7 @@ pub(crate) fn split_affine_frontier_at_projection(
             selected
         }
         StructuralTypeShape::Opaque
+        | StructuralTypeShape::TypeParameter
         | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::AtomicCell(_)
         | StructuralTypeShape::Reference { .. }

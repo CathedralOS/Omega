@@ -2706,7 +2706,7 @@ pub(crate) mod results {
             };
             let mut fields = Vec::new();
             match &declaration.shape {
-                StructuralTypeShape::Reference { .. } => {
+                StructuralTypeShape::Reference { .. } | StructuralTypeShape::TypeParameter => {
                     return true;
                 }
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {

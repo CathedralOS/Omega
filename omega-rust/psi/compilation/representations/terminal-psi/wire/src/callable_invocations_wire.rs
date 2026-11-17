@@ -83,14 +83,72 @@ wire_enum! {
         0 => Scalar(position: Position),
         1 => Structural { position: Position, path: List<PathSegment> },
     }
-    PathSegment: ResolvedStructuralPathSegment, "resolved callable storage path" {
-        0 => Field(field: Id),
-        1 => Case(case: Id),
-        2 => FixedIndex(index: U64),
-        3 => RuntimeIndex { selector: Id },
-        4 => Extent,
-        5 => RepresentationView { structural_type: Id, stored_scalar: Optional<Scalar> },
-        6 => Referent,
+}
+
+// Unknown contents exist only while checking an open declaration. They are
+// not a storage coordinate and cannot enter an executable callable catalog.
+struct PathSegment;
+impl Field<ResolvedStructuralPathSegment> for PathSegment {
+    fn write(writer: &mut Writer, value: &ResolvedStructuralPathSegment) -> Result<(), CodecError> {
+        use ResolvedStructuralPathSegment as S;
+        match value {
+            S::Field(field) => {
+                writer.u8(0);
+                Id::write(writer, field)?;
+            }
+            S::Case(case) => {
+                writer.u8(1);
+                Id::write(writer, case)?;
+            }
+            S::FixedIndex(index) => {
+                writer.u8(2);
+                U64::write(writer, index)?;
+            }
+            S::RuntimeIndex { selector } => {
+                writer.u8(3);
+                Id::write(writer, selector)?;
+            }
+            S::Extent => writer.u8(4),
+            S::RepresentationView {
+                structural_type,
+                stored_scalar,
+            } => {
+                writer.u8(5);
+                Id::write(writer, structural_type)?;
+                Optional::<Scalar>::write(writer, stored_scalar)?;
+            }
+            S::Referent => writer.u8(6),
+            S::UnknownContents => {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "unknown generic contents are not an executable storage path",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn read(reader: &mut Reader<'_>) -> Result<ResolvedStructuralPathSegment, CodecError> {
+        use ResolvedStructuralPathSegment as S;
+        Ok(match reader.u8()? {
+            0 => S::Field(Id::read(reader)?),
+            1 => S::Case(Id::read(reader)?),
+            2 => S::FixedIndex(U64::read(reader)?),
+            3 => S::RuntimeIndex {
+                selector: Id::read(reader)?,
+            },
+            4 => S::Extent,
+            5 => S::RepresentationView {
+                structural_type: Id::read(reader)?,
+                stored_scalar: Optional::<Scalar>::read(reader)?,
+            },
+            6 => S::Referent,
+            tag => {
+                return Err(CodecError::InvalidTag(
+                    "resolved callable storage path",
+                    tag,
+                ));
+            }
+        })
     }
 }
 

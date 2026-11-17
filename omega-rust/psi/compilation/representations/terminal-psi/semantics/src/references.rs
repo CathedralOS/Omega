@@ -878,10 +878,19 @@ pub(crate) mod reference_completion {
         }) else {
             return Ok(Vec::new());
         };
-        let returns_reference = terminal_psi::structural_type_contains_reference_by(
+        let has_reference_contents = terminal_psi::structural_type_contains_reference_by(
             |id| module.structural_type(id),
             result.structural_type,
         );
+        let result_inventory = crate::reference_inventory(
+            module.structural_types.iter(),
+            result.structural_type,
+            usize::MAX,
+        )
+        .ok_or_else(|| refuse("returned contents have no complete reference inventory"))?;
+        // An opaque value packet carries its existing loans. It does not
+        // form a new reference to the storage that previously held the value.
+        let returns_reference = !result_inventory.references.is_empty();
         let Some(call) = operation.declared_invocation() else {
             return if matches!(
                 operation.kind,
@@ -958,19 +967,19 @@ pub(crate) mod reference_completion {
                         Some(requirement),
                     )
                 } else {
-                    let slots = analysis.result_slots(callee.id).ok_or_else(|| {
+                    let contents = analysis.result_contents(callee.id).ok_or_else(|| {
                         // A dependency can fail before its return sources are
                         // exported. Keep that flow's actual machine and site.
                         analysis.flow(callee.id).err().unwrap_or_else(|| {
                             refuse("returned reference callee has no complete actual source correspondence")
                         })
                     })?;
-                    let actual = if returns_reference {
-                        super::reference_origins::reference_result_sources(
+                    let actual = if has_reference_contents {
+                        super::reference_origins::reference_result_contents(
                             &module.structural_types,
                             &callee.structural_parameters,
                             signature,
-                            &slots,
+                            &contents,
                         )
                         .map_err(refuse)?
                     } else {
@@ -996,7 +1005,7 @@ pub(crate) mod reference_completion {
                     }
                     (
                         callee.structural_parameters.as_slice(),
-                        slots,
+                        contents.slots,
                         actual,
                         public,
                     )
@@ -2187,6 +2196,32 @@ pub(crate) mod reference_origins {
                 (types, result, declaration)
             }
 
+            #[test]
+            fn unresolved_views_keep_loans_without_becoming_reference_authority() {
+                let (mut types, _, declaration) = declarations(StructuralAccess::SharedBorrow);
+                let contents = crate::descriptor_results::DescriptorResultContents {
+                    slots: vec![crate::descriptor_results::DescriptorResultSlot {
+                        path: Vec::new(),
+                        origins: Vec::new(),
+                    }],
+                    unknown_contents: Vec::new(),
+                    unresolved_slots: vec![Vec::new()],
+                };
+                assert_eq!(
+                    crate::reference_result_contents(&types, &[], &declaration, &contents),
+                    Err("reference result retains an unresolved spatial origin")
+                );
+                types[1].shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                );
+                assert_eq!(
+                    crate::reference_result_contents(&types, &[], &declaration, &contents),
+                    Ok(Vec::new())
+                );
+            }
+
             fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
                 ReferenceCallResult {
                     path: Vec::new(),
@@ -2458,6 +2493,130 @@ pub(crate) mod reference_origins {
         ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
             let leaves = super::reference_leaves(types.iter(), result.structural_type, slots.len())
                 .ok_or("reference result has no complete finite leaf roster")?;
+            reference_sources_for_leaves(types, parameters, result, slots, leaves)
+        }
+
+        pub fn reference_result_contents(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            contents: &crate::descriptor_results::DescriptorResultContents,
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
+            let inventory = super::reference_inventory(
+                types.iter(),
+                result.structural_type,
+                contents
+                    .slots
+                    .len()
+                    .checked_add(contents.unknown_contents.len())
+                    .ok_or("reference result contents count overflow")?,
+            )
+            .ok_or("reference result has no complete contents inventory")?;
+            if !contents.unresolved_slots.is_empty() {
+                let mut views = crate::descriptor_results::DescriptorSlotKind::Views
+                    .owned_inventory(types, result.place, result.structural_type)
+                    .ok_or("unresolved result slots have no complete view inventory")?;
+                // A view can retain every possible input loan without choosing
+                // one address. References still need a complete spatial origin
+                // on every return path; unknown contents do not supply one.
+                views
+                    .slots
+                    .sort_unstable_by(|left, right| left.path.cmp(&right.path));
+                if contents.unresolved_slots.iter().any(|path| {
+                    views
+                        .slots
+                        .binary_search_by(|slot| slot.path.cmp(path))
+                        .is_err()
+                }) {
+                    return Err("reference result retains an unresolved spatial origin");
+                }
+            }
+            if inventory.unknown_contents.len() != contents.unknown_contents.len() {
+                return Err("reference result omits an unknown contents packet");
+            }
+            for expected in inventory.unknown_contents {
+                let mut path = crate::descriptor_lifetimes::descriptor_location(
+                    types,
+                    result.place,
+                    result.structural_type,
+                    &expected.path,
+                    None,
+                )
+                .ok_or("unknown result contents lost their exact carrier")?
+                .path;
+                path.push(crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents);
+                let mut matching = contents
+                    .unknown_contents
+                    .iter()
+                    .filter(|packet| packet.path == path);
+                let packet = matching
+                    .next()
+                    .ok_or("unknown result contents lost their custody packet")?;
+                if matching.next().is_some() || packet.origins.is_empty() {
+                    return Err("unknown result contents repeat or omit their origins");
+                }
+                for origin in &packet.origins {
+                    let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
+                        return Err("unknown result contents need their exact admitted producer");
+                    };
+                    let (last, prefix) = path
+                        .split_last()
+                        .ok_or("unknown input contents lost their packet identity")?;
+                    if *last != crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents
+                    {
+                        return Err("a reference address cannot stand for unknown value contents");
+                    }
+                    let parameter = parameters
+                        .get(*position)
+                        .ok_or("unknown contents name an absent input")?;
+                    let carrier = crate::descriptor_lifetimes::descriptor_location_type(
+                        types,
+                        parameter.structural_type,
+                        prefix,
+                    )
+                    .ok_or("unknown contents input has no exact carrier")?;
+                    if carrier != expected.structural_type {
+                        return Err("unknown contents changed their declared type parameter");
+                    }
+                    let declaration = terminal_psi::find_structural_type(types, carrier)
+                        .ok_or("unknown contents carrier is absent")?;
+                    let path = descriptor_path(types, parameter.structural_type, prefix)
+                        .ok_or("unknown contents input has no typed storage path")?;
+                    let requested = if declaration.is_copyable() {
+                        StructuralAccess::SharedBorrow
+                    } else {
+                        StructuralAccess::MutableBorrow
+                    };
+                    if !matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+                        || !crate::reference_source_projection_accessible(
+                            types.iter(),
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            parameter.access,
+                            &path,
+                            requested,
+                        )
+                    {
+                        return Err("unknown contents were transferred without owned access");
+                    }
+                }
+            }
+            reference_sources_for_leaves(
+                types,
+                parameters,
+                result,
+                &contents.slots,
+                inventory.references,
+            )
+        }
+
+        fn reference_sources_for_leaves(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            slots: &[DescriptorResultSlot],
+            leaves: Vec<super::ReferenceLeaf>,
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
             let mut mappings = Vec::with_capacity(leaves.len());
             for leaf in leaves {
                 let StructuralTypeShape::Reference { referent, access } = types
@@ -3003,11 +3162,36 @@ pub(crate) mod reference_origins {
             Ok(())
         }
 
+        /// Enumerating known references never proves an unknown packet empty.
         pub fn reference_leaves<'types>(
             types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
             root: StructuralTypeId,
             maximum_leaves: usize,
         ) -> Option<Vec<ReferenceLeaf>> {
+            let inventory = reference_inventory(types, root, maximum_leaves)?;
+            inventory
+                .unknown_contents
+                .is_empty()
+                .then_some(inventory.references)
+        }
+
+        pub struct ReferenceInventory {
+            pub references: Vec<ReferenceLeaf>,
+            pub unknown_contents: Vec<UnknownReferenceContents>,
+        }
+
+        /// The exact value whose contained references cannot yet be enumerated.
+        /// Its path stops at the carrier and grants no access to a referent.
+        pub struct UnknownReferenceContents {
+            pub path: Vec<StructuralPathSegment>,
+            pub structural_type: StructuralTypeId,
+        }
+
+        pub fn reference_inventory<'types>(
+            types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            maximum_leaves: usize,
+        ) -> Option<ReferenceInventory> {
             let contains_reference = |root| {
                 terminal_psi::structural_type_contains_reference_by(
                     |id| types.clone().find(|row| row.id == id),
@@ -3015,6 +3199,7 @@ pub(crate) mod reference_origins {
                 )
             };
             let mut output = Vec::new();
+            let mut unknown_contents = Vec::new();
             let mut pending = vec![(root, Vec::new())];
             while let Some((current, path)) = pending.pop() {
                 if !contains_reference(current) {
@@ -3022,8 +3207,18 @@ pub(crate) mod reference_origins {
                 }
                 let declaration = types.clone().find(|row| row.id == current)?;
                 let fields: Vec<_> = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::TypeParameter => {
+                        if output.len() + unknown_contents.len() == maximum_leaves {
+                            return None;
+                        }
+                        unknown_contents.push(UnknownReferenceContents {
+                            path,
+                            structural_type: current,
+                        });
+                        continue;
+                    }
                     terminal_psi::StructuralTypeShape::Reference { .. } => {
-                        if output.len() == maximum_leaves {
+                        if output.len() + unknown_contents.len() == maximum_leaves {
                             return None;
                         }
                         output.push(ReferenceLeaf {
@@ -3056,6 +3251,7 @@ pub(crate) mod reference_origins {
                         if pending
                             .len()
                             .checked_add(output.len())?
+                            .checked_add(unknown_contents.len())?
                             .checked_add(count)?
                             > maximum_leaves
                         {
@@ -3077,7 +3273,12 @@ pub(crate) mod reference_origins {
                         if !contains_reference(child) {
                             continue;
                         }
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                        if pending
+                            .len()
+                            .checked_add(output.len())?
+                            .checked_add(unknown_contents.len())?
+                            >= maximum_leaves
+                        {
                             return None;
                         }
                         let mut child_path = path.clone();
@@ -3097,7 +3298,17 @@ pub(crate) mod reference_origins {
                 return None;
             }
             output.dedup_by(|left, right| left.path == right.path);
-            Some(output)
+            unknown_contents.sort_by(|left, right| left.path.cmp(&right.path));
+            if unknown_contents.windows(2).any(|pair| {
+                pair[0].path == pair[1].path && pair[0].structural_type != pair[1].structural_type
+            }) {
+                return None;
+            }
+            unknown_contents.dedup_by(|left, right| left.path == right.path);
+            Some(ReferenceInventory {
+                references: output,
+                unknown_contents,
+            })
         }
 
         pub struct ReferenceLeaf {
@@ -3110,11 +3321,12 @@ pub(crate) mod reference_origins {
         bind_public_reference_call_results, bind_reference_call_results,
     };
     pub use descriptor_regions::{
-        descriptor_input_origin_path, reference_result_sources, validate_descriptor_result_regions,
+        descriptor_input_origin_path, reference_result_contents, reference_result_sources,
+        validate_descriptor_result_regions,
     };
     pub use result_regions::{
-        ReferenceLeaf, reference_leaves, validate_boundary_reference_regions,
-        validate_dynamic_reference_regions,
+        ReferenceInventory, ReferenceLeaf, UnknownReferenceContents, reference_inventory,
+        reference_leaves, validate_boundary_reference_regions, validate_dynamic_reference_regions,
     };
     use std::slice::from_ref;
 
