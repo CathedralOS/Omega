@@ -1,0 +1,13 @@
+<!-- @dsCard group="Content" height=140 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>CodeBlock preview</title></head>
+<body>
+<div id="root" class="om-stack"></div>
+<script>
+  var O = window.Omega, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(O.CodeBlock, { caption: 'Run on both engines · Expected exit: 0' }, 'omega run --both samples/cli/facts/length/local/main.omg'));
+</script>
+</body>
+</html>

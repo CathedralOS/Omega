@@ -1,0 +1,41 @@
+<!-- @dsCard height=320 -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; background: var(--ground); }
+.cover { position: relative; width: 960px; height: 320px; background: var(--ground); overflow: hidden; }
+.cover svg { position: absolute; inset: 0; }
+.ink { fill: var(--ink); }
+.ground { fill: var(--ground); }
+.checked { fill: var(--checked); }
+.trap { fill: var(--trap); }
+.text { position: absolute; left: var(--space-4); bottom: var(--space-4); max-width: 440px; display: flex; flex-direction: column; gap: var(--space-2); }
+.name { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 120px; line-height: 0.92; color: var(--ink); letter-spacing: -0.01em; }
+.tagline { margin: 0; font-family: var(--font-serif); font-size: 14px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <svg width="960" height="320" viewBox="0 0 960 320" aria-hidden="true">
+    <!--
+      blocks: ink slab 400×320 (bleeds right and bottom), checked column 64×256 arch-topped, trap stone 16×16 (state colour, kept small)
+      arrangement: one tall slab with a satellite column to its left, everything right of x = 480
+      pattern: literal motif (the arch, from radius-arch): three arched openings cut out of the slab in ground. Omega is an arch, so its system's shape is the arch.
+      scales: openings space-5 (64) wide with half-width arch tops, space-4 (32) apart, sitting space-5 down from the slab head; column and stone are space-5 and space-3
+    -->
+    <rect class="ink" x="560" y="0" width="400" height="320"></rect>
+    <path class="ground" d="M632 320 V160 A32 32 0 0 1 696 160 V320 Z"></path>
+    <path class="ground" d="M728 320 V160 A32 32 0 0 1 792 160 V320 Z"></path>
+    <path class="ground" d="M824 320 V160 A32 32 0 0 1 888 160 V320 Z"></path>
+    <path class="checked" d="M488 320 V96 A32 32 0 0 1 552 96 V320 Z"></path>
+    <rect class="trap" x="512" y="32" width="16" height="16"></rect>
+  </svg>
+  <div class="text">
+    <h1 class="name">Omega</h1>
+    <p class="tagline">A proof-checked systems language, built stone by stone.</p>
+  </div>
+</div>
+</body>
+</html>

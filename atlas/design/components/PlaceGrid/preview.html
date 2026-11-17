@@ -1,0 +1,15 @@
+<!-- @dsCard group="Evidence" height=480 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>PlaceGrid preview</title></head>
+<body>
+<div id="root" class="om-stack"></div>
+<script>
+  var O = window.Omega, h = React.createElement;
+  var example = ['checked', 'checked', 'checked', 'checked', 'checked', 'checked', 'trap', 'open', 'open'];
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(O.PlaceGrid, { fact: 'Example fact', results: example }),
+    h(O.PlaceGrid, { size: 'compact', fact: 'Example fact', results: example })));
+</script>
+</body>
+</html>
