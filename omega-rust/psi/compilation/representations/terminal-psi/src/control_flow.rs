@@ -1558,9 +1558,9 @@ pub(crate) mod operations {
         MoveStructuralValue {
             source: StructuralArgument,
         },
-        /// End an authorized nominal wrapper while its complete components
-        /// remain owned at the same captured home. This does not relocate
-        /// bytes, transfer a component, or consume an independent claim.
+        /// Partition a complete owned record at its existing storage home.
+        /// End its intrinsic wrapper claim or authorized selected cleanup;
+        /// retain every component's independent claims and cleanup obligations.
         DecomposeStructuralValue {
             subject: StructuralArgument,
         },

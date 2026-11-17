@@ -1029,10 +1029,24 @@ fn correspondence(
         }
         append(&case.fields, symbols)?;
     }
+    let cleanup = match (source.cleanup, declaration.cleanup.as_ref()) {
+        (None, None) => None,
+        (Some(selection), Some(target)) => Some(typed_trees::SourceRecordCleanup {
+            selection,
+            target: target.machine,
+        }),
+        _ => {
+            return Err(malformed(
+                machine,
+                "record cleanup lost its exact source choice",
+            ));
+        }
+    };
     Ok(SourceRecordCorrespondence {
         record,
         declaration: source.declaration,
         application,
+        cleanup,
         storage_identity: declaration.identity.clone(),
         schema: source.declaration,
         // These are the declaration's fields. The source owner attaches any
@@ -1163,6 +1177,7 @@ mod tests {
         };
         let source = RecordSource {
             declaration: data.symbol,
+            cleanup: None,
             application: Some(SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
