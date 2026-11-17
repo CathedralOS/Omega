@@ -101,8 +101,12 @@ machine entry() reaches Fs invokes Fs {
 
 #[test]
 fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
+    provider_permission_cannot_be_claimed_as_owned_storage(RETURNED_VIEW);
+}
+
+fn provider_permission_cannot_be_claimed_as_owned_storage(source: &str) {
     use terminal_check_tables::obligations::Lender;
-    let input = elaborate(RETURNED_VIEW).unwrap();
+    let input = elaborate(source).unwrap();
     assert!(matches!(
         crate::judge(Ok(input.clone())),
         Ok(RouteVerdict::Accepted(_))
@@ -124,7 +128,7 @@ fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
                 .then_some((machine, obligation))
             })
         })
-        .expect("the helper lends the provider's returned view");
+        .expect("the helper lends the provider's returned permission");
     let row = changed
         .tables
         .machines
@@ -252,6 +256,165 @@ machine entry() reaches Fs invokes Fs {
     see(path);
 }
 "#;
+
+const PROVIDER_REFERENCE: &str = r#"
+boundary trait Source { machine slot() -> &i32 reaches none crashes none; }
+machine read(slot: &i32) -> i32 { slot }
+machine entry() -> i32 reaches Source invokes Source { read(Source::slot()) }
+"#;
+
+#[test]
+fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
+    let elaborated =
+        elaborate(PROVIDER_REFERENCE).expect("the admitted reference keeps its provider contract");
+    let boundary = &elaborated.module.boundary_machines[0];
+    assert!(boundary.result_reference_regions.is_empty());
+    let groups = boundary.result_lifetimes.as_ref().unwrap();
+    assert_eq!(groups.len(), 1);
+    assert!(groups[0].inputs.is_empty());
+    assert_eq!(groups[0].results, vec![Vec::new()]);
+    let verdict = crate::judge(Ok(elaborated));
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "the shared provider reference must retain its exact permission: {verdict:?}"
+    );
+}
+
+#[test]
+fn boundary_reference_completion_cannot_claim_owned_backing() {
+    provider_permission_cannot_be_claimed_as_owned_storage(PROVIDER_REFERENCE);
+}
+
+#[test]
+fn boundary_reference_completion_keeps_its_logical_input_loan() {
+    let source = r#"
+data Token { id: u64; }
+boundary trait Source { machine slot(token: &Token) -> &i32 reaches none crashes none; }
+machine read(slot: &i32) -> i32 { slot }
+machine eat(token: Token) {}
+machine entry() -> i32 reaches Source invokes Source {
+    let token: Token = Token { id: 1 };
+    let slot: &i32 = Source::slot(&token);
+    let value: i32 = read(slot);
+    eat(token);
+    value
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let changed = source.replace(
+        "    let value: i32 = read(slot);\n    eat(token);",
+        "    eat(token);\n    let value: i32 = read(slot);",
+    );
+    assert_ne!(changed, source);
+    let result = crate::judge(elaborate(&changed));
+    let Ok(RouteVerdict::Rejected { conflicts, .. }) = result else {
+        panic!("a provider reference must retain its exact input loan: {result:?}");
+    };
+    assert!(conflicts.iter().any(|conflict| matches!(
+        conflict.conflict,
+        crate::LoanConflict::ExclusiveAndShared | crate::LoanConflict::ChangeWhileBorrowed
+    )));
+}
+
+/// Reference and view frontiers share provider provenance. This lowered
+/// contract control changes only the borrowed leaf's constructor; no body
+/// or physical address supplies backing to the boundary declaration.
+#[test]
+fn boundary_reference_completion_validates_its_provider_frontier() {
+    use terminal_semantics::descriptor_results::{
+        DescriptorProviderOutput, DescriptorSlotKind, DescriptorStoredOrigin,
+    };
+    let mut baseline = elaborate(PROVIDER_VIEW).unwrap();
+    let boundary = &baseline.module.boundary_machines[0];
+    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+        panic!("the provider returns a borrowed structural leaf");
+    };
+    let result_type = result.structural_type;
+    let referent = boundary.structural_parameters[0].structural_type;
+    baseline
+        .module
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == result_type)
+        .unwrap()
+        .shape = terminal_psi::StructuralTypeShape::Reference {
+        referent,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    };
+    let boundary = &baseline.module.boundary_machines[0];
+    let operation_result = baseline
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+        .find_map(|operation| {
+            (operation.declared_invocation()?.callee
+                == terminal_psi::TargetMachineCallable::Boundary(boundary.id))
+            .then(|| operation.result.as_structural())
+            .flatten()
+        })
+        .unwrap();
+    let slots = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
+        terminal_semantics::boundary_result_slots(
+            &baseline.module.structural_types,
+            boundary,
+            DescriptorSlotKind::BorrowedStorage,
+            operation_result,
+        )
+    };
+    let results = slots(boundary).unwrap();
+    assert_eq!(results.len(), 1);
+    assert!(results[0].path.is_empty());
+    let [DescriptorStoredOrigin::Provider(provider)] = results[0].origins.as_slice() else {
+        panic!("the reference keeps the boundary's exact provider origin");
+    };
+    assert_eq!(provider.boundary, boundary.id);
+    assert_eq!(
+        provider.output,
+        DescriptorProviderOutput::Result(Vec::new())
+    );
+    assert!(provider.invocations.is_empty());
+    assert_eq!(provider.lifetime_dependencies.len(), 1);
+    assert!(matches!(
+        &provider.lifetime_dependencies[0].origin,
+        DescriptorStoredOrigin::Parameter {
+            position: 0,
+            projection,
+        } if *projection == terminal_semantics::borrowed_storage::Projection::new(&[])
+    ));
+    assert_eq!(
+        provider.lifetime_dependencies[0].access,
+        terminal_psi::StructuralAccess::SharedBorrow
+    );
+    for corruption in 0..6 {
+        let mut changed = boundary.clone();
+        match corruption {
+            0 => changed.result_lifetimes = None,
+            1 => changed.result_lifetimes = Some(Vec::new()),
+            2 => changed.result_lifetimes.as_mut().unwrap()[0]
+                .results
+                .push(Vec::new()),
+            3 => changed.result_lifetimes.as_mut().unwrap()[0].results[0]
+                .push(terminal_psi::StructuralPathSegment::Referent),
+            4 => {
+                changed.result_lifetimes.as_mut().unwrap()[0].inputs[0] =
+                    terminal_psi::BoundaryLifetimeDependency::Referent {
+                        argument_index: 1,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    }
+            }
+            5 => {
+                changed.result_lifetimes.as_mut().unwrap()[0].inputs[0] =
+                    terminal_psi::BoundaryLifetimeDependency::Referent {
+                        argument_index: 0,
+                        access: terminal_psi::StructuralAccess::MutableBorrow,
+                    }
+            }
+            _ => unreachable!(),
+        }
+        assert!(slots(&changed).is_err(), "corruption {corruption}");
+    }
+}
 
 #[test]
 fn boundary_result_lifetime_metadata_is_independently_validated() {

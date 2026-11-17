@@ -509,17 +509,32 @@ pub(crate) mod reference_completion {
             }) {
                 return Err("a view inside provider storage needs its own original borrow");
             }
-            let path = machine
+            let root = machine
                 .structural_place_type(descriptor.root)
-                .and_then(|ty| {
-                    crate::descriptor_lifetimes::descriptor_path(
-                        &module.structural_types,
-                        ty,
-                        &descriptor.path,
-                    )
-                })
-                .ok_or("provider view has no exact descriptor type")?;
-            if !view
+                .ok_or("provider borrow has no exact descriptor type")?;
+            let mut path = crate::descriptor_lifetimes::descriptor_path(
+                &module.structural_types,
+                root,
+                &descriptor.path,
+            )
+            .ok_or("provider borrow has no exact descriptor path")?;
+            let shared_reference =
+                crate::runtime_structural_path_tip(module.structural_types.iter(), root, &path)
+                    .is_some_and(|row| {
+                        matches!(
+                            row.shape,
+                            StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            }
+                        )
+                    });
+            if shared_reference {
+                // Owning the reference carrier does not own its referent.
+                // Check the admitted leaf's permission at that crossing.
+                path.push(StructuralPathSegment::Referent);
+            }
+            if !(view || shared_reference)
                 || crate::structural_projection_authority(
                     machine,
                     &module.structural_types,
@@ -530,7 +545,7 @@ pub(crate) mod reference_completion {
                     },
                 ) != Some(StructuralAccess::SharedBorrow)
             {
-                return Err("a writable provider view needs its exact payload region");
+                return Err("a writable provider borrow needs its exact payload region");
             }
             return Ok(BorrowedLoanSource::Provider);
         }
@@ -692,7 +707,14 @@ pub(crate) mod reference_completion {
         }
         for slot in slots {
             slot.visit(result.structural_type, &mut Vec::new(), &mut |path, containing_type, slot| {
-            if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+            let declared = crate::descriptor_lifetimes::descriptor_location_type(
+                &module.structural_types,
+                containing_type,
+                &slot.path,
+            ).and_then(|ty| module.structural_type(ty));
+            if !declared.is_some_and(|row| row.shape.is_borrowed_descriptor())
+                && borrowed_descriptor_shape(module, containing_type, &slot.path).is_none()
+            {
                 return Ok(());
             }
             let descriptor = crate::descriptor_lifetimes::DescriptorLocation {
@@ -861,29 +883,24 @@ pub(crate) mod reference_completion {
         };
         let (declared_parameters, slots, actual, public) = match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
-                if returns_reference {
-                    return Err(refuse(
-                        "returned boundary reference needs its admitted completion resource",
-                    ));
-                }
                 let declaration = module
                     .boundary_machine(boundary)
-                    .ok_or_else(|| refuse("returned boundary view has no exact declaration"))?;
+                    .ok_or_else(|| refuse("returned boundary borrow has no exact declaration"))?;
                 let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
                 else {
-                    return Err(refuse("returned view has no structural boundary result"));
+                    return Err(refuse("returned borrow has no structural boundary result"));
                 };
                 if result.qualifications != expected.qualifications
                     || result.projected_qualifications != expected.projected_qualifications
                 {
                     return Err(refuse(
-                        "returned view differs from its boundary result contract",
+                        "returned borrow differs from its boundary result contract",
                     ));
                 }
                 let slots = crate::boundary_result_slots(
                     &module.structural_types,
                     declaration,
-                    crate::descriptor_results::DescriptorSlotKind::Views,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                     result,
                 )
                 .map_err(refuse)?;
@@ -969,7 +986,14 @@ pub(crate) mod reference_completion {
         let parameters = public.as_ref().map_or(declared_parameters, |public| {
             public.contract().structural_parameters.as_slice()
         });
-        let bindings = if !returns_reference {
+        // An admitted boundary establishes its own result provenance. Its
+        // logical input debts below retain loans without claiming that the
+        // returned bytes lie inside an input's storage.
+        let bindings = if !returns_reference
+            || matches!(
+                call.callee,
+                terminal_psi::TargetMachineCallable::Boundary(_)
+            ) {
             Vec::new()
         } else if let Some(public) = &public {
             super::reference_origins::bind_public_reference_call_results(
