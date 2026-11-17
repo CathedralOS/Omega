@@ -12,13 +12,18 @@ Composite arenas keep their own stamp: root selection, page membership and mutab
 access invalidate that owner's epoch. Reading it does not scan or add child epochs.
 When an owner finishes mutating, `seal` moves the built index out of the mutex slot so
 parallel workers read the frozen copy without locking.
+
+Clones share the immutable index data, not the mutex or its revision slot.
+All index updates must use `with_mut` or `seal_with`; those detach shared data
+before handing out mutable access. Read callbacks must not mutate the index
+through interior mutability.
 */
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 pub struct OwnedIndex<T, Revision = u64> {
-    slot: Mutex<Option<(Revision, T)>>, // Lazy revision-tagged index slot for mutable owners.
-    sealed: Option<(Revision, T)>,      // Lock-free frozen index for sealed owners.
+    slot: Mutex<Option<(Revision, Arc<T>)>>, // Lazy revision-tagged index slot for mutable owners.
+    sealed: Option<(Revision, Arc<T>)>,      // Lock-free frozen index for sealed owners.
 }
 
 pub type RevisionIndex<T, Revision = u64> = OwnedIndex<T, Revision>;
@@ -32,7 +37,10 @@ impl<T, Revision> Default for OwnedIndex<T, Revision> {
     }
 }
 
-impl<T: Clone, Revision: Clone> Clone for OwnedIndex<T, Revision> {
+// A continuation initially reads the same immutable index. Its mutex and
+// revision remain private; rebuilding replaces only its slot, and a mutation
+// copies the index before exposing it to the caller.
+impl<T, Revision: Clone> Clone for OwnedIndex<T, Revision> {
     fn clone(&self) -> Self {
         Self {
             slot: Mutex::new(
@@ -74,7 +82,7 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
         let mut slot = self.slot.lock().unwrap_or_else(|error| error.into_inner());
         if !slot.as_ref().is_some_and(|(seen, _)| seen == &revision) {
-            *slot = Some((revision, build()));
+            *slot = Some((revision, Arc::new(build())));
         }
         run(&slot.as_ref().expect("index just built").1)
     }
@@ -90,10 +98,13 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
-    pub fn seal_with(&mut self, finish: impl FnOnce(&mut T)) {
+    pub fn seal_with(&mut self, finish: impl FnOnce(&mut T))
+    where
+        T: Clone,
+    {
         self.seal();
         if let Some((_, index)) = &mut self.sealed {
-            finish(index);
+            finish(Arc::make_mut(index));
         }
     }
 
@@ -111,12 +122,17 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         revision: Revision,
         build: impl FnOnce() -> T,
         run: impl FnOnce(&mut T) -> R,
-    ) -> R {
+    ) -> R
+    where
+        T: Clone,
+    {
         let mut slot = self.slot.lock().unwrap_or_else(|error| error.into_inner());
         if !slot.as_ref().is_some_and(|(seen, _)| seen == &revision) {
-            *slot = Some((revision, build()));
+            *slot = Some((revision, Arc::new(build())));
         }
-        run(&mut slot.as_mut().expect("index just built").1)
+        run(Arc::make_mut(
+            &mut slot.as_mut().expect("index just built").1,
+        ))
     }
 
     pub fn clear(&mut self) {
@@ -139,5 +155,118 @@ impl<T, Revision> compiler_storage::Record for OwnedIndex<T, Revision> {
         _: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
         Ok(Self::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OwnedIndex;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountedRows {
+        rows: Vec<u32>,
+        copies: Arc<AtomicUsize>,
+    }
+
+    impl Clone for CountedRows {
+        fn clone(&self) -> Self {
+            self.copies.fetch_add(1, Ordering::Relaxed);
+            Self {
+                rows: self.rows.clone(),
+                copies: Arc::clone(&self.copies),
+            }
+        }
+    }
+
+    fn populated() -> (OwnedIndex<CountedRows>, Arc<AtomicUsize>) {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let index = OwnedIndex::default();
+        index.with(
+            7,
+            || CountedRows {
+                rows: vec![11, 22],
+                copies: Arc::clone(&copies),
+            },
+            |_| (),
+        );
+        (index, copies)
+    }
+
+    fn values(index: &OwnedIndex<CountedRows>, revision: u64) -> Vec<u32> {
+        index.with(
+            revision,
+            || panic!("the retained index must be used"),
+            |data| data.rows.clone(),
+        )
+    }
+
+    #[test]
+    fn forks_share_index_data_until_their_first_write() {
+        for sealed in [false, true] {
+            let (mut original, copies) = populated();
+            if sealed {
+                original.seal();
+            }
+            let mut fork = original.clone();
+            assert_eq!(copies.load(Ordering::Relaxed), 0);
+            let pointer = |data: &CountedRows| data.rows.as_ptr();
+            assert_eq!(
+                original.with(7, || panic!("retained original"), pointer),
+                fork.with(7, || panic!("retained fork"), pointer)
+            );
+            fork.unseal();
+            fork.with_mut(7, || panic!("retained fork"), |data| data.rows[0] = 33);
+            assert_eq!(copies.load(Ordering::Relaxed), 1);
+            assert_eq!(values(&original, 7), [11, 22]);
+            assert_eq!(values(&fork, 7), [33, 22]);
+            fork.with_mut(7, || panic!("retained fork"), |data| data.rows.push(44));
+            assert_eq!(copies.load(Ordering::Relaxed), 1);
+            assert_eq!(values(&fork, 7), [33, 22, 44]);
+            assert_eq!(values(&original, 7), [11, 22]);
+        }
+    }
+
+    #[test]
+    fn finishing_a_shared_sealed_index_does_not_modify_its_sibling() {
+        let (mut original, copies) = populated();
+        original.seal();
+        let mut fork = original.clone();
+        fork.seal_with(|data| data.rows.reverse());
+        assert_eq!(copies.load(Ordering::Relaxed), 1);
+        assert_eq!(values(&original, 7), [11, 22]);
+        assert_eq!(values(&fork, 7), [22, 11]);
+        fork.seal_with(|data| data.rows.push(55));
+        assert_eq!(copies.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn changing_revision_or_clearing_a_fork_keeps_the_original_index() {
+        let (original, copies) = populated();
+        let mut fork = original.clone();
+        fork.with(
+            8,
+            || CountedRows {
+                rows: vec![99],
+                copies: Arc::clone(&copies),
+            },
+            |_| (),
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), 0);
+        assert_eq!(values(&original, 7), [11, 22]);
+        assert_eq!(values(&fork, 8), [99]);
+        fork.clear();
+        assert_eq!(values(&original, 7), [11, 22]);
+        assert_eq!(
+            fork.with(
+                8,
+                || CountedRows {
+                    rows: vec![66],
+                    copies
+                },
+                |data| data.rows[0]
+            ),
+            66
+        );
     }
 }
