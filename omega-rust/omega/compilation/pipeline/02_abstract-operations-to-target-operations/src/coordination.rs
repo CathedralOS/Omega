@@ -525,8 +525,8 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         }
     }
     let structural_types = match verified_input {
-        Some(input) => StructuralTypeLookup::for_verified(&plan.structural_types, input),
-        None => StructuralTypeLookup::new(&plan.structural_types),
+        Some(input) => StructuralTypeLookup::for_verified(&plan.structural_types, input, target),
+        None => StructuralTypeLookup::new(&plan.structural_types, target),
     }
     .map_err(LoweringError::NonDenseStructuralTypes)?;
     let mut mixed_structural_scalar_abis = BTreeMap::new();

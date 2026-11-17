@@ -2015,8 +2015,7 @@ pub(crate) fn establish(
     let compatible = match storage {
         Some(storage) if storage.stored_scalar.is_none() => {
             source_contract(function, live, source.place).is_some_and(|root| {
-                terminal_semantics::reference_storage_region_source_compatible(
-                    types.values().copied(),
+                types.storage_region_source_compatible(
                     root,
                     &source.path,
                     result.structural_type,
