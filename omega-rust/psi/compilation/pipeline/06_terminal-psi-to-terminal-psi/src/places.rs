@@ -6111,6 +6111,82 @@ impl<'a> CallObservations<'_, 'a> {
         }
     }
 
+    /// Callee names of the scalar fields of each readable record input, with
+    /// the caller value each field holds at this arrival.
+    ///
+    /// A value is named in the callee by the field it was read from. After
+    /// `main.sp = main.k`, the value of `main.k` is also what `main.sp` holds,
+    /// so a guard `main.sp < 8` before the call states its bound under the
+    /// callee's `main.k` and the callee learns nothing of `main.sp`. Crossing
+    /// each held field like a scalar formal lets the description state
+    /// `main.sp == main.k` as well. This is inference only: every arrival
+    /// still proves the resulting condition. Only plain record fields are
+    /// walked (no case payloads or array elements), up to a fixed number of
+    /// leaves per arrival.
+    pub(crate) fn field_crossings(&mut self) -> Vec<(ScalarTerm, ValueId)> {
+        const MAXIMUM_FIELD_CROSSINGS: usize = 256;
+        let mut crossings = Vec::new();
+        let types = self.storage.types;
+        let formals = self.callee_formals;
+        for declaration in formals {
+            let Ok(actual) = self.readable_actual(declaration).cloned() else {
+                continue;
+            };
+            let mut pending = vec![(declaration.structural_type, Vec::new())];
+            while let Some((structural_type, path)) = pending.pop() {
+                let Some(StructuralTypeShape::Record { fields, .. }) =
+                    terminal_psi::find_structural_type(types, structural_type)
+                        .map(|declaration| &declaration.shape)
+                else {
+                    continue;
+                };
+                for field in fields {
+                    let mut field_path: Vec<CanonicalStructuralPathSegment> = path.clone();
+                    field_path.push(CanonicalStructuralPathSegment::Field(field.id));
+                    let scalar_type = match field.field_type {
+                        StructuralFieldType::Scalar(scalar_type @ ScalarType::Integer(_))
+                        | StructuralFieldType::Scalar(scalar_type @ ScalarType::Boolean) => {
+                            scalar_type
+                        }
+                        StructuralFieldType::Structural(nested) => {
+                            pending.push((nested, field_path));
+                            continue;
+                        }
+                        _ => continue,
+                    };
+                    if crossings.len() == MAXIMUM_FIELD_CROSSINGS {
+                        return crossings;
+                    }
+                    let Ok(leaf) = extended(actual.clone(), &field_path) else {
+                        continue;
+                    };
+                    let Ok(ScalarTerm::Value { id, .. }) =
+                        self.held_at(&leaf).observation(&leaf, scalar_type)
+                    else {
+                        continue;
+                    };
+                    let version = semantic_vocabulary::ContentPlaceVersion::Entry;
+                    let root = declaration.place;
+                    let name = match scalar_type {
+                        ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                            version,
+                            root,
+                            path: field_path,
+                            scalar_type,
+                        },
+                        _ => ScalarTerm::BooleanField {
+                            version,
+                            root,
+                            path: field_path,
+                        },
+                    };
+                    crossings.push((name, id));
+                }
+            }
+        }
+        crossings
+    }
+
     pub(crate) fn formal_observation(
         &mut self,
         value: ValueId,

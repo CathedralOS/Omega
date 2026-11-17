@@ -50,7 +50,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
 
 use super::authority::has_predicates;
-use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
+use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{Qualification, ValueType};
 use crate::{ClauseText, Unserved, refuse};
@@ -64,25 +64,6 @@ struct Predicate {
     expression: ExpressionHandle,
     /// The declaring domain's name.
     domain: String,
-}
-
-/// Read a domain's clauses over the plain scalar or structural subject that
-/// the caller binds below. Mathematical arithmetic stays in IntegerMathTerm;
-/// embedded carrier computations retain their exact operation and type.
-/// Declaration formation checks those computations before their clause becomes
-/// a premise, and construction/casts still owe the instantiated predicate.
-fn domain_predicate_scope() -> ClauseScope<'static> {
-    ClauseScope {
-        slots: &[],
-        values: &[],
-        bound: &[],
-        owner: SymbolHandle::invalid(),
-        result: ResultTerm::Absent("result in a domain predicate"),
-        subject: None,
-        formal_fields: false,
-        logical: None,
-        mathematical: MathematicalTerms::Served,
-    }
 }
 
 impl Program<'_> {
@@ -144,7 +125,10 @@ impl Program<'_> {
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -367,7 +351,16 @@ impl Program<'_> {
                 Unserved::Contract("cast subject identity"),
             ));
         };
-        let scope = domain_predicate_scope();
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a domain predicate"),
+            subject: None,
+            formal_fields: false,
+            logical: None,
+        };
         let subject = ScalarTerm::Value {
             id: subject,
             scalar_type: carrier,
@@ -414,7 +407,16 @@ impl Program<'_> {
         let value_type = result
             .qualified(added)
             .ok_or_else(|| unserved("cast of a rigid value into a domain with predicates"))?;
-        let scope = domain_predicate_scope();
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a domain predicate"),
+            subject: None,
+            formal_fields: false,
+            logical: None,
+        };
         let clauses = self
             .storage_predicates(id, &scope, value_type, root, &[])?
             .into_iter()
@@ -585,7 +587,10 @@ impl Program<'_> {
                 ..*scope
             };
             clauses.push((
-                self.clause(id, &scope, predicate.expression)?,
+                self.clause(id, &scope, predicate.expression)
+                    .map_err(|refusal| {
+                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                    })?,
                 predicate.expression,
             ));
         }
@@ -631,7 +636,16 @@ impl Program<'_> {
                 Unserved::Declaration("self place identity"),
             ));
         };
-        let scope = domain_predicate_scope();
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a domain predicate"),
+            formal_fields: false,
+            logical: None,
+            subject: None,
+        };
         Ok(self
             .storage_predicates(id, &scope, value_type, root, path)?
             .into_iter()
