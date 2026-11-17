@@ -461,7 +461,7 @@ impl Program<'_> {
                     self.mathematical_predicate_definition(
                         entry,
                         definition_index,
-                        super::logical::AddressInterpretation::OrdinaryTerminal,
+                        super::logical::MathematicalAddressContext::Ordinary,
                         &[],
                     )?;
                 }

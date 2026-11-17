@@ -64,15 +64,6 @@ pub(super) struct ClauseScope<'s> {
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }
 
-impl<'scope> ClauseScope<'scope> {
-    pub(super) fn address_interpretation(self) -> super::logical::AddressInterpretation<'scope> {
-        self.logical.map_or(
-            super::logical::AddressInterpretation::OrdinaryTerminal,
-            |logical| logical.address,
-        )
-    }
-}
-
 /// Whether a clause may compare mathematical integers. A machine's
 /// `requires`, `ensures` and crash guards may: elaboration and the checker
 /// restate them using the same checked semantic substitution. A data
@@ -1600,7 +1591,13 @@ impl Program<'_> {
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                scope.address_interpretation().bound(id)
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
+                match 1_u128.checked_shl(u32::from(address.bits())) {
+                    Some(bound) => Ok(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(bound),
+                    )),
+                    None => unserved("address bound outside mathematical literal support"),
+                }
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 unserved("runtime value in a mathematical term without embed")
@@ -1613,7 +1610,7 @@ impl Program<'_> {
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
     fn field_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1657,7 +1654,7 @@ impl Program<'_> {
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
     fn projected(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1797,6 +1794,12 @@ impl Program<'_> {
                         ),
                     ));
                 };
+                // A contract's checked index is the same primitive collection
+                // operation as a body read. Retain its actual collection type
+                // before publishing the source selection; bounds alone cannot
+                // resolve a competing declared operator.
+                let operands = self.collection_index_operand_types(id, array.record());
+                self.complete_contract_operator(id, scope, expression, operands)?;
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));

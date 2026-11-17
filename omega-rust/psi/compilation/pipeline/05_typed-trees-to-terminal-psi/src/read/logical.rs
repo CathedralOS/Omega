@@ -133,25 +133,30 @@ struct Inputs {
     origins: Vec<CallableInputOrigin>,
 }
 
-/// Ordinary source clauses use the address carrier already declared by
-/// Terminal Psi. Installed continuation proofs instead use their exact
-/// binding's retained model, and an absent model in that context must refuse.
+/// Ordinary contracts retain the program address carrier. Binding projections
+/// require their supplied model and refuse when it is missing or malformed.
 #[derive(Clone, Copy)]
-pub(super) enum AddressInterpretation<'a> {
-    OrdinaryTerminal,
-    BoundCallable(Option<&'a CallableAddressModel>),
+pub(super) enum MathematicalAddressContext<'a> {
+    Ordinary,
+    Binding(Option<&'a CallableAddressModel>),
 }
 
-impl AddressInterpretation<'_> {
+impl<'a> MathematicalAddressContext<'a> {
+    pub(super) fn of(scope: &ClauseScope<'a>) -> Self {
+        scope
+            .logical
+            .map_or(Self::Ordinary, |logical| logical.address)
+    }
+
     pub(super) fn carrier(
         self,
         machine: MachineId,
     ) -> Checked<semantic_vocabulary::ClosedIntegerType> {
         match self {
-            Self::OrdinaryTerminal => {
+            Self::Ordinary => {
                 Ok(semantic_vocabulary::ClosedIntegerType::supported_address_representation())
             }
-            Self::BoundCallable(model) => model
+            Self::Binding(model) => model
                 .filter(|model| {
                     model.carrier.is_address()
                         && model.semantics_version != 0
@@ -167,35 +172,6 @@ impl AddressInterpretation<'_> {
                 }),
         }
     }
-
-    pub(super) fn bound(self, machine: MachineId) -> Checked<semantic_vocabulary::IntegerMathTerm> {
-        let bound = 1_u128
-            .checked_shl(u32::from(self.carrier(machine)?.bits()))
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Contract("address bound outside mathematical literal support"),
-                )
-            })?;
-        Ok(semantic_vocabulary::IntegerMathTerm::literal(
-            semantic_vocabulary::IntegerValue::Unsigned(bound),
-        ))
-    }
-
-    pub(super) fn scalar_type(
-        self,
-        typed: &TypedTrees,
-        machine: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<ScalarType> {
-        let atom = mathematical_input_atom(typed, machine, reference)?;
-        if atom == symbols::BuiltinTypeAtom::Address {
-            Ok(ScalarType::Integer(self.carrier(machine)?.as_checking()))
-        } else {
-            super::types::atom_type(atom, machine)
-        }
-    }
 }
 
 pub(super) struct MathematicalInputs {
@@ -208,7 +184,7 @@ impl MathematicalInputs {
         typed: &TypedTrees,
         machine: MachineId,
         parameters: &[typed_trees::mathematical::MathematicalParameter],
-        address: AddressInterpretation<'_>,
+        address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
@@ -244,7 +220,7 @@ impl MathematicalInputs {
                     root: parameter.symbol,
                     members: HandleSpan::empty(),
                 },
-                scalar: address.scalar_type(typed, machine, *reference)?,
+                scalar: scalar_type(typed, machine, *reference, address)?,
                 origin: ordinal,
                 reference: None,
             });
@@ -286,7 +262,7 @@ impl MathematicalInputs {
     pub(super) fn scope<'a>(
         &'a self,
         machine: MachineId,
-        address: AddressInterpretation<'a>,
+        address: MathematicalAddressContext<'a>,
         expanding: &'a [SymbolHandle],
     ) -> LogicalScope<'a> {
         LogicalScope {
@@ -338,7 +314,7 @@ pub(super) struct LogicalScope<'a> {
     inputs: &'a Inputs,
     members: &'a Arena<SymbolHandle>,
     subject: Option<(SymbolHandle, &'a SymbolPath)>,
-    pub(super) address: AddressInterpretation<'a>,
+    pub(super) address: MathematicalAddressContext<'a>,
     pub(super) expanding: &'a [SymbolHandle],
     machine: MachineId,
     observation: ContentPlaceVersion,
@@ -683,16 +659,8 @@ pub(super) fn scalar_type(
     typed: &TypedTrees,
     machine: MachineId,
     reference: TypeReferenceHandle,
-    model: Option<&CallableAddressModel>,
+    address: MathematicalAddressContext<'_>,
 ) -> Checked<ScalarType> {
-    AddressInterpretation::BoundCallable(model).scalar_type(typed, machine, reference)
-}
-
-fn mathematical_input_atom(
-    typed: &TypedTrees,
-    machine: MachineId,
-    reference: TypeReferenceHandle,
-) -> Checked<symbols::BuiltinTypeAtom> {
     if !typed
         .type_reference_table
         .contains_type_reference(reference)
@@ -725,7 +693,10 @@ fn mathematical_input_atom(
             Unserved::Type("non-builtin mathematical formal"),
         )
     })?;
-    Ok(atom)
+    if atom == symbols::BuiltinTypeAtom::Address {
+        return Ok(ScalarType::Integer(address.carrier(machine)?.as_checking()));
+    }
+    super::types::atom_type(atom, machine)
 }
 
 impl Inputs {
@@ -1013,7 +984,12 @@ impl Inputs {
             {
                 self.leaves.push(Leaf {
                     path: subject,
-                    scalar: scalar_type(typed, machine, reference, model)?,
+                    scalar: scalar_type(
+                        typed,
+                        machine,
+                        reference,
+                        MathematicalAddressContext::Binding(model),
+                    )?,
                     origin,
                     reference: observed_through,
                 });
@@ -1440,7 +1416,7 @@ pub(crate) fn projected_arrival(
         inputs: &required_inputs,
         members: &member_arena,
         subject: None,
-        address: AddressInterpretation::BoundCallable(model),
+        address: MathematicalAddressContext::Binding(model),
         expanding: &[],
         machine: entry,
         observation: ContentPlaceVersion::Entry,
@@ -1451,7 +1427,7 @@ pub(crate) fn projected_arrival(
         inputs: &supplied_inputs,
         members: &member_arena,
         subject: None,
-        address: AddressInterpretation::BoundCallable(model),
+        address: MathematicalAddressContext::Binding(model),
         expanding: &[],
         machine: callee,
         observation: ContentPlaceVersion::Entry,
@@ -1547,71 +1523,4 @@ pub(crate) fn projected_arrival(
         address_model: model.cloned(),
         members: member_arena,
     })
-}
-
-#[cfg(test)]
-mod address_interpretation_tests {
-    use super::*;
-    use semantic_vocabulary::{ClosedIntegerType, IntegerMathTerm, IntegerValue};
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use typed_trees::name::Identifier;
-
-    #[test]
-    fn ordinary_address_math_does_not_supply_a_missing_bound_model() {
-        let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let builtins = builder.insert_children(root, symbols::builtin_type_symbols());
-        let mut typed = TypedTrees {
-            symbols: builder.finish(),
-            ..Default::default()
-        };
-        let address_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
-            name: Identifier::generated("addr"),
-            symbol: builtins.handle_at(u32::try_from(BuiltinTypeAtom::Address.ordinal()).unwrap()),
-        });
-        let diagnostic = MachineId::new(1).unwrap();
-        let ordinary = AddressInterpretation::OrdinaryTerminal;
-        assert_eq!(
-            ordinary.scalar_type(&typed, diagnostic, address_type),
-            Program::new(&typed, false).scalar_type(diagnostic, address_type),
-        );
-        assert_eq!(
-            ordinary.bound(diagnostic),
-            Ok(IntegerMathTerm::literal(IntegerValue::Unsigned(
-                1_u128 << 64
-            )))
-        );
-        let bound = AddressInterpretation::BoundCallable(None);
-        assert_eq!(
-            bound
-                .scalar_type(&typed, diagnostic, address_type)
-                .unwrap_err()
-                .detail,
-            "type address without its binding's mathematical model",
-        );
-        assert!(bound.bound(diagnostic).is_err());
-        let mut model = CallableAddressModel {
-            target: "test-bound-address-model".to_owned(),
-            carrier: ClosedIntegerType::address(32).unwrap(),
-            semantics_version: 1,
-            commitment: [7; 32],
-        };
-        let bound = AddressInterpretation::BoundCallable(Some(&model));
-        assert_eq!(
-            bound.scalar_type(&typed, diagnostic, address_type),
-            Ok(ScalarType::Integer(model.carrier.as_checking()))
-        );
-        assert_eq!(
-            bound.bound(diagnostic),
-            Ok(IntegerMathTerm::literal(IntegerValue::Unsigned(
-                1_u128 << 32
-            )))
-        );
-        model.commitment = [0; 32];
-        assert!(
-            AddressInterpretation::BoundCallable(Some(&model))
-                .scalar_type(&typed, diagnostic, address_type)
-                .is_err()
-        );
-    }
 }

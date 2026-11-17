@@ -1,7 +1,8 @@
 // We admit and execute zero-argument glibc provider-state reference imports
 // (__errno_location, gnu_get_libc_version, and localeconv) by materializing the
 // referent beneath the minted reference carrier without an FFI address: errno
-// begins zeroed, gnu_get_libc_version exposes a stable nonzero cell, and
+// is a shared view that begins zeroed (std's `PosixErrno::slot`; a provider
+// cannot grant mutable access to its own storage), gnu_get_libc_version exposes a stable nonzero cell, and
 // localeconv exposes shared references to the "C" locale decimal point byte.
 // Only reference-typed declarations are ours; an integer address result is the
 // native sponsor's.
@@ -41,11 +42,10 @@ impl ReferenceStateImport {
         let Some(operation) = select(binding)? else {
             return Ok(None);
         };
-        // A declaration that takes the raw address as an integer (std's
-        // `PosixCanonicalLibc::error_location() -> u64`, read back by `memcpy`)
-        // names the real thread-local cell in the process that made the failing
-        // call. A modeled referent cannot be that cell, so the native sponsor,
-        // which made the call, answers it instead.
+        // A declaration that takes the raw address as an integer names the
+        // real thread-local cell in the process that made the failing call. A
+        // modeled referent cannot be that cell, so the native sponsor, which
+        // made the call, answers it instead.
         if !matches!(declaration.result, BoundaryMachineResult::Structural(_)) {
             return Ok(None);
         }
@@ -140,12 +140,6 @@ fn validate(
             "provider reference state cannot establish result qualifications",
         ));
     }
-    let access = match operation {
-        ReferenceStateOperation::ErrnoLocation => StructuralAccess::MutableBorrow,
-        ReferenceStateOperation::LibcVersion | ReferenceStateOperation::Localeconv => {
-            StructuralAccess::SharedBorrow
-        }
-    };
     let StructuralTypeShape::Reference {
         referent,
         access: declared_access,
@@ -156,10 +150,8 @@ fn validate(
     else {
         return Err(invalid("provider reference result is not a reference"));
     };
-    if *declared_access != access {
-        return Err(invalid(
-            "provider reference access differs from its operation's semantics",
-        ));
+    if *declared_access != StructuralAccess::SharedBorrow {
+        return Err(invalid("provider reference state lends only shared access"));
     }
     let native = CallSignature {
         parameters: Vec::new(),

@@ -1705,7 +1705,7 @@ mod tests {
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
             }],
-            logical::AddressInterpretation::BoundCallable(None),
+            logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();
         let same_input =
@@ -2039,7 +2039,7 @@ mod tests {
         // call/return body, rather than an entry premise or executable snapshot.
         let logical = logical_inputs.scope(
             machine(),
-            logical::AddressInterpretation::BoundCallable(None),
+            logical::MathematicalAddressContext::Binding(None),
             &[],
         );
         let completion_scope = ClauseScope {
