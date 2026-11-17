@@ -567,3 +567,236 @@ fn core_policy_selection_cannot_combine_different_operand_policies() {
         "{refused}"
     );
 }
+
+const COPIED_STATIC_PATTERN: &str = r#"
+machine choose<Kind>() -> u8
+requires Kind == u8 || Kind == u16
+ensures result == 7u8
+{
+    transition Kind == u8 { true -> (7u8) _ -> (7u8) }
+}
+machine unary_first<Kind>() -> bool
+requires Kind == u8
+ensures result
+{
+    transition {
+        !(Kind == u8) -> false
+        _ -> true
+    }
+}
+machine entry() -> bool { choose<u16>() == 7u8 && unary_first<u8>() }
+"#;
+
+fn copied_static_pattern() -> (
+    typed_trees::FrozenTypedTrees,
+    typed_trees::expression::ExpressionHandle,
+    typed_trees::expression::ExpressionHandle,
+) {
+    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+    let typed = super::boundary_calls::typed(COPIED_STATIC_PATTERN);
+    let templates = typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.name.as_str() == "choose")
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    let [template] = templates.as_slice() else {
+        panic!("one authored choose template");
+    };
+    let template = *template;
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("ordinary preparation copies the actual finite-family body");
+    let applications = typed
+        .machine_specializations
+        .iter()
+        .filter(|application| application.template == template)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        applications.len(),
+        1,
+        "choose has one exact source application"
+    );
+    let instance = applications[0].instance;
+    let machine = typed.machine_by_symbol(instance).unwrap();
+    let Some([state]) = typed.machine_states(machine).as_array() else {
+        panic!("one authored body");
+    };
+    let (guard, condition) = typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return None;
+            };
+            let [pattern] = typed
+                .statement_table
+                .transition_patterns(transition.patterns)
+            else {
+                return None;
+            };
+            Some((guard, pattern.pattern.condition))
+        })
+        .expect("the false first arm retains guard and pattern coordinates");
+    assert_ne!(
+        guard, condition,
+        "the declaration copier creates distinct expression rows"
+    );
+    let guard_questions = typed
+        .expression_table
+        .authored_selection_occurrences(guard)
+        .collect::<Vec<_>>();
+    let pattern_questions = typed
+        .expression_table
+        .authored_selection_occurrences(condition)
+        .collect::<Vec<_>>();
+    assert!(!guard_questions.is_empty());
+    assert_eq!(
+        guard_questions, pattern_questions,
+        "genuine copies retain their exact source question"
+    );
+    eprintln!(
+        "copied static arm owner={instance:?} guard={guard:?} pattern={condition:?} occurrences={guard_questions:?}"
+    );
+    (typed, guard, condition)
+}
+
+#[test]
+fn static_false_pattern_reads_guard_and_copy_without_its_target() {
+    let (typed, _, _) = copied_static_pattern();
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[super::boundary_calls::entry(&typed)],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    let verdicts = crate::judge_compilation(prepared.program);
+    assert_eq!(
+        verdicts.len(),
+        4,
+        "the closure, both choose alternatives and unary_first's fixed alternative"
+    );
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "complete refusals, including exact expression/occurrence coordinates: {verdicts:#?}"
+    );
+}
+
+#[test]
+fn static_false_pattern_cannot_hide_missing_or_conflicting_occurrences() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+    };
+    for conflict in [false, true] {
+        let (typed, _, condition) = copied_static_pattern();
+        let mut typed = typed.into_inner();
+        let occurrence = typed
+            .expression_table
+            .authored_selection_occurrences(condition)
+            .find(|occurrence| {
+                typed
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|row| row.kind() == Kind::Operator)
+            })
+            .unwrap();
+        let original = *typed
+            .authored_declaration_selections()
+            .get(occurrence)
+            .unwrap();
+        let mut ledger = typed.authored_declaration_selections().clone();
+        let injected = if conflict {
+            ledger
+                .record_resolved(
+                    original.source_span(),
+                    original.exposure(),
+                    Kind::Operator,
+                    super::boundary_calls::entry(&typed),
+                )
+                .unwrap()
+        } else {
+            ledger
+                .record_late_bound(
+                    original.source_span(),
+                    original.exposure(),
+                    Kind::Operator,
+                    Binding::CheckedOperator,
+                )
+                .unwrap()
+        };
+        if conflict {
+            typed.retain_authored_declaration_selections(ledger);
+        } else {
+            assert!(
+                typed
+                    .authored_declaration_selections()
+                    .get(injected)
+                    .is_none()
+            );
+        }
+        typed
+            .expression_table
+            .attach_authored_selection_occurrences(condition, [injected]);
+        let expected = if conflict {
+            "conflicts with its authored selection"
+        } else {
+            "lost occurrence"
+        };
+        let verdicts = super::boundary_calls::compilation_results_of(&typed);
+        assert!(verdicts.iter().any(|verdict| matches!(verdict,
+            Err(crate::CompilationRefusal::Elaboration(refusal))
+                if refusal.reason == RefusalReason::ForeignIdentity && refusal.detail.contains(expected))),
+            "the actual pattern copy must be read: {verdicts:#?}");
+    }
+}
+
+#[test]
+fn static_false_pattern_keeps_the_computation_guard() {
+    use typed_trees::expression::ExpressionNode;
+    let (typed, _, condition) = copied_static_pattern();
+    let mut typed = typed.into_inner();
+    let ExpressionNode::Binary(original) = typed.expression_table.expression(condition) else {
+        panic!("the retained pattern is ordinary selected equality");
+    };
+    assert_eq!(
+        original.operator,
+        typed_trees::expression::BinaryOperator::Equal
+    );
+    assert!(matches!(
+        typed.expression_table.expression(original.right),
+        ExpressionNode::Boolean(true)
+    ));
+    let false_value = typed
+        .expression_table
+        .insert(ExpressionNode::Boolean(false));
+    let ExpressionNode::Binary(binary) = typed.expression_table.expression_mut(condition) else {
+        panic!("the retained pattern is ordinary selected equality");
+    };
+    binary.right = false_value;
+    let verdicts = super::boundary_calls::compilation_results_of(&typed);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+        Ok(RouteVerdict::FallBack(refusal))
+            if refusal.reason == RefusalReason::Unsupported
+                && refusal.detail.contains("guard and pattern condition differ"))),
+        "pruning cannot waive the ordinary computation guard: {verdicts:#?}"
+    );
+}
