@@ -1081,6 +1081,7 @@ macro_rules! wire_enum {
             $(( $($tuple_field:ident: $tuple_kind:ty),+ $(,)? ))?
             $({ $($field:ident: $kind:ty),* $(,)? })?
         ),* $(,)?
+        $(; refuse $($refused:pat => $refusal:expr),+ $(,)?)?
     })*) => {$(
         pub(crate) struct $marker;
         impl $crate::sections::semantic_module::wire_fields::Field<$ty> for $marker {
@@ -1094,6 +1095,7 @@ macro_rules! wire_enum {
                         $($(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $tuple_field)?;)+)?
                         $($(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $field)?;)*)?
                     })*
+                    $($($refused => return Err($refusal),)+)?
                 }
                 Ok(())
             }
