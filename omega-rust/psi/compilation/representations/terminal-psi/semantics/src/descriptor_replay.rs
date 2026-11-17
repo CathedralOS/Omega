@@ -392,6 +392,35 @@ pub(crate) mod analysis {
             };
             super::case_flow::established(&self.replay, machine, state, predicate)
         }
+        /// Cleanup observes the selected edge after its case test and before
+        /// its actions. Read that same narrowing without copying the whole
+        /// storage state or granting membership from an absent payload.
+        pub fn established_case(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            successor: Option<(usize, semantic_vocabulary::EdgeId)>,
+            subject: &DescriptorLocation,
+        ) -> Option<semantic_vocabulary::StructuralCaseId> {
+            self.replay.prepare_states(identity)?;
+            let machine = self.replay.machine(identity)?;
+            let state = self
+                .replay
+                .snapshots
+                .get(&identity)?
+                .ready()?
+                .before
+                .get(&position)?;
+            super::case_flow::established_case(
+                &self.replay,
+                machine,
+                state,
+                position,
+                successor,
+                subject,
+            )
+        }
+
         pub fn with_reference_slots(
             types: &'a [StructuralTypeDeclaration],
             machines: &'a [DescriptorMachine],
@@ -1022,6 +1051,15 @@ pub(crate) mod analysis {
             self.replay.summary(identity, 0)?.result.into_slots()
         }
 
+        /// Keep a failed storage replay available to callers that report
+        /// why a result's origins could not be reconstructed.
+        pub fn preparation_error(&self, identity: MachineId) -> Option<DescriptorGraphError> {
+            match self.replay.snapshots.get(&identity)? {
+                super::engine::PreparedStateCache::Failed(error) => Some(*error),
+                _ => None,
+            }
+        }
+
         pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
             let summary = self.replay.summary(identity, 0)?;
             let super::engine::ResultObservations::Observed {
@@ -1036,6 +1074,7 @@ pub(crate) mod analysis {
                 slots: slots?,
                 unknown_contents: contents,
                 unresolved_slots: unknown,
+                case_facts: summary.result_cases,
             })
         }
 
@@ -1701,6 +1740,15 @@ pub(crate) mod analysis {
                         .unknown_contents_type(machine, &destination)
                         .ok_or_else(incomplete_step)?;
                     step.definitions.push(destination.clone());
+                    if packet.origins.is_empty() {
+                        if !summary
+                            .result_cases
+                            .excludes_payload(result_type, &packet.path)
+                        {
+                            return Err(incomplete_step());
+                        }
+                        continue;
+                    }
                     for origin in &packet.origins {
                         let DescriptorStoredOrigin::IncomingSlot {
                             position: parameter,
@@ -2667,6 +2715,7 @@ pub(crate) mod case_flow {
 
         #[derive(Clone, Default)]
         pub(crate) struct ResultCases {
+            root_type: Option<StructuralTypeId>,
             facts: BTreeMap<Vec<DescriptorPathSegment>, BTreeSet<StructuralCaseId>>,
         }
 
@@ -2681,6 +2730,7 @@ pub(crate) mod case_flow {
                     return Self::default();
                 };
                 Self {
+                    root_type: machine.place_types.get(&returned.root).copied(),
                     facts: state
                         .cases
                         .facts
@@ -2699,6 +2749,11 @@ pub(crate) mod case_flow {
             }
 
             pub(crate) fn join(&mut self, other: &Self) {
+                if self.root_type != other.root_type {
+                    self.root_type = None;
+                    self.facts.clear();
+                    return;
+                }
                 self.facts.retain(|path, cases| {
                     let Some(other) = other.facts.get(path) else {
                         return false;
@@ -2706,6 +2761,24 @@ pub(crate) mod case_flow {
                     cases.extend(other);
                     true
                 });
+            }
+
+            pub(crate) fn excludes_payload(
+                &self,
+                root_type: StructuralTypeId,
+                path: &[DescriptorPathSegment],
+            ) -> bool {
+                if self.root_type != Some(root_type) {
+                    return false;
+                }
+                path.iter().enumerate().any(|(position, segment)| {
+                    let DescriptorPathSegment::Case(case) = segment else {
+                        return false;
+                    };
+                    self.facts
+                        .get(&path[..position])
+                        .is_some_and(|active| !active.is_empty() && !active.contains(case))
+                })
             }
 
             pub(crate) fn install(
@@ -2717,6 +2790,9 @@ pub(crate) mod case_flow {
             ) -> Option<()> {
                 if self.facts.is_empty() {
                     return Some(());
+                }
+                if machine.place_types.get(&result.root).copied() != self.root_type {
+                    return None;
                 }
                 let storage = replay.canonical_storage(machine, state, result, None)?;
                 for (path, active) in &self.facts {
@@ -2845,21 +2921,29 @@ pub(crate) mod case_flow {
         Some(())
     }
 
-    pub(crate) fn select(
+    enum Selection {
+        Unknown,
+        Exact {
+            subjects: BTreeSet<DescriptorLocation>,
+            possible: BTreeSet<StructuralCaseId>,
+        },
+    }
+
+    fn selection(
         replay: &Replay<'_>,
         machine: &DescriptorMachine,
-        state: &mut State,
+        state: &State,
         predicate: &DescriptorCasePredicate,
         truth: bool,
-    ) -> Option<bool> {
+    ) -> Option<Selection> {
         let ty = valid_subject(replay, machine, predicate)?;
         // A nonsingular query validates the selected carrier but cannot name
         // one cell whose case can be narrowed. Keep every branch feasible.
         let Some(subject) = predicate.subject.exact_location() else {
-            return Some(true);
+            return Some(Selection::Unknown);
         };
         let Some(storage) = replay.canonical_storage(machine, state, subject, None) else {
-            return Some(true);
+            return Some(Selection::Unknown);
         };
         let subjects = state
             .cases
@@ -2880,6 +2964,21 @@ pub(crate) mod case_flow {
                 possible.retain(|case| known.contains(case));
             }
         }
+        Some(Selection::Exact { subjects, possible })
+    }
+
+    pub(crate) fn select(
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+        state: &mut State,
+        predicate: &DescriptorCasePredicate,
+        truth: bool,
+    ) -> Option<bool> {
+        let Selection::Exact { subjects, possible } =
+            selection(replay, machine, state, predicate, truth)?
+        else {
+            return Some(true);
+        };
         if possible.is_empty() {
             return Some(false);
         }
@@ -2888,6 +2987,40 @@ pub(crate) mod case_flow {
             cases.facts.insert(subject, possible.clone());
         }
         Some(true)
+    }
+
+    pub(crate) fn established_case(
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+        state: &State,
+        position: DescriptorPosition,
+        successor: Option<(usize, semantic_vocabulary::EdgeId)>,
+        subject: &DescriptorLocation,
+    ) -> Option<StructuralCaseId> {
+        let storage = replay.canonical_storage(machine, state, subject, None)?;
+        let unique = |cases: &BTreeSet<StructuralCaseId>| {
+            (cases.len() == 1).then(|| *cases.first().expect("one case is present"))
+        };
+        if let Some((ordinal, edge)) = successor {
+            if machine.flow.get(&position)?.successors.get(ordinal)?.edge != Some(edge) {
+                return None;
+            }
+            if let Some((predicate, truth)) = machine
+                .case_successors
+                .get(&position)
+                .and_then(|rows| rows.get(ordinal))
+            {
+                let Selection::Exact { subjects, possible } =
+                    selection(replay, machine, state, predicate, *truth)?
+                else {
+                    return None;
+                };
+                if subjects.contains(&storage) {
+                    return unique(&possible);
+                }
+            }
+        }
+        unique(state.cases.facts.get(&storage)?)
     }
 
     pub(crate) fn membership(
@@ -6675,10 +6808,19 @@ pub(crate) mod engine {
                         );
                     }
                     if origins.is_empty() {
-                        return None;
+                        if !summary
+                            .result_cases
+                            .excludes_payload(result_type, &packet.path)
+                        {
+                            return None;
+                        }
+                        // Absence supplies no contents or access. The result's
+                        // case facts below keep this payload unreachable.
+                        replacements.insert(DescriptorPayloadTarget::current(destination), None);
+                    } else {
+                        replacements
+                            .insert(DescriptorPayloadTarget::current(destination), Some(origins));
                     }
-                    replacements
-                        .insert(DescriptorPayloadTarget::current(destination), Some(origins));
                 }
                 let unknown = if summary.result.is_unobserved() {
                     self.slot_kind
@@ -6926,8 +7068,10 @@ pub(crate) mod engine {
                     )?;
                     after.contents_invalidated |=
                         machine.unresolved_contents_writes.contains(&position);
-                    if step.may_escape
-                        || machine.unresolved_contents_writes.contains(&position)
+                    // Escaping a value keeps its loans alive; it does not write
+                    // its case tag. The transfer above retires case facts at
+                    // actual writes, including unresolved storage queries.
+                    if machine.unresolved_contents_writes.contains(&position)
                         || machine
                             .direct_call(position)
                             .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))
@@ -7814,11 +7958,6 @@ pub(crate) mod engine {
                     let structural_type = *machine.place_types.get(&location.root)?;
                     let cases =
                         super::case_flow::ResultCases::capture(self, machine, state, location);
-                    if let Some(accumulated) = &mut result_cases {
-                        accumulated.join(&cases);
-                    } else {
-                        result_cases = Some(cases);
-                    }
                     if result_type.is_some_and(|previous| previous != structural_type) {
                         return None;
                     }
@@ -7848,6 +7987,9 @@ pub(crate) mod engine {
                             return None;
                         }
                         self.unknown_contents_type(machine, &returned.location)?;
+                        if cases.excludes_payload(structural_type, &packet.path) {
+                            continue;
+                        }
                         let origins = self.read(machine, state, &returned.location)?;
                         if origins.is_empty() {
                             return None;
@@ -7900,6 +8042,21 @@ pub(crate) mod engine {
                             )?)?;
                         }
                     }
+                    if let Some(accumulated) = &mut result_cases {
+                        accumulated.join(&cases);
+                    } else {
+                        result_cases = Some(cases);
+                    }
+                }
+                if result_contents.as_ref().is_some_and(|packets| {
+                    packets.iter().any(|packet| {
+                        packet.origins.is_empty()
+                            && !result_type
+                                .zip(result_cases.as_ref())
+                                .is_some_and(|(ty, cases)| cases.excludes_payload(ty, &packet.path))
+                    })
+                }) {
+                    return None;
                 }
                 let mut slots = slots?;
                 slots.retain(|slot| !unknown_results.contains(&slot.path));
@@ -8015,13 +8172,15 @@ pub(crate) mod engine {
                     .get(position)
                     .is_some_and(|state| state.contents_invalidated)
             });
+            let result_cases = result_cases.unwrap_or_default();
+            let contents = result_contents.unwrap_or_default();
             let summary = Summary {
                 result: ResultObservations::Observed {
                     slots: result,
-                    contents: result_contents.unwrap_or_default(),
+                    contents,
                     unknown: unknown_results,
                 },
-                result_cases: result_cases.unwrap_or_default(),
+                result_cases,
                 effects: EffectObservations::Observed(effects),
                 invalidates_contents,
                 storage_frame: StorageFrame::default(),
@@ -10815,6 +10974,7 @@ pub struct DescriptorResultContents {
     /// The flow retains all possible input loans for these descriptors.
     /// This lifetime account supplies no unique spatial origin.
     pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+    pub(crate) case_facts: case_flow::ResultCases,
 }
 
 #[derive(Clone)]
