@@ -288,9 +288,11 @@
   start();
   if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
   function openHandlerHandoff(){
-    if(location.hash!=='#proposed-handlers')return;
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
     if(!expanded)root.querySelector('[data-camera="expand"]').click();
-    switchView('proposed');traceDetour('handlers');
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
   }
   window.addEventListener('hashchange',openHandlerHandoff);
   openHandlerHandoff();

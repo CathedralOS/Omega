@@ -36,7 +36,7 @@ DETOUR_REPAIRS = {
 # Source observations describe the current compiler. The proposed stage order
 # and the feasibility of filling numeric operands at 05 remain separate claims.
 def annotate_handler_handoff(nodes):
-    code='https://github.com/CathedralOS/Omega/blob/cd529647d448fef97efe9f785a30f18c2570b5a6/omega-rust/omega/compilation/'
+    code='https://github.com/CathedralOS/Omega/blob/c657528b7e33646edee29219834b30060a3fabbc/omega-rust/omega/compilation/'
     selection=code+'pipeline/03_target-operations-to-selected-instructions/src/selection_interrupts.rs'
     object_code=code+'backend/images/image-emission/src/object_artifact.rs'
     requirement=code+'backend/runtime/installation-evidence/src/lib.rs'
@@ -60,15 +60,13 @@ def annotate_handler_handoff(nodes):
             'Physical planning must include handlers and their entry bridges. Their frames, call costs and effects supply the later stack calculation. Binding must preserve these choices.',
             [('Body and bridge costs',object_code+'#L1524-L1555')]),
         'binding-summarize': (
-            ['Add body, bridge and call-stack costs.',
-             'Measure each permitted nesting path.'],
-            'Follow the same ordered arrivals as 03.5. A handler using the interrupted stack adds its aligned cost to whichever stack was active. A dedicated handler switches stacks while the earlier stack stays live. Take the peak for each stack across the permitted histories.',
-            [('Stack demand and pair roster',object_code+'#L1042-L1067'),('Required byte count',requirement+'#L147-L161')]),
+            ['Measure each permitted nesting path.', 'Capacity sets the comparison value.', 'Alignment sets the mask.'],
+            'Add the body, its callees, the entry bridge and call bias on each active stack. Current 03 checks required bytes ≤ available bytes and masks the stack top with alignment − 1. For interrupted-stack entries, an insufficient root reserve rejects the plan. Every valid dedicated-stack size or mask uses the same 64-bit constant-load instruction with one destination register. The x86-64 baseline move has room for all eight literal bytes. Open: carry the two operands through optimization and allocation, then bind and replay the exact guards.',
+            [('Stack peaks',object_code+'#L1079-L1113'),('Required bytes',requirement+'#L147-L159'),('Capacity check',selection+'#L1230-L1242'),('Interrupted root reserve',selection+'#L1502-L1524'),('Alignment check',selection+'#L722-L735'),('Selected constant load',code+'pipeline/03_target-operations-to-selected-instructions/src/selection_scalar_graph.rs#L7918-L7929'),('Full-width x86 move',code+'backend/isa/isa-x86_64/src/selected_form_encoding.rs#L13855-L13864'),('Guard replay',code+'backend/images/image-emission/src/function_fragments.rs#L7568-L7583')]),
         'binding-bind': (
-            ['Check bodies for unexpected faults.',
-             'Bind sizes within the selected guards.'],
-            'Check that the finished bodies exclude the faults the nesting rule assumes away. Reject a body if that check fails. Only then bind a finite byte count and alignment to its selected check. Its guard, branch structure and operand constraints must already exist. If the value needs a new instruction sequence, register, helper or larger frame, this split is still unsolved.',
-            [('Physical fault evidence',object_code+'#L1266-L1305'),('Alignment and capacity operands',selection+'#L1230-L1243')]),
+            ['Check the final body and every callee.', 'Account for RAM, CPU state and traps.', 'Reject any unexplained fault route.'],
+            'For x86-64 fatal installations, the platform supplies exclusive table and stack ownership, the declared IRQ, NMI and machine-check delivery rules, and the absence of debug injection, tracing and active breakpoints. Match each physical instruction to its selected source. Calls must stay inside the checked bodies. Memory accesses need checked RAM or stack backing. Privileged operations rely on kernel privilege; relative branches need checked targets. Reject unsupported traps, hosted failures and unaccounted floating-point or vector state. Open: carry enough evidence through 04 to prove this for the exact bound body.',
+            [('Platform assumptions',code+'backend/runtime/installation-evidence/src/installation_environment.rs#L78-L86'),('Memory and calls',object_code+'#L1219-L1259'),('Instruction correspondence',object_code+'#L1285-L1335'),('CPU state',code+'backend/images/image-emission/src/entries.rs#L54-L74'),('Fault classification',object_code+'#L1346-L1441')]),
     }
     for key,(notes,gate,evidence) in annotations.items():
         node=nodes[key]
