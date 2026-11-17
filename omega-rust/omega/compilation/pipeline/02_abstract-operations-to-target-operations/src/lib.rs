@@ -473,6 +473,7 @@ pub(crate) mod optimized {
         let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
             &plan.structural_types,
             lowering_facts,
+            target,
         )
         .map_err(LoweringError::NonDenseStructuralTypes)?;
         runtime_abi::NativeBorrowedStorageLayouts::seal(super::borrowed_storage::capture(
