@@ -90,9 +90,92 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
 @media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
 @media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 </style>
 </head>
-<body>
+<body class="">
   <a class="skip" href="#main">Skip to content</a>
   <div class="page">
     <header class="top">
@@ -100,10 +183,11 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
       <div class="eyebrow">Current behavior and marked proposals · page 10 of 13</div>
       <h1>Pipeline diagrams</h1>
       <p class="lede">Today&#x27;s compilation route, the data that travels beside it, and the proposed ownership changes.</p>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
-<div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div>
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/68eddba256a21cb955699a611644a20becdcaa09/atlas"><code>68eddba256a2</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
+<details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
     </header>
+
     <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
       <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
       <h2>The codebase</h2><ul>
@@ -150,92 +234,92 @@ the <a href="psi.html">Psi</a>, <a href="omega.html">Omega</a>,
 <title>Current product routes share checked Terminal Psi and provider settlement. Native compilation emits code; runtime admission supplies provisions for Psi execution.</title><defs><marker id="pipeline-map-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="pipeline-map-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="pipeline-map-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="pipeline-map-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 162.64)">
 <title>atlas</title>
 
-<g id="pipeline-map-diagram-1-node1" class="node around">
+<g id="pipeline-map-diagram-1-node1" class="node around" data-node="B">
 <title>B</title>
 <polygon points="142,-144 0,-144 0,-94 142,-94 142,-144" />
 <text text-anchor="middle" x="71" y="-122.6">Build request and</text>
 <text text-anchor="middle" x="71" y="-108.6">provider bindings</text>
 </g>
 
-<g id="pipeline-map-diagram-1-node2" class="node psi">
+<g id="pipeline-map-diagram-1-node2" class="node psi" data-node="P">
 <title>P</title>
 <polygon points="461,-113 285,-113 285,-63 461,-63 461,-113" />
 <text text-anchor="middle" x="373" y="-91.6">Psi source and terminal</text>
 <text text-anchor="middle" x="373" y="-77.6">production</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge1" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge1" class="edge handoff" data-from="B" data-to="P">
 <title>B-&gt;P</title>
 <path d="M142.34,-111.73C184.94,-107.33 239.62,-101.68 284.94,-97" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="213.5" y="-111.4">source request</text>
 </g>
 
-<g id="pipeline-map-diagram-1-node4" class="node around">
+<g id="pipeline-map-diagram-1-node4" class="node around" data-node="S">
 <title>S</title>
 <polygon points="1145,-125 958,-125 958,-75 1145,-75 1145,-125" />
 <text text-anchor="middle" x="1051.5" y="-103.6">Settle reachable provider</text>
 <text text-anchor="middle" x="1051.5" y="-89.6">bodies and plans</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge4" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge4" class="edge handoff" data-from="B" data-to="S">
 <title>B-&gt;S</title>
 <path d="M142.26,-125.38C151.91,-126.05 161.7,-126.62 171,-127 208.75,-128.52 218.22,-127.09 256,-127 555.16,-126.27 630.64,-136.87 929,-115 938.33,-114.32 948.04,-113.42 957.72,-112.42" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="536.5" y="-144.4">selected target</text>
 <text text-anchor="middle" x="536.5" y="-131.4">supplies</text>
 </g>
 
-<g id="pipeline-map-diagram-1-node3" class="node hub">
+<g id="pipeline-map-diagram-1-node3" class="node hub" data-node="T">
 <title>T</title>
 <polygon points="774,-50 612,-50 612,0 774,0 774,-50" />
 <text text-anchor="middle" x="693" y="-21.6">Checked Terminal Psi</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge2" class="edge checked">
+<g id="pipeline-map-diagram-1-edge2" class="edge checked" data-from="P" data-to="T">
 <title>P-&gt;T</title>
 <path d="M461.32,-70.7C508.39,-61.38 566.06,-49.95 611.96,-40.86" marker-end="url(#pipeline-map-diagram-1-arrow-checked)" />
 <text text-anchor="middle" x="536.5" y="-67.4">lower and check</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge3" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge3" class="edge handoff" data-from="T" data-to="S">
 <title>T-&gt;S</title>
 <path d="M774.25,-38.12C819.81,-45.96 877.79,-56.59 929,-68 938.58,-70.13 948.55,-72.51 958.47,-74.97" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="866" y="-71.4">reached requirements</text>
 </g>
 
-<g id="pipeline-map-diagram-1-node6" class="node around">
+<g id="pipeline-map-diagram-1-node6" class="node around" data-node="I">
 <title>I</title>
 <polygon points="1476,-62 1313,-62 1313,-12 1476,-12 1476,-62" />
 <text text-anchor="middle" x="1394.5" y="-40.6">Interpreter runtime</text>
 <text text-anchor="middle" x="1394.5" y="-26.6">supply and execution</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge7" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge7" class="edge handoff" data-from="T" data-to="I">
 <title>T-&gt;I</title>
 <path d="M774.24,-26.38C908.72,-28.68 1178.1,-33.3 1312.85,-35.62" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1051.5" y="-36.4">retained artifact</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge5" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge5" class="edge handoff" data-from="S" data-to="P">
 <title>S-&gt;P</title>
 <path d="M957.82,-98.36C826.75,-96.03 588.99,-91.81 461.06,-89.54" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="693" y="-97.4">new requirements</text>
 </g>
 
-<g id="pipeline-map-diagram-1-node5" class="node native">
+<g id="pipeline-map-diagram-1-node5" class="node native" data-node="N">
 <title>N</title>
 <polygon points="1478,-149 1311,-149 1311,-99 1478,-99 1478,-149" />
 <text text-anchor="middle" x="1394.5" y="-127.6">Native compilation for</text>
 <text text-anchor="middle" x="1394.5" y="-113.6">the selected target</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge6" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge6" class="edge handoff" data-from="S" data-to="N">
 <title>S-&gt;N</title>
 <path d="M1145.23,-106.53C1197,-110.17 1260.94,-114.67 1310.97,-118.19" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1228" y="-131.4">settled native</text>
 <text text-anchor="middle" x="1228" y="-118.4">inputs</text>
 </g>
 
-<g id="pipeline-map-diagram-1-edge8" class="edge handoff">
+<g id="pipeline-map-diagram-1-edge8" class="edge handoff" data-from="S" data-to="I">
 <title>S-&gt;I</title>
 <path d="M1145.03,-82.42C1154.81,-80.58 1164.61,-78.74 1174,-77 1219.99,-68.46 1271.43,-59.07 1312.94,-51.54" marker-end="url(#pipeline-map-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1228" y="-93.4">runtime admission</text>
@@ -275,88 +359,88 @@ program currently traverses one linear sequence.</p>
 <title>Installation binding follows O02 because required handler objects supply measured stack requirements; bound facts then enter O03.</title><defs><marker id="pipeline-map-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="pipeline-map-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="pipeline-map-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="pipeline-map-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 105.64)">
 <title>atlas</title>
 
-<g id="pipeline-map-diagram-2-node1" class="node native">
+<g id="pipeline-map-diagram-2-node1" class="node native" data-node="E">
 <title>E</title>
 <polygon points="165,-55 0,-55 0,-5 165,-5 165,-55" />
 <text text-anchor="middle" x="82.5" y="-33.6">Settled execution and</text>
 <text text-anchor="middle" x="82.5" y="-19.6">target</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node2" class="node native">
+<g id="pipeline-map-diagram-2-node2" class="node native" data-node="A">
 <title>A</title>
 <polygon points="482,-55 332,-55 332,-5 482,-5 482,-55" />
 <text text-anchor="middle" x="407" y="-33.6">Omega 00 abstract</text>
 <text text-anchor="middle" x="407" y="-19.6">operations</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge1" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge1" class="edge handoff" data-from="E" data-to="A">
 <title>E-&gt;A</title>
 <path d="M165.3,-30C216.52,-30 282.01,-30 331.74,-30" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="248.5" y="-33.4">00 admit and lower</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node3" class="node native">
+<g id="pipeline-map-diagram-2-node3" class="node native" data-node="O">
 <title>O</title>
 <polygon points="830,-55 626,-55 626,-5 830,-5 830,-55" />
 <text text-anchor="middle" x="728" y="-33.6">Omega 01 optimization and</text>
 <text text-anchor="middle" x="728" y="-19.6">02 target lowering</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge2" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge2" class="edge handoff" data-from="A" data-to="O">
 <title>A-&gt;O</title>
 <path d="M482.39,-30C525.1,-30 579.33,-30 625.87,-30" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="554" y="-46.4">01 optimize, 02</text>
 <text text-anchor="middle" x="554" y="-33.4">lower</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node4" class="node around">
+<g id="pipeline-map-diagram-2-node4" class="node around" data-node="H">
 <title>H</title>
 <polygon points="1175,-97 984,-97 984,-47 1175,-47 1175,-97" />
 <text text-anchor="middle" x="1079.5" y="-75.6">Compile required handler</text>
 <text text-anchor="middle" x="1079.5" y="-61.6">objects</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge3" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge3" class="edge handoff" data-from="O" data-to="H">
 <title>O-&gt;H</title>
 <path d="M830.09,-42.15C878.58,-47.97 936.32,-54.91 983.93,-60.64" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="907" y="-71.4">required handler</text>
 <text text-anchor="middle" x="907" y="-58.4">demands</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node6" class="node around">
+<g id="pipeline-map-diagram-2-node6" class="node around" data-node="B">
 <title>B</title>
 <polygon points="1746,-55 1616,-55 1616,-5 1746,-5 1746,-55" />
 <text text-anchor="middle" x="1681" y="-33.6">Bind installation</text>
 <text text-anchor="middle" x="1681" y="-19.6">authority</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge5" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge5" class="edge handoff" data-from="O" data-to="B">
 <title>O-&gt;B</title>
 <path d="M830.32,-30C1026.67,-30 1453.88,-30 1615.93,-30" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="1263.5" y="-33.4">prepared obligations</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node5" class="node native">
+<g id="pipeline-map-diagram-2-node5" class="node native" data-node="R">
 <title>R</title>
 <polygon points="1481,-97 1352,-97 1352,-47 1481,-47 1481,-97" />
 <text text-anchor="middle" x="1416.5" y="-75.6">Measured stack</text>
 <text text-anchor="middle" x="1416.5" y="-61.6">requirements</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge4" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge4" class="edge handoff" data-from="H" data-to="R">
 <title>H-&gt;R</title>
 <path d="M1175.15,-72C1231.65,-72 1301.88,-72 1351.8,-72" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="1263.5" y="-75.4">emit and measure</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge6" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge6" class="edge handoff" data-from="R" data-to="B">
 <title>R-&gt;B</title>
 <path d="M1481.04,-61.83C1521.86,-55.3 1574.71,-46.85 1615.68,-40.29" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="1548.5" y="-71.4">measured</text>
 <text text-anchor="middle" x="1548.5" y="-58.4">requirements</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node7" class="node native">
+<g id="pipeline-map-diagram-2-node7" class="node native" data-node="S">
 <title>S</title>
 <polygon points="2049,-60 1895,-60 1895,0 2049,0 2049,-60" />
 <text text-anchor="middle" x="1972" y="-40.6">Omega 03 selection</text>
@@ -364,21 +448,21 @@ program currently traverses one linear sequence.</p>
 <text text-anchor="middle" x="1972" y="-12.6">optimization</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge7" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge7" class="edge handoff" data-from="B" data-to="S">
 <title>B-&gt;S</title>
 <path d="M1746.14,-30C1790.04,-30 1848.45,-30 1894.74,-30" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="1820.5" y="-46.4">03 select bound</text>
 <text text-anchor="middle" x="1820.5" y="-33.4">facts</text>
 </g>
 
-<g id="pipeline-map-diagram-2-node8" class="node native">
+<g id="pipeline-map-diagram-2-node8" class="node native" data-node="F">
 <title>F</title>
 <polygon points="2387,-55 2184,-55 2184,-5 2387,-5 2387,-55" />
 <text text-anchor="middle" x="2285.5" y="-33.6">Fragment object and image</text>
 <text text-anchor="middle" x="2285.5" y="-19.6">emission</text>
 </g>
 
-<g id="pipeline-map-diagram-2-edge8" class="edge handoff">
+<g id="pipeline-map-diagram-2-edge8" class="edge handoff" data-from="S" data-to="F">
 <title>S-&gt;F</title>
 <path d="M2049.2,-30C2089.73,-30 2140.08,-30 2183.79,-30" marker-end="url(#pipeline-map-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="2116.5" y="-46.4">emit resolved</text>
@@ -416,51 +500,51 @@ program does not copy the whole program.</p>
 <title>Current bypass: O02 supplies EmissionFacts separately from the O03–09 machine forms. The optimized program is shared rather than copied.</title><defs><marker id="pipeline-map-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="pipeline-map-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="pipeline-map-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="pipeline-map-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 133.64)">
 <title>atlas</title>
 
-<g id="pipeline-map-diagram-3-node1" class="node native">
+<g id="pipeline-map-diagram-3-node1" class="node native" data-node="T">
 <title>T</title>
 <polygon points="142,-87 0,-87 0,-37 142,-37 142,-87" />
 <text text-anchor="middle" x="71" y="-58.6">Omega 02 output</text>
 </g>
 
-<g id="pipeline-map-diagram-3-node2" class="node native">
+<g id="pipeline-map-diagram-3-node2" class="node native" data-node="M">
 <title>M</title>
 <polygon points="532,-125 318,-125 318,-75 532,-75 532,-125" />
 <text text-anchor="middle" x="425" y="-96.6">Omega 03–09 machine forms</text>
 </g>
 
-<g id="pipeline-map-diagram-3-edge1" class="edge handoff">
+<g id="pipeline-map-diagram-3-edge1" class="edge handoff" data-from="T" data-to="M">
 <title>T-&gt;M</title>
 <path d="M142.39,-69.6C192.64,-75.02 261.13,-82.42 317.99,-88.56" marker-end="url(#pipeline-map-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="230" y="-100.4">select through</text>
 <text text-anchor="middle" x="230" y="-87.4">layout</text>
 </g>
 
-<g id="pipeline-map-diagram-3-node3" class="node native">
+<g id="pipeline-map-diagram-3-node3" class="node native" data-node="X">
 <title>X</title>
 <polygon points="483.5,-50 366.5,-50 366.5,0 483.5,0 483.5,-50" />
 <text text-anchor="middle" x="425" y="-21.6">EmissionFacts</text>
 </g>
 
-<g id="pipeline-map-diagram-3-edge3" class="edge bypass">
+<g id="pipeline-map-diagram-3-edge3" class="edge bypass" data-from="T" data-to="X">
 <title>T-&gt;X</title>
 <path stroke-dasharray="5,2" d="M142.26,-43.27C151.86,-41.2 161.64,-39.36 171,-38 237.59,-28.3 314.95,-25.55 366.43,-24.91" marker-end="url(#pipeline-map-diagram-3-arrow-bypass)" />
 <text text-anchor="middle" x="230" y="-54.4">copy facts and share</text>
 <text text-anchor="middle" x="230" y="-41.4">program</text>
 </g>
 
-<g id="pipeline-map-diagram-3-node4" class="node native">
+<g id="pipeline-map-diagram-3-node4" class="node native" data-node="E">
 <title>E</title>
 <polygon points="906,-87 716,-87 716,-37 906,-37 906,-87" />
 <text text-anchor="middle" x="811" y="-58.6">Fragment object emission</text>
 </g>
 
-<g id="pipeline-map-diagram-3-edge2" class="edge handoff">
+<g id="pipeline-map-diagram-3-edge2" class="edge handoff" data-from="M" data-to="E">
 <title>M-&gt;E</title>
 <path d="M532.2,-89.49C589.8,-83.79 660.38,-76.81 715.98,-71.3" marker-end="url(#pipeline-map-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="624" y="-89.4">current machine form</text>
 </g>
 
-<g id="pipeline-map-diagram-3-edge4" class="edge bypass">
+<g id="pipeline-map-diagram-3-edge4" class="edge bypass" data-from="X" data-to="E">
 <title>X-&gt;E</title>
 <path stroke-dasharray="5,2" d="M483.58,-29.65C536.49,-34.02 617.08,-40.94 687,-48 696.3,-48.94 705.99,-49.96 715.67,-51.02" marker-end="url(#pipeline-map-diagram-3-arrow-bypass)" />
 <text text-anchor="middle" x="624" y="-51.4">separate facts</text>
@@ -497,14 +581,14 @@ does not describe the default compile route.</p>
 <title>Only an explicit validator request retains original native-stage inputs for replay or correspondence checks. This is not the ordinary emission route.</title><defs><marker id="pipeline-map-diagram-4-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="pipeline-map-diagram-4-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="pipeline-map-diagram-4-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="pipeline-map-diagram-4-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 143.64)">
 <title>atlas</title>
 
-<g id="pipeline-map-diagram-4-node1" class="node around">
+<g id="pipeline-map-diagram-4-node1" class="node around" data-node="Q">
 <title>Q</title>
 <polygon points="132,-130 0,-130 0,-80 132,-80 132,-130" />
 <text text-anchor="middle" x="66" y="-108.6">Explicit validator</text>
 <text text-anchor="middle" x="66" y="-94.6">request</text>
 </g>
 
-<g id="pipeline-map-diagram-4-node2" class="node native">
+<g id="pipeline-map-diagram-4-node2" class="node native" data-node="R">
 <title>R</title>
 <polygon points="520,-135 341,-135 341,-75 520,-75 520,-135" />
 <text text-anchor="middle" x="430.5" y="-115.6">Retained target</text>
@@ -512,32 +596,32 @@ does not describe the default compile route.</p>
 <text text-anchor="middle" x="430.5" y="-87.6">layout inputs</text>
 </g>
 
-<g id="pipeline-map-diagram-4-edge1" class="edge handoff">
+<g id="pipeline-map-diagram-4-edge1" class="edge handoff" data-from="Q" data-to="R">
 <title>Q-&gt;R</title>
 <path stroke-dasharray="5,2" d="M132.23,-105C190.52,-105 276.45,-105 340.95,-105" marker-end="url(#pipeline-map-diagram-4-arrow-handoff)" />
 <text text-anchor="middle" x="236.5" y="-108.4">retain_native_stage_inputs</text>
 </g>
 
-<g id="pipeline-map-diagram-4-node4" class="node around">
+<g id="pipeline-map-diagram-4-node4" class="node around" data-node="V">
 <title>V</title>
 <polygon points="845,-78 678,-78 678,-28 845,-28 845,-78" />
 <text text-anchor="middle" x="761.5" y="-56.6">Requested replay or</text>
 <text text-anchor="middle" x="761.5" y="-42.6">correspondence audit</text>
 </g>
 
-<g id="pipeline-map-diagram-4-edge2" class="edge handoff">
+<g id="pipeline-map-diagram-4-edge2" class="edge handoff" data-from="R" data-to="V">
 <title>R-&gt;V</title>
 <path stroke-dasharray="5,2" d="M520.1,-91C569.2,-83.24 629.86,-73.65 677.96,-66.05" marker-end="url(#pipeline-map-diagram-4-arrow-handoff)" />
 <text text-anchor="middle" x="599" y="-89.4">retained originals</text>
 </g>
 
-<g id="pipeline-map-diagram-4-node3" class="node native">
+<g id="pipeline-map-diagram-4-node3" class="node native" data-node="A">
 <title>A</title>
 <polygon points="493.5,-50 367.5,-50 367.5,0 493.5,0 493.5,-50" />
 <text text-anchor="middle" x="430.5" y="-21.6">Emitted artifact</text>
 </g>
 
-<g id="pipeline-map-diagram-4-edge3" class="edge handoff">
+<g id="pipeline-map-diagram-4-edge3" class="edge handoff" data-from="A" data-to="V">
 <title>A-&gt;V</title>
 <path stroke-dasharray="5,2" d="M493.5,-26.48C537.08,-27.92 596.71,-30.71 649,-36 658.35,-36.95 668.12,-38.14 677.81,-39.44" marker-end="url(#pipeline-map-diagram-4-arrow-handoff)" />
 <text text-anchor="middle" x="599" y="-52.4">artifact under</text>
@@ -568,14 +652,14 @@ of recursive handler compilation remain open in <a href="questions.html">Q-F and
 <title>Proposed migration dependencies: define contracts and fact ownership before extracting stages, then delete each replaced path after its users move.</title><defs><marker id="pipeline-map-diagram-5-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="pipeline-map-diagram-5-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="pipeline-map-diagram-5-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="pipeline-map-diagram-5-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 68.64)">
 <title>atlas</title>
 
-<g id="pipeline-map-diagram-5-node1" class="node proposed">
+<g id="pipeline-map-diagram-5-node1" class="node proposed" data-node="C">
 <title>C</title>
 <polygon points="182,-55 0,-55 0,-5 182,-5 182,-55" />
 <text text-anchor="middle" x="91" y="-33.6">Define input and output</text>
 <text text-anchor="middle" x="91" y="-19.6">contracts</text>
 </g>
 
-<g id="pipeline-map-diagram-5-node2" class="node proposed">
+<g id="pipeline-map-diagram-5-node2" class="node proposed" data-node="P">
 <title>P</title>
 <polygon points="489,-60 346,-60 346,0 489,0 489,-60" />
 <text text-anchor="middle" x="417.5" y="-40.6">Extract provider</text>
@@ -583,62 +667,62 @@ of recursive handler compilation remain open in <a href="questions.html">Q-F and
 <text text-anchor="middle" x="417.5" y="-12.6">closure</text>
 </g>
 
-<g id="pipeline-map-diagram-5-edge1" class="edge handoff">
+<g id="pipeline-map-diagram-5-edge1" class="edge handoff" data-from="C" data-to="P">
 <title>C-&gt;P</title>
 <path stroke-dasharray="5,2" d="M182.39,-30C234.06,-30 297.9,-30 345.86,-30" marker-end="url(#pipeline-map-diagram-5-arrow-handoff)" />
 <text text-anchor="middle" x="264" y="-46.4">establish admitted</text>
 <text text-anchor="middle" x="264" y="-33.4">inputs</text>
 </g>
 
-<g id="pipeline-map-diagram-5-node3" class="node proposed">
+<g id="pipeline-map-diagram-5-node3" class="node proposed" data-node="M">
 <title>M</title>
 <polygon points="829,-55 658,-55 658,-5 829,-5 829,-55" />
 <text text-anchor="middle" x="743.5" y="-33.6">Carry later facts in</text>
 <text text-anchor="middle" x="743.5" y="-19.6">native representations</text>
 </g>
 
-<g id="pipeline-map-diagram-5-edge2" class="edge handoff">
+<g id="pipeline-map-diagram-5-edge2" class="edge handoff" data-from="P" data-to="M">
 <title>P-&gt;M</title>
 <path stroke-dasharray="5,2" d="M489.2,-30C538.82,-30 605.41,-30 657.86,-30" marker-end="url(#pipeline-map-diagram-5-arrow-handoff)" />
 <text text-anchor="middle" x="573.5" y="-33.4">carry selected facts</text>
 </g>
 
-<g id="pipeline-map-diagram-5-node4" class="node proposed">
+<g id="pipeline-map-diagram-5-node4" class="node proposed" data-node="I">
 <title>I</title>
 <polygon points="1170,-55 984,-55 984,-5 1170,-5 1170,-55" />
 <text text-anchor="middle" x="1077" y="-33.6">Resolve measured</text>
 <text text-anchor="middle" x="1077" y="-19.6">installation requirements</text>
 </g>
 
-<g id="pipeline-map-diagram-5-edge3" class="edge handoff">
+<g id="pipeline-map-diagram-5-edge3" class="edge handoff" data-from="M" data-to="I">
 <title>M-&gt;I</title>
 <path stroke-dasharray="5,2" d="M829.01,-30C876.29,-30 935.3,-30 983.78,-30" marker-end="url(#pipeline-map-diagram-5-arrow-handoff)" />
 <text text-anchor="middle" x="906.5" y="-46.4">define measured</text>
 <text text-anchor="middle" x="906.5" y="-33.4">inputs</text>
 </g>
 
-<g id="pipeline-map-diagram-5-node5" class="node proposed">
+<g id="pipeline-map-diagram-5-node5" class="node proposed" data-node="E">
 <title>E</title>
 <polygon points="1475,-55 1307,-55 1307,-5 1475,-5 1475,-55" />
 <text text-anchor="middle" x="1391" y="-33.6">Extract emission steps</text>
 <text text-anchor="middle" x="1391" y="-19.6">and audit ownership</text>
 </g>
 
-<g id="pipeline-map-diagram-5-edge4" class="edge handoff">
+<g id="pipeline-map-diagram-5-edge4" class="edge handoff" data-from="I" data-to="E">
 <title>I-&gt;E</title>
 <path stroke-dasharray="5,2" d="M1170.34,-30C1213.65,-30 1264.85,-30 1306.93,-30" marker-end="url(#pipeline-map-diagram-5-arrow-handoff)" />
 <text text-anchor="middle" x="1238.5" y="-46.4">preserve later</text>
 <text text-anchor="middle" x="1238.5" y="-33.4">authority</text>
 </g>
 
-<g id="pipeline-map-diagram-5-node6" class="node proposed">
+<g id="pipeline-map-diagram-5-node6" class="node proposed" data-node="D">
 <title>D</title>
 <polygon points="1825,-55 1657,-55 1657,-5 1825,-5 1825,-55" />
 <text text-anchor="middle" x="1741" y="-33.6">Delete replaced paths</text>
 <text text-anchor="middle" x="1741" y="-19.6">after their users move</text>
 </g>
 
-<g id="pipeline-map-diagram-5-edge5" class="edge handoff">
+<g id="pipeline-map-diagram-5-edge5" class="edge handoff" data-from="E" data-to="D">
 <title>E-&gt;D</title>
 <path stroke-dasharray="5,2" d="M1475.35,-30C1530.25,-30 1601.84,-30 1656.72,-30" marker-end="url(#pipeline-map-diagram-5-arrow-handoff)" />
 <text text-anchor="middle" x="1566" y="-33.4">move consumers first</text>
@@ -662,16 +746,16 @@ intermediate contracts and deletion conditions. The
 <a href="rulings.html">owner rulings</a> remain the authority for the destination.</p>
 <h2 id="size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</h2>
 <p>The figures at the top are generated from
-<a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
+<a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
 source lines within Cargo package directories, including test files, under
-the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">evidence manifest</a>.
+the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/data/manifest.json">evidence manifest</a>.
 A directory total does not prove that all its work belongs in one stage.
 The plan must trace each producer, consumer, authority, and refusal condition.</p>
 <p>Text scans identify observed names, not every Rust use. A dependency with no
 observed use still needs resolver-aware verification before deletion. See
-the <a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
+the <a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
 scan and the limits of the generated data.</p></main>
-    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
   </div>
   <script>(() => {
   const root = document.documentElement;
@@ -707,6 +791,204 @@ scan and the limits of the generated data.</p></main>
       if (!item.hidden) count++;
     });
     document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
   });
 })();
 </script>

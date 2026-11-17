@@ -151,6 +151,31 @@ colors are never inferred from a node's label. Supported syntax:
 labels are required; unsupported syntax fails the build. Obsolete parallel
 templates and build entrypoints have been removed.
 
+## Explore locally
+
+The landing and repository pages include native and Psi walkthroughs. They
+start paused; Next and Previous step through explanatory handoffs. Selecting
+a box shows its incoming and outgoing connections and pinned source. Play is
+a guided reading aid, not a measured execution trace. Reduced motion disables
+automatic play. Existing subject diagrams also let readers select immediate
+connections.
+
+The Cargo view is separate: it derives normal dependency declarations among
+selected packages from `evidence/data/graph.json`, not calls or runtime order.
+The curated program routes, explanations and source anchors live in
+`artifacts/explorer.py`; behavior is in `artifacts/explorer.js`. Proposed
+architecture remains in the marked planning pages. Static diagrams and source
+notes remain usable without JavaScript.
+
+For a local iteration, build with `--draft` and serve `atlas/` as above. Keep
+`content-revision.txt`, `index.html` and tracked `pages/` unchanged until a
+publication is requested. Check the interaction paths against the running
+preview with:
+
+```bash
+python3 atlas/artifacts/check_interactions.py --base-url http://127.0.0.1:8765/artifacts/out/
+```
+
 ## Rules for working here
 
 - **Evidence first.** Cite generated data or pinned source lines. Mark

@@ -90,9 +90,92 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
 @media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
 @media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 </style>
 </head>
-<body>
+<body class="">
   <a class="skip" href="#main">Skip to content</a>
   <div class="page">
     <header class="top">
@@ -100,10 +183,11 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
       <div class="eyebrow">Observed source map · page 2 of 13</div>
       <h1>Psi stages</h1>
       <p class="lede">From source text to checked Terminal Psi, including the front-end drivers and the data they carry.</p>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/subsystems/psi.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/68eddba256a21cb955699a611644a20becdcaa09/atlas"><code>68eddba256a2</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/subsystems/psi.md">Page source</a></span></div>
 
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
     </header>
+
     <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
       <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
       <h2>The codebase</h2><ul>
@@ -157,118 +241,118 @@ described below. Nor does a box imply that every language construct works.</p>
 <title>A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.</title><defs><marker id="psi-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
-<g id="psi-diagram-1-node1" class="node psi">
+<g id="psi-diagram-1-node1" class="node psi" data-node="S">
 <title>S</title>
 <polygon points="126,-50 0,-50 0,0 126,0 126,-50" />
 <text text-anchor="middle" x="63" y="-21.6">LoadedSources</text>
 </g>
 
-<g id="psi-diagram-1-node2" class="node psi">
+<g id="psi-diagram-1-node2" class="node psi" data-node="L">
 <title>L</title>
 <polygon points="356,-50 248,-50 248,0 356,0 356,-50" />
 <text text-anchor="middle" x="302" y="-21.6">Psi 00 lexing</text>
 </g>
 
-<g id="psi-diagram-1-edge1" class="edge handoff">
+<g id="psi-diagram-1-edge1" class="edge handoff" data-from="S" data-to="L">
 <title>S-&gt;L</title>
 <path d="M126.27,-25C164.12,-25 211.94,-25 247.98,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="187" y="-28.4">source text</text>
 </g>
 
-<g id="psi-diagram-1-node3" class="node psi">
+<g id="psi-diagram-1-node3" class="node psi" data-node="P">
 <title>P</title>
 <polygon points="611,-50 493,-50 493,0 611,0 611,-50" />
 <text text-anchor="middle" x="552" y="-21.6">Psi 01 parsing</text>
 </g>
 
-<g id="psi-diagram-1-edge2" class="edge handoff">
+<g id="psi-diagram-1-edge2" class="edge handoff" data-from="L" data-to="P">
 <title>L-&gt;P</title>
 <path d="M356.2,-25C396.34,-25 451.36,-25 492.69,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="424.5" y="-28.4">LexedSources</text>
 </g>
 
-<g id="psi-diagram-1-node4" class="node psi">
+<g id="psi-diagram-1-node4" class="node psi" data-node="R">
 <title>R</title>
 <polygon points="869,-50 737,-50 737,0 869,0 869,-50" />
 <text text-anchor="middle" x="803" y="-21.6">Psi 02 resolution</text>
 </g>
 
-<g id="psi-diagram-1-edge3" class="edge handoff">
+<g id="psi-diagram-1-edge3" class="edge handoff" data-from="P" data-to="R">
 <title>P-&gt;R</title>
 <path d="M611.07,-25C648.72,-25 697.83,-25 736.82,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="674" y="-28.4">SyntaxTrees</text>
 </g>
 
-<g id="psi-diagram-1-node5" class="node psi">
+<g id="psi-diagram-1-node5" class="node psi" data-node="T">
 <title>T</title>
 <polygon points="1162,-50 1051,-50 1051,0 1162,0 1162,-50" />
 <text text-anchor="middle" x="1106.5" y="-21.6">Psi 03 typing</text>
 </g>
 
-<g id="psi-diagram-1-edge4" class="edge handoff">
+<g id="psi-diagram-1-edge4" class="edge handoff" data-from="R" data-to="T">
 <title>R-&gt;T</title>
 <path d="M869.05,-25C923.23,-25 999.54,-25 1050.66,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="960" y="-28.4">SymbolResolvedTrees</text>
 </g>
 
-<g id="psi-diagram-1-node6" class="node psi">
+<g id="psi-diagram-1-node6" class="node psi" data-node="F">
 <title>F</title>
 <polygon points="1429,-50 1285,-50 1285,0 1429,0 1429,-50" />
 <text text-anchor="middle" x="1357" y="-21.6">Psi 04 preparation</text>
 </g>
 
-<g id="psi-diagram-1-edge5" class="edge handoff">
+<g id="psi-diagram-1-edge5" class="edge handoff" data-from="T" data-to="F">
 <title>T-&gt;F</title>
 <path d="M1162.03,-25C1198.04,-25 1245.59,-25 1284.6,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1223.5" y="-28.4">TypedTrees</text>
 </g>
 
-<g id="psi-diagram-1-node7" class="node psi">
+<g id="psi-diagram-1-node7" class="node psi" data-node="E">
 <title>E</title>
 <polygon points="1720,-50 1590,-50 1590,0 1720,0 1720,-50" />
 <text text-anchor="middle" x="1655" y="-28.6">Psi 05 structural</text>
 <text text-anchor="middle" x="1655" y="-14.6">lowering</text>
 </g>
 
-<g id="psi-diagram-1-edge6" class="edge handoff">
+<g id="psi-diagram-1-edge6" class="edge handoff" data-from="F" data-to="E">
 <title>F-&gt;E</title>
 <path d="M1429.28,-25C1478.2,-25 1542.59,-25 1589.9,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1509.5" y="-28.4">FrozenTypedTrees</text>
 </g>
 
-<g id="psi-diagram-1-node8" class="node psi">
+<g id="psi-diagram-1-node8" class="node psi" data-node="C">
 <title>C</title>
 <polygon points="2023,-50 1897,-50 1897,0 2023,0 2023,-50" />
 <text text-anchor="middle" x="1960" y="-21.6">Psi 06 checking</text>
 </g>
 
-<g id="psi-diagram-1-edge7" class="edge handoff">
+<g id="psi-diagram-1-edge7" class="edge handoff" data-from="E" data-to="C">
 <title>E-&gt;C</title>
 <path d="M1720.26,-25C1772.37,-25 1845.38,-25 1896.91,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="1808.5" y="-28.4">TerminalCompilation</text>
 </g>
 
-<g id="psi-diagram-1-node9" class="node hub">
+<g id="psi-diagram-1-node9" class="node hub" data-node="A">
 <title>A</title>
 <polygon points="2310,-50 2177,-50 2177,0 2310,0 2310,-50" />
 <text text-anchor="middle" x="2243.5" y="-28.6">Accepted source</text>
 <text text-anchor="middle" x="2243.5" y="-14.6">publication</text>
 </g>
 
-<g id="psi-diagram-1-edge8" class="edge checked">
+<g id="psi-diagram-1-edge8" class="edge checked" data-from="C" data-to="A">
 <title>C-&gt;A</title>
 <path d="M2023.12,-25C2068.62,-25 2130.26,-25 2176.61,-25" marker-end="url(#psi-diagram-1-arrow-checked)" />
 <text text-anchor="middle" x="2100" y="-28.4">AcceptedClosure</text>
 </g>
 
-<g id="psi-diagram-1-node10" class="node around">
+<g id="psi-diagram-1-node10" class="node around" data-node="O">
 <title>O</title>
 <polygon points="2621,-50 2444,-50 2444,0 2621,0 2621,-50" />
 <text text-anchor="middle" x="2532.5" y="-28.6">Omega and interpreter</text>
 <text text-anchor="middle" x="2532.5" y="-14.6">consumers</text>
 </g>
 
-<g id="psi-diagram-1-edge9" class="edge handoff">
+<g id="psi-diagram-1-edge9" class="edge handoff" data-from="A" data-to="O">
 <title>A-&gt;O</title>
 <path d="M2310.34,-25C2349.98,-25 2400.93,-25 2443.93,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
 <text text-anchor="middle" x="2377" y="-41.4">Published Psi</text>
@@ -382,61 +466,61 @@ definition is a different ownership question from the location of its values.</p
 <title>Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question.</title><defs><marker id="psi-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
-<g id="psi-diagram-2-node1" class="node psi">
+<g id="psi-diagram-2-node1" class="node psi" data-node="R">
 <title>R</title>
 <polygon points="152,-50 0,-50 0,0 152,0 152,-50" />
 <text text-anchor="middle" x="76" y="-28.6">Resolved tree owns</text>
 <text text-anchor="middle" x="76" y="-14.6">selection ledger</text>
 </g>
 
-<g id="psi-diagram-2-node2" class="node psi">
+<g id="psi-diagram-2-node2" class="node psi" data-node="T">
 <title>T</title>
 <polygon points="480,-50 300,-50 300,0 480,0 480,-50" />
 <text text-anchor="middle" x="390" y="-28.6">Psi 03 copies ledger into</text>
 <text text-anchor="middle" x="390" y="-14.6">TypedTreeTables</text>
 </g>
 
-<g id="psi-diagram-2-edge1" class="edge handoff">
+<g id="psi-diagram-2-edge1" class="edge handoff" data-from="R" data-to="T">
 <title>R-&gt;T</title>
 <path d="M152.13,-25C196.58,-25 253.13,-25 299.83,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="226" y="-28.4">03 retain ledger</text>
 </g>
 
-<g id="psi-diagram-2-node3" class="node psi">
+<g id="psi-diagram-2-node3" class="node psi" data-node="F">
 <title>F</title>
 <polygon points="779,-50 624,-50 624,0 779,0 779,-50" />
 <text text-anchor="middle" x="701.5" y="-28.6">Psi 04 freezes typed</text>
 <text text-anchor="middle" x="701.5" y="-14.6">owner</text>
 </g>
 
-<g id="psi-diagram-2-edge2" class="edge handoff">
+<g id="psi-diagram-2-edge2" class="edge handoff" data-from="T" data-to="F">
 <title>T-&gt;F</title>
 <path d="M480.1,-25C525.55,-25 580.27,-25 623.82,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="552" y="-41.4">04 prepare and</text>
 <text text-anchor="middle" x="552" y="-28.4">freeze</text>
 </g>
 
-<g id="psi-diagram-2-node4" class="node psi">
+<g id="psi-diagram-2-node4" class="node psi" data-node="C">
 <title>C</title>
 <polygon points="1123,-50 946,-50 946,0 1123,0 1123,-50" />
 <text text-anchor="middle" x="1034.5" y="-28.6">Psi 05 reads occurrence</text>
 <text text-anchor="middle" x="1034.5" y="-14.6">from typed ledger</text>
 </g>
 
-<g id="psi-diagram-2-edge3" class="edge handoff">
+<g id="psi-diagram-2-edge3" class="edge handoff" data-from="F" data-to="C">
 <title>F-&gt;C</title>
 <path d="M779.27,-25C829.02,-25 893.96,-25 945.75,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="862.5" y="-28.4">05 read occurrence</text>
 </g>
 
-<g id="psi-diagram-2-node5" class="node psi">
+<g id="psi-diagram-2-node5" class="node psi" data-node="J">
 <title>J</title>
 <polygon points="1448,-50 1265,-50 1265,0 1448,0 1448,-50" />
 <text text-anchor="middle" x="1356.5" y="-28.6">Target identity agrees or</text>
 <text text-anchor="middle" x="1356.5" y="-14.6">lowering refuses</text>
 </g>
 
-<g id="psi-diagram-2-edge4" class="edge handoff">
+<g id="psi-diagram-2-edge4" class="edge handoff" data-from="C" data-to="J">
 <title>C-&gt;J</title>
 <path d="M1123.36,-25C1167.31,-25 1220.43,-25 1264.77,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
 <text text-anchor="middle" x="1194" y="-41.4">check selected</text>
@@ -527,86 +611,86 @@ target observations refuse at admission. <a href="https://github.com/CathedralOS
 <title>Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler.</title><defs><marker id="psi-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 208.64)">
 <title>atlas</title>
 
-<g id="psi-diagram-3-node1" class="node around">
+<g id="psi-diagram-3-node1" class="node around" data-node="S">
 <title>S</title>
 <polygon points="176,-162 0,-162 0,-112 176,-112 176,-162" />
 <text text-anchor="middle" x="88" y="-133.6">Source compiler facade</text>
 </g>
 
-<g id="psi-diagram-3-node2" class="node around">
+<g id="psi-diagram-3-node2" class="node around" data-node="E">
 <title>E</title>
 <polygon points="502,-125 340,-125 340,-75 502,-75 502,-125" />
 <text text-anchor="middle" x="421" y="-96.6">Build-time evaluation</text>
 </g>
 
-<g id="psi-diagram-3-edge1" class="edge handoff">
+<g id="psi-diagram-3-edge1" class="edge handoff" data-from="S" data-to="E">
 <title>S-&gt;E</title>
 <path d="M176.4,-127.23C227.06,-121.57 290.39,-114.49 339.78,-108.97" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="258" y="-126.4">request evaluation</text>
 </g>
 
-<g id="psi-diagram-3-node3" class="node psi">
+<g id="psi-diagram-3-node3" class="node psi" data-node="F">
 <title>F</title>
 <polygon points="817,-200 673,-200 673,-150 817,-150 817,-200" />
 <text text-anchor="middle" x="745" y="-171.6">Psi 04 preparation</text>
 </g>
 
-<g id="psi-diagram-3-edge2" class="edge handoff">
+<g id="psi-diagram-3-edge2" class="edge handoff" data-from="S" data-to="F">
 <title>S-&gt;F</title>
 <path d="M176.32,-142.07C307.28,-149.66 552.04,-163.86 672.84,-170.87" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="421" y="-163.4">prepare source</text>
 </g>
 
-<g id="psi-diagram-3-edge3" class="edge handoff">
+<g id="psi-diagram-3-edge3" class="edge handoff" data-from="E" data-to="F">
 <title>E-&gt;F</title>
 <path d="M502.17,-114.05C543.03,-121.69 593.39,-131.85 638,-143 649.38,-145.84 661.35,-149.15 672.99,-152.53" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="584.5" y="-146.4">prepare invocation</text>
 </g>
 
-<g id="psi-diagram-3-node4" class="node around">
+<g id="psi-diagram-3-node4" class="node around" data-node="P">
 <title>P</title>
 <polygon points="823,-125 667,-125 667,-75 823,-75 823,-125" />
 <text text-anchor="middle" x="745" y="-96.6">Terminal production</text>
 </g>
 
-<g id="psi-diagram-3-edge4" class="edge handoff">
+<g id="psi-diagram-3-edge4" class="edge handoff" data-from="E" data-to="P">
 <title>E-&gt;P</title>
 <path d="M502.01,-100C552.39,-100 617.08,-100 666.9,-100" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="584.5" y="-103.4">publish invocation</text>
 </g>
 
-<g id="psi-diagram-3-node6" class="node around">
+<g id="psi-diagram-3-node6" class="node around" data-node="I">
 <title>I</title>
 <polygon points="805,-50 685,-50 685,0 805,0 805,-50" />
 <text text-anchor="middle" x="745" y="-21.6">Psi interpreter</text>
 </g>
 
-<g id="psi-diagram-3-edge6" class="edge handoff">
+<g id="psi-diagram-3-edge6" class="edge handoff" data-from="E" data-to="I">
 <title>E-&gt;I</title>
 <path d="M502.01,-81.36C558.72,-68.15 633.57,-50.72 684.92,-38.76" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="584.5" y="-76.4">execute artifact</text>
 </g>
 
-<g id="psi-diagram-3-node5" class="node psi">
+<g id="psi-diagram-3-node5" class="node psi" data-node="C">
 <title>C</title>
 <polygon points="1120,-125 1006,-125 1006,-75 1120,-75 1120,-125" />
 <text text-anchor="middle" x="1063" y="-96.6">Psi 05 and 06</text>
 </g>
 
-<g id="psi-diagram-3-edge5" class="edge handoff">
+<g id="psi-diagram-3-edge5" class="edge handoff" data-from="P" data-to="C">
 <title>P-&gt;C</title>
 <path d="M823.3,-100C879.76,-100 955.01,-100 1005.81,-100" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="903" y="-103.4">lower and check</text>
 </g>
 
-<g id="psi-diagram-3-node7" class="node psi">
+<g id="psi-diagram-3-node7" class="node psi" data-node="R">
 <title>R</title>
 <polygon points="1143,-50 983,-50 983,0 1143,0 1143,-50" />
 <text text-anchor="middle" x="1063" y="-28.6">Representations and</text>
 <text text-anchor="middle" x="1063" y="-14.6">semantic libraries</text>
 </g>
 
-<g id="psi-diagram-3-edge7" class="edge handoff">
+<g id="psi-diagram-3-edge7" class="edge handoff" data-from="I" data-to="R">
 <title>I-&gt;R</title>
 <path d="M805.07,-25C855.26,-25 927.75,-25 982.95,-25" marker-end="url(#psi-diagram-3-arrow-handoff)" />
 <text text-anchor="middle" x="903" y="-28.4">read current code</text>
@@ -664,7 +748,7 @@ line anchors, diagram syntax and consistency with adjacent atlas pages.
 The <a href="foundation-backend-plan.html">full migration plan</a> owns proposed
 crate moves; <a href="build-and-packages.html">Build and packages</a> owns the application
 and package scheduling boundary.</p></main>
-    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
   </div>
   <script>(() => {
   const root = document.documentElement;
@@ -700,6 +784,204 @@ and package scheduling boundary.</p></main>
       if (!item.hidden) count++;
     });
     document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
   });
 })();
 </script>

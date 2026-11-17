@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="%%PREFIX%%design/tokens.css">
   <style>%%STYLE%%</style>
 </head>
-<body>
+<body class="%%PAGE_CLASS%%">
   <a class="skip" href="#main">Skip to content</a>
   <div class="page">
     <header class="top">
@@ -18,8 +18,9 @@
       <p class="lede">%%DESCRIPTION%%</p>
       <div class="meta"><span>Compiler snapshot <a href="%%REVISION_URL%%"><code>%%REVISION%%</code></a></span><span>%%PUBLICATION%%</span><span><a href="%%MANIFEST_URL%%">Evidence provenance</a></span><span><a href="%%SOURCE_URL%%">Page source</a></span></div>
 %%COUNTS%%
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
     </header>
+%%EXPLORER%%
     <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore %%PAGE_COUNT%% pages</summary>
       <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
       %%NAV%%
