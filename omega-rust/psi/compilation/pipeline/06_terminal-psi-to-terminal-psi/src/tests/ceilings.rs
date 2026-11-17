@@ -660,3 +660,73 @@ terminates
         "call may block but its caller's blocks ceiling is false"
     );
 }
+
+#[test]
+fn an_open_callback_does_not_hide_module_helper_bounds() {
+    const SOURCE: &str = r#"
+public machine entry<machine Callback>() -> u32
+requires machine Callback();
+{
+    Callback();
+    suspend helper()
+}
+machine helper() -> u32 { 7u32 }
+"#;
+    let source = typed(SOURCE);
+    let form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source))
+        .expect("an unrelated open callback leaves helper inference available");
+    let helper_symbol = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "helper")
+        .unwrap()
+        .symbol;
+    let helper = form
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == helper_symbol).then_some(id))
+        .unwrap();
+    let helper_envelope = form
+        .module
+        .callables
+        .machine_envelope(helper)
+        .or_else(|| {
+            form.check_form_envelopes
+                .iter()
+                .find(|row| row.machine == helper)
+                .map(|row| &row.envelope)
+        })
+        .expect("the independent body has a complete envelope");
+    assert!(!helper_envelope.suspends && !helper_envelope.blocks);
+    assert!(helper_envelope.service_reach.is_empty());
+    let requirement = form.requirements[0];
+    assert!(
+        form.module
+            .callables
+            .machine_envelope(requirement)
+            .is_none()
+    );
+    assert!(matches!(
+        form.requirement_ceilings.get(requirement).unwrap().reaches,
+        terminal_check_tables::contracts::Ceiling::Inferred
+    ));
+    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
+
+    // A complete helper summary still has to fit its caller's authored bound.
+    // The call keeps its acknowledgement, so only that bound is violated.
+    let denied = SOURCE.replace(
+        "machine helper() -> u32 {",
+        "machine helper() -> u32 suspends {",
+    );
+    assert_ne!(denied, SOURCE);
+    let source = typed(&denied);
+    let form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source))
+        .expect("the checker receives the complete suspending helper contract");
+    let excess = crate::ceilings::judge(&form).unwrap();
+    assert_eq!(excess.len(), 1, "{excess:?}");
+    assert_eq!(excess[0].axis, crate::ceilings::Axis::Suspension);
+    assert_eq!(
+        excess[0].outside,
+        vec![crate::ceilings::Permission::MaySuspend]
+    );
+}

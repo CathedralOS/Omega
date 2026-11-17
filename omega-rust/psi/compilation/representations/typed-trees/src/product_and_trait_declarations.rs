@@ -390,7 +390,8 @@ pub mod product_operand {
                 if !self
                     .retained_product_application_handles
                     .span_or_empty(self.roots.retained_product_applications)
-                    .contains(&handle)
+                    .iter()
+                    .any(|retained| *retained == handle)
                 {
                     self.tables
                         .retained_product_application_handles

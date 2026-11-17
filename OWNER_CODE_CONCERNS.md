@@ -75,13 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Typed conversion leaves operand formation as an implicit caller obligation
+- Category: A verdict with nothing behind it
+- Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
+- Saw: Conversion accepts raw term handles and checks their shared type; callers must separately establish the operands' types. A lambda annotation `((λ z:Empty. Two) TwoZero)` was accepted because reduction hid its ill-typed argument. The local lambda check is repaired here, but the conversion API still carries no evidence of those operand premises.
+- Cost: Another caller can repeat the same omission. Reviewers must trace operand formation through each conversion call instead of seeing the required premises at its interface.
+- Reported: 2026-11-17, Codex, while repairing the table's pair-certificate checking cost
 
-### Unpatched mbx bypasses the cache for checksum-enabled compilations
-- Category: Verifying costs more than writing
-- Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
-- Saw: Worker 1's ordinary focused build recorded `unknown-flag` for `-Zchecksum-hash-algorithm=blake3` in `/tmp/omega-worker1-cache-bypasses.jsonl`. Cargo emits that flag for the repository's content-based fingerprints. The adapter in upstream mbx 1.30.0 also rejects it. The shared cache therefore supplies no objects for these compilations.
-- Cost: Independent worktrees rebuild unchanged dependencies. This Mac now uses a locally repaired 1.29.2 adapter that retains the checksum option in its input identity and preserves checksum dependency output. An isolated probe reused unchanged inputs and rejected a same-size, same-mtime source change; subsequent ordinary Omega builds stored cache objects without the checksum-flag bypass. The patch, original binary and receipts are retained in `worker-1/build/mbx-workflow-tooling-20261116` under the local worktree pool. Upstream releases and fresh hosts still need the repair; do not disable content fingerprint checks.
-- Reported: 2026-11-16, Codex, during the draft PR takeovers
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
@@ -101,18 +101,18 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
-- Category: The documents disagree
-- Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
-- Saw: machine_state_evidence.md says "Final-artifact validation is mandatory". pipeline.md says a compile "does not revalidate, replay or rebuild output the same compile just produced", and optimizations.md repeats it. Every ordinary native build calls `validate_terminal_image`, which re-checks import and relocation counts, region inventories and literal-pool bytes, and decodes x86 and AArch64 address fields from the final bytes to compare them with the object plan, without any `--validator` flag.
-- Cost: Agents can cite one rule to delete this work and another to extend it, and every native build pays for it. Decide whether final-artifact validation is an exception to verification placement; then move the checks behind `--validator` or write the exception into pipeline.md and optimizations.md.
+### Native emission and publication still require the final-image recheck
+- Category: Re-deriving
+- Where: [image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs), [native artifact identity](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/identity.rs), [publication](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/publication.rs), [settled rule](wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
+- Saw: Direct executable emission and dynamic ELF emission call `validate_terminal_image` on the bytes just produced. Publication requires validation evidence, and the native artifact identity incorporates validation digests.
+- Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
 
-### `Build.freestanding` is one untargeted mutable flag that two spec pages forbid and a third relies on
-- Category: The documents disagree
-- Where: [Build declaration](omega-rust/omega/packages/build-declarations/src/prelude.rs#L269), [settings field](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs#L22), [assembly authority](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L243), [configuration.md](wiki/spec/build/configuration.md#L53), [uefi_entry.md](wiki/spec/build/uefi_entry.md#L3), [permissions.md](wiki/spec/build/permissions.md#L233)
-- Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too. The field comment ("no ambient host packages or import thunks") describes behavior the flag does not have.
-- Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md, and correct the comment.
+### A build-wide flag admits machine control for every output
+- Category: A verdict with nothing behind it
+- Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
+- Saw: Source checking derives machine ownership from `Build.freestanding` for all bound targets. The interrupt-mask intrinsics, core helper and physical classifier still report `MachineControl`.
+- Cost: Firmware selection can admit machine control in a hosted sibling, and a mask-only package already appears to have broad machine reach. Retire the field, check each selected output's provider authority, and carry `InterruptControl` through direct instructions, helpers, package review and physical classification. Exercise a mixed firmware/hosted build and a package update that adds a page-table write.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler
@@ -142,13 +142,6 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. After integrating main `a2684962ce882`, 13 selected unit controls across six crates spent 15m49s building and 0.414s running on the same host and budget (`merge-a268-direct-controls-01`, with exact source patch and input records retained in the active claim). The source of this build cost has not been established.
 - Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
 - Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
-
-### Selected-body activation copies retained side records
-- Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L670), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1337), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
-- Saw: Empty selected-body activation still copies owned side records. The matched scalar and borrowed-root capture at `977465a3625923c98ce743cd9a2ca4ff90cf6fba` includes deferred-refusal rows (24,192 requested bytes), applied-domain applications (22,736), authored service-reach rows (20,680), and callable identities (9,768). Smaller raw row arenas request another 15,192 bytes in ten allocations. The derived composite cache separately copies on its first new key: 30,555 bytes in 433 allocations in the observed body-completion window. These are thread-local allocation requests at that source on Windows x86-64, not current-main or whole-process qualification; the [retained identity and conformance repair](https://github.com/CathedralOS/Omega/pull/3911) records the exact scopes, inputs and limits.
-- Cost: Share unchanged payload under its actual owner rather than copy it when selecting bodies. Distinguish record copies from ownership-directory metadata, derived-cache detachment and genuine new output; parent and child owner counters overlap. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Use the same [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary) for any follow-up comparison. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 ### Omega-written resolution compares integer type arguments by spelling
 - Category: Re-deriving

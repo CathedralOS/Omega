@@ -354,17 +354,15 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         let [pattern] = parsed.statements.transition_patterns(first_arm.patterns) else {
             panic!("first arm tests the subject");
         };
-        let ExpressionNode::Binary(comparison) =
-            parsed.expressions.expression(pattern.pattern.guard)
-        else {
-            panic!("authored Boolean pattern comparison");
-        };
+        assert!(!pattern.pattern.guard.is_valid());
         assert_eq!(
-            parsed.display_expression_name(comparison.left),
+            parsed.display_expression_name(pattern.subject),
             capture.name.as_str(&parsed)
         );
-        assert!(matches!(parsed.expressions.expression(comparison.right),
-            ExpressionNode::Boolean(value) if *value == first));
+        assert!(
+            matches!(parsed.expressions.expression(pattern.pattern.head),
+            ExpressionNode::Boolean(value) if *value == first)
+        );
         let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[2]) else {
             panic!("second authored arm");
         };
@@ -411,7 +409,9 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
                     .statements
                     .transition_patterns(transition.patterns)
                     .iter()
-                    .any(|pattern| pattern.pattern.guard.is_valid());
+                    .any(|pattern| {
+                        pattern.pattern.head.is_valid() || pattern.pattern.guard.is_valid()
+                    });
             assert!(tested, "{body}");
         }
         assert!(arms >= 2, "{body}");

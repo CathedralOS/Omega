@@ -4751,7 +4751,9 @@ mod declaration_invocations {
                     .static_machine_binding_snapshot(*bindings)
                     == actual_bindings
                 && invocation.lifetime_bindings.len() == known_lifetimes.len()
-                && known_lifetimes == self.static_machine_application_lifetimes(actual_application)
+                && known_lifetimes
+                    .iter()
+                    .eq(self.static_machine_application_lifetimes(actual_application))
                 && invocation.arguments.len() == actual_arguments.len()
                 && known_arguments.len() == actual_arguments.len()
                 && known_arguments
@@ -4959,10 +4961,11 @@ pub(crate) mod requirement_instances {
         pub template: SymbolHandle,
         pub trait_application_identity: type_identity::NormalizedTypeIdentity,
         pub portable_trait_application_identity: type_identity::NormalizedTypeIdentity,
-        pub portable_local_arguments: &'program [type_identity::NormalizedTypeIdentity],
+        pub portable_local_arguments:
+            arena::RootRows<'program, type_identity::NormalizedTypeIdentity>,
         pub trait_scope: crate::trait_definition::RetainedTraitScope,
         pub trait_arguments: &'program [types::TypeReferenceHandle],
-        pub local_arguments: &'program [RequirementLocalArgument],
+        pub local_arguments: arena::RootRows<'program, RequirementLocalArgument>,
         pub invocation_contract_parameters: arena::RootRows<'program, data::TypeParameter>,
         pub application: static_applications::StaticMachineApplicationHandle,
         pub signature: &'program signature::StateSignature,
@@ -5458,7 +5461,10 @@ pub(crate) mod requirement_instances {
                     && existing.trait_application_identity == trait_application_identity
                     && existing.portable_trait_application_identity
                         == portable_trait_application_identity
-                    && existing.portable_local_arguments == portable_local_arguments
+                    && existing
+                        .portable_local_arguments
+                        .iter()
+                        .eq(portable_local_arguments.iter())
                     && existing
                         .local_arguments
                         .iter()
@@ -6688,6 +6694,34 @@ pub(crate) mod signatures {
     }
 
     impl CallableApplication {
+        pub(super) fn invocations(
+            &self,
+            program: &mut TypedTrees,
+            declared: HandleSpan<signature::AuthoredInvocation>,
+        ) -> Result<HandleSpan<signature::AuthoredInvocation>, &'static str> {
+            let mut invocations = program
+                .signature_invokes
+                .span(declared)
+                .ok_or("callable invocation span is stale")?
+                .to_vec();
+            for invocation in &mut invocations {
+                invocation.target = match invocation.target {
+                    signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                        signature::AuthoredInvocationTarget::Parameter {
+                            ordinal,
+                            symbol: self.symbol(symbol),
+                        }
+                    }
+                    signature::AuthoredInvocationTarget::Service(symbol) => {
+                        signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
+                    }
+                    unresolved @ (signature::AuthoredInvocationTarget::Unresolved
+                    | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
+                };
+            }
+            Ok(program.signature_invokes.insert_many(invocations))
+        }
+
         pub(crate) fn signature(
             &mut self,
             program: &mut TypedTrees,
@@ -6849,25 +6883,7 @@ pub(crate) mod signatures {
                         .signature_contracts
                         .append_to_span(&mut applied.contracts, contract);
                 }
-                applied.invokes = HandleSpan::empty();
-                for mut invocation in program.state_signature_invokes(declared).to_vec() {
-                    invocation.target = match invocation.target {
-                        signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                            signature::AuthoredInvocationTarget::Parameter {
-                                ordinal,
-                                symbol: self.symbol(symbol),
-                            }
-                        }
-                        signature::AuthoredInvocationTarget::Service(symbol) => {
-                            signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
-                        }
-                        unresolved @ (signature::AuthoredInvocationTarget::Unresolved
-                        | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
-                    };
-                    program
-                        .signature_invokes
-                        .append_to_span(&mut applied.invokes, invocation);
-                }
+                applied.invokes = self.invocations(program, declared.invokes)?;
                 if let language_semantics::TerminationGuarantee::Terminates { premises } =
                     &mut applied.termination_guarantee
                 {
@@ -8610,8 +8626,8 @@ pub struct AppliedMachineCallable<'a> {
     pub required: &'a signature::StateSignature,
     pub selected: &'a signature::StateSignature,
     pub source_required: &'a signature::StateSignature,
-    pub caller_operands: &'a [CallableSubstitution],
-    pub caller_lifetimes: &'a [StaticMachineLifetimeBinding],
+    pub caller_operands: arena::RootRows<'a, CallableSubstitution>,
+    pub caller_lifetimes: arena::RootRows<'a, StaticMachineLifetimeBinding>,
 }
 
 #[derive(Default)]
@@ -9332,13 +9348,21 @@ impl TypedTrees {
         Ok(copied)
     }
 
-    /// Applies one declaration's types throughout a copied entry and its clauses.
-    /// Signatures, local annotations, patterns, static operands and expression
-    /// metadata all use the same substitution owner; applying a domain also
-    /// rebuilds its semantic identity from the substituted arguments.
-    pub fn apply_copied_callable_types<'state>(
+    /// A copied callable keeps its invocation permissions and substituted types.
+    /// Header targets, local annotations, patterns, static operands and expression
+    /// metadata all use the same declaration map; applying a domain also rebuilds
+    /// its semantic identity from the substituted arguments.
+    pub fn apply_copied_callable_interface<'state>(
         &mut self,
-        entries: impl IntoIterator<Item = (SymbolHandle, &'state mut crate::state::State, usize, usize)>,
+        entries: impl IntoIterator<
+            Item = (
+                SymbolHandle,
+                &'state mut crate::machine::Machine,
+                &'state mut crate::state::State,
+                usize,
+                usize,
+            ),
+        >,
         symbols: crate::SymbolRebinding<'_>,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
     ) -> Result<(), &'static str> {
@@ -9351,8 +9375,9 @@ impl TypedTrees {
                 .declaration_symbols
                 .insert_execution(source, target);
         }
-        for (declaration, state, first_expression, expression_count) in entries {
+        for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
+            machine.invokes = application.invocations(self, machine.invokes)?;
             let rows = self
                 .expression_table
                 .iter_expressions_from(first_expression)

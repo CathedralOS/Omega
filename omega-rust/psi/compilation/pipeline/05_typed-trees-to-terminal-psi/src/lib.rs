@@ -62,6 +62,7 @@ mod canonical;
 pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
+mod default_obligations;
 mod external_providers;
 mod inhabitation;
 mod lower;
@@ -1852,6 +1853,7 @@ fn finish_storage(
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
     reference_ends::install(module, tables, sources, further)?;
+    default_obligations::install(module, tables, sources)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
         let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {

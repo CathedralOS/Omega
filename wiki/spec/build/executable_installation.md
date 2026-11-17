@@ -25,8 +25,9 @@ These are semantic states, not prescribed generic source type names:
 | Installer provider and visibility completion | Linear installed code, readable and executable. |
 
 The artifact is borrowed, not consumed. Placement is linear: validation cannot
-be transplanted to other bytes or spent twice. A certificate may remain
-reportable/reusable while installation consumes the validated placement.
+be transplanted to other bytes or spent twice. A receiver may retain and reuse
+its validation evidence for the same bytes and placement. Installation consumes
+the validated placement.
 Failed linear transitions return every input. Content, proof, and final-byte
 commitments are distinct domain-framed strong digests; compact compatibility
 values are report keys, and exact bytes/placement evidence remain available for

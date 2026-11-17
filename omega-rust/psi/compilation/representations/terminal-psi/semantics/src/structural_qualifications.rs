@@ -276,6 +276,30 @@ impl DefaultRequirement {
     }
 }
 
+/// Construction owes its clauses immediately. Writes and exclusive calls
+/// can instead open a restoration window on existing storage.
+pub fn operation_writes_default_storage(kind: &OperationKind) -> bool {
+    kind.storage_uses()
+        .iter()
+        .any(|(_, effect)| writes_default_storage(*effect))
+        || kind.structural_arguments().iter().any(|argument| {
+            matches!(
+                argument.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+        })
+}
+
+fn writes_default_storage(effect: Option<access_plans::AccessOperation>) -> bool {
+    effect.is_some_and(|effect| {
+        matches!(
+            effect,
+            access_plans::AccessOperation::Write | access_plans::AccessOperation::Atomic(_)
+        ) && effect.reads_and_writes().1
+    })
+}
+
 /// The default clauses of actual declared storage. Additional entry facts and
 /// the result placeholder are not storage declarations. Named memberships only
 /// select what must be proved; they never supply predicate truth.
@@ -564,10 +588,230 @@ impl<'a> DefaultRequirements<'a> {
         Ok(())
     }
 
-    /// The exact ordinal roster reconstructed independently by producers and
-    /// receivers: innermost owners first on stores, type clauses before named
-    /// domains at each owner, named domains sorted by canonical identity.
-    pub fn operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
+    /// Plain storage needs no descriptor graph. Prepare one only when this
+    /// machine can write through borrowed storage or a borrowed successor.
+    pub fn needs_borrowed_storage(&self) -> bool {
+        let writes = self
+            .machine
+            .operations()
+            .any(|operation| operation_writes_default_storage(&operation.kind));
+        writes
+            && (self.machine.blocks.iter().any(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+            }) || self.declared.declared.iter().any(|(_, ty, _)| {
+                terminal_psi::structural_type_has_borrowed_storage_by(
+                    |id| {
+                        self.types
+                            .binary_search_by_key(&id, |row| row.id)
+                            .ok()
+                            .map(|position| &self.types[position])
+                    },
+                    *ty,
+                )
+            }))
+    }
+
+    /// Reconstruct each operation's required clauses from its declared type
+    /// and exact backing. The producer and checker use the same stable order.
+    pub fn operation(
+        &self,
+        operation: &Operation,
+        before: crate::descriptor_lifetimes::DescriptorPosition,
+        references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Judged<Vec<DefaultRequirement>> {
+        use terminal_psi::StructuralStorageUse;
+        let mut result = self.declared_operation(operation)?;
+        // A plain view can still lend storage whose owner has a domain. Keep
+        // that owner's requirements after resolving the captured address.
+        for (used, effect) in operation.kind.storage_uses() {
+            if !writes_default_storage(effect) {
+                continue;
+            }
+            let (root, mut path, payload) = match used {
+                StructuralStorageUse::Projection(projection) => {
+                    (projection.root, projection.path.to_vec(), false)
+                }
+                StructuralStorageUse::Place(root) => (root, Vec::new(), true),
+                StructuralStorageUse::Element { descriptor, path } => {
+                    let selected = if descriptor.field.is_some() {
+                        let ty = self.carrier(descriptor.root, &[])?;
+                        let location = crate::descriptor_lifetimes::descriptor_location(
+                            self.types,
+                            descriptor.root,
+                            ty,
+                            descriptor.path,
+                            descriptor.field,
+                        )
+                        .ok_or_else(|| {
+                            self.error("an element write lost its declared descriptor field")
+                        })?;
+                        crate::descriptor_lifetimes::descriptor_path(self.types, ty, &location.path)
+                            .ok_or_else(|| {
+                                self.error("an element write lost its descriptor storage path")
+                            })?
+                    } else {
+                        descriptor.path.to_vec()
+                    };
+                    let (root, mut selected) =
+                        self.backing(descriptor.root, &selected, true, before, references)?;
+                    selected.extend_from_slice(path);
+                    selected.pop(); // The replaced element is not its containing owner.
+                    self.append_unique(&mut result, self.owners(root, &selected)?);
+                    continue;
+                }
+                _ => return Err(self.error("a default write has no supported storage projection")),
+            };
+            let replaces_whole = matches!(
+                operation.kind,
+                OperationKind::WriteOnlyPrimitiveStore { .. }
+                    | OperationKind::StoreStructuralField { field: None, .. }
+                    | OperationKind::StructuralByteViewFieldStore { field: None, .. }
+                    | OperationKind::AtomicAccess { .. }
+            );
+            let original_root = root;
+            let original_path = path.clone();
+            let (root, resolved) = self.backing(root, &path, payload, before, references)?;
+            path = resolved;
+            if replaces_whole {
+                self.append_lost(&mut result, original_root, &original_path, root, &path)?;
+                if path.pop().is_none() {
+                    continue;
+                }
+            }
+            self.append_unique(&mut result, self.owners(root, &path)?);
+        }
+        for argument in operation.kind.structural_arguments() {
+            if !matches!(
+                argument.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) {
+                continue;
+            }
+            let (root, mut path) =
+                self.backing(argument.place, &argument.path, true, before, references)?;
+            // The callee maintains its displayed domains, but domains removed
+            // from the actual loan remain the lender's responsibility.
+            self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
+            if path.pop().is_some() {
+                self.append_unique(&mut result, self.owners(root, &path)?);
+            }
+        }
+        Ok(result)
+    }
+
+    fn append_lost(
+        &self,
+        result: &mut Vec<DefaultRequirement>,
+        displayed_root: PlaceId,
+        displayed_path: &[StructuralPathSegment],
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<()> {
+        let displayed = self.declared.at(displayed_root, displayed_path);
+        let lost = self
+            .at(root, path, self.carrier(root, path)?)?
+            .into_iter()
+            .filter(|required| {
+                matches!(required.origin, DefaultClause::Domain(domain)
+                if !displayed.whole.contains(&domain))
+            })
+            .collect();
+        self.append_unique(result, lost);
+        Ok(())
+    }
+
+    fn append_unique(&self, result: &mut Vec<DefaultRequirement>, added: Vec<DefaultRequirement>) {
+        for required in added {
+            if !result.contains(&required) {
+                result.push(required);
+            }
+        }
+    }
+
+    fn backing(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        payload: bool,
+        before: crate::descriptor_lifetimes::DescriptorPosition,
+        references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Judged<(PlaceId, Vec<StructuralPathSegment>)> {
+        use crate::descriptor_results::DescriptorCallOrigin;
+        let ty = self
+            .declared
+            .row(root)
+            .map(|row| row.1)
+            .ok_or_else(|| self.error("a default write has no declared source"))?;
+        let borrowed_arrival =
+            crate::arrival_parameter(self.machine, root).is_some_and(|parameter| {
+                parameter.access != terminal_psi::StructuralAccess::Owned
+                    && matches!(
+                        self.machine.structural_place(root).map(|place| place.kind),
+                        Some(semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. })
+                    )
+            });
+        if !path.contains(&StructuralPathSegment::Referent)
+            && !borrowed_arrival
+            && !(payload
+                && crate::descriptor_results::is_descriptor(
+                    self.types.iter(),
+                    self.carrier(root, path)?,
+                ))
+        {
+            return Ok((root, path.to_vec()));
+        }
+        let split = path
+            .iter()
+            .position(|step| {
+                matches!(
+                    step,
+                    StructuralPathSegment::RuntimeIndex { .. }
+                        | StructuralPathSegment::FixedRange { .. }
+                )
+            })
+            .unwrap_or(path.len());
+        let (prefix, suffix) = path.split_at(split);
+        if suffix.contains(&StructuralPathSegment::Referent) {
+            return Err(self.error("default restoration crosses an unresolved indexed reference"));
+        }
+        let location =
+            crate::descriptor_lifetimes::descriptor_location(self.types, root, ty, prefix, None)
+                .ok_or_else(|| {
+                    self.error("default restoration has no exact descriptor location")
+                })?;
+        let captured = references
+            .storage_projection(self.machine.id, before, &location)
+            .ok_or_else(|| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
+        let DescriptorCallOrigin::Argument { source, projection } = captured else {
+            return Err(self.error("default restoration has no exact captured lender"));
+        };
+        let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
+            (source, path)
+        } else {
+            let unique = references
+                .location(self.machine.id, before, &location)
+                .ok_or_else(|| self.error("default restoration has no unique incoming lender"))?;
+            let ty = self
+                .declared
+                .row(unique.root)
+                .map(|row| row.1)
+                .ok_or_else(|| self.error("default restoration lost its incoming carrier"))?;
+            let path = crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
+                .ok_or_else(|| {
+                self.error("default restoration lost its incoming storage path")
+            })?;
+            (unique.root, path)
+        };
+        selected.extend_from_slice(suffix);
+        self.carrier(root, &selected)?;
+        Ok((root, selected))
+    }
+
+    fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         let (root, mut path, strict) = match &operation.kind {
             OperationKind::EstablishRecord { .. }
@@ -3406,7 +3650,7 @@ mod default_requirement_tests {
         let domains = vec![domain(types[1].id)];
         let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
         let rows = defaults
-            .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+            .declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
             .unwrap();
         assert_eq!(rows.len(), 2);
         assert_eq!(defaults.clause(&rows[0]).unwrap(), Proposition::Truth);
@@ -3435,7 +3679,7 @@ mod default_requirement_tests {
         let domains = vec![domain(types[1].id)];
         let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
         let path = vec![StructuralPathSegment::FixedIndex(0)];
-        let expected = defaults.operation(&store(path.clone())).unwrap();
+        let expected = defaults.declared_operation(&store(path.clone())).unwrap();
         assert_eq!(expected.len(), 2);
         for (access, path, owes) in [
             (StructuralAccess::MutableBorrow, path.clone(), true),
@@ -3461,7 +3705,7 @@ mod default_requirement_tests {
                     crash_continuations: Vec::new(),
                 },
             );
-            let actual = defaults.operation(&call).unwrap();
+            let actual = defaults.declared_operation(&call).unwrap();
             if owes {
                 assert_eq!(actual, expected);
             } else {
@@ -3500,7 +3744,7 @@ mod default_requirement_tests {
         assert!(defaults.declared().unwrap().is_empty());
         assert!(
             defaults
-                .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+                .declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
                 .unwrap()
                 .is_empty()
         );
@@ -3514,7 +3758,7 @@ mod default_requirement_tests {
         assert!(defaults.declared().unwrap().is_empty());
         assert!(
             defaults
-                .operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
+                .declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
                 .unwrap()
                 .is_empty()
         );
@@ -3541,7 +3785,7 @@ mod default_requirement_tests {
         let domains = vec![domain(types[1].id)];
         let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
         let refused = defaults
-            .operation(&store(vec![
+            .declared_operation(&store(vec![
                 StructuralPathSegment::Referent,
                 StructuralPathSegment::FixedIndex(0),
             ]))

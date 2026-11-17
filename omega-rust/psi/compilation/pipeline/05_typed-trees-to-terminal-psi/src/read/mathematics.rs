@@ -813,7 +813,8 @@ mod address_context_tests {
                 ..formal.clone()
             })
             .collect::<Vec<_>>();
-        let inputs = MathematicalInputs::new(&typed, id, &parameters, context).unwrap();
+        let inputs =
+            MathematicalInputs::new(&typed, id, parameters.as_slice().into(), context).unwrap();
         let scope = ClauseScope {
             logical: Some(inputs.scope(id, context, &[])),
             ..scope

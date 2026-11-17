@@ -13,6 +13,8 @@
 //! read from the settled plan itself. Both cases live here so the requirement
 //! projection and the binding constructors cannot disagree about which package
 //! owns a plan. This is test policy, not evidence that an audit occurred.
+//! A direct native exit instead retains its completed Build producer and
+//! locator receipt; it acquires no invented nominal provider.
 
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -90,6 +92,140 @@ pub fn process_exit_binding(
         provider_type_owner,
         &["exit_process"],
     )
+}
+
+/// A direct native supply has no nominal provider. Its completed Build receipt
+/// owns the binding; the canonical checked completion identifies the operation.
+pub fn direct_process_exit_binding(
+    checked: &CheckedCompilation,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    let accepted = checked.terminal_publication().accepted()?;
+    let module = accepted.module();
+    let declaration = module.boundary_machine(boundary).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "direct fixture consent lost its boundary",
+        )]
+    })?;
+    if declaration.completion
+        != semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        )
+    {
+        return Ok(None);
+    }
+    let requirement = module
+        .identities
+        .text(declaration.identity)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "direct fixture consent lost its requirement identity",
+            )]
+        })?;
+    let realization = checked.execution().realization();
+    let target = checked.execution().target_profile().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "direct ProcessExit consent requires its selected target",
+        )]
+    })?;
+    let mut leaves = realization
+        .direct_boundary_leaves()
+        .iter()
+        .filter(|leaf| leaf.satisfied_requirement_identity == requirement);
+    let (Some(leaf), None) = (leaves.next(), leaves.next()) else {
+        return Err(vec![Diagnostic::error(
+            "direct ProcessExit consent requires one exact native leaf",
+        )]);
+    };
+    direct_process_exit_leaf_binding(
+        module,
+        boundary,
+        target.target_name(),
+        leaf,
+        realization.evaluated_native_bindings(),
+        realization.evaluated_binding_identities(),
+    )
+    .map(Some)
+}
+
+/// Keep the validation on one actual leaf available to hostile-input controls.
+pub fn direct_process_exit_leaf_binding(
+    module: &terminal_psi::TerminalModule,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    target: &str,
+    leaf: &backend_plan::DirectBoundaryLeaf,
+    evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+    evaluated_identities: &terminal_psi::TerminalIdentityTable,
+) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
+    let refused = |reason: String| {
+        vec![Diagnostic::error(format!(
+            "direct ProcessExit fixture consent: {reason}"
+        ))]
+    };
+    let declaration = module
+        .boundary_machine(boundary)
+        .ok_or_else(|| refused("missing checked boundary".into()))?;
+    if leaf.plan.target != target {
+        return Err(refused("native leaf names another target".into()));
+    }
+    if declaration.completion
+        != semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        )
+        || module.identities.text(declaration.identity)
+            != Some(leaf.satisfied_requirement_identity.as_str())
+    {
+        return Err(refused(
+            "different canonical completion or requirement".into(),
+        ));
+    }
+    let schema =
+        backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refused)?;
+    if leaf.satisfied_schema.declaration.as_ref() != schema.surface.as_ref() {
+        return Err(refused("different complete checked service schema".into()));
+    }
+    leaf.validate_plain_execution(module, evaluated, evaluated_identities)
+        .map_err(refused)?;
+    let [row] = leaf.plan.rows.as_slice() else {
+        return Err(refused("native leaf must retain one method".into()));
+    };
+    let requirement = leaf.plan.identities.text(row.requirement_identity);
+    let mut receipts = evaluated.iter().filter(|binding| {
+        binding.target().target_name() == leaf.plan.target
+            && binding.receipt().build_origin().is_some_and(|origin| {
+                evaluated_identities.text(origin.requirement_identity) == Some(requirement)
+            })
+    });
+    let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
+        return Err(refused(
+            "native leaf has no unique completed Build receipt".into(),
+        ));
+    };
+    let owner = receipt
+        .receipt()
+        .producer_package()
+        .ok_or_else(|| refused("Build receipt has no producer package".into()))?;
+    let mut identities = TerminalIdentityTableBuilder::default();
+    let permission = ServiceTerminalAuthorityPermission::new(
+        leaf.plan.schema.identity_digest(),
+        identities.intern(requirement),
+        TerminalAuthorityDisposition::from_classes(vec![
+            TerminalAuthorityClass::ProcessTermination,
+        ]),
+    );
+    AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+        owner,
+        leaf.plan
+            .schema
+            .identity_text(leaf.plan.schema.declaration.trait_name),
+        leaf.plan.schema.identity_digest(),
+        leaf.plan.identity_digest(),
+    )
+    .and_then(|binding| {
+        binding.with_terminal_authority_permissions(vec![permission], &identities.build())
+    })
+    .map_err(|reason| refused(reason.into()))
 }
 
 /// Resolve the one exact package-owned plan and admit this role's binding.

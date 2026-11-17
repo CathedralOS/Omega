@@ -228,6 +228,8 @@ pub(crate) struct Program<'t> {
     /// such a parameter by its symbol is that type (`value_type`). Empty
     /// while a closed machine is read.
     scope: Vec<(SymbolHandle, ValueType)>,
+    source_scope: std::sync::Arc<typed_trees::SourceTypeScope>,
+    source_scopes: IdTable<MachineId, std::sync::Arc<typed_trees::SourceTypeScope>>,
     /// A generic declaration checks its contract without claiming executable
     /// storage for a compound symbolic type. These types belong only to that
     /// schema form; demanded applications use ordinary formals and loans.
@@ -466,6 +468,8 @@ impl<'t> Program<'t> {
             outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
+            source_scope: Default::default(),
+            source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
             scopes: IdTable::default(),
@@ -1718,12 +1722,12 @@ mod tests {
         let logical_inputs = logical::MathematicalInputs::new(
             &typed,
             machine(),
-            &[typed_trees::mathematical::MathematicalParameter {
+            arena::RootRows::from_slice(&[typed_trees::mathematical::MathematicalParameter {
                 symbol: formal,
                 name: Identifier::generated("x"),
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
-            }],
+            }]),
             logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();

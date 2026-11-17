@@ -482,3 +482,108 @@ fn copied_lifetimes_refuse_missing_or_malformed_explicit_group_ownership() {
         );
     }
 }
+
+#[test]
+fn borrowed_type_arguments_share_code_and_keep_each_call_scope() {
+    let Source {
+        mut program,
+        root,
+        caller,
+        applications,
+        ..
+    } = source();
+    let state = program
+        .machine_states(program.machine_by_symbol(caller).unwrap())
+        .first()
+        .unwrap()
+        .clone();
+    let first = program.state_parameters(&state)[0].type_reference;
+    let TypeReferenceNode::Reference { referee: byte, .. } =
+        *program.type_reference_table.type_reference(first)
+    else {
+        panic!("the caller has a byte reference");
+    };
+    let mut actuals = Vec::new();
+    for ((position, application), statement) in applications
+        .into_iter()
+        .enumerate()
+        .zip(state.statement_nodes.handles())
+    {
+        let lifetime = ["input", "other"][position];
+        let borrow = |program: &mut TypedTrees, referee| {
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: Some(Identifier::from(lifetime)),
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, caller)
+                .unwrap();
+            program
+                .type_reference_table
+                .retain_operand_lifetimes(
+                    reference,
+                    [Region {
+                        declaration: caller,
+                        ordinal: position,
+                    }],
+                )
+                .unwrap();
+            reference
+        };
+        let actual = borrow(&mut program, byte);
+        let outer = borrow(&mut program, actual);
+        program
+            .state_parameters
+            .get_mut(state.parameters.handle_at(position as u32))
+            .type_reference = outer;
+        let argument = StaticMachineArgument {
+            type_reference: actual,
+            ..Default::default()
+        };
+        program
+            .expression_table
+            .set_static_machine_application_arguments(application, std::slice::from_ref(&argument));
+        let StatementNode::Call(call) = program.statement_table.statement_mut(statement) else {
+            panic!("the caller invokes the generic helper");
+        };
+        call.machine_arguments = Box::new([argument]);
+        actuals.push(actual);
+    }
+    prepare(&mut program).unwrap();
+    assert!(program.deferred_refusal(caller).is_none());
+    let selected = targets(&program, caller);
+    assert_eq!(
+        selected[0], selected[1],
+        "regions do not select executable code"
+    );
+    assert_eq!(
+        program
+            .machine_specializations
+            .iter()
+            .filter(|row| row.template == root)
+            .count(),
+        1,
+    );
+    for (position, (application, actual)) in applications.into_iter().zip(actuals).enumerate() {
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application);
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].value, StaticMachineBindingValue::Type(actual));
+        assert_eq!(
+            program.type_reference_table.operand_lifetime_owner(actual),
+            caller
+        );
+        assert_eq!(
+            program.type_reference_table.operand_lifetimes(actual),
+            [Region {
+                declaration: caller,
+                ordinal: position,
+            }]
+        );
+    }
+}

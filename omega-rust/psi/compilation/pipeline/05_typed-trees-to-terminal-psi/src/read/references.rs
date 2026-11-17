@@ -59,36 +59,34 @@ impl Program<'_> {
             self.lifetime_owner
         };
         super::places::reference_lifetime_declared(self.typed, machine, reference, owner)?;
-        let occurrence = typed_trees::type_identity::applied_carrier_identity_in_region_scope(
-            self.typed, reference, owner, owner,
-        )
-        .and_then(|identity| self.typed.type_identity_text(identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("reference without its complete source type identity"),
-            )
-        })?;
+        let occurrence = self
+            .source_scope
+            .carrier_identity_in_region_scope(self.typed, reference, owner)
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("reference without its complete source type identity"),
+                )
+            })?;
         let outer = self.borrowed_view_region(machine, reference, owner, &occurrence)?;
         // Erase regions only for the shared storage row, through the existing
         // declared-carrier identity owner. The occurrence's qualification and
         // complete region tuple remain on ValueType and are compared at use.
-        let identity = typed_trees::type_identity::applied_declared_carrier_identity(
-            self.typed,
-            reference,
-            &[],
-        )
-        .and_then(|identity| self.typed.type_identity_text(identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("reference without its declared storage identity"),
-            )
-        })?;
+        let identity = self
+            .source_scope
+            .declared_carrier_identity(self.typed, reference)
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("reference without its declared storage identity"),
+                )
+            })?;
         let referent = self.value_type(machine, referee)?;
         let qualification = referent.qualification();
         let bare = referent.qualified(Qualification::NONE).ok_or_else(|| {
@@ -139,6 +137,7 @@ impl Program<'_> {
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: self.source_scope.clone(),
             }),
             region_owner: owner,
             fields: Vec::new(),
@@ -193,77 +192,6 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
-        use typed_trees::expression::ExpressionNode;
-        // `&text as +D`: domains.md, "Mutable views": "A cast applies to a
-        // reference by accounting for the domains displayed on its referent
-        // ... A borrow groups before `as`". The typed trees hold it as a
-        // borrow of the cast, so the place `text` is lent plainly and the
-        // cast then changes the reference's displayed domains, owing what
-        // `+D` owes of the referent it shows.
-        let table = &self.typed.expression_table;
-        if let ExpressionNode::Borrow(borrow) = table.expression(argument)
-            && let ExpressionNode::Cast(cast) = table.expression(borrow.target)
-            && let Some(entry) = cast.form.entry()
-        {
-            // Through an exclusive loan, removal owes re-establishment when
-            // the loan ends ("mutable-view-reestablishment"), which this
-            // formation does not state, so only a shared loan is served.
-            if borrow.access != language_core::ReferenceAccess::Shared {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Expression("domain cast of an exclusive reference formation"),
-                ));
-            }
-            let cast = *cast;
-            let domain = crate::body::DomainInstance {
-                declaration: cast.semantic_domain_symbol,
-                identity: cast.semantic_domain_id,
-            };
-            let after = expected.qualification();
-            use language_core::cast_form::CastEntryKind;
-            let before = match entry.kind {
-                CastEntryKind::Add => after.domains.without(domain),
-                CastEntryKind::Remove => after.domains.with(domain),
-                CastEntryKind::Keep => Some(after.domains),
-            }
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Typing("reference cast whose destination does not show its entry"),
-                )
-            })?;
-            let plain = expected
-                .qualified(Qualification {
-                    domains: before,
-                    ..after
-                })
-                .ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Typing("reference cast of a rigid descriptor"),
-                    )
-                })?;
-            let lent =
-                self.formed_reference(machine, slots, argument, Some(cast.value), plain, source)?;
-            return self.reference_entry(machine, &cast, entry, lent, after, source);
-        }
-        self.formed_reference(machine, slots, argument, None, expected, source)
-    }
-
-    /// `borrow_value` of the place an explicit borrow names, or of
-    /// `beneath` in place of its target (`lent_from`).
-    fn formed_reference(
-        &mut self,
-        machine: MachineId,
-        slots: &[super::Slot],
-        argument: typed_trees::expression::ExpressionHandle,
-        beneath: Option<typed_trees::expression::ExpressionHandle>,
-        expected: ValueType,
-        source: crate::SourceOrigin,
-    ) -> Checked<crate::Expression> {
         if let Some(view) =
             self.borrowed_array_range(machine, slots, argument, expected, source, None)?
         {
@@ -314,7 +242,7 @@ impl Program<'_> {
             regions: expected.regions(),
             home,
         };
-        let (value, _) = self.lent_from(machine, slots, argument, beneath, &formal, referent)?;
+        let (value, _) = self.lent_from(machine, slots, argument, None, &formal, referent)?;
         if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
         };

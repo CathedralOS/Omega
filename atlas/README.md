@@ -90,7 +90,7 @@ tracked `.rs` files from `src/` and include the backend `target/` source crate.
 
 ## Rebuild all pages
 
-Dependencies: Python 3.10+, Node.js 18+, Bun 1.4.4, Graphviz (`dot` and `neato` on `PATH`) and Markdown 3.7:
+Dependencies: Python 3.10+, Node.js 18+, Bun 1.4.4, Graphviz (`dot` on `PATH`) and Markdown 3.7:
 
 ```bash
 bun install --cwd atlas/artifacts --frozen-lockfile
@@ -164,16 +164,20 @@ templates and build entrypoints have been removed.
 ## Explore locally
 
 The [interactive architecture page](pages/architecture.html) has one connected
-SVG canvas. One source compiler and one Psi interpreter serve all their callers.
+SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
+remembers the position and zoom on each side of a detour comparison. Trace shows the code in Current and the planned handoffs in Proposed. The proposed graph cites its recorded migration plan, uses its named
+stages numbered 00–10, and exposes unresolved contracts on
+selection. It remains a proposal, separate from the compiler snapshot.
+
+In Current, one source compiler and one Psi interpreter serve all their callers.
 Build, source checking and provider selection lead to native and interpreted
 execution. The source and policy evaluators connect to the same interpreter as
 the runtime host. Provider closure repeats policy-input preparation using
 accepted code. Extra inputs terminate at the operations that consume them.
 
-Drag to pan, scroll or pinch to zoom, and use Find to reach a component.
+Drag to pan and scroll to zoom in either view. In Proposed, use Stage to jump to a numbered group. Find reaches individual components in either view.
 Select a box or arrow to highlight its connections and open pinned source.
-Follow the bold route down from START; phase frames and numbered stages show
-its order. Dashed supporting connections reveal their labels when selected.
+Current opens at Build at 100% zoom. Follow the arrows across the stage groups. Orange marks a path in the repair plan. Trace isolates its handoffs and links to the recorded code.
 Start returns to Build; the minimap and Fit whole compiler locate the view.
 100% restores natural-scale type. Expand
 keeps the same graph and camera. Arrow keys pan, F fits all, and Escape clears
@@ -181,8 +185,10 @@ selection or closes expansion. Without JavaScript, the same SVG scrolls inside
 its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
-`artifacts/layout.mjs` uses ELK.js to order the main route and Graphviz `neato`
-to route supporting connections around fixed boxes during the build.
+`artifacts/proposed.py` defines the recorded proposed contracts and plan citations;
+both models use the same SVG renderer. Proposed stages use the column layout in `artifacts/stage_flow.py`. Only one graph is mounted in
+the interactive canvas. The proposed contract list remains readable without JS.
+`artifacts/layout.mjs` places the numbered runs in columns and draws each call and return to its named endpoint.
 `artifacts/connected.js` uses D3 Zoom to move the SVG and highlight connections.
 `artifacts/architecture.css` keeps the original fonts, colors, boxes and arrows.
 The stage and supporting-owner records live in `artifacts/whole_map.py`.
@@ -198,7 +204,7 @@ claims and estimates are not refreshed observations; `artifacts/pipeline-map/map
 owns the corrected current account.
 
 Install the locked graph dependencies before building. The browser loads the
-committed `design/diagram-zoom.js` locally; ELK runs only during publication.
+committed `design/diagram-zoom.js` locally.
 After changing `artifacts/zoom-entry.js` or its dependencies, rebuild that
 bundle and its license notices with:
 

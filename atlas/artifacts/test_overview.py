@@ -7,7 +7,51 @@ from .overview import overview_model, layout_model, validate
 from .whole_map import architecture
 
 
-class OverviewContracts(unittest.TestCase):
+class GeometryContracts:
+    def test_paths_do_not_pass_through_unrelated_boxes(self):
+        nodes = {n['id']: n for n in self.layout['nodes']}
+
+        def enters(a,b,node):
+            # Clip the segment against the box interior. Border contacts are
+            # allowed; traversing another box implies an unintended handoff.
+            low,high = 0,1
+            for dimension, extent in ((0,'width'),(1,'height')):
+                start = node['x' if dimension==0 else 'y']+1
+                stop = start+node[extent]-2
+                delta = b[dimension]-a[dimension]
+                if delta==0:
+                    if not start<a[dimension]<stop:
+                        return False
+                else:
+                    t0,t1=sorted(((start-a[dimension])/delta,(stop-a[dimension])/delta))
+                    low,high=max(low,t0),min(high,t1)
+                    if low>=high:
+                        return False
+            return True
+
+        for edge in self.layout['edges']:
+            points=[(p['x'],p['y']) for section in edge['sections'] for p in section['points']]
+            for node in nodes.values():
+                if node['id'] in (edge['start'],edge['end']):
+                    continue
+                for a,b in zip(points,points[1:]):
+                    self.assertFalse(enters(a,b,node), f'{edge["start"]} → {edge["end"]} crosses {node["id"]}')
+
+    def test_routes_touch_the_named_endpoint_boxes(self):
+        nodes={n['id']:n for n in self.layout['nodes']}
+        for edge in self.layout['edges']:
+            points=[p for section in edge['sections'] for p in section['points']]
+            for key,point in ((edge['start'],points[0]),(edge['end'],points[-1])):
+                node=nodes[key]
+                x,y=point['x'],point['y']
+                self.assertTrue(node['x']-1.2<=x<=node['x']+node['width']+1.2,edge['id'])
+                self.assertTrue(node['y']-1.2<=y<=node['y']+node['height']+1.2,edge['id'])
+                distance=min(abs(x-node['x']),abs(x-node['x']-node['width']),
+                             abs(y-node['y']),abs(y-node['y']-node['height']))
+                self.assertLess(distance,1.2,edge['id'])
+
+
+class OverviewContracts(GeometryContracts, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.architecture = architecture(Path(__file__).resolve().parents[1])
@@ -55,34 +99,6 @@ class OverviewContracts(unittest.TestCase):
             if edge['start'] in ('providers','policy-inputs','policy'):
                 self.assertNotEqual(nodes[edge['end']]['id'], 'source')
 
-    def test_paths_do_not_pass_through_unrelated_boxes(self):
-        nodes = {n['id']: n for n in self.layout['nodes']}
-
-        def enters(a,b,node):
-            # Clip the segment against the box interior. Border contacts are
-            # allowed; traversing another box implies an unintended handoff.
-            low,high = 0,1
-            for dimension, extent in ((0,'width'),(1,'height')):
-                start = node['x' if dimension==0 else 'y']+1
-                stop = start+node[extent]-2
-                delta = b[dimension]-a[dimension]
-                if delta==0:
-                    if not start<a[dimension]<stop:
-                        return False
-                else:
-                    t0,t1=sorted(((start-a[dimension])/delta,(stop-a[dimension])/delta))
-                    low,high=max(low,t0),min(high,t1)
-                    if low>=high:
-                        return False
-            return True
-
-        for edge in self.layout['edges']:
-            points=[(p['x'],p['y']) for section in edge['sections'] for p in section['points']]
-            for node in nodes.values():
-                if node['role']=='transform' or node['id'] in (edge['start'],edge['end']):
-                    continue
-                for a,b in zip(points,points[1:]):
-                    self.assertFalse(enters(a,b,node), f'{edge["start"]} → {edge["end"]} crosses {node["id"]}')
 
     def test_duplicate_component_copy_is_refused(self):
         model = self.changed()
@@ -109,15 +125,25 @@ class OverviewContracts(unittest.TestCase):
                 reached.add(node);pending.extend(neighbors[node]-reached)
         self.assertEqual(reached,set(neighbors))
 
-    def test_the_main_route_starts_at_build_and_runs_down_one_column(self):
+    def test_every_handoff_is_drawn_in_the_landscape_map(self):
         self.assertEqual(self.model['spine'][0],'build')
         self.assertEqual(self.model['spine'][-1],'native-run')
+        self.assertEqual({e['id'] for e in self.model['edges']},{e['id'] for e in self.layout['edges']})
         nodes={n['id']:n for n in self.layout['nodes']}
-        route=[nodes[key] for key in self.model['spine']]
-        centers=[n['x']+n['width']/2 for n in route]
-        self.assertLess(max(centers)-min(centers),0.1)
-        for a,b in zip(route,route[1:]):
-            self.assertLess(a['y']+a['height'],b['y'])
+        for a,b in zip(self.model['spine'],self.model['spine'][1:]):
+            if nodes[a]['x']+nodes[a]['width']/2==nodes[b]['x']+nodes[b]['width']/2:
+                self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            else:
+                self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])
+
+    def test_repairs_trace_observed_edges_and_leave_runtime_calls_distinct(self):
+        by_id={e['id']:e for e in self.model['edges']}
+        traces={t['id']:[(by_id[i]['start'],by_id[i]['end']) for i in t['edges']] for t in self.model['traces']}
+        self.assertEqual(traces['emission'],[('target','emit')])
+        self.assertEqual(traces['handlers'],[('target','installations'),('installations','native-3')])
+        self.assertEqual(traces['callbacks'],[('objects','callbacks'),('callbacks','compose')])
+        self.assertEqual(traces['runtime-layout'],[('admit','runtime-layout'),('runtime-layout','admit')])
+        self.assertFalse(any(e.get('detour') for e in by_id.values() if 'engine' in (e['start'],e['end'])))
 
     def test_both_numbered_pipelines_are_complete_and_in_order(self):
         for prefix,count in (('psi-',7),('native-',10)):
@@ -126,22 +152,19 @@ class OverviewContracts(unittest.TestCase):
         self.assertNotIn('engine',self.model['spine'])
         self.assertNotIn('policy-eval',self.model['spine'])
 
-    def test_compact_canvas_bounds(self):
-        self.assertLess(self.layout['width'],1800)
-        self.assertLess(self.layout['height'],4000)
-
-    def test_routes_touch_the_named_endpoint_boxes(self):
+    def test_each_operation_label_sits_on_an_unbroken_handoff(self):
         nodes={n['id']:n for n in self.layout['nodes']}
-        for edge in self.layout['edges']:
-            points=[p for section in edge['sections'] for p in section['points']]
-            for key,point in ((edge['start'],points[0]),(edge['end'],points[-1])):
-                node=nodes[key]
-                x,y=point['x'],point['y']
-                self.assertTrue(node['x']-1.2<=x<=node['x']+node['width']+1.2,edge['id'])
-                self.assertTrue(node['y']-1.2<=y<=node['y']+node['height']+1.2,edge['id'])
-                distance=min(abs(x-node['x']),abs(x-node['x']-node['width']),
-                             abs(y-node['y']),abs(y-node['y']-node['height']))
-                self.assertLess(distance,1.2,edge['id'])
+        for key in self.model['spine']:
+            node=nodes[key]
+            if node['role']!='transform':
+                continue
+            point={'x':node['x'],'y':node['y']}
+            incoming=next(e for e in self.layout['edges'] if e['main'] and e['end']==key)
+            outgoing=next(e for e in self.layout['edges'] if e['main'] and e['start']==key)
+            self.assertEqual(incoming['sections'][-1]['points'][-1],point,key)
+            self.assertEqual(outgoing['sections'][0]['points'][0],point,key)
+            self.assertGreaterEqual(nodes[outgoing['end']]['y']-node['y'],40,key)
+
 
 
 if __name__ == '__main__':

@@ -394,6 +394,32 @@ fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
 }
 
 #[test]
+fn differently_shaped_members_compare_their_own_measures_at_each_call() {
+    let program = r#"
+        machine header(cursor: u64, limit: u64) -> u64
+        requires cursor <= limit
+        terminates by (limit - cursor) -> Nat::Descending {
+            payload(limit - cursor)
+        }
+
+        machine payload(remaining: u64) -> u64
+        terminates by remaining {
+            transition remaining > 0 {
+                true -> header(0, remaining - 1)
+                false -> 0
+            }
+        }
+    "#;
+    accepted(program);
+    let unchanged = program.replace("remaining - 1", "remaining");
+    let failures = unproved(&unchanged);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
+}
+
+#[test]
 fn one_authored_measure_can_decrease_inside_the_helper() {
     let program = r#"
         machine count(remaining: u64) -> u64

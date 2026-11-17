@@ -81,10 +81,22 @@ pub(crate) mod source_review {
         pub source: SourceNode,
     }
 
+    /// Actual source arguments stay separate from the authored type occurrence.
+    /// A frame substitutes its arguments simultaneously; earlier frames supply
+    /// the context in which those arguments were written. Records from one
+    /// machine share this context instead of copying its complete call history.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceTypeScope {
+        pub parent: Option<std::sync::Arc<SourceTypeScope>>,
+        pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        pub rigid_parameters: Vec<SymbolHandle>,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeApplication {
         pub reference: TypeReferenceHandle,
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        pub scope: std::sync::Arc<SourceTypeScope>,
     }
 
     /// The canonical service coordinate paired with its source declaration.
@@ -144,7 +156,7 @@ pub(crate) mod source_review {
 pub use source_review::{
     SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
     SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCleanup, SourceRecordCorrespondence,
-    SourceServiceCorrespondence, SourceTypeApplication,
+    SourceServiceCorrespondence, SourceTypeApplication, SourceTypeScope,
 };
 macro_rules! typed_tree_table {
     ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
@@ -1266,7 +1278,7 @@ pub use commitments::{
     MachineSpecialization, StaticRequirementDispatch, TraitImplementationApplication,
 };
 
-use arena::{Arena, Handle, HandleSpan, OwnedInterner};
+use arena::{Handle, HandleSpan, OwnedInterner};
 use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
 use symbols::{SymbolHandle, SymbolTable};
@@ -1304,39 +1316,40 @@ pub struct TypedTrees {
     pub symbols: SymbolTable,
     pub service_reaches: language_semantics::ServiceReachTable,
     pub service_reach_rows: language_semantics::ServiceReachRowTable,
-    pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
+    pub authored_service_reach_rows: arena::RetainedRows<signature::AuthoredServiceReachRow>,
     pub semantic_domains: language_semantics::SemanticDomainTable,
     pub applied_domain_applications: domain::AppliedDomainApplications,
     pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
     pub external_bindings: language_semantics::ExternalBindingTable,
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
-    pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
-    pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
-    pub plan_laid_retired_field_identities: Arena<PlanLaidRetiredFieldIdentity>,
+    pub plan_laid_target_layouts: arena::RootedArena<PlanLaidTargetLayout>,
+    pub plan_laid_schema_fields: arena::RootedArena<PlanLaidSchemaField>,
+    pub plan_laid_retired_field_identities: arena::RootedArena<PlanLaidRetiredFieldIdentity>,
     pub access_view_plans: Vec<AccessViewPlan>,
-    pub access_lifecycle_plans: Arena<AccessLifecyclePlan>,
-    pub access_policy_invocations: Arena<source::SourceSpan>,
-    pub access_borrow_factories: Vec<expression::AccessBorrowOperationRequest>,
-    pub wire_placements: Arena<wire::WirePlacement>,
-    pub wire_encode_obligations: Arena<wire::WireEncodeObligation>,
+    pub access_lifecycle_plans: arena::RootedArena<AccessLifecyclePlan>,
+    pub access_policy_invocations: arena::RootedArena<source::SourceSpan>,
+    pub access_borrow_factories: arena::RetainedRows<expression::AccessBorrowOperationRequest>,
+    pub wire_placements: arena::RootedArena<wire::WirePlacement>,
+    pub wire_encode_obligations: arena::RootedArena<wire::WireEncodeObligation>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
     pub machine_specializations: MachineSpecializations,
-    pub captured_machine_applications: Arena<CapturedMachineApplication>,
-    pub captured_machine_states: Arena<CapturedMachineState>,
-    pub trait_implementation_applications: Arena<TraitImplementationApplication>,
-    pub data_implementation_applications: Arena<DataImplementationApplication>,
+    pub captured_machine_applications: arena::RootedArena<CapturedMachineApplication>,
+    pub captured_machine_states: arena::RootedArena<CapturedMachineState>,
+    pub trait_implementation_applications: arena::RootedArena<TraitImplementationApplication>,
+    pub data_implementation_applications: arena::RootedArena<DataImplementationApplication>,
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Requests no pass served, on the declarations that hold them, ordered
     /// by declaration (`deferred_refusals.rs`).
-    pub deferred_refusals: Vec<deferred_refusals::DeferredRefusal>,
+    pub deferred_refusals: arena::RetainedRows<deferred_refusals::DeferredRefusal>,
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
     pub declaration_indexes: declaration_index::DeclarationIndexes,
-    pub ranking_expression_custody: Vec<crate::ranking::RankingExpressionCustody>,
+    pub ranking_expression_custody: arena::RetainedRows<crate::ranking::RankingExpressionCustody>,
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::expression::ExpressionHandle>,
-    pub constant_recipes: Arena<constant_recipes::RetainedConstantRecipe>,
-    pub constant_expression_contexts: Arena<constant_recipes::ConstantExpressionContext>,
+    pub constant_recipes: arena::RootedArena<constant_recipes::RetainedConstantRecipe>,
+    pub constant_expression_contexts:
+        arena::RootedArena<constant_recipes::ConstantExpressionContext>,
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
@@ -1464,13 +1477,15 @@ pub struct DesignatedStaticTypeArgument {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
-    pub runtime_callable_contracts: Arena<crate::callable_values::RuntimeCallableContract>,
+    pub runtime_callable_contracts:
+        arena::RootedArena<crate::callable_values::RuntimeCallableContract>,
     pub runtime_callable_lowering: crate::callable_values::RuntimeCallableLowering,
-    pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
-    pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
-    pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
-    pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
-    pub product_operand_applications: Arena<ProductOperandApplication>,
+    pub designated_static_type_arguments: arena::RootedArena<DesignatedStaticTypeArgument>,
+    pub retained_product_application_handles: arena::RootedArena<Handle<ProductOperandApplication>>,
+    pub product_input_selections: arena::RootedArena<crate::product_operand::ProductInputSelection>,
+    pub product_input_argument_steps:
+        arena::RootedArena<crate::product_operand::ProductArgumentStep>,
+    pub product_operand_applications: arena::RootedArena<ProductOperandApplication>,
     authored_declaration_selections:
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: arena::RootedArena<crate::constant::ConstDeclaration>,
@@ -1478,46 +1493,50 @@ pub struct TypedTreeTables {
     pub type_aliases: arena::RootedArena<crate::type_aliases::TypeAliasDefinition>,
     pub data_application_definitions: arena::RootedArena<DataApplicationView>,
     pub data_type_parameters: TypeParameterTable,
-    pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
+    pub declared_type_equations: arena::RootedArena<machine::DeclaredTypeEquation>,
     pub static_type_contexts: crate::type_system::type_predicates::StaticTypeContexts,
     pub data_members: arena::RootedArena<data::DataMember>,
     pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
     pub proof_facts: arena::RootedArena<domain::ProofFact>,
-    proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
+    proof_fact_source_spans: arena::RetainedRows<Option<source::SourceSpan>>,
     pub propositions: arena::RootedArena<proposition::PropositionDefinition>,
-    pub proposition_binders: Arena<proposition::PropositionBinder>,
+    pub proposition_binders: arena::RootedArena<proposition::PropositionBinder>,
     pub mathematical_definitions: arena::RootedArena<mathematical::MathematicalDefinition>,
-    pub mathematical_parameters: Arena<mathematical::MathematicalParameter>,
-    pub mathematical_types: Arena<mathematical::MathematicalType>,
-    pub domain_path_members: Arena<crate::name::Identifier>,
-    pub operator_path_members: Arena<crate::name::Identifier>,
+    pub mathematical_parameters: arena::RootedArena<mathematical::MathematicalParameter>,
+    pub mathematical_types: arena::RootedArena<mathematical::MathematicalType>,
+    pub domain_path_members: arena::RootedArena<crate::name::Identifier>,
+    pub operator_path_members: arena::RootedArena<crate::name::Identifier>,
     pub machines: MachineDeclarationTable,
     pub measures: arena::RootedArena<measure::MeasureDefinition>,
-    pub measure_path_members: Arena<crate::name::Identifier>,
+    pub measure_path_members: arena::RootedArena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
-    pub machine_owned_data: Arena<machine::OwnedData>,
+    pub machine_owned_data: arena::RootedArena<machine::OwnedData>,
     pub machine_trait_conformances: arena::RootedArena<machine::TraitConformance>,
     pub machine_states: arena::RootedArena<crate::state::State>,
     pub state_parameters: arena::RootedArena<signature::StateParameter>,
     pub traits: arena::RootedArena<trait_definition::TraitDefinition>,
     pub conformances: arena::RootedArena<trait_definition::Conformance>,
-    pub trait_requirements: Arena<trait_definition::TraitRequirement>,
+    pub trait_requirements: arena::RootedArena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: arena::RootedArena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: callable_applications::AppliedCallableTable,
-    pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
-    pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
-    pub(crate) callable_argument_identities: Arena<crate::type_identity::NormalizedTypeIdentity>,
-    pub(crate) callable_arguments: Arena<callable_applications::RequirementLocalArgument>,
+    pub(crate) callable_substitutions:
+        arena::RootedArena<callable_applications::CallableSubstitution>,
+    pub(crate) trait_application_frames:
+        arena::RootedArena<trait_definition::RetainedTraitApplicationFrame>,
+    pub(crate) callable_argument_identities:
+        arena::RootedArena<crate::type_identity::NormalizedTypeIdentity>,
+    pub(crate) callable_arguments:
+        arena::RootedArena<callable_applications::RequirementLocalArgument>,
     pub(crate) callable_lifetime_substitutions:
-        Arena<crate::static_applications::StaticMachineLifetimeBinding>,
-    pub signature_invokes: Arena<signature::AuthoredInvocation>,
+        arena::RootedArena<crate::static_applications::StaticMachineLifetimeBinding>,
+    pub signature_invokes: arena::RootedArena<signature::AuthoredInvocation>,
     pub signature_contracts: arena::RootedArena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
     pub wire_schemas: arena::RootedArena<wire::WireSchema>,
-    pub wire_members: Arena<wire::WireMember>,
+    pub wire_members: arena::RootedArena<wire::WireMember>,
 }
 
 impl TypedTreeTables {
@@ -1648,36 +1667,36 @@ impl TypedTrees {
             symbols,
             service_reaches: language_semantics::ServiceReachTable::default(),
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
-            authored_service_reach_rows: Vec::new(),
+            authored_service_reach_rows: Default::default(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             applied_domain_applications: Default::default(),
             applied_data_cleanup_selections: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
-            plan_laid_target_layouts: Arena::new(),
-            plan_laid_schema_fields: Arena::new(),
-            plan_laid_retired_field_identities: Arena::new(),
+            plan_laid_target_layouts: arena::RootedArena::new(),
+            plan_laid_schema_fields: arena::RootedArena::new(),
+            plan_laid_retired_field_identities: arena::RootedArena::new(),
             access_view_plans: Vec::new(),
-            access_lifecycle_plans: Arena::new(),
-            access_policy_invocations: Arena::new(),
-            access_borrow_factories: Vec::new(),
-            wire_placements: Arena::new(),
-            wire_encode_obligations: Arena::new(),
+            access_lifecycle_plans: arena::RootedArena::new(),
+            access_policy_invocations: arena::RootedArena::new(),
+            access_borrow_factories: Default::default(),
+            wire_placements: arena::RootedArena::new(),
+            wire_encode_obligations: arena::RootedArena::new(),
             wire_schema_plans: Vec::new(),
             machine_specializations: MachineSpecializations::default(),
-            captured_machine_applications: Arena::new(),
-            captured_machine_states: Arena::new(),
-            trait_implementation_applications: Arena::new(),
-            data_implementation_applications: Arena::new(),
+            captured_machine_applications: arena::RootedArena::new(),
+            captured_machine_states: arena::RootedArena::new(),
+            trait_implementation_applications: arena::RootedArena::new(),
+            data_implementation_applications: arena::RootedArena::new(),
             target_machine_families: Vec::new(),
-            deferred_refusals: Vec::new(),
+            deferred_refusals: Default::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
-            ranking_expression_custody: Vec::new(),
+            ranking_expression_custody: Default::default(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
-            constant_recipes: Arena::new(),
-            constant_expression_contexts: Arena::new(),
+            constant_recipes: arena::RootedArena::new(),
+            constant_expression_contexts: arena::RootedArena::new(),
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             type_identities: Default::default(),
@@ -2033,6 +2052,110 @@ mod continuation_storage_tests {
     }
 
     #[test]
+    fn selected_continuation_retains_side_payloads_and_isolates_changes() {
+        use crate::deferred_refusals::DeferredRequest;
+
+        let mut builder = SymbolTableBuilder::new();
+        let owner = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let mut original = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        original.record_deferred_refusal(
+            owner,
+            DeferredRequest::ReceiverCallSelection,
+            source::SourceSpan::default(),
+        );
+        original
+            .authored_service_reach_rows
+            .push(crate::signature::AuthoredServiceReachRow {
+                owner,
+                keyword_source_spans: vec![source::SourceSpan::default()],
+                targets: Vec::new(),
+                installation_bound: false,
+            });
+        assert!(original.applied_domain_applications.insert(
+            crate::domain::AppliedDomainApplication {
+                declaration: owner,
+                identity: language_semantics::SemanticDomainId(1),
+                arguments: Vec::new(),
+                is_closed: true,
+                theory: None,
+            }
+        ));
+        let invocation = original
+            .access_policy_invocations
+            .insert(source::SourceSpan::default());
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(predecessor.symbols.clone());
+        let fork = Arc::get_mut(&mut successor).unwrap();
+
+        assert!(std::ptr::eq(
+            &predecessor.deferred_refusals[0] as *const _,
+            &fork.deferred_refusals[0] as *const _
+        ));
+        assert!(std::ptr::eq(
+            &predecessor.authored_service_reach_rows[0] as *const _,
+            &fork.authored_service_reach_rows[0] as *const _
+        ));
+        assert!(std::ptr::eq(
+            predecessor.applied_domain_applications.get(0).unwrap(),
+            fork.applied_domain_applications.get(0).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            predecessor.access_policy_invocations.get(invocation),
+            fork.access_policy_invocations.get(invocation)
+        ));
+
+        fork.record_deferred_refusal(
+            owner,
+            DeferredRequest::UndeclaredCallName,
+            source::SourceSpan::default(),
+        );
+        fork.authored_service_reach_rows[0].installation_bound = true;
+        fork.applied_domain_applications
+            .set_theory(0, Err("new preparation refusal".into()));
+        assert!(fork.access_policy_invocations.free(invocation));
+        let replacement = fork
+            .access_policy_invocations
+            .insert(source::SourceSpan::default());
+
+        assert_eq!(
+            predecessor.deferred_refusal(owner).unwrap().request,
+            DeferredRequest::ReceiverCallSelection
+        );
+        assert_eq!(
+            fork.deferred_refusal(owner).unwrap().request,
+            DeferredRequest::UndeclaredCallName
+        );
+        assert!(!predecessor.authored_service_reach_rows[0].installation_bound);
+        assert!(fork.authored_service_reach_rows[0].installation_bound);
+        assert!(
+            predecessor
+                .applied_domain_applications
+                .get(0)
+                .unwrap()
+                .theory
+                .is_none()
+        );
+        assert!(
+            fork.applied_domain_applications
+                .get(0)
+                .unwrap()
+                .theory
+                .as_ref()
+                .unwrap()
+                .is_err()
+        );
+        assert_eq!(replacement.arena_index(), invocation.arena_index());
+        assert_ne!(replacement.generation(), invocation.generation());
+        assert!(predecessor.access_policy_invocations.is_valid(invocation));
+        assert!(!fork.access_policy_invocations.is_valid(invocation));
+        assert!(!predecessor.access_policy_invocations.is_valid(replacement));
+    }
+
+    #[test]
     fn selected_continuation_shares_callable_children_and_isolates_writes() {
         use crate::name::Identifier;
         use crate::{callable_applications, domain, signature, state};
@@ -2337,3 +2460,5 @@ mod continuation_storage_tests {
         assert_eq!(ordinary_clone.tables, successor.tables);
     }
 }
+
+mod source_type_applications;

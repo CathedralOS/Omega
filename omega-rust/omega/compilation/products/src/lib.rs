@@ -89,7 +89,7 @@ pub use independent_component::{IndependentComponentProduct, SelectedIndependent
 pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
-    NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
+    NativePublicationEvidenceDigest, NativePublicationInputsDigest,
     executable_installation_evidence_digest,
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};

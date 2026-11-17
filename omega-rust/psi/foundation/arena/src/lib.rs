@@ -2,7 +2,7 @@
 We provide the dense arena, handle, paged-arena, and revision-indexed storage primitives
 for Psi-owned compiler representations.
 
-Our storage layer is organized into five modules:
+Our storage layer is organized into six modules:
 - `arena`: `Handle`, `HandleSpan`, `SpanHandles`, `unique_handles_in_order`, the contiguous
   node-kind `Arena` (`ArenaIter`, `ArenaSlotStorage`, `ArenaSpanInserter`, `ArenaStorageView`),
   `HierarchyArena` (`HierarchyNode`), and `OrderedRootArena` (`OrderedRootArenaIter`).
@@ -14,6 +14,7 @@ Our storage layer is organized into five modules:
   table it summarizes.
 - `retained`: absolute-slot `RetainedArena` tables with shared immutable pages
   and continuation-owned append output.
+- `retained_rows`: ordered side records over rooted batches and a private logical roster.
 - `rooted`: logical declaration versions over shared immutable record batches,
   with borrowed root views and record-local writes.
 */
@@ -42,8 +43,10 @@ mod arena;
 mod owned_index;
 mod paged;
 mod retained;
+mod retained_rows;
 mod rooted;
 pub use retained::RetainedArena;
+pub use retained_rows::{RetainedRows, RetainedRowsIter};
 pub use rooted::{RootRows, RootRowsIter, RootedArena};
 
 pub use arena::{

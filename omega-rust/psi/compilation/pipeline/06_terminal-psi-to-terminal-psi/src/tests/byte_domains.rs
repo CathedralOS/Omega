@@ -836,3 +836,53 @@ machine build_entry() {
         verdict.map(|_| ())
     );
 }
+
+#[test]
+fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/mutable_domain_buffer/main.omg"
+    ))
+    .replace("use omega::language::core::byte_observation;", "")
+    .replace("machine main()", "machine build_entry()");
+    let verdict = judge_build(&source).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let invalid = source.replace("] = 48;", "] = 128;");
+    let verdict = judge_build(&invalid).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected {
+            ref formations, ref violations, ref unproved, ref unestablished, ref conflicts, ref exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && !unproved.is_empty()
+            && unproved.iter().all(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "an invalid continuation byte must fail Utf8 restoration: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_false_edge_retires_a_copyable_view_before_its_backing() {
+    let source = r#"
+data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+machine build_entry() crashes Trap {
+    let packet: Packet = Packet { before: 11, bytes: [65u8, 66u8, 67u8], after: 37 };
+    let view: &[u8] = (&packet.bytes)[..];
+    transition view.len == 3 && view[1] == 66 && packet.before == 11 && packet.after == 37 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+    let verdict = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    let encoded = terminal_codec::ClosedTerminalModule::new(accepted.elaboration.module).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
+        .expect("the receiving checker must recognize the same carried reference custody");
+}

@@ -198,6 +198,7 @@ impl<T> RootedArena<T> {
 }
 
 impl<T> RootedArena<T> {
+    #[inline]
     fn association_handle(handle: Handle<T>) -> Handle<RecordAddress<T>> {
         Handle::from_parts(
             (handle.arena_index() - 1) % ASSOCIATIONS_PER_PAGE as u32 + 1,
@@ -205,6 +206,7 @@ impl<T> RootedArena<T> {
         )
     }
 
+    #[inline]
     fn record(&self, address: RecordAddress<T>) -> &T {
         let batch = address
             .batch
@@ -219,8 +221,19 @@ impl<T> RootedArena<T> {
         self.record(page.storage_slice()[slot % ASSOCIATIONS_PER_PAGE])
     }
 
+    #[inline]
     fn address(&self, handle: Handle<T>) -> Option<RecordAddress<T>> {
         let slot = handle.arena_index().checked_sub(1)? as usize;
+        // An unretired root has one generation and no vacant slots, just as
+        // its validated spans do. A retired root must consult its page roster.
+        if self.fresh {
+            return (handle.generation() == self.fresh_generation && slot < self.length).then(
+                || {
+                    self.associations[slot / ASSOCIATIONS_PER_PAGE].storage_slice()
+                        [slot % ASSOCIATIONS_PER_PAGE]
+                },
+            );
+        }
         self.associations
             .get(slot / ASSOCIATIONS_PER_PAGE)?
             .try_get(Self::association_handle(handle))
@@ -252,19 +265,24 @@ impl<T> RootedArena<T> {
     pub fn append_epoch(&self) -> Option<(u64, usize)> {
         self.fresh.then_some((self.rewrite_revision, self.length))
     }
+    #[inline]
     pub fn len(&self) -> usize {
         self.active_count
     }
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.active_count == 0
     }
+    #[inline]
     pub fn try_get(&self, handle: Handle<T>) -> Option<&T> {
         Some(self.record(self.address(handle)?))
     }
+    #[inline]
     pub fn is_valid(&self, handle: Handle<T>) -> bool {
         self.address(handle).is_some()
     }
     #[track_caller]
+    #[inline]
     pub fn get(&self, handle: Handle<T>) -> &T {
         if !handle.is_valid() {
             return &self.dummy;
@@ -273,6 +291,7 @@ impl<T> RootedArena<T> {
             .unwrap_or_else(|| refuse_unresolved("get", handle.arena_index(), handle.generation()))
     }
 
+    #[inline]
     pub fn span(&self, span: HandleSpan<T>) -> Option<RootRows<'_, T>> {
         if !span.is_empty() {
             let start = span.start().arena_index().checked_sub(1)? as usize;
@@ -301,11 +320,13 @@ impl<T> RootedArena<T> {
     }
 
     #[track_caller]
+    #[inline]
     pub fn span_or_empty(&self, span: HandleSpan<T>) -> RootRows<'_, T> {
         self.span(span)
             .unwrap_or_else(|| refuse_unresolved_span("span_or_empty", span))
     }
 
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (Handle<T>, &T)> {
         self.iter_from(0)
     }
@@ -521,6 +542,29 @@ impl<T: Default> RootedArena<T> {
 }
 
 impl<T: Clone> RootedArena<T> {
+    /// Write one member after validating its complete span and position.
+    #[track_caller]
+    pub fn get_span_member_mut(&mut self, span: HandleSpan<T>, position: usize) -> &mut T {
+        // A live neighboring slot is not a member of this span. Validate before
+        // detaching a page or record; fresh spans use the existing O(1) path.
+        assert!(
+            position < self.span_or_empty(span).len(),
+            "declaration write position out of bounds"
+        );
+        self.get_mut(span.handle_at(position as u32))
+    }
+
+    /// Mutate span members after validating the entire span once.
+    #[track_caller]
+    pub fn for_each_span_mut(&mut self, span: HandleSpan<T>, mut apply: impl FnMut(&mut T)) {
+        let _ = self.span_or_empty(span);
+        // The exclusive arena borrow prevents retirement while callbacks hold
+        // one record at a time. Each write still uses scalar generation checks.
+        for handle in span.handles() {
+            apply(self.get_mut(handle));
+        }
+    }
+
     #[track_caller]
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
         let Some(mut address) = self.address(handle) else {
@@ -581,12 +625,14 @@ impl<'arena, T> RootRows<'arena, T> {
         }
     }
 
+    #[inline]
     pub fn len(self) -> usize {
         match self.source {
             RowSource::Retained(_, span) => span.len(),
             RowSource::Slice(rows) => rows.len(),
         }
     }
+    #[inline]
     pub fn is_empty(self) -> bool {
         self.len() == 0
     }
@@ -613,6 +659,12 @@ impl<'arena, T> RootRows<'arena, T> {
             .checked_sub(1)
             .and_then(|position| self.get(position))
     }
+    /// Borrow the final row and its preceding logical view without flattening.
+    pub fn split_last(self) -> Option<(&'arena T, Self)> {
+        let last = self.last()?;
+        Some((last, self.slice(0..self.len() - 1)))
+    }
+
     /// Borrow exactly N rows, returning none for any other cardinality.
     pub fn as_array<const N: usize>(self) -> Option<[&'arena T; N]> {
         (self.len() == N).then(|| std::array::from_fn(|position| self.at(position)))
@@ -638,6 +690,7 @@ impl<'arena, T> RootRows<'arena, T> {
             RowSource::Slice(rows) => Self::from_slice(&rows[range]),
         }
     }
+    #[inline]
     pub fn iter(self) -> RootRowsIter<'arena, T> {
         RootRowsIter {
             rows: self,
@@ -861,6 +914,45 @@ mod tests {
     }
 
     #[test]
+    fn scalar_reads_validate_fresh_and_retired_roots() {
+        let dense = Arena::with_capacity_and_generation(300, 7);
+        let mut rows = RootedArena::from(dense);
+        let roots = rows.insert_many(0..300u32);
+        let mut successor = rows.clone();
+        successor.set(roots.handle_at(129), 900);
+        for owner in [&rows, &successor] {
+            assert_eq!(owner.try_get(Handle::invalid()), None);
+            assert_eq!(*owner.get(Handle::invalid()), 0);
+            for position in [0, 127, 128, 129, 299] {
+                assert!(owner.try_get(roots.handle_at(position)).is_some());
+                assert!(owner.try_get(Handle::from_parts(position + 1, 0)).is_none());
+                assert!(owner.try_get(Handle::from_parts(position + 1, 1)).is_none());
+                assert!(owner.try_get(Handle::from_parts(position + 1, 8)).is_none());
+            }
+            assert!(owner.try_get(Handle::from_parts(301, 7)).is_none());
+            assert!(owner.try_get(Handle::from_parts(u32::MAX, 7)).is_none());
+        }
+        let retired = roots.handle_at(129);
+        assert!(successor.free(retired));
+        let reused = successor.insert(901);
+        assert_eq!(successor.try_get(retired), None);
+        assert_eq!(successor.try_get(reused), Some(&901));
+        assert_eq!(rows.try_get(retired), Some(&129));
+        let appended = successor.append(902);
+        assert_eq!(successor.try_get(appended), Some(&902));
+        assert_eq!(rows.try_get(appended), None);
+        let limits = compiler_storage::RecordLimits::default();
+        for owner in [&rows, &successor] {
+            let bytes = compiler_storage::encode(owner, limits).unwrap();
+            let decoded: RootedArena<u32> = compiler_storage::decode(&bytes, limits).unwrap();
+            assert_eq!(&decoded, owner);
+            for handle in [retired, reused, appended] {
+                assert_eq!(decoded.try_get(handle), owner.try_get(handle));
+            }
+        }
+    }
+
+    #[test]
     fn iteration_starts_at_a_logical_slot_and_preserves_reused_generations() {
         let mut rows = RootedArena::new();
         let span = rows.insert_many(0u32..300);
@@ -899,6 +991,88 @@ mod tests {
                 value: self.value,
             }
         }
+    }
+
+    #[test]
+    fn span_member_writes_check_the_entire_span_before_detaching() {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let mut rows = RootedArena::new();
+        let roots = rows.insert_many((0..3).map(|value| Tracked {
+            copies: Arc::clone(&copies),
+            value,
+        }));
+        let predecessor = rows.clone();
+        let first = HandleSpan::from_parts(roots.start(), 1);
+        let oversized = HandleSpan::from_parts(roots.start(), 4);
+        let mut callbacks = 0;
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                rows.for_each_span_mut(oversized, |row| {
+                    callbacks += 1;
+                    row.value = 900;
+                });
+            }))
+            .is_err()
+        );
+        assert_eq!(callbacks, 0);
+        assert_eq!(copies.load(Ordering::Relaxed), 0);
+        assert!(Arc::ptr_eq(
+            &rows.associations[0],
+            &predecessor.associations[0]
+        ));
+        assert!(Arc::ptr_eq(&rows.batches[0], &predecessor.batches[0]));
+        let wrong_generation = HandleSpan::from_parts(
+            Handle::from_parts(roots.start().arena_index(), roots.start().generation() + 1),
+            1,
+        );
+        for (span, position) in [
+            (first, 1),
+            (first, usize::MAX),
+            (oversized, 0),
+            (wrong_generation, 0),
+            (HandleSpan::empty(), 0),
+        ] {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    rows.get_span_member_mut(span, position).value = 900;
+                }))
+                .is_err()
+            );
+            assert!(Arc::ptr_eq(
+                &rows.associations[0],
+                &predecessor.associations[0]
+            ));
+            assert!(Arc::ptr_eq(&rows.batches[0], &predecessor.batches[0]));
+            assert_eq!(copies.load(Ordering::Relaxed), 0);
+            assert_eq!(rows.get(roots.handle_at(1)).value, 1);
+        }
+        rows.get_span_member_mut(first, 0).value = 901;
+        assert_eq!(copies.load(Ordering::Relaxed), 1);
+        assert_eq!(rows.get(roots.start()).value, 901);
+        assert_eq!(predecessor.get(roots.start()).value, 0);
+        assert_eq!(rows.get(roots.handle_at(1)).value, 1);
+
+        let retired = roots.handle_at(1);
+        assert!(rows.free(retired));
+        let reused = rows.insert(Tracked {
+            copies: Arc::clone(&copies),
+            value: 902,
+        });
+        let copies_before = copies.load(Ordering::Relaxed);
+        // The selected first slot is live, but another slot in the requested
+        // span retired. A scalar check on that first handle is insufficient.
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                rows.get_span_member_mut(roots, 0).value = 903;
+            }))
+            .is_err()
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), copies_before);
+        assert_eq!(rows.get(roots.start()).value, 901);
+        rows.get_span_member_mut(HandleSpan::from_parts(reused, 1), 0)
+            .value = 904;
+        assert_eq!(rows.get(reused).value, 904);
+        assert_eq!(predecessor.get(retired).value, 1);
     }
 
     #[test]

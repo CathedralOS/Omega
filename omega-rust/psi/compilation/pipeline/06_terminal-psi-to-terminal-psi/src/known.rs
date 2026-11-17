@@ -91,11 +91,31 @@ pub(crate) struct Fact {
     pub(crate) axiom: Option<usize>,
 }
 
+/// Work owned by one fact-tree construction, never shared implicitly.
+#[derive(Debug, Default)]
+pub(crate) struct FactProofWork {
+    #[cfg(test)]
+    pub(crate) nodes: usize,
+}
+
+impl FactProofWork {
+    fn record_node(&mut self) {
+        #[cfg(test)]
+        {
+            self.nodes = self.nodes.saturating_add(1);
+        }
+    }
+}
+
 impl Fact {
     /// Expand only a selected derivation. The resulting owned tree is exactly
     /// what the unchanged kernel/publication path has always received, so its
     /// logical occurrence and depth budgets do not depend on physical sharing.
     pub(crate) fn proof(&self, facts: &[Fact]) -> ProofNode {
+        self.proof_with_work(facts, &mut FactProofWork::default())
+    }
+
+    pub(crate) fn proof_with_work(&self, facts: &[Fact], work: &mut FactProofWork) -> ProofNode {
         let rule = match &self.origin {
             Origin::Assumption(index) => ProofRule::Assumption { index: *index },
             Origin::SemanticAxiom(index) => ProofRule::SemanticAxiom { index: *index },
@@ -103,15 +123,16 @@ impl Fact {
                 unreachable!("conjunction construction is complete before proof selection")
             }
             Origin::Conjunction { parent, conjunct } => ProofRule::ConjunctionElimination {
-                conjunction: Box::new(facts[*parent].proof(facts)),
+                conjunction: Box::new(facts[*parent].proof_with_work(facts, work)),
                 conjunct: *conjunct,
             },
             Origin::IntegerEquality { premise } => {
                 let Proposition::Equal(_, right) = &facts[*premise].proposition else {
                     unreachable!("integer equality originates in a scalar equality");
                 };
+                work.record_node();
                 ProofRule::EqualityTransitivity {
-                    left_equals_middle: Box::new(facts[*premise].proof(facts)),
+                    left_equals_middle: Box::new(facts[*premise].proof_with_work(facts, work)),
                     middle_equals_right: Box::new(ProofNode {
                         conclusion: Proposition::Equal(right.clone(), right.clone()),
                         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
@@ -119,19 +140,20 @@ impl Fact {
                 }
             }
             Origin::EqualitySymmetry { premise } => ProofRule::EqualitySymmetry {
-                equality: Box::new(facts[*premise].proof(facts)),
+                equality: Box::new(facts[*premise].proof_with_work(facts, work)),
             },
             Origin::Transport {
                 premise,
                 equalities,
             } => ProofRule::ValueEqualityTransport {
-                premise: Box::new(facts[*premise].proof(facts)),
+                premise: Box::new(facts[*premise].proof_with_work(facts, work)),
                 equalities: equalities
                     .iter()
-                    .map(|&index| facts[index].proof(facts))
+                    .map(|&index| facts[index].proof_with_work(facts, work))
                     .collect(),
             },
         };
+        work.record_node();
         ProofNode {
             conclusion: self.proposition.clone(),
             rule,

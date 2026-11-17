@@ -214,37 +214,50 @@ and stale/substituted proofs must prevent narrowing. External pending deletion
 completed by ordinary close remains compatible with empty classification;
 deferred deletion attached to that handle does not.
 
+<a id="freestanding-machine-owner-authority"></a>
+
 ## Privileged services
 
-Checked instructions retain separate service identities, not a catch-all
-`Privileged` or lowercase effect category:
+A checked instruction contributes the services required by its catalog contract
+to the containing machine's reach. Calls propagate that reach through helpers.
+The consuming project must accept new or widened critical reach for the package
+and target through [ordinary package acceptance](../packages/review.md#critical-service-audit-policy).
 
-| Service | Scope |
+| Hardware service | What the package can reach |
 | --- | --- |
-| `MachineControl` | Halting, interrupt enable/disable, control-register and MSR operations. |
-| `PortIo` | Port input/output, potentially mediated by hardware permission maps. |
+| `InterruptControl` | Changing the current processor's interrupt mask, including disabling, enabling and restoring it. |
+| `InterruptEntry` | Entry into an installed interrupt handler. Acknowledging a device through a port also contributes `PortIo`. |
+| `PortIo` | Reading or writing hardware I/O ports. The provider scopes access to particular ports. |
+| `RootMemoryAccess` | Accessing physical memory through authority supplied by the system root. Ordinary reads and writes within a borrowed buffer add no such reach. |
+| `MachineControl` | Broad processor control, including halting a processor, switching the active page table and unrestricted system-register writes. |
 
-These two are the whole vocabulary: `source/library/core/assembly.omg`
-declares `MachineControl` and `PortIo` and no third identity. Interrupt-table
-publication is not a service of its own -- it is an authority requirement
-(`AsmAuthorityRequirement::IdtControl`) discharged by the
-`Build.privileged_services.interrupt_table` flag described below.
+For example, `cli` and a helper that only saves and masks interrupts contribute
+`InterruptControl`. If a later revision also switches the active page table,
+package review must surface the added `MachineControl` reach. A compound
+operation accounts for every effect its contract permits. An ordinary arithmetic
+instruction or memory fence adds no hardware service reach. At receiver
+admission, the [physical classification](#two-axis-containment) of a leaf that
+only changes the interrupt mask is likewise `InterruptControl`. A provider
+that uses additional mechanisms must account for their actual authority.
 
-A build supplies authority two ways. The evaluated `Build.freestanding`
-selection is machine-owner admission and covers every defined class, including
-the mediated ones. A hosted build begins with no class and widens per class
-through the authored `Build.privileged_services` flags: `port_io` admits port
-I/O without machine control, and `interrupt_table` admits interrupt-table
-publication without port I/O. The grants are independent, and machine-owner
-authority has no granular grant — it stays `freestanding`-only. A flag widens
-admission only for its own class; it never claims machine ownership, and
-consumer-defined publication authority stays receiver-side.
+### Where the operation can run
 
-Machine-control authority normally belongs to the trusted boot/kernel domain;
-listing its service does not establish ownership of the machine. Each exact
-instruction contract independently requires its machine or consumer-defined
-publication authority, or no authority. Direct emission and checked helpers
-retain the same recursive reach rules. See
+For each output, the compiler checks that the selected target supports the
+instruction and that the selected provider contracts cover its required
+authority. Freestanding describes a target environment. Selecting it alone
+does not establish machine ownership. This rule retires `Build.freestanding`.
+If a build binds both firmware and a hosted process, the compiler must reject
+a direct interrupt-mask change in the hosted output when its execution contract
+lacks that privilege, even if the firmware contract supplies it.
+
+A Linux host can check and emit firmware for a target that supplies machine
+control. Emission needs no permission to change the build host's interrupt
+mask. At execution the receiver supplies the actual scoped authority. A Psi
+test can mask interrupts on an explicitly supplied modeled processor. Live
+port I/O requires authority for the ports used. Publishing an interrupt table
+requires the consumer's authority for that CPU and table. Hosted tests use the
+same target or model contracts without a separate check-only grant. See
+[interpreted assembly](../language/assembly.md#interpreted-execution),
 [checked instructions](hardware_materialization.md#checked-instructions) and
 [device access](../resources/device_access.md).
 

@@ -1467,22 +1467,9 @@ pub(crate) mod construction_destinations {
                 for (statement_index, statement) in statements.iter().enumerate() {
                     match statement {
                         StatementNode::Assembly(_) => {}
-                        // An inferred Unit placeholder is not a written
-                        // destination for its initializer's domain entries.
-                        // That initializer still owns its actual type.
                         StatementNode::LocalData(local)
                             if local.initial_value.is_valid()
-                                && local.type_reference.is_valid()
-                                && !(local.type_is_inferred
-                                    && program
-                                        .type_reference_table
-                                        .contains_type_reference(local.type_reference)
-                                    && matches!(
-                                        program
-                                            .type_reference_table
-                                            .type_reference(local.type_reference,),
-                                        TypeReferenceNode::Unit
-                                    )) =>
+                                && local.type_reference.is_valid() =>
                         {
                             destinations.push((
                                 local.initial_value,
@@ -4108,16 +4095,13 @@ pub(crate) mod qualification_casts {
             } else {
                 cast.target_type
             };
-            // An entry over a shared view names a domain of its referent
+            // An entry over a reference names a domain of its referent
             // (domains.md, "Mutable views": the cast accounts "for the
             // domains displayed on its referent"), which accounting left as
             // the reference's referee.
             if cast.form.entry().is_some()
-                && let TypeReferenceNode::Reference {
-                    referee,
-                    access: language_core::ReferenceAccess::Shared,
-                    ..
-                } = program.type_reference_table.type_reference(carrier)
+                && let TypeReferenceNode::Reference { referee, .. } =
+                    program.type_reference_table.type_reference(carrier)
             {
                 carrier = program
                     .type_reference_table
