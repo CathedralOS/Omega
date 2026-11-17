@@ -3922,7 +3922,7 @@ pub(crate) mod normalized_identities {
         table's record: the index is rebuilt as identities are asked for again.
     */
     type CompositeIndex = std::collections::HashMap<
-        (&'static str, Vec<IdentityPart>),
+        std::sync::Arc<(&'static str, Vec<IdentityPart>)>,
         TypeIdentityId,
         symbols::BuildSymbolHasher,
     >;
@@ -4051,15 +4051,18 @@ pub(crate) mod normalized_identities {
                 return *identity;
             }
             let identity = self.intern(&self.composite_text(key.0, &key.1));
-            // The derived cache shares its payload until the first new key.
-            // Unlike text storage, that write still copies the cached map.
             let mut index = self
                 .composites
                 .write()
                 .unwrap_or_else(|error| error.into_inner());
-            std::sync::Arc::make_mut(&mut index)
-                .entry(key)
-                .or_insert(identity);
+            // Another writer may have installed this key while we spelled it.
+            // Existing keys borrow their tuple without detaching the map or
+            // allocating a key owner. A new key copies directory metadata,
+            // retaining every earlier key's vector and text payload.
+            if let Some(identity) = index.get(&key) {
+                return *identity;
+            }
+            std::sync::Arc::make_mut(&mut index).insert(std::sync::Arc::new(key), identity);
             identity
         }
 
@@ -4202,6 +4205,45 @@ pub(crate) mod normalized_identities {
             checked.identities.renumber_canonically(&mut output);
             let late = checked.identities.intern("d");
             assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn new_composite_keys_share_the_retained_key_payloads() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite(
+                "retained",
+                vec![
+                    IdentityPart::Identity(atom),
+                    IdentityPart::Text("retained text".repeat(16)),
+                ],
+            );
+            let child = parent.clone();
+            child.intern_composite("new", vec![IdentityPart::Text("new output".into())]);
+            let parent_cache = parent.composites.read().unwrap();
+            let child_cache = child.composites.read().unwrap();
+            let parent_key = parent_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            let child_key = child_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            assert!(std::ptr::eq(parent_key.1.as_ptr(), child_key.1.as_ptr()));
+            let IdentityPart::Text(parent_text) = &parent_key.1[1] else {
+                panic!("retained text part")
+            };
+            let IdentityPart::Text(child_text) = &child_key.1[1] else {
+                panic!("retained text part")
+            };
+            assert!(std::ptr::eq(parent_text.as_ptr(), child_text.as_ptr()));
+            assert_eq!(parent_cache.len(), 1);
+            assert_eq!(child_cache.len(), 2);
+            assert_eq!(parent.by_text("atom"), atom);
+            assert_eq!(child.by_text("atom"), atom);
         }
 
         #[test]
