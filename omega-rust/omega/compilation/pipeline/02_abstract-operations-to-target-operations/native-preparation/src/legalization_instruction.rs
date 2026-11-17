@@ -1075,7 +1075,13 @@ mod tests {
                 scalar_type: storage,
                 field_byte_offset: 0,
                 event,
-                operands: Vec::new(),
+                operands: vec![
+                    target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+                        defining_operation: OperationId::new(3).unwrap(),
+                        source_value: ValueId::new(1).unwrap(),
+                        value: true,
+                    },
+                ],
                 result_home: None,
                 outcome_home: None,
             },

@@ -2564,7 +2564,19 @@ mod tests {
                 },
             )
         };
-        assert!(matches!(read(point, full, subject), Ok(None)));
+        let crate::body::Statement::Decompose {
+            subject: decomposed,
+        } = read(point, full, subject)
+            .unwrap()
+            .expect("the owned affine record must be decomposed")
+        else {
+            panic!("a complete record pattern decomposes its actual subject");
+        };
+        assert!(matches!(
+            decomposed.kind,
+            crate::body::ExpressionKind::Slot(0)
+        ));
+        assert_eq!(decomposed.result, Some(slots[0].value_type));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
             read(pattern_subject, pattern_fields, initial_value)
                 .unwrap_err()
