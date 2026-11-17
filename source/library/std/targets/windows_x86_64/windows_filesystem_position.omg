@@ -8,7 +8,7 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 
 machine windows_filesystem_native_read_at(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64
 reaches FilesystemContentRead {
-    transition offset >= 0 && count <= buffer.len && count <= 4294967295 {
+    transition offset >= 0 && count <= buffer.len {
         true -> block pin(handle, buffer, count, offset)
         false -> (-87)
     }
@@ -53,7 +53,7 @@ reaches FilesystemContentRead {
 
 machine windows_filesystem_native_write_at(handle: u64, bytes: &[u8], offset: i64) -> i64
 reaches FilesystemContentWrite {
-    transition offset >= 0 && bytes.len <= 4294967295 {
+    transition offset >= 0 {
         true -> block pin(handle, bytes, offset)
         false -> (-87)
     }

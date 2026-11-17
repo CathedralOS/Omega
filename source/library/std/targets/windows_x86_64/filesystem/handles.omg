@@ -145,7 +145,7 @@ reaches FilesystemContentRead
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
-        transition offset >= 0 && count <= buffer.len && count <= 4294967295 {
+        transition offset >= 0 && count <= buffer.len {
             true -> block transfer(file, buffer, count, offset)
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }
@@ -164,7 +164,7 @@ reaches FilesystemContentWrite
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, bytes: &[u8], offset: i64) -> IoResult {
-        transition offset >= 0 && bytes.len <= 4294967295 {
+        transition offset >= 0 {
             true -> block transfer(file, bytes, offset)
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }

@@ -1,1 +1,1 @@
-cannot prove requires clause 1 of the called machine.
+cannot prove requires contract for call windows_transfer_count from main: 4294967296 <= 4294967295

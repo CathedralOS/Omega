@@ -1,13 +1,16 @@
-// Keep the original buffer bound separate from the native call's count width.
-// This extracted gate still rejects requests above DWORD_MAX; the transfer
-// callers retain their existing guards until the prefix repair is qualified.
+// A valid request may complete with a shorter native transfer. Check the
+// original request against its backing before limiting one call to DWORD_MAX;
+// a native prefix must not make an out-of-bounds request admissible.
+use omega::language::core::min_u64;
 use omega::language::core::widen_i32_to_i64;
 
 machine windows_transfer_count(requested: u64, available: u64) -> u64
-requires requested <= available && requested <= 4294967295
-ensures result == requested && result <= available && result <= 4294967295
+requires requested <= available
+ensures result <= requested && result <= available && result <= 4294967295 &&
+    ((requested <= 4294967295 && result == requested) ||
+     (requested > 4294967295 && result == 4294967295))
 {
-    requested
+    min_u64(requested, 4294967295)
 }
 
 // Capture the transfer's error before cleanup. A successful transfer still

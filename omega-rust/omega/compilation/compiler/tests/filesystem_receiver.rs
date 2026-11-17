@@ -139,9 +139,13 @@ fn windows_transfer_count_refuses_original_request_beyond_available() {
         Err(diagnostics) => diagnostics,
     };
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .starts_with("cannot prove requires clause 1 of the called machine.")),
+        diagnostics.iter().any(|diagnostic| {
+            let message = &diagnostic.message;
+            message.starts_with(
+                "cannot prove requires contract for call windows_transfer_count from main:",
+            ) && message.contains("4294967296 <= 4294967295")
+                && message.contains("requested <= available")
+        }),
         "{diagnostics:#?}"
     );
 }

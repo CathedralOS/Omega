@@ -23,7 +23,7 @@ machine main() crashes Trap {
 }
 
 machine mark_prefix(bytes: &mut [u8; 5], requested: u64) -> bool
-requires requested <= bytes.len
+requires requested <= 5
 {
     let count: u64 = windows_transfer_count(requested, bytes.len);
     transition count == 3 {
