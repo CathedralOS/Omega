@@ -46,9 +46,13 @@ out the Build entry and package roots owned by others. None of those private
 parser positions or declarations enter the checked program.
 
 A selected namespace pulls in its module groups, including descendants that
-qualified references need. Units without a module share the
-package root. Ordinary Product sources also pull in siblings of their own
-logical module; Build sources keep staged discovery and pull in namespaces only
+qualified references need. Today the [inventory](src/source/source_imports/logical.rs)
+reads module headers and puts every headerless unit at the package root. The
+[directory namespace rule](../../../../wiki/spec/language/modules.md#directory-namespaces)
+requires it to group units by their package-relative parent directories.
+Only root-level units then share the package root. Ordinary Product sources
+also pull in siblings of their own logical module; Build sources keep staged
+discovery and pull in namespaces only
 through explicit imports. The inventory refreshes when the captured
 filesystem or excluded roots change. Discovery currently parses every
 owned source unit in full before selecting groups.

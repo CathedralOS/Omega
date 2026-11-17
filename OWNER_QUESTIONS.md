@@ -64,37 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. May a `module` declaration follow imports or other declarations in its file?
-
-Decision name: `module-header-position`.
-
-**Customer.** Every multi-file Omega program names its modules, and a reader
-expects to learn a file's module before reading its declarations.
-[Modules](wiki/spec/language/modules.md) gives only the grammar
-`module_decl := "module" name_path ";"` and no position. The parser accepts the
-header anywhere among a file's items, and Psi 02's `declared_module_path`
-(`02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs`) scans the whole
-file on purpose, so `machine f() {} module m;` puts `f` in module `m`. Several
-samples put `use` lines before the header, for example
-`samples/cli/scientific/spectrometer_attribution/main.omg` and
-`samples/cli/scientific/bounded_sensor_compression/domain/report.omg`.
-
-**Question.** Does the compiler (a) refuse a `module` declaration that follows
-any other item, including `use`; (b) refuse one that follows a declaration but
-allow imports before it; or (c) accept it anywhere, as today, and say so in the
-spec?
-
-**Recommendation.** (b). It keeps a file's module visible before any of its
-declarations without migrating the samples that import first. This is a
-recommendation, not a settled rule.
-
-**Until answered.** The compiler accepts the header anywhere. The language guide
-advises writing it before the file's declarations and says the compiler does
-not check the position.
-
 <a id="test-runner-filesystem-slot"></a>
 
-### 2. How does the test runner identify std's `FilesystemService` slot?
+### 1. How does the test runner identify std's `FilesystemService` slot?
 
 Decision name: `test-runner-filesystem-slot`.
 
