@@ -176,8 +176,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-views button { min-width:104px; border-radius:0; }
 .connected-views button + button { border-left:0; }
 .connected-views button[aria-pressed="true"] { color:var(--ground); background:var(--ink); border-color:var(--ink); }
-.proposed-scene .overview-node rect,.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
-.proposed-scene .overview-node.native rect { stroke:var(--ink-muted); }
+.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
 .connected-open-contract { border-left:2px solid var(--ink-muted); padding-left:8px; }
 .proposed-contracts { margin-top:16px; }
 .proposed-contracts > summary { padding:12px 0; font:var(--type-subheading); }
@@ -252,12 +251,8 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
-.overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
-.proposed-scene .overview-node .stage-title { font:500 17px var(--font-serif); }
+.overview-node .overview-step-note { font:400 15px var(--font-serif); fill:var(--ink-muted); }
 .proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
-.proposed-scene .overview-node rect { stroke-width:1; stroke-dasharray:none; }
-.proposed-scene .overview-node.owner rect { fill:var(--ink); stroke:var(--ink); }
-.proposed-scene .overview-node.owner text { fill:var(--ground); }
 #compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
 @media(min-width:800px){
   #compiler-overview[data-view="proposed"] .connected-views,
@@ -269,7 +264,6 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
   #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
 }
-.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
@@ -292,7 +286,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-layer-label { fill: var(--ink-muted); font: 500 16px var(--font-serif); }
 .overview-layer-note { fill: var(--ink-muted); font: 400 16px var(--font-serif); }
 .overview-firewall { fill: none; stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 5; }
-#overview-arrow path { fill: var(--ink-muted); }
+#overview-arrow path { fill: var(--ink); }
 #overview-return path { fill: var(--trap); }
 #overview-check path { fill: var(--checked); }
 .legend-psi::before,.legend-native::before { content: ''; display: inline-block; width: 20px; height: 10px; margin-right: var(--space-2); border: 2px solid var(--ink-muted); }
@@ -305,23 +299,15 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-page .page { max-width:none; }
 .connected-tools .stage-picker[hidden] { display:none; }
 .connected-tools .stage-picker select { width:184px; font:var(--type-reading-small); }
-.connected-enhanced .connected-viewport {
-  background-color:var(--ground);
-  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink-muted) 24%,transparent) 1px,transparent 1px);
-  background-size:20px 20px;
-}
+.connected-enhanced .connected-viewport,#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--surface); }
 .connected-enhanced .arch-overview-svg { background:transparent; }
-.proposed-scene .connected-group rect { fill:var(--surface); stroke:var(--rule); stroke-dasharray:none; }
-.connected-enhanced[data-view="proposed"] .arch-overview-svg { background:transparent; }
-.proposed-scene .overview-node .stage-title { font:450 17px var(--font-reading); }
-.proposed-scene .overview-node.owner .stage-title { font:500 22px var(--font-serif); }
-.proposed-scene .overview-node .overview-step-note { font:400 14px var(--font-reading); }
-.proposed-scene .overview-node[data-role="artifact"] rect { fill:var(--ground); stroke:var(--ink-muted); }
-.proposed-scene .overview-node[data-role="artifact"] text { fill:var(--ink); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="source"] rect { fill:var(--family-psi-surface); stroke:var(--family-psi); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="source"] text { fill:var(--family-psi); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="native"] rect { fill:var(--family-native-surface); stroke:var(--family-native); }
-.proposed-scene .overview-node[data-role="owner"][data-layer="native"] text { fill:var(--family-native); }
+.proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
+.proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
+.proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
+.proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 18px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 15px var(--font-serif); }
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
+.proposed-scene .overview-node.check .stage-title { fill:var(--checked); }
 #compiler-overview[data-view="proposed"] .connected-minimap { width:76px; }
 @media(max-width:700px){
   #compiler-overview[data-view="proposed"] .connected-minimap { width:54px; bottom:6px; right:6px; padding:3px; }
@@ -357,43 +343,33 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-tools .trace-picker select { width:170px; font:var(--type-reading-small); }
 .trace-explanation { margin:3px 0 8px; max-width:none; padding:7px 12px; border-left:3px solid var(--trap); background:var(--ground); font:var(--type-reading-small); }
 .key-main::before,.key-service::before,.key-detour::before { content:''; width:22px; display:inline-block; margin-right:6px; border-top:3px solid var(--ink); vertical-align:middle; }
-.key-service::before { border-top:2px dashed var(--family-runtime); }
-.key-detour::before { border-color:var(--trap); }
-#overview-service path { fill:var(--family-runtime); }
-/* Stage colors mark an owner. The number tab identifies an operation, while
-   its output takes only the space needed for the name on the wire. */
-.connected-scene:not(.proposed-scene) .connected-group rect {
-  fill:var(--surface); stroke:color-mix(in srgb,var(--rule) 62%,var(--surface)); stroke-width:1;
+.key-service::before { border-top:2px dotted var(--ink-muted); }
+.key-detour::before { border-top:2px dashed var(--trap); }
+#overview-service path { fill:var(--ink-muted); }
+/* The original pipeline plate uses outlined portable forms, ivory native
+   forms, coral reach-arounds and a teal checker verdict. */
+.connected-scene:not(.proposed-scene) .connected-group rect { fill:none; stroke:none; }
+.connected-group .connected-phase {
+  fill:var(--ink-muted); font:500 14px var(--font-serif); letter-spacing:.06em; text-transform:uppercase;
 }
-.connected-group .connected-phase { fill:var(--surface); font:500 19px var(--font-serif); }
-.connected-scene:not(.proposed-scene) .connected-group .phase-band { fill:var(--family-native); stroke:none; }
-.connected-scene:not(.proposed-scene) [data-group="source"] .phase-band { fill:var(--family-psi); }
-.connected-scene:not(.proposed-scene) [data-group="runtime"] .phase-band { fill:var(--family-runtime); }
-.connected-start { font:500 11px var(--font-mono); letter-spacing:.1em; fill:var(--ink-muted); }
-.connected-scene:not(.proposed-scene) .overview-node { --tone:var(--family-native); --paper:var(--family-native-surface); }
-.connected-scene .overview-node:is([data-layer="runtime"],[data-layer="providers"],[data-layer="evaluation"]) { --tone:var(--family-runtime); --paper:var(--family-runtime-surface); }
-.connected-scene .overview-node[data-layer="source"] { --tone:var(--family-psi); --paper:var(--family-psi-surface); }
-.connected-scene .overview-node:is([data-layer="inputs"],[data-layer="run"]) { --tone:var(--family-build); --paper:var(--family-build-surface); }
-.connected-scene:not(.proposed-scene) .overview-node .node-body {
-  fill:var(--paper); stroke:color-mix(in srgb,var(--tone) 54%,var(--paper)); stroke-width:1;
-}
-.connected-scene:not(.proposed-scene) .overview-node .current-title { fill:var(--ink); font:450 16px var(--font-reading); }
-.connected-scene:not(.proposed-scene) .overview-node[data-role="artifact"] .node-body { fill:var(--surface); stroke:var(--rule); }
-.connected-scene:not(.proposed-scene) .overview-node[data-role="artifact"] .current-title { fill:var(--ink); font-size:14px; }
-.connected-scene:not(.proposed-scene) .overview-node[data-role="transform"] .current-title { font-weight:550; }
-.connected-scene:not(.proposed-scene) .overview-node .step-tab { fill:var(--tone); stroke:none; }
-.connected-scene:not(.proposed-scene) .overview-node .step-number { fill:var(--surface); font:600 13px var(--font-mono); }
-.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) {
-  --tone:var(--trap); --paper:color-mix(in srgb,var(--trap) 12%,var(--surface));
-}
-.connected-scene:not(.proposed-scene) .overview-node:is([data-endpoint="installations"],.attention) .current-title { fill:var(--trap); }
-.connected-scene:not(.proposed-scene) .overview-node:is(.check,.accepted) { --tone:var(--checked); --paper:color-mix(in srgb,var(--checked) 13%,var(--surface)); }
-.connected-scene:not(.proposed-scene) .overview-node.accepted .node-body { stroke:var(--checked); }
-.connected-scene:not(.proposed-scene) .overview-node:is(:focus-visible,:hover,.is-selected) .node-body { stroke:var(--tone); stroke-width:2.4; }
-.connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--family-runtime); stroke-width:2; stroke-dasharray:5 3; }
-.connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:3; stroke-dasharray:none; }
-.connected-scene:not(.proposed-scene) .overview-edge .wire-caption { font:500 13px var(--font-reading); stroke:var(--surface); fill:var(--family-runtime); stroke-width:4; }
-.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { fill:var(--trap); }
+.connected-start { fill:var(--ink-muted); font:500 12px var(--font-serif); letter-spacing:.06em; }
+.connected-scene .overview-node .current-title { fill:var(--ink); font:500 17px var(--font-serif); }
+.connected-scene .overview-node .node-body { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.8; }
+.connected-scene .overview-node.owner .node-body { fill:var(--ground); stroke:var(--rule); stroke-width:1.5; }
+.connected-scene .overview-node.native .node-body { fill:var(--ink); stroke:var(--ink); }
+.connected-scene .overview-node.native .current-title { fill:var(--ground); }
+.connected-scene .overview-node.accepted .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene .overview-node[data-role="transform"] .node-body { fill:var(--surface); stroke:none; }
+.connected-scene .overview-node[data-role="transform"] .current-title { font-weight:400; }
+.connected-scene .overview-node.check .current-title { fill:var(--checked); }
+.connected-scene .overview-node.attention .current-title,
+.connected-scene .overview-node[data-endpoint="installations"] .current-title { fill:var(--trap); }
+.connected-scene .overview-node:is(.attention,[data-endpoint="installations"]):not([data-role="transform"]) .node-body { stroke:var(--trap); stroke-dasharray:6 4; }
+.connected-scene .overview-node:is(:hover,:focus-visible,.is-selected) .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--ink-muted); stroke-width:1.6; stroke-dasharray:2 4; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:2.2; stroke-dasharray:6 4; }
+.connected-scene .overview-edge .wire-caption { font:400 14px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
+.connected-scene .overview-edge.detour .wire-caption { fill:var(--trap); }
 .has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
 #compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
 #compiler-overview[data-view="current"] .connected-viewport { height:clamp(520px,75dvh,1000px); }
@@ -409,30 +385,30 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 
 
 /* Keep navigation at the edge of the sheet and inspection close to the map. */
-.architecture { --fine-rule:color-mix(in srgb,var(--rule) 54%,var(--surface)); }
+.architecture { color:var(--ink); --fine-rule:color-mix(in srgb,var(--rule) 54%,var(--surface)); }
 .arch-header,.architecture.is-expanded .arch-header { padding:12px 20px; gap:8px 18px; border-bottom:1px solid var(--fine-rule); }
 .arch-header .map-heading { display:flex; align-items:center; gap:12px; }
 .arch-header .map-heading h2,.architecture.is-expanded .arch-header h2 {
   font:400 clamp(26px,2.6vw,38px)/1.1 var(--font-serif); letter-spacing:-.035em;
 }
 .arch-badge { padding-left:14px; border-left:1px solid var(--fine-rule); font:11px/1.45 var(--font-mono); }
-.arch-header .map-plan { color:var(--ink); font:500 14px var(--font-reading); text-decoration:none; border-bottom:1px solid var(--rule); padding:4px 0; }
+.arch-header .map-plan { color:var(--ink); font:500 15px var(--font-serif); text-decoration:none; border-bottom:1px solid var(--rule); padding:4px 0; }
 .map-plan span { padding-left:6px; }
 .architecture .arch-reading { padding:12px; }
 .architecture .connected-tools { flex:1; gap:8px 14px; }
-.architecture .connected-views { width:fit-content; align-self:center; padding:3px; gap:2px; border:1px solid var(--fine-rule); border-radius:5px; background:var(--ground); }
-.architecture .connected-views button { min-width:78px; border:0; border-radius:3px; padding:6px 12px; font:500 13px/18px var(--font-reading); color:var(--ink-muted); background:transparent; box-shadow:none; }
+.architecture .connected-views { width:fit-content; align-self:center; padding:3px; gap:2px; border:1px solid var(--fine-rule); border-radius:0; background:var(--ground); }
+.architecture .connected-views button { min-width:78px; border:0; border-radius:0; padding:6px 12px; font:500 14px/18px var(--font-serif); color:var(--ink-muted); background:transparent; box-shadow:none; }
 .architecture .connected-views button[aria-pressed="true"] { background:var(--ink); color:var(--surface); }
-.architecture .connected-tools label { font:500 13px/18px var(--font-reading); color:var(--ink-muted); }
-.architecture .connected-tools select { font:400 13px var(--font-reading); height:33px; border:1px solid var(--rule); border-radius:3px; padding:4px 8px; }
+.architecture .connected-tools label { font:500 14px/18px var(--font-serif); color:var(--ink-muted); }
+.architecture .connected-tools select { font:400 15px var(--font-serif); height:33px; border:1px solid var(--rule); border-radius:0; padding:4px 8px; }
 .connected-tools .component-picker { margin-left:auto; }
-.connected-workspace { border-color:var(--fine-rule); border-radius:5px; overflow:hidden; }
-.connected-enhanced .connected-viewport { background-color:color-mix(in srgb,var(--ground) 75%,var(--surface)); background-image:radial-gradient(circle,color-mix(in srgb,var(--rule) 52%,transparent) .75px,transparent .85px); background-size:18px 18px; }
+.connected-workspace { border-color:var(--fine-rule); border-radius:0; overflow:hidden; }
+
 .map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; padding:7px 12px; border-top:1px solid var(--fine-rule); background:var(--surface); }
-.map-footer .arch-overview-legend { display:flex; align-items:center; margin:0; gap:6px 14px; font:12px/18px var(--font-reading); }
+.map-footer .arch-overview-legend { display:flex; align-items:center; margin:0; gap:6px 14px; font:13px/18px var(--font-serif); }
 .map-footer [hidden] { display:none!important; }
 .camera-tools { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-left:auto; }
-.architecture .camera-tools button,.architecture [data-camera="clear"],.architecture .connected-detail-close { border:1px solid transparent; border-radius:3px; padding:4px 7px; min-width:28px; color:var(--ink); background:transparent; box-shadow:none; font:500 12px/18px var(--font-reading); }
+.architecture .camera-tools button,.architecture [data-camera="clear"],.architecture .connected-detail-close { border:1px solid transparent; border-radius:0; padding:4px 7px; min-width:28px; color:var(--ink); background:transparent; box-shadow:none; font:500 14px/18px var(--font-serif); }
 .architecture .camera-tools button:hover,.architecture [data-camera="clear"]:hover,.architecture .connected-detail-close:hover { background:var(--ground); border-color:var(--fine-rule); }
 .camera-tools .connected-scale { display:inline-block; font:12px/18px var(--font-mono); width:42px; }
 .architecture .camera-tools [data-camera="in"],.architecture .camera-tools [data-camera="out"] { font-size:18px; }
@@ -441,7 +417,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .architecture.is-expanded #compiler-overview .connected-views { padding:3px; }
 .architecture.is-expanded #compiler-overview .connected-workspace { display:flex; flex-direction:column; }
 .architecture.is-expanded #compiler-overview .connected-viewport { flex:1; height:0; }
-.connected-detail,.connected-minimap { border-radius:5px; border-color:var(--fine-rule); box-shadow:0 3px 14px color-mix(in srgb,var(--ink) 10%,transparent); }
+.connected-detail,.connected-minimap { border-radius:0; border-color:var(--fine-rule); box-shadow:0 3px 14px color-mix(in srgb,var(--ink) 10%,transparent); }
 .connected-workspace .connected-minimap { bottom:54px; }
 .connected-workspace .connected-minimap[hidden] { display:none; }
 .connected-detail { max-height:calc(100% - 76px); }
@@ -466,11 +442,11 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 }
 
 .arch-header .map-heading-text { display:grid; gap:3px; }
-.arch-header .atlas-mark { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid var(--rule); border-radius:12px 12px 3px 3px; color:var(--ink); text-decoration:none; font:400 29px/1 var(--font-serif); }
+.arch-header .atlas-mark { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid var(--rule); border-radius:0; color:var(--ink); text-decoration:none; font:400 29px/1 var(--font-serif); }
 .arch-header .atlas-mark:hover { background:var(--ground); }
 .arch-header .arch-badge { padding:0; border:0; }
 .wire-origin { fill:var(--surface); stroke:var(--trap); stroke-width:2; }
-.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:600; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:500; }
 @media(max-width:700px){ .arch-header .atlas-mark { width:32px; height:35px; font-size:23px; } }
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
@@ -591,7 +567,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Omega stages and realization</h1>
       <p class="lede">Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/08beaed263b5f379e2072acd2024de99c69214e3/atlas"><code>08beaed263b5</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/subsystems/omega.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/f36234695b146e7fca19f47f75e8e63996786a66/atlas"><code>f36234695b14</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/subsystems/omega.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -620,7 +596,7 @@ numbered stages. The map below shows that current route before the proposed
 linear pipeline.</p>
 <p><strong>Evidence:</strong> source revision
 <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>; pinned source links below and the
-<a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/evidence/data/graph.json">dependency graph</a>.
+<a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/evidence/data/graph.json">dependency graph</a>.
 This is a source review, not a fresh native execution test. Stage destination
 names and migration recommendations are <strong>judgment</strong>. The six
 <a href="rulings.html">owner rulings</a> are unchanged.</p>
@@ -1280,7 +1256,7 @@ ruling changes in this atlas update.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/08beaed263b5f379e2072acd2024de99c69214e3/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/f36234695b146e7fca19f47f75e8e63996786a66/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
