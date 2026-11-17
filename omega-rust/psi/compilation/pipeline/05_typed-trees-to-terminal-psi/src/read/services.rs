@@ -308,6 +308,16 @@ impl Program<'_> {
             for statement in &body.statements {
                 collect_statement(statement, &mut found);
             }
+            if !components.members(id)?.is_empty()
+                && found
+                    .iter()
+                    .any(|call| !call.static_reach_arguments.is_empty())
+            {
+                return Err(unavailable(
+                    id,
+                    "a static callback substitution on a recursive edge needs its retained call correspondence",
+                ));
+            }
             calls.push(found);
         }
         loop {
@@ -612,6 +622,7 @@ impl Program<'_> {
                 };
             }
         }
+        let mut checking_envelopes = IdTable::default();
         for (id, envelope) in published.iter() {
             if matches!(
                 envelope.termination,
@@ -642,6 +653,25 @@ impl Program<'_> {
             if complete.blocks {
                 signature.operational.blocking = Some(envelope.blocks);
             }
+            checking_envelopes.push(
+                (!complete.is_complete()
+                    && complete.invokes
+                    && complete.suspends
+                    && complete.blocks)
+                    .then(|| crate::static_contracts::StaticSourceEnvelope {
+                        service_reach: if complete.reach {
+                            crate::static_contracts::SourceServiceCeiling::Closed(
+                                envelope.service_reach.clone(),
+                            )
+                        } else {
+                            crate::static_contracts::SourceServiceCeiling::Open
+                        },
+                        invocations: envelope.invocations.clone(),
+                        suspends: envelope.suspends,
+                        blocks: envelope.blocks,
+                        termination: envelope.termination.clone(),
+                    }),
+            );
             if !complete.is_complete() {
                 continue;
             }
@@ -649,6 +679,7 @@ impl Program<'_> {
                 .bind_machine_envelope(id, envelope.clone())
                 .map_err(|reason| unavailable(id, reason))?;
         }
+        self.checking_envelopes = checking_envelopes;
         Ok(())
     }
 
@@ -989,6 +1020,7 @@ struct Use<'a> {
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
+    static_reach_arguments: &'a [terminal_psi::static_reach::StaticReachArgument],
 }
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
@@ -1044,6 +1076,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             callee,
             required_contract,
             arguments,
+            static_reach_arguments,
             ..
         } => {
             if let CallTarget::Selected { callable, .. } = callee {
@@ -1056,6 +1089,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 target: callee,
                 required_contract: *required_contract,
                 arguments,
+                static_reach_arguments,
             });
         }
         E::Field { base, .. }

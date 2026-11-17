@@ -95,6 +95,7 @@ pub(crate) struct Lowered {
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
     pub source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    pub static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     pub source_constructions: Vec<(
         MachineId,
         OperationId,
@@ -490,6 +491,7 @@ impl<'a> Lowering<'a> {
             sources: MachineSources::default(),
             designated: Vec::new(),
             source_calls: Vec::new(),
+            static_reach_applications: Vec::new(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
             call_formations: Vec::new(),
@@ -792,6 +794,7 @@ struct Lowering<'a> {
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
     source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     source_constructions: Vec<(
         MachineId,
         OperationId,
@@ -1451,6 +1454,7 @@ impl<'a> Lowering<'a> {
             sources: self.sources,
             designated: self.designated,
             source_calls: self.source_calls,
+            static_reach_applications: self.static_reach_applications,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,

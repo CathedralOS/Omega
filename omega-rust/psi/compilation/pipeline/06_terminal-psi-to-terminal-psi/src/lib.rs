@@ -76,6 +76,7 @@ mod refinement;
 mod result_summaries;
 mod reuse;
 mod static_contracts;
+mod static_reach;
 mod verdict;
 
 pub use ceilings::Axis as CeilingAxis;

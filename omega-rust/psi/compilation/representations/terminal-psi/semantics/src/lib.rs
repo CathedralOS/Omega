@@ -49,6 +49,7 @@ pub use scalar_target_ranges::{
     TargetScalarRange, application_sized_storage, target_scalar_ranges,
 };
 pub mod scalars;
+pub mod static_reach;
 pub mod storage;
 pub mod structural;
 pub mod structural_qualifications;

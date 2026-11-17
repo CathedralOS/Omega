@@ -59,7 +59,7 @@ pub enum CrashCeiling {
     DeclaredNone,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallableHeader {
     pub scalar_parameters: Vec<terminal_psi::ValueDeclaration>,
     pub parameter_order: Vec<terminal_psi::BoundaryParameterKind>,
@@ -67,6 +67,26 @@ pub struct CallableHeader {
     pub result: terminal_psi::TerminalMachineResult,
     pub proof: terminal_psi::MachineContract,
     pub crash_policy: CallableCrashPolicy,
+}
+
+/// A generic template can have an open callback dependency while its complete
+/// source contract remains known. This declaration commits that checking
+/// contract; it does not authorize an executable machine or a finite reach row.
+#[derive(Debug, Clone)]
+pub struct GenericCallableDeclaration {
+    pub machine: MachineId,
+    pub envelope: StaticCallableEnvelope,
+    pub declaration: terminal_psi::CheckedMachineDeclaration,
+    pub base_contract: [u8; 32],
+    pub reach: terminal_psi::static_reach::StaticReachTerm,
+    pub projections: Vec<GenericReachProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericReachProjection {
+    pub parameter: u32,
+    pub requirement: MachineId,
+    pub member: terminal_psi::TerminalIdentityIndex,
 }
 
 /// A native declaration remains a header, never a fabricated executable body.
@@ -206,6 +226,7 @@ pub fn formal_value_ids(
 #[derive(Debug, Clone)]
 pub struct StaticRequirementInstance {
     pub machine: MachineId,
+    pub member: terminal_psi::TerminalIdentityIndex,
     pub header: CallableHeader,
 }
 

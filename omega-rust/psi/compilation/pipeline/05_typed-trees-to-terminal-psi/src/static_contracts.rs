@@ -285,6 +285,13 @@ impl StaticContracts {
                                             ),
                                         )
                                     })?;
+                                    let reader = source_reader.ok_or_else(|| {
+                                        crate::read::services::unavailable(machine,
+                                            "requirement instance lost its source identity owner")
+                                    })?;
+                                    let member = crate::declare::semantic_identity(
+                                        reader.typed, requirement.declaration, &mut qualifications.identities,
+                                    ).map_err(|reason| crate::read::services::unavailable(machine, reason))?;
                                     crate::lower::static_signature_header(
                                         machine,
                                         contract,
@@ -296,7 +303,7 @@ impl StaticContracts {
                                         boundaries,
                                         qualifications,
                                     )
-                                    .map(|header| StaticRequirementInstance { machine, header })
+                                    .map(|header| StaticRequirementInstance { machine, member, header })
                                 })
                                 .transpose()?;
                             Ok(StaticRequirementSchema {

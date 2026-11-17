@@ -50,6 +50,7 @@ pub(crate) enum Permission {
 #[derive(Clone, Copy)]
 enum Envelope<'a> {
     Runtime(&'a TerminalCallableEnvelope),
+    Generic(&'a terminal_check_tables::contracts::StaticCallableEnvelope),
     /// These source-only signatures are not encoded, sealed or executable.
     /// An unknown bound stays unknown when its other contract axes are known.
     Abstract(&'a terminal_check_tables::contracts::RequirementCeilings),
@@ -58,6 +59,10 @@ impl<'a> Envelope<'a> {
     fn reach(self) -> Option<&'a [ServiceId]> {
         match self {
             Self::Runtime(envelope) => Some(&envelope.service_reach),
+            Self::Generic(envelope) => match &envelope.service_reach {
+                terminal_check_tables::contracts::StaticServiceCeiling::Open => None,
+                terminal_check_tables::contracts::StaticServiceCeiling::Closed(row) => Some(row),
+            },
             Self::Abstract(envelope) => match &envelope.reaches {
                 terminal_check_tables::contracts::Ceiling::Inferred => None,
                 terminal_check_tables::contracts::Ceiling::Authored(row) => Some(row),
@@ -67,6 +72,7 @@ impl<'a> Envelope<'a> {
     fn entries(self) -> Option<Vec<Entry>> {
         match self {
             Self::Runtime(envelope) => Some(envelope.invocations.clone()),
+            Self::Generic(envelope) => Some(envelope.invocations.clone()),
             Self::Abstract(envelope) if envelope.envelope.is_some() => {
                 Some(envelope.envelope.as_ref()?.invocations.clone())
             }
@@ -81,18 +87,21 @@ impl<'a> Envelope<'a> {
     fn suspension(self) -> Option<bool> {
         match self {
             Self::Runtime(envelope) => Some(envelope.suspends),
+            Self::Generic(envelope) => Some(envelope.suspends),
             Self::Abstract(envelope) => envelope.suspension,
         }
     }
     fn blocking(self) -> Option<bool> {
         match self {
             Self::Runtime(envelope) => Some(envelope.blocks),
+            Self::Generic(envelope) => Some(envelope.blocks),
             Self::Abstract(envelope) => envelope.blocking,
         }
     }
     fn termination(self) -> &'a terminal_psi::TerminalCallableTermination {
         match self {
             Self::Runtime(envelope) => &envelope.termination,
+            Self::Generic(envelope) => &envelope.termination,
             Self::Abstract(envelope) => &envelope.termination,
         }
     }
@@ -222,6 +231,14 @@ fn machine_envelope<'a>(
     }
     if let Some(envelope) = runtime {
         return Ok(Envelope::Runtime(envelope));
+    }
+    if let Ok(position) = elaboration
+        .generic_callable_declarations
+        .binary_search_by_key(&machine, |row| row.machine)
+    {
+        return Ok(Envelope::Generic(
+            &elaboration.generic_callable_declarations[position].envelope,
+        ));
     }
     if !elaboration.requirements.is_empty()
         && elaboration.module.callables.contracts.is_empty()
@@ -1158,7 +1175,16 @@ fn judge_axes(
                 at,
             };
             let mut reached = Contributions::default();
-            if let Some(reach) = envelope.reach() {
+            if let Some(applied) =
+                crate::static_reach::call_reach(elaboration, caller.id, row.site, call.inputs)?
+            {
+                reached.reach.extend(applied.services);
+                if applied.open && ceiling.reach().is_some() {
+                    return Err(context.unsupported(
+                        "open abstract service reach cannot establish a finite caller ceiling",
+                    ));
+                }
+            } else if let Some(reach) = envelope.reach() {
                 reached.reach.extend_from_slice(reach);
             } else if ceiling.reach().is_some() {
                 return Err(context.unsupported(

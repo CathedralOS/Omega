@@ -46,7 +46,7 @@ fn view(header: &CallableHeader) -> CallableContractView<'_> {
     }
 }
 
-fn check_envelope(
+pub(crate) fn check_envelope(
     module: &terminal_psi::TerminalModule,
     machine: MachineId,
     envelope: &StaticCallableEnvelope,
@@ -164,6 +164,16 @@ pub(crate) fn requirement_declarations(
                 .machine(id)
                 .ok_or_else(|| fault(id, "abstract declaration names no exact machine"))?;
             let header = &instance.header;
+            if module
+                .identities
+                .text(instance.member)
+                .is_none_or(str::is_empty)
+            {
+                return Err(fault(
+                    id,
+                    "abstract requirement lost its exact member identity",
+                ));
+            }
             let signature = declaration.signature.as_ref().ok_or_else(|| {
                 fault(id, "abstract requirement instance has no source signature")
             })?;

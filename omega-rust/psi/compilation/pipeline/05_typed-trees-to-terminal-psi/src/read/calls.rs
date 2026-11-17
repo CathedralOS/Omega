@@ -1973,9 +1973,9 @@ impl<'t> Program<'t> {
         let arguments =
             self.application_arguments(id, target, call.application, call.authored_arguments)?;
         let callee = self.application(id, target, arguments.types, arguments.references)?;
-        self.callable_application_arguments(id, callee, &arguments.callables)?;
+        let callbacks = self.callable_application_arguments(id, callee, &arguments.callables)?;
         let operands = self.const_operands(id, slots, &arguments.values, source)?;
-        self.call_of_values(
+        let mut read = self.call_of_values(
             id,
             slots,
             (callee.into(), None),
@@ -1983,8 +1983,20 @@ impl<'t> Program<'t> {
             source,
             None,
             &operands,
-        )
-        .map(Some)
+        )?;
+        let ExpressionKind::Call {
+            static_reach_arguments,
+            ..
+        } = &mut read.kind
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("generic callback arguments lost their exact invocation"),
+            ));
+        };
+        *static_reach_arguments = callbacks;
+        Ok(Some(read))
     }
 
     fn callable_application_arguments(
@@ -1992,7 +2004,8 @@ impl<'t> Program<'t> {
         caller: MachineId,
         callee: MachineId,
         arguments: &[(SymbolHandle, &StaticMachineArgument)],
-    ) -> Checked<()> {
+    ) -> Checked<Vec<terminal_psi::static_reach::StaticReachArgument>> {
+        let mut bindings = Vec::with_capacity(arguments.len());
         for &(parameter, argument) in arguments {
             self.static_argument_selection(caller, argument)?;
             let contract = self
@@ -2040,7 +2053,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("supplied callable has no declared machine body"),
                 )
             })?;
-            let body = if let Some(applied) = &argument.application {
+            let (body, nested) = if let Some(applied) = &argument.application {
                 if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
                     return Err(refuse(
                         caller,
@@ -2057,7 +2070,8 @@ impl<'t> Program<'t> {
                     &applied.arguments,
                 )?;
                 let body = self.application(caller, target, actual.types, actual.references)?;
-                self.callable_application_arguments(caller, body, &actual.callables)?;
+                let nested =
+                    self.callable_application_arguments(caller, body, &actual.callables)?;
                 // A selected callable with scalar consts needs a fully applied
                 // required header; it cannot discard those values as metadata.
                 if !actual.values.is_empty() {
@@ -2067,9 +2081,9 @@ impl<'t> Program<'t> {
                         Unserved::Call("supplied callable retains scalar const inputs"),
                     ));
                 }
-                body
+                (body, nested)
             } else {
-                self.machine(target)?
+                (self.machine(target)?, Vec::new())
             };
             self.fixed_inputs.push(body);
             let application = self
@@ -2097,6 +2111,22 @@ impl<'t> Program<'t> {
                     )
                 })?;
             let envelope = self.static_envelope(caller, required, false)?;
+            let conformance =
+                u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
+                    refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("too many callback conformance questions"),
+                    )
+                })?;
+            let position = self.static_reach_parameter(callee, parameter, requirement)?;
+            bindings.push(terminal_psi::static_reach::StaticReachArgument {
+                parameter: position,
+                requirement,
+                selected: body,
+                arguments: nested,
+                conformance,
+            });
             self.static_contracts
                 .conformances
                 .push(crate::static_contracts::SourceConformance {
@@ -2109,7 +2139,41 @@ impl<'t> Program<'t> {
                     provider: None,
                 });
         }
-        Ok(())
+        Ok(bindings)
+    }
+
+    /// The source binder and its full applied requirement travel together.
+    /// A shared body can then substitute each call's actual callback without
+    /// learning an effect from the current set of callers.
+    fn static_reach_parameter(
+        &mut self,
+        owner: MachineId,
+        parameter: SymbolHandle,
+        requirement: MachineId,
+    ) -> Checked<u32> {
+        let unavailable = |what| refuse(owner, Construct::Machine, Unserved::Call(what));
+        let source = self
+            .symbols
+            .get(owner)
+            .copied()
+            .ok_or_else(|| unavailable("static callback lost its source owner"))?;
+        let position = self
+            .typed
+            .declaration_type_parameters(source)
+            .iter()
+            .position(|declared| declared.symbol == parameter)
+            .and_then(|position| u32::try_from(position).ok())
+            .ok_or_else(|| unavailable("static callback lost its exact parameter position"))?;
+        let row = terminal_psi::static_reach::StaticReachParameter {
+            owner,
+            parameter: position,
+            requirement,
+        };
+        match self.static_reach_parameters.binary_search(&row) {
+            Ok(_) => {}
+            Err(position) => self.static_reach_parameters.insert(position, row),
+        }
+        Ok(position)
     }
 
     fn const_operands(
@@ -2383,8 +2447,36 @@ impl<'t> Program<'t> {
         } else {
             self.requirement(requirement, &value_arguments)?
         };
-        self.call_of(id, slots, (callee.into(), None), arguments, source, None)
-            .map(Some)
+        let owner = self
+            .symbols
+            .get(id)
+            .copied()
+            .ok_or_else(|| unserved("static callback has no caller"))?;
+        let parameters = self.typed.declaration_type_parameters(owner);
+        let mut parameter = record.as_ref().map_or(target, |(receiver, _, _)| *receiver);
+        while parameter.is_valid()
+            && !parameters
+                .iter()
+                .any(|declared| declared.symbol == parameter)
+        {
+            parameter = self.typed.symbols.get(parameter).parent;
+        }
+        let position = parameter
+            .is_valid()
+            .then(|| self.static_reach_parameter(id, parameter, callee))
+            .transpose()?;
+        let mut call = self.call_of(id, slots, (callee.into(), None), arguments, source, None)?;
+        if let Some(position) = position {
+            let ExpressionKind::Call {
+                static_reach_binding,
+                ..
+            } = &mut call.kind
+            else {
+                return Err(unserved("abstract callback lost its exact invocation"));
+            };
+            *static_reach_binding = Some(position);
+        }
+        Ok(Some(call))
     }
 
     pub(super) fn call(
@@ -3137,6 +3229,7 @@ impl<'t> Program<'t> {
                 callee,
                 required_contract,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments: read,
                 designated: None,
             },

@@ -986,6 +986,7 @@ impl<'t> Program<'t> {
                 && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
                 && self.value_parameters.get(id) == Some(&parameters)
                 && self.scopes.get(id) == Some(&self.scope)
+                && self.source_scopes.get(id) == Some(&self.source_scope)
             {
                 return Ok(id);
             }
