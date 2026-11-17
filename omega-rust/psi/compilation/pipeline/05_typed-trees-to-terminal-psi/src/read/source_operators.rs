@@ -151,6 +151,30 @@ impl Program<'_> {
             self.reference_referent(machine, declared)?
                 .is_some_and(|(referent, _)| referent.erased() == operand.erased())
         };
+        let agrees = if agrees {
+            true
+        } else if let ValueType::Record(record, qualification, _) = operand
+            && qualification == declared.qualification()
+            && let Some(row) = self.records.get(record)
+            && let Some(source) = self.record_sources.get(record)
+            && let crate::StorageShape::ByteSequence(carrier) = row.shape
+            && super::bytes::byte_record_source_matches(self.typed, machine, row, source)?
+        {
+            // A mutable formal's carrier omits access because its separate
+            // Borrowed row owns that loan. Authenticate that same source-to-
+            // carrier correspondence rather than turning it into an owned
+            // mutable descriptor. Lookup still receives the full reference.
+            super::bytes::byte_view_matches_carrier(
+                self.typed,
+                machine,
+                reference,
+                self.lifetime_owner,
+                carrier,
+                &row.identity,
+            )?
+        } else {
+            false
+        };
         if !agrees {
             return Err(fail(
                 "a formed operator operand differs from its retained declared type",
