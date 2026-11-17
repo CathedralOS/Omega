@@ -1,9 +1,10 @@
 /*
     The authored-selection ledger: one exact declaration occurrence per
-    authored source token.
+    source question. A pattern's implicit equality can share its head's
+    position with a different operator written in that head.
 
     Compiler rewrites may copy an authored expression before selection; every
-    retained copy binds to the occurrence minted for its source token.
+    retained copy of the same operator binds to its original occurrence.
     Expression, conformance-reference, and constant-initializer selections
     finalize here once their declarations have symbols.
 */
@@ -36,6 +37,28 @@ use symbols::{JoinedPath, SymbolHandle, SymbolLookup};
 enum CandidateTarget {
     Resolved(SymbolHandle),
     LateBound(LateBinding),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum OperatorQuestion {
+    Binary(std::mem::Discriminant<symbol_resolved_trees::expression::BinaryOperator>),
+    Unary(std::mem::Discriminant<symbol_resolved_trees::expression::UnaryOperator>),
+    Index,
+}
+
+impl OperatorQuestion {
+    fn of(node: &ExpressionNode) -> Option<Self> {
+        match node {
+            ExpressionNode::Binary(binary) => {
+                Some(Self::Binary(std::mem::discriminant(&binary.operator)))
+            }
+            ExpressionNode::Unary(unary) => {
+                Some(Self::Unary(std::mem::discriminant(&unary.operator)))
+            }
+            ExpressionNode::Indexed(_) => Some(Self::Index),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1718,6 +1741,13 @@ fn finalize_expression_groups(
                 exposure,
                 candidate.kind,
                 compiler_partition,
+                (candidate.kind == Kind::Operator)
+                    .then(|| {
+                        OperatorQuestion::of(
+                            body_expressions(program).expression(candidate.expression),
+                        )
+                    })
+                    .flatten(),
             );
             if let Some(group) = group_index.get(&key).map(|&index| &mut groups[index]) {
                 if group.top_level_static_argument_position != top_level_static_argument_position {

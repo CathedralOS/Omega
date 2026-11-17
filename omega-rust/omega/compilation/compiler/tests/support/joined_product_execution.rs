@@ -1,7 +1,13 @@
 //! Terminal execution oracle for a realized Product report: reload the portable
 //! Terminal artifact, run it, and execute the published native executable.
 
-pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path) {
+/// `process_exit` requires that exact external completion; `None` requires
+/// the entry to return Unit, which the CLI maps to native exit zero.
+pub fn execute_report_with_completion(
+    report: compiler::CompileReport,
+    output: &std::path::Path,
+    process_exit: Option<i32>,
+) {
     let artifact = report
         .retained_native_artifact()
         .expect("native product")
@@ -30,16 +36,21 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
         clock: None,
     })
     .expect("execute joined Terminal Product");
-    assert!(
-        matches!(
-            observation.status,
+    let completed = match process_exit {
+        None => matches!(
+            &observation.status,
             terminal_interpreter::TerminalExecutionStatus::Complete(
                 terminal_interpreter::TerminalExecutionResult::Unit
             )
         ),
-        "{:?}",
-        observation.status
-    );
+        Some(code) => matches!(
+            &observation.status,
+            terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion)
+                if completion.kind == semantic_vocabulary::ExternalCompletionKind::ProcessExit
+                    && completion.return_code == code
+        ),
+    };
+    assert!(completed, "{:?}", observation.status);
     let published =
         products::publication::publish_compilation(report, output).expect("publish native Product");
     let observed = std::process::Command::new(
@@ -49,5 +60,18 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
     )
     .output()
     .expect("execute joined native Product");
-    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+    assert_eq!(
+        observed.status.code(),
+        Some(process_exit.unwrap_or(0)),
+        "{observed:?}"
+    );
+}
+
+/// Keep the original exact-Unit oracle for callers that return normally.
+#[allow(
+    dead_code,
+    reason = "external-exit fixtures use the completion-aware oracle"
+)]
+pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path) {
+    execute_report_with_completion(report, output, None);
 }

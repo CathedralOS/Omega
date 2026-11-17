@@ -62,6 +62,14 @@ jobs:
           key: post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Identify the mbx source and build recipe
+        id: mbx-key
+        shell: bash
+        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/omega-mbx/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Install verified mbx
         shell: bash
         run: bash tools/xtask/bootstrap-mbx.sh
@@ -129,6 +137,15 @@ jobs:
           git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /workspace/Omega
           git -C /workspace/Omega fetch -q origin "${{ github.sha }}"
           git -C /workspace/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Identify the mbx source and build recipe
+        id: mbx-key
+        working-directory: /workspace/Omega
+        shell: bash
+        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/omega-mbx/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
       - name: Run a sample natively and in the interpreter
@@ -175,6 +192,15 @@ jobs:
           git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /workspace/Omega
           git -C /workspace/Omega fetch -q origin "${{ github.sha }}"
           git -C /workspace/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Identify the mbx source and build recipe
+        id: mbx-key
+        working-directory: /workspace/Omega
+        shell: bash
+        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/omega-mbx/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
       - name: Run every Rust test in the workspace

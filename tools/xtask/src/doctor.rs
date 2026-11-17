@@ -14,7 +14,7 @@ const CLAIMS_REF: &str = "refs/heads/work/claims";
 const CLAIMS_MISSING_PUSH_URL_FIX: &str = "mbx xtask claims needs exactly one push URL";
 const CLAIMS_UNREACHABLE_FIX: &str =
     "mbx xtask claims status/note/claim will fail until the coordination remote answers";
-/// The one mbx pin every installer reads; doctor accepts it or anything newer.
+/// The qualified checksum-capable mbx pin every installer reads.
 const MBX_VERSION_FILE: &str = "tools/mbx-version";
 const NEXTEST_MINIMUM: (u32, u32, u32) = (0, 9, 140);
 
@@ -212,7 +212,7 @@ fn check_rust_link_probe(root: &Path) -> CheckEntry {
 
 fn mbx_install_fix() -> &'static str {
     if cfg!(windows) {
-        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell: `$v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes`"#
+        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell with Git for Windows: `& (Join-Path (git --exec-path) '../../../bin/bash.exe') tools/xtask/bootstrap-mbx.sh --install-dir "$HOME/.cargo/bin"; mbx setup --yes`"#
     } else {
         "mbx is required (direct cargo fallback is forbidden); install/update via `bash tools/agent_setup.sh`"
     }
@@ -230,14 +230,6 @@ fn check_mbx(root: &Path) -> CheckEntry {
     let Some((0, version, _)) = run_cmd("mbx", &["--version"], root) else {
         return check("mbx", "fail", "mbx not on PATH", Some(mbx_install_fix()));
     };
-    let Some(found) = parse_semver_triplet(&version) else {
-        return check(
-            "mbx",
-            "fail",
-            format!("could not parse mbx version from `{version}`"),
-            Some(mbx_install_fix()),
-        );
-    };
     let Some(pinned) = pinned_mbx_version(root) else {
         return check(
             "mbx",
@@ -246,13 +238,40 @@ fn check_mbx(root: &Path) -> CheckEntry {
             None,
         );
     };
-    if found < pinned {
+    check_mbx_version(version, &pinned)
+}
+
+fn check_mbx_version(version: String, pinned: &str) -> CheckEntry {
+    let Some(found) = parse_semver_triplet(&version) else {
         return check(
             "mbx",
             "fail",
+            format!("could not parse mbx version from `{version}`"),
+            Some(mbx_install_fix()),
+        );
+    };
+    let Some(minimum) = parse_semver_triplet(pinned) else {
+        return check(
+            "mbx",
+            "fail",
+            format!("invalid mbx pin in {MBX_VERSION_FILE}"),
+            None,
+        );
+    };
+    if found < minimum {
+        return check(
+            "mbx",
+            "fail",
+            format!("{version} is older than {pinned} pinned in {MBX_VERSION_FILE}"),
+            Some(mbx_install_fix()),
+        );
+    }
+    if version.trim() != format!("mbx {pinned}") {
+        return check(
+            "mbx",
+            "warn",
             format!(
-                "mbx {}.{}.{} < {}.{}.{} pinned in {MBX_VERSION_FILE}",
-                found.0, found.1, found.2, pinned.0, pinned.1, pinned.2
+                "{version}; checksum caching is unqualified for this binary. The qualified pin is {pinned}. Support requires retaining checksum-hash-algorithm in keys and dep-info and refusing weak input identities; a newer version number alone does not establish it."
             ),
             Some(mbx_install_fix()),
         );
@@ -260,9 +279,12 @@ fn check_mbx(root: &Path) -> CheckEntry {
     check("mbx", "ok", version, None)
 }
 
-/// The pinned mbx release, so the version check and every installer agree.
-fn pinned_mbx_version(root: &Path) -> Option<(u32, u32, u32)> {
-    parse_semver_triplet(&fs::read_to_string(root.join(MBX_VERSION_FILE)).ok()?)
+/// Preserve the patch identity as well as the upstream numeric version.
+fn pinned_mbx_version(root: &Path) -> Option<String> {
+    let version = fs::read_to_string(root.join(MBX_VERSION_FILE)).ok()?;
+    let version = version.trim();
+    parse_semver_triplet(version)?;
+    Some(version.to_owned())
 }
 
 pub fn parse_semver_triplet(text: &str) -> Option<(u32, u32, u32)> {
@@ -454,6 +476,30 @@ mod tests {
     fn reads_pinned_mbx_version() {
         let root = repo_root().expect("test runs in the Omega workspace");
         assert!(pinned_mbx_version(&root).is_some());
+    }
+
+    #[test]
+    fn mbx_qualification_keeps_the_patch_identity() {
+        let pinned = "1.29.2-omega.1";
+        assert_eq!(
+            check_mbx_version(format!("mbx {pinned}"), pinned).status,
+            "ok"
+        );
+        let original = check_mbx_version("mbx 1.29.2".into(), pinned);
+        assert_eq!(original.status, "warn");
+        assert!(original.detail.contains("checksum caching is unqualified"));
+        assert_eq!(
+            check_mbx_version("mbx 1.28.0".into(), pinned).status,
+            "fail"
+        );
+    }
+
+    #[test]
+    fn newer_mbx_is_unqualified_without_assuming_it_is_unsupported() {
+        let result = check_mbx_version("mbx 1.31.0".into(), "1.29.2-omega.1");
+        assert_eq!(result.status, "warn");
+        assert!(result.detail.contains("newer version number alone"));
+        assert!(!result.detail.contains("unsupported"));
     }
 
     #[test]

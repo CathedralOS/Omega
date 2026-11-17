@@ -165,11 +165,22 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
 .arch-header h2 { margin:0; padding:0; border:0; font:var(--type-heading); }
 .arch-badge,.connected-intro,.connected-help { font:var(--type-label); color:var(--ink-muted); }
+.connected-intro { max-width:none; }
 .arch-reading { padding:8px 16px 16px; }
 .arch-overview-legend { display:flex; flex-wrap:wrap; gap:8px 20px; margin:12px 0; font:var(--type-label); color:var(--ink-muted); }
 .arch-attention { color:var(--trap); }
 .connected-tools { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 0 12px; }
 .connected-tools[hidden] { display:none; }
+.connected-views { display:flex; gap:0; margin:4px 0 12px; }
+.connected-views button { min-width:104px; border-radius:0; }
+.connected-views button + button { border-left:0; }
+.connected-views button[aria-pressed="true"] { color:var(--ground); background:var(--ink); border-color:var(--ink); }
+.proposed-scene .overview-node rect,.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
+.proposed-scene .overview-node.native rect { stroke:var(--ink-muted); }
+.connected-open-contract { border-left:2px solid var(--ink-muted); padding-left:8px; }
+.proposed-contracts { margin-top:16px; }
+.proposed-contracts > summary { padding:12px 0; font:var(--type-subheading); }
+.proposed-contracts dd { margin:0 0 24px; max-width:68ch; }
 .connected-tools label { display:flex; align-items:center; gap:8px; }
 .connected-tools select { width:230px; max-width:100%; height:36px; padding:4px 8px; border:1px solid var(--ink-muted); border-radius:0; background:var(--surface); color:var(--ink); font:var(--type-label); }
 .connected-scale { width:48px; text-align:center; font:var(--type-label); }
@@ -390,7 +401,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Owner rulings</h1>
       <p class="lede">The dated owner decisions the atlas must follow.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/54a4163589bab2f99272123376c29a888918b92b/atlas"><code>54a4163589ba</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/rulings.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b96560a1a5e9e507549f167e78d6327806479dfa/atlas"><code>b96560a1a5e9</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/rulings.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -449,7 +460,7 @@ changed here first, with the date.</p>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -591,12 +602,15 @@ changed here first, with the date.</p>
   const root=document.querySelector('#compiler-overview');
   if(!root || !window.AtlasZoom)return;
   const {select,zoom,zoomIdentity}=window.AtlasZoom;
-  const model=JSON.parse(root.querySelector('#overview-model').textContent);
-  const nodes=new Map(model.nodes.map(n=>[n.id,n]));
-  const edges=new Map(model.edges.map(e=>[e.id,e]));
+  const models={current:JSON.parse(root.querySelector('#overview-model').textContent),proposed:JSON.parse(root.querySelector('#overview-proposed-model').textContent)};
+  let view='current',model=models.current;
+  let nodes=new Map(model.nodes.map(n=>[n.id,n]));
+  let edges=new Map(model.edges.map(e=>[e.id,e]));
   const viewport=root.querySelector('.connected-viewport');
   const svg=root.querySelector('.arch-overview-svg');
-  const scene=root.querySelector('.connected-scene');
+  let scene=root.querySelector('.connected-scene');
+  const scenes={current:scene.cloneNode(true),proposed:root.querySelector('#overview-proposed-scene').content.querySelector('.connected-scene').cloneNode(true)};
+  const cameras=new Map();
   const detail=root.querySelector('.connected-detail');
   const scale=root.querySelector('.connected-scale');
   const jump=root.querySelector('.connected-jump');
@@ -604,13 +618,18 @@ changed here first, with the date.</p>
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
-  mini.setAttribute('viewBox',`0 0 ${model.width} ${model.height}`);
-  for(const e of model.edges)for(const s of e.sections||[])el('path',{d:'M'+s.points.map(p=>`${p.x} ${p.y}`).join(' L')});
-  for(const n of model.nodes)if(n.role!=='transform')el('rect',{x:n.x,y:n.y,width:n.width,height:n.height,class:n.kind==='native'?'mini-native':'mini-node'});
-  const miniWindow=el('rect',{class:'mini-window'});
+  let miniWindow;
+  function drawMinimap(){
+    mini.replaceChildren();mini.setAttribute('viewBox',`0 0 ${model.width} ${model.height}`);
+    for(const e of model.edges)for(const s of e.sections||[])el('path',{d:'M'+s.points.map(p=>`${p.x} ${p.y}`).join(' L')});
+    for(const n of model.nodes)if(n.role!=='transform')el('rect',{x:n.x,y:n.y,width:n.width,height:n.height,class:n.kind==='native'?'mini-native':'mini-node'});
+    miniWindow=el('rect',{class:'mini-window'});
+  }
+  drawMinimap();
   root.classList.add('connected-enhanced');
   svg.setAttribute('role','group');
   root.querySelector('.connected-tools').hidden=false;
+  root.querySelector('.connected-views').hidden=false;
   root.querySelector('.connected-minimap').hidden=false;
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
@@ -655,8 +674,12 @@ changed here first, with the date.</p>
     detail.replaceChildren();detail.hidden=false;
     button('Close ×',()=>{detail.hidden=true;selectionTrigger?.focus();}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
-    if(!isEdge){const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);link('Read subsystem',`${chosen.page}.html`,detail);detail.append(' · ');}
-    link('Pinned source',chosen.source,detail);
+    if(!isEdge){
+      const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
+      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      link(view==='proposed'?'Read proposal':'Read subsystem',`${chosen.page}.html${chosen.anchor?'#'+chosen.anchor:''}`,detail);detail.append(' · ');
+    }
+    link(view==='proposed'?'Recorded plan':'Pinned source',chosen.source,detail);
     const list=document.createElement('ul');list.className='connected-relations';detail.append(list);
     for(const edge of adjacent){
       const row=document.createElement('li');list.append(row);
@@ -664,15 +687,43 @@ changed here first, with the date.</p>
       button(start.title,()=>{focusNode(start);inspect(start.id,false,trigger);},row);
       row.append(' → ');
       button(end.title,()=>{focusNode(end);inspect(end.id,false,trigger);},row);
-      const caption=document.createElement('p');caption.textContent=edge.label;row.append(caption);link('Relationship source',edge.source,row);
+      const caption=document.createElement('p');caption.textContent=edge.label;row.append(caption);link(view==='proposed'?'Plan basis':'Relationship source',edge.source,row);
     }
     heading.focus({preventScroll:true});
   }
-  root.querySelectorAll('[data-endpoint]').forEach(node=>node.addEventListener('click',event=>{event.preventDefault();inspect(node.dataset.endpoint,false,node);}));
-  root.querySelectorAll('[data-edge]').forEach(edge=>{
+  function bindScene(){
+  scene.querySelectorAll('[data-endpoint]').forEach(node=>node.addEventListener('click',event=>{event.preventDefault();inspect(node.dataset.endpoint,false,node);}));
+  scene.querySelectorAll('[data-edge]').forEach(edge=>{
     edge.addEventListener('click',()=>inspect(edge.dataset.edge,true,edge));
     edge.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();inspect(edge.dataset.edge,true,edge);}});
   });
+  }
+  bindScene();
+  function showViewStatus(){
+    root.dataset.view=view;
+    root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
+    root.querySelector('.connected-intro').textContent=model.intro;
+    root.closest('.architecture').querySelector('.arch-badge').textContent=model.badge;
+    root.querySelectorAll('[data-legend]').forEach(legend=>{legend.hidden=legend.dataset.legend!==view;});
+    root.querySelector('.arch-arrow-evidence').hidden=view!=='current';
+    root.querySelector('.arch-component-list').hidden=view!=='current';
+    root.querySelector('.proposed-contracts').hidden=view!=='proposed';
+    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Proposed architecture':'Whole compiler';
+    svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
+  }
+  function switchView(next){
+    if(next===view)return;
+    cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
+    nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
+    const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;
+    jump.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose a component…';jump.append(placeholder);
+    for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
+    bindScene();drawMinimap();showViewStatus();
+    const saved=cameras.get(view);
+    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
+  }
+  root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
+  showViewStatus();
   svg.addEventListener('click',event=>{if(!event.target.closest('.overview-node,.overview-edge'))clear();});
   jump.addEventListener('change',()=>{if(jump.value){const n=nodes.get(jump.value);frameConnections(n);inspect(n.id,false,jump);}});
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
@@ -697,7 +748,15 @@ changed here first, with the date.</p>
   });
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&expanded){expanded=false;root.closest('.architecture').classList.remove('is-expanded');root.querySelector('[data-camera="expand"]').textContent='Expand';}});
   mini.addEventListener('click',event=>{const point=mini.createSVGPoint();point.x=event.clientX;point.y=event.clientY;const p=point.matrixTransform(mini.getScreenCTM().inverse());move(viewport.clientWidth/2-p.x*current.k,viewport.clientHeight/2-p.y*current.k,current.k);});
-  new ResizeObserver(()=>{svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);move(current.x,current.y,current.k);}).observe(viewport);
+  function responsiveCamera(transform,previousWidth){
+    const k=viewport.clientWidth<previousWidth&&transform.k<=0.9?Math.min(transform.k,(viewport.clientWidth-24)/520):transform.k;
+    const ratio=k/transform.k;return{x:transform.x*ratio,y:transform.y*ratio,k};
+  }
+  let cameraWidth=viewport.clientWidth;
+  new ResizeObserver(()=>{
+    svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);
+    const t=responsiveCamera(current,cameraWidth);cameraWidth=viewport.clientWidth;move(t.x,t.y,t.k);
+  }).observe(viewport);
   function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
   start();
 })();

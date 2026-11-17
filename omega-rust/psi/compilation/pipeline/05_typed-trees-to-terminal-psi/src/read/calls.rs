@@ -1994,6 +1994,9 @@ impl<'t> Program<'t> {
         if !application.is_valid() {
             return Ok(None);
         }
+        if self.entered_machine(target).is_none() {
+            return Ok(None);
+        }
         let typed = self.typed;
         let table = &typed.expression_table;
         if !table.static_machine_application_is_valid(application) {
@@ -2079,7 +2082,12 @@ impl<'t> Program<'t> {
         call: &StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        let target = self.call_target_symbol(id, call.target)?;
+        // This probe serves ordinary const-parameter machines. A requirement
+        // entry belongs to its trait, so leave it to the normal call reader
+        // rather than asking that trait for an executable machine body.
+        let Some(target) = self.entered_machine(call.target) else {
+            return Ok(None);
+        };
         let Some(machine) = self.typed.machine_by_symbol(target) else {
             return Ok(None);
         };

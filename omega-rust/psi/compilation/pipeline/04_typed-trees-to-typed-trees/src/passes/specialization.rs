@@ -1734,11 +1734,10 @@ fn type_argument_meets_bounds(
     )))
 }
 
-/// A retained type parameter stays open until its enclosing call is specialized;
-/// it must not be mistaken for a closed data application. Other retained types
-/// use their complete applied data view. Region-bearing applications remain
-/// refused until specialization retains their supplying scope. A plain authored name still admits a builtin type,
-/// an open type parameter, or data with no parameters of its own.
+/// A type parameter stays open until its enclosing call is specialized.
+/// Other type operands retain their complete applied data view, including
+/// lifetime owners that the shared copier preserves. Invocation lifetimes do
+/// not select another executable body; each call retains its own bindings.
 fn named_type(
     program: &mut TypedTrees,
     argument: &StaticMachineArgument,
@@ -1748,12 +1747,6 @@ fn named_type(
         if program
             .type_reference_table
             .contains_type_reference(reference)
-            && program
-                .region_free_scoped_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-                    &[],
-                )
-                .is_some()
             && !matches!(
                 program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::ConstExpression(_)
@@ -1774,7 +1767,7 @@ fn named_type(
             return Ok(reference);
         }
         return Err(unserved(
-            "a static type operand needs a closed, region-free retained type",
+            "a static type operand needs a closed retained type",
         ));
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
@@ -1914,7 +1907,7 @@ fn copied_parts(
         && machine.declared_type_equations.is_empty()
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
-        && machine.invokes.is_empty()
+        && program.signature_invokes.span(machine.invokes).is_some()
         // The written prefix and operator spelling are diagnostic labels on
         // this same callable. Actual data attachment still needs its copier.
         && !machine.attached_data_symbol.is_valid()
@@ -2414,12 +2407,15 @@ fn copy_declarations(
             copied_record_receivers(program, *first, *count, state.statement_nodes, operands)
         })
         .collect::<Vec<_>>();
-    let entries = copied
-        .iter_mut()
-        .zip(&parts)
-        .map(|((_, state, first, count), (source, _))| (source.symbol, state, *first, *count));
+    let entries =
+        copied
+            .iter_mut()
+            .zip(&parts)
+            .map(|((machine, state, first, count), (source, _))| {
+                (source.symbol, machine, state, *first, *count)
+            });
     program
-        .apply_copied_callable_types(entries, symbols, &substitutions)
+        .apply_copied_callable_interface(entries, symbols, &substitutions)
         .map_err(Stop::Defect)?;
     substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
@@ -2611,7 +2607,7 @@ fn substitute_widths(
                 };
                 // Copying the signature may already have replaced the binder
                 // with this operand's own value reference; that exact handle
-                // is the same width (`apply_copied_callable_types`).
+                // is the same width (`apply_copied_callable_interface`).
                 let substituted = matches!(
                     operand.value,
                     StaticMachineBindingValue::Const(actual) if actual == *argument

@@ -10,6 +10,10 @@ or arrow highlights its connections and opens source evidence. The bold main
 route runs down through numbered stages; dashed supporting arrows reveal their
 labels on selection. ELK.js orders the main route and Graphviz routes supporting
 connections at build time; D3 Zoom moves the existing SVG in the browser. The
+Current / Proposed buttons replace the active graph in that same canvas and
+remember separate cameras. Proposed boxes have dashed borders, cite the recorded
+plan and expose open contracts; their phases carry no invented stage numbers.
+The current-source and proposed-plan labels remain distinct. The
 source disclosures and scrollable SVG remain available without JavaScript. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.

@@ -590,6 +590,41 @@ fn selecting_a_private_native_schema_does_not_require_app_call_visibility() {
 }
 
 #[test]
+fn a_generic_body_keeps_boundary_routing_and_private_visibility() {
+    use crate::body::{CallTarget, ExpressionKind};
+    use typed_trees::statement::TableCall;
+
+    let fixture = Fixture::new(true);
+    for caller in [fixture.helper, fixture.app] {
+        let mut program = Program::new(&fixture.typed, true);
+        let machine = program.machine(caller).unwrap();
+        let source = fixture.call_source(caller);
+        let call = TableCall {
+            target_symbol: fixture.requirement,
+            source_span: fixture.typed.symbols.symbol_source_span(caller).unwrap(),
+            ..Default::default()
+        };
+        let read = program.call_statement(machine, &[], &call, source);
+        if caller == fixture.helper {
+            let read = read.expect("a generic caller can use its own package's boundary");
+            assert!(matches!(
+                read.kind,
+                ExpressionKind::Call {
+                    callee: CallTarget::Boundary { .. },
+                    ..
+                }
+            ));
+            assert_eq!(program.boundaries.rows.len(), 1);
+        } else {
+            assert_eq!(
+                read.unwrap_err().detail,
+                "call private machine of another package"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_private_boundary_call_is_allowed_inside_its_package() {
     let fixture = Fixture::new(true);
     let mut program = Program::new(&fixture.typed, false);

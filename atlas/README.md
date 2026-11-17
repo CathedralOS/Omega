@@ -164,7 +164,13 @@ templates and build entrypoints have been removed.
 ## Explore locally
 
 The [interactive architecture page](pages/architecture.html) has one connected
-SVG canvas. One source compiler and one Psi interpreter serve all their callers.
+SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
+remembers each view's camera; pan, zoom, Find, selection and the minimap serve
+both. The proposed graph cites its recorded migration plan, uses its named
+phases without inventing stage numbers, and exposes unresolved contracts on
+selection. It remains a proposal, separate from the compiler snapshot.
+
+In Current, one source compiler and one Psi interpreter serve all their callers.
 Build, source checking and provider selection lead to native and interpreted
 execution. The source and policy evaluators connect to the same interpreter as
 the runtime host. Provider closure repeats policy-input preparation using
@@ -181,6 +187,9 @@ selection or closes expansion. Without JavaScript, the same SVG scrolls inside
 its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
+`artifacts/proposed.py` defines the recorded proposed contracts and plan citations;
+both models use the same layout and SVG renderer. Only one graph is mounted in
+the interactive canvas. The proposed contract list remains readable without JS.
 `artifacts/layout.mjs` uses ELK.js to order the main route and Graphviz `neato`
 to route supporting connections around fixed boxes during the build.
 `artifacts/connected.js` uses D3 Zoom to move the SVG and highlight connections.

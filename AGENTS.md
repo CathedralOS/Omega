@@ -289,9 +289,9 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
-`cargo clippy`, or `cargo run` fallback is forbidden. If `mbx` is missing or older
-than the version pinned in `tools/mbx-version`, install or update it
-immediately before building (run these from the checkout root):
+`cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified
+checksum-capable adapter pinned in `tools/mbx-version`. If it is missing or
+unqualified, install or update it before building (from the checkout root):
 
 - **Linux / macOS / Cloud containers:**
   ```bash
@@ -299,7 +299,8 @@ immediately before building (run these from the checkout root):
   ```
 - **Windows PowerShell:**
   ```powershell
-  $v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
+  & (Join-Path (git --exec-path) '../../../bin/bash.exe') tools/xtask/bootstrap-mbx.sh --install-dir "$HOME/.cargo/bin"
+  mbx setup --yes; mbx xtask doctor
   ```
 
 See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin
@@ -327,6 +328,11 @@ mbx xtask check-boundary
 The only pre-merge check is `admission` (rules, formatting and, when Rust or
 Cargo files changed, a type check of the merge tree; about two minutes);
 `main` is checked after every merge.
+
+When changing a shared Rust API or helper, search the whole repository for its
+consumers, including tests, examples and forwarding helpers. Run the affected
+crates' required all-target Clippy early, before costly runtime or performance
+runs, and reuse that result for final validation unless relevant source changes.
 
 Passing tests on the change and on the small area around it end pre-merge
 testing. A failure there is an investigation of that failure, never a wider
