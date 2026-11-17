@@ -524,12 +524,15 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
         .map(|machine| source.machine_states(machine)[0].symbol)
         .unwrap();
     assert!(source.access_borrow_factory(relay_entry).is_none());
+    let exact_sources =
+        source::source_identity::toolchain_source_identities(source.symbols.source_files())
+            .expect("the existing frozen borrow sources have exact identities");
     let signature = source
-        .bodyless_callable_signature(application, target)
+        .bodyless_callable_signature(application, target, &exact_sources)
         .unwrap()
         .unwrap();
     let other_signature = source
-        .bodyless_callable_signature(other_application, other_target)
+        .bodyless_callable_signature(other_application, other_target, &exact_sources)
         .unwrap()
         .unwrap();
     assert_ne!(signature.return_type, other_signature.return_type);
@@ -552,7 +555,7 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
         .set_static_machine_application_bindings(application, &changed);
     assert_eq!(
         source
-            .bodyless_callable_signature(application, target)
+            .bodyless_callable_signature(application, target, &exact_sources)
             .unwrap_err(),
         "bodyless call source or bindings changed after contract preparation"
     );

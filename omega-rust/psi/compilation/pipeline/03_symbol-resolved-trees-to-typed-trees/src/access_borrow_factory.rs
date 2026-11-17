@@ -57,8 +57,10 @@ pub fn access_borrow_factory_of(
     {
         return Ok(None);
     }
-    let malformed =
-        |reason: &str| Diagnostic::error(format!("sealed borrowed View prototype: {reason}"));
+    let malformed = |reason: &str| {
+        Diagnostic::error(format!("sealed borrowed View prototype: {reason}"))
+            .with_source_span(machine.name.source_span())
+    };
     if program.machines.unique_by_symbol(machine.symbol) != Some(machine) {
         return Err(malformed("does not match its unique retained declaration"));
     }
@@ -122,14 +124,14 @@ pub fn access_borrow_factory_of(
         ));
     }
     let binders = program.machine_type_parameters(machine);
-    if binders
-        .iter()
-        .any(|binder| !matches!(binder.kind, resolved::data::TypeParameterKind::Type))
-    {
-        return Err(malformed("all binders must be ordinary type parameters"));
-    }
+    use resolved::data::TypeParameterKind;
     let (source_parameter, view_parameter, backing) = match binders {
         [source_parameter, view_parameter] => {
+            if !matches!(source_parameter.kind, TypeParameterKind::Type)
+                || !matches!(view_parameter.kind, TypeParameterKind::Type)
+            {
+                return Err(malformed("source and view must be type parameters"));
+            }
             if !matches!(program.child_type_reference(source.referee), resolved::types::TypeReference::Named { symbol, .. } if *symbol == source_parameter.symbol)
             {
                 return Err(malformed(
@@ -143,6 +145,19 @@ pub fn access_borrow_factory_of(
             )
         }
         [policy, source_parameter, view_parameter] => {
+            // The policy selects an implementation; it is not a storage type.
+            // Keep its exact declared schema before retaining the resident view.
+            if !matches!(&policy.kind, TypeParameterKind::Const {
+                type_reference: resolved::types::TypeReference::Named { symbol, .. }
+            } if program.symbols.core_vocabulary(*symbol)
+                == Some(language_core::core_vocabulary::CoreVocabulary::AccessPolicy))
+                || !matches!(source_parameter.kind, TypeParameterKind::Type)
+                || !matches!(view_parameter.kind, TypeParameterKind::Type)
+            {
+                return Err(malformed(
+                    "resident policy must be a static AccessPolicy implementation; source and view must be type parameters",
+                ));
+            }
             let backing = resident_backing(program, source.referee, policy.symbol, source_parameter.symbol)
                 .ok_or_else(|| malformed("resident source must retain exact core Extent, Granted and Resident<P, Source> declarations"))?;
             (source_parameter.symbol, view_parameter.symbol, backing)

@@ -1125,7 +1125,13 @@ impl<'t> Program<'t> {
             ));
         }
         let signature = typed
-            .bodyless_callable_signature(call.authored_machine_application, call.target_symbol)
+            .bodyless_callable_signature(
+                call.authored_machine_application,
+                call.target_symbol,
+                self.shared
+                    .exact_toolchain_sources(typed)
+                    .map_err(unavailable)?,
+            )
             .map_err(unavailable)?
             .ok_or_else(|| {
                 unavailable("sealed borrow has no prepared closed declaration contract")

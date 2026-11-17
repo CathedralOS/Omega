@@ -4237,6 +4237,7 @@ mod declaration_invocations {
             StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
         },
     };
+    use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
     use symbols::SymbolHandle;
 
     impl TypedTrees {
@@ -4247,8 +4248,9 @@ mod declaration_invocations {
             &mut self,
             application: StaticMachineApplicationHandle,
             target: SymbolHandle,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
         ) -> Result<bool, &'static str> {
-            let Some((declaration, source)) = self.bodyless_declaration(target)? else {
+            let Some((declaration, source)) = self.retained_bodyless_declaration(target)? else {
                 return Ok(false);
             };
             if !self
@@ -4274,7 +4276,13 @@ mod declaration_invocations {
                 return Err("bodyless call lost its exact declaration or supplying application");
             }
             if self
-                .bodyless_callable_signature(application, target)?
+                .prepared_bodyless_callable_signature(
+                    application,
+                    target,
+                    declaration,
+                    &source,
+                    exact_toolchain_sources,
+                )?
                 .is_some()
             {
                 // The lookup authenticates the complete current occurrence.
@@ -4282,10 +4290,34 @@ mod declaration_invocations {
                 return Ok(true);
             }
             let parameters = self.state_signature_type_parameters(&source).to_vec();
+            let implementations = parameters
+                .iter()
+                .filter(|parameter| {
+                    parameter.kind == crate::data::TypeParameterKind::Implementation
+                })
+                .count();
             if parameters.iter().any(|parameter| {
-                parameter.kind != crate::data::TypeParameterKind::Type
-                    || parameter.bounds != crate::data::DataProperties::default()
-            }) || !source.conformance_bounds.is_empty()
+                !matches!(
+                    parameter.kind,
+                    crate::data::TypeParameterKind::Type
+                        | crate::data::TypeParameterKind::Implementation
+                ) || parameter.bounds != crate::data::DataProperties::default()
+                    || (parameter.kind == crate::data::TypeParameterKind::Implementation
+                        && source
+                            .conformance_bounds
+                            .iter()
+                            .filter(|bound| bound.binder == parameter.symbol)
+                            .count()
+                            != 1)
+            }) || source.conformance_bounds.len() != implementations
+                || source.conformance_bounds.iter().any(|bound| {
+                    !parameters.iter().any(|parameter| {
+                        parameter.symbol == bound.binder
+                            && parameter.kind == crate::data::TypeParameterKind::Implementation
+                    }) || self
+                        .trait_definition_by_symbol(bound.trait_symbol)
+                        .is_none()
+                })
             {
                 return Err(
                     "bodyless call needs its static value, evidence or eligibility judgment",
@@ -4299,24 +4331,28 @@ mod declaration_invocations {
                 return Err("bodyless call needs exactly one argument per declared type parameter");
             }
             let mut bindings = Vec::with_capacity(parameters.len());
+            let mut types = Vec::with_capacity(parameters.len());
+            let mut static_arguments = Vec::with_capacity(implementations);
             for (parameter, argument) in parameters.iter().zip(&arguments) {
                 let actual = self
                     .static_operand_type_reference_in_scope(argument, invocation.lexical_owner)?;
                 if !self.type_reference_table.contains_type_reference(actual) {
-                    return Err("bodyless call type argument has no live retained occurrence");
+                    return Err("bodyless call argument has no live retained occurrence");
                 }
+                let value = if parameter.kind == crate::data::TypeParameterKind::Implementation {
+                    let mut retained = argument.clone();
+                    retained.type_reference = actual;
+                    static_arguments.push((parameter.symbol, retained.clone()));
+                    StaticMachineBindingValue::Conformance(retained)
+                } else {
+                    StaticMachineBindingValue::Type(actual)
+                };
+                types.push(actual);
                 bindings.push(StaticMachineBinding {
                     parameter: parameter.symbol,
-                    value: StaticMachineBindingValue::Type(actual),
+                    value,
                 });
             }
-            let types = bindings
-                .iter()
-                .map(|binding| match binding.value {
-                    StaticMachineBindingValue::Type(actual) => actual,
-                    _ => unreachable!(),
-                })
-                .collect::<Vec<_>>();
             self.require_declared_application_operands(&types, invocation.lexical_owner)?;
             if self
                 .require_owned_application_operands(&types, invocation.lexical_owner)
@@ -4337,7 +4373,7 @@ mod declaration_invocations {
                             lexical_owner: invocation.lexical_owner,
                             binders: &[],
                             lifetime_binders: &[],
-                            exact_toolchain_sources: &[],
+                            exact_toolchain_sources,
                         },
                     )
                     .ok_or("bodyless call argument has no complete declared identity")
@@ -4374,27 +4410,73 @@ mod declaration_invocations {
             }
             drop(existing);
             if let Some((_, previous)) = &previous
-                && self.bodyless_application_matches(previous, declaration, &source, application)
+                && self.bodyless_application_matches(
+                    previous,
+                    declaration,
+                    &source,
+                    application,
+                    exact_toolchain_sources,
+                )
             {
                 return Ok(true);
             }
             let mut declared = source.clone();
-            // All original type binders were supplied above, including
+            // All original static binders were supplied above, including
             // unused ones; no generic eligibility premise was discarded.
             declared.type_parameters = Default::default();
-            let signature = CallableApplication {
+            let mut substitutions = CallableApplication {
                 region_scope: declaration,
                 lifetime_declaration: source.symbol,
                 lifetimes,
                 types: parameters
                     .iter()
-                    .zip(types)
+                    .zip(types.iter().copied())
                     .map(|(parameter, actual)| (parameter.symbol, actual))
                     .collect(),
+                static_arguments,
                 static_argument_owner: invocation.lexical_owner,
                 ..Default::default()
+            };
+            for bound in &source.conformance_bounds {
+                let ordinal = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == bound.binder)
+                    .ok_or("bodyless call bound has no exact static parameter")?;
+                let actual = types[ordinal];
+                let required_arguments = bound
+                    .arguments
+                    .iter()
+                    .map(|argument| substitutions.type_reference(self, *argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let required_lifetimes = bound
+                    .lifetime_arguments
+                    .iter()
+                    .map(|lifetime| substitutions.lifetime(lifetime))
+                    .collect::<Vec<_>>();
+                let supplying_owner = self.static_operand_region_supplier(
+                    &arguments[ordinal],
+                    invocation.lexical_owner,
+                )?;
+                let supplied = self
+                    .applied_requirement_scope(supplying_owner, actual)
+                    .ok_or("bodyless call needs its complete implementation value schema")?;
+                let required = crate::trait_definition::AppliedTraitScope::new(
+                    self,
+                    self.trait_definition_by_symbol(bound.trait_symbol)
+                        .ok_or("bodyless call bound has no declared schema")?,
+                    crate::trait_definition::TraitApplicationArguments {
+                        lexical_owner: invocation.lexical_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &required_arguments,
+                        lifetimes: &required_lifetimes,
+                    },
+                )
+                .ok_or("bodyless call bound has no complete substituted schema")?;
+                if !required.same_application(self, &supplied) {
+                    return Err("bodyless call implementation has another declared schema");
+                }
             }
-            .signature(self, &declared)?;
+            let signature = substitutions.signature(self, &declared)?;
             let snapshot = self
                 .expression_table
                 .snapshot_static_machine_bindings(application);
@@ -4644,7 +4726,13 @@ mod declaration_invocations {
                 return Ok(None);
             };
             if rows.next().is_some()
-                || !self.bodyless_application_matches(prepared, source.symbol, source, application)
+                || !self.bodyless_application_matches(
+                    prepared,
+                    source.symbol,
+                    source,
+                    application,
+                    &[],
+                )
             {
                 return Err("selected public application changed after preparation");
             }
@@ -4657,10 +4745,52 @@ mod declaration_invocations {
             &self,
             application: StaticMachineApplicationHandle,
             target: SymbolHandle,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
         ) -> Result<Option<&StateSignature>, &'static str> {
             let Some((declaration, source)) = self.bodyless_declaration(target)? else {
                 return Ok(None);
             };
+            self.prepared_bodyless_callable_signature(
+                application,
+                target,
+                declaration,
+                &source,
+                exact_toolchain_sources,
+            )
+        }
+
+        /// A sealed compiler declaration shares the same occurrence/header
+        /// association; its class does not establish invocation or cell custody.
+        pub fn compiler_primitive_callable_signature(
+            &self,
+            application: StaticMachineApplicationHandle,
+            target: SymbolHandle,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        ) -> Result<Option<(CompilerPrimitive, &StateSignature)>, &'static str> {
+            let Some((operation, declaration, source)) =
+                self.compiler_bodyless_declaration(target)?
+            else {
+                return Ok(None);
+            };
+            Ok(self
+                .prepared_bodyless_callable_signature(
+                    application,
+                    target,
+                    declaration,
+                    &source,
+                    exact_toolchain_sources,
+                )?
+                .map(|signature| (operation, signature)))
+        }
+
+        fn prepared_bodyless_callable_signature(
+            &self,
+            application: StaticMachineApplicationHandle,
+            target: SymbolHandle,
+            declaration: SymbolHandle,
+            source: &StateSignature,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        ) -> Result<Option<&StateSignature>, &'static str> {
             if !self
                 .expression_table
                 .static_machine_application_is_valid(application)
@@ -4692,7 +4822,13 @@ mod declaration_invocations {
             if rows.next().is_some() {
                 return Err("bodyless call has ambiguous prepared declaration contracts");
             }
-            if !self.bodyless_application_matches(prepared, declaration, &source, application) {
+            if !self.bodyless_application_matches(
+                prepared,
+                declaration,
+                source,
+                application,
+                exact_toolchain_sources,
+            ) {
                 return Err("bodyless call source or bindings changed after contract preparation");
             }
             Ok(Some(&prepared.signature))
@@ -4704,6 +4840,7 @@ mod declaration_invocations {
             actual_declaration: SymbolHandle,
             actual_source: &StateSignature,
             actual_application: StaticMachineApplicationHandle,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
         ) -> bool {
             let AppliedCallableOwner::RequirementInvocation {
                 declaration,
@@ -4760,10 +4897,51 @@ mod declaration_invocations {
                                 lexical_owner: *lexical_owner,
                                 binders: &[],
                                 lifetime_binders: &[],
-                                exact_toolchain_sources: &[],
+                                exact_toolchain_sources,
                             },
                         ) == Some(*known)
                     })
+        }
+
+        /// Which real bodyless declaration this preparation may retain.
+        /// This is metadata eligibility; execution consumers check its full schema.
+        pub fn retained_bodyless_declaration(
+            &self,
+            target: SymbolHandle,
+        ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
+            if let Some(declared) = self.bodyless_declaration(target)? {
+                return Ok(Some(declared));
+            }
+            Ok(self
+                .compiler_bodyless_declaration(target)?
+                .map(|(_, declaration, source)| (declaration, source)))
+        }
+
+        fn compiler_bodyless_declaration(
+            &self,
+            target: SymbolHandle,
+        ) -> Result<Option<(CompilerPrimitive, SymbolHandle, StateSignature)>, &'static str>
+        {
+            if !self.symbols.symbols().nodes().is_valid(target) {
+                return Err("compiler primitive target has no live declaration");
+            }
+            let Some(machine) = self
+                .machine_by_symbol(target)
+                .or_else(|| self.machine_holding_state(target))
+            else {
+                return Ok(None);
+            };
+            let Some(SealedIntrinsic::CompilerPrimitive(operation)) =
+                self.symbols.sealed_intrinsic(machine.symbol)
+            else {
+                return Ok(None);
+            };
+            if !machine.has_bodyless_signature() {
+                return Ok(None);
+            }
+            Ok(self
+                .bodyless_machine_signature(target)?
+                .map(|(declaration, source)| (operation, declaration, source)))
         }
 
         pub fn bodyless_declaration(
@@ -6718,6 +6896,11 @@ pub(crate) mod signatures {
                         .iter()
                         .map(|argument| self.type_reference(program, *argument))
                         .collect::<Result<Vec<_>, _>>()?;
+                    bound.lifetime_arguments = bound
+                        .lifetime_arguments
+                        .iter()
+                        .map(|lifetime| self.lifetime(lifetime))
+                        .collect();
                 }
                 applied.parameters = self.parameters(program, (&parameters).into())?;
                 for (declared, applied_parameter) in program

@@ -81,6 +81,7 @@ mod reflected_fields;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = GeneratedMachines::default();
+    let bodyless_sources = std::cell::OnceCell::new();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
@@ -107,7 +108,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     if handled {
                         Ok(())
                     } else {
-                        serve(program, site, &mut generated)
+                        serve(program, site, &mut generated, &bodyless_sources)
                     }
                 })
                 .and_then(|()| {
@@ -360,7 +361,14 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
     }
 }
 
-fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines) -> Served<()> {
+type BodylessSources = std::cell::OnceCell<Result<Vec<(source::SourceId, [u8; 32])>, String>>;
+
+fn serve(
+    program: &mut TypedTrees,
+    site: Site,
+    generated: &mut GeneratedMachines,
+    sources: &BodylessSources,
+) -> Served<()> {
     let Some(applied) = site.applied(program) else {
         return Ok(());
     };
@@ -371,16 +379,22 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         .expression_table
         .static_machine_application_arguments(applied.application)
         .to_vec();
-    if let Some((declaration, _)) = entered_machine(program, applied.target)
+    if entered_machine(program, applied.target).is_some()
         && program
-            .machine_by_symbol(declaration)
-            .is_some_and(|machine| {
-                machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
-                    && machine.has_bodyless_signature()
-            })
+            .retained_bodyless_declaration(applied.target)
+            .map_err(|reason| Stop::Unserved(Some(reason)))?
+            .is_some()
     {
+        let sources = sources
+            .get_or_init(|| {
+                source::source_identity::toolchain_source_identities(program.symbols.source_files())
+            })
+            .as_ref()
+            .map_err(|reason| {
+                Stop::Rejected(format!("bodyless application source identities: {reason}"))
+            })?;
         program
-            .prepare_bodyless_callable_application(applied.application, applied.target)
+            .prepare_bodyless_callable_application(applied.application, applied.target, sources)
             .map_err(|reason| Stop::Unserved(Some(reason)))?;
         return Ok(());
     }
