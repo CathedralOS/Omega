@@ -22,7 +22,7 @@ pub(crate) struct BoundarySource {
     pub signature: Signature,
     pub envelope: crate::reach::SourceEnvelope,
     pub completion: BoundaryCompletion,
-    pub owning_service: Option<language_semantics::ServiceReachId>,
+    pub owning_service: Option<semantic_vocabulary::ServiceId>,
     pub declaration: crate::declare::BoundaryDeclarationSource,
 }
 #[derive(Debug, Clone, Default)]
@@ -312,7 +312,7 @@ impl BoundaryNamespace {
                 content_guarantees: Vec::new(),
                 service_reach_is_installation_bound: installation_bound,
                 fixed_service_reach: if installation_bound { Vec::new() } else { envelope.service_reach.clone() },
-                owning_service: source.owning_service.map(|service| services.service(context, service)).transpose()?,
+                owning_service: source.owning_service,
                 published_service_ceiling: envelope.service_reach,
                 published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| match entry { terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service), terminal_psi::TerminalCallableInvocation::Parameter(_) => None }).collect(),
             });

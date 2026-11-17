@@ -1079,8 +1079,11 @@ impl TypedReferences for Capture<'_> {
         }
         // A Product use can share a header formed by Build. Retain and validate
         // that forming declaration without claiming the use selects its code.
-        if self.valid_symbol(formation_owner, "static application formation owner") {
-            self.output.declarations.push(formation_owner);
+        self.formation_owner(formation_owner);
+    }
+    fn formation_owner(&mut self, owner: SymbolHandle) {
+        if self.valid_symbol(owner, "application formation owner") {
+            self.output.declarations.push(owner);
         }
     }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
