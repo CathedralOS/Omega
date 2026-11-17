@@ -477,7 +477,10 @@ reads the allowed lanes from this table:
   squash-merged PRs. Rebase only on actual conflicts or
   needed prerequisites.
 - **Claims are informational (`cargo xtask claims`):** Register claims
-  before editing shared paths; reconcile overlapping edits at rebase.
+  before editing shared paths. For work outside the registered paths, take a
+  supplemental claim; `claims note` updates progress and the lease, not the
+  path roster. Keep related claims through the original acceptance and
+  reconcile overlapping edits at rebase.
 - **Keep sample coverage out of the shipped CLI.**
 
 ## Design references
