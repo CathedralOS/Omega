@@ -3636,10 +3636,12 @@ fn visit_call_expression(
             );
         }
     }
-    // A computed call retains its evaluated operand and contract above. It
-    // has no nominal target; a conflicting retained target remains a real
-    // reference for the source admission owner to diagnose.
-    if (call.runtime_call.is_none() && !completed_byte_predicate_call(program, expression, call))
+    // Computed calls and core layout queries retain their operands separately
+    // and have no nominal callee. Any present target stays visible for the
+    // source admission owner to diagnose, including malformed coordinates.
+    if (call.runtime_call.is_none()
+        && call.layout_query.is_none()
+        && !completed_byte_predicate_call(program, expression, call))
         || call.target_symbol != SymbolHandle::invalid()
     {
         visit_callable_symbol(program, retained, call.target_symbol);

@@ -94,8 +94,8 @@ impl ProducedTerminalProduct {
     pub(crate) fn check_conditions(
         &self,
         selection: &mut SelectedProviderCustody,
-    ) -> Result<(), Vec<Diagnostic>> {
-        build_settings::scalar_completion::complete(
+    ) -> Result<products::ProductScalarCompletion, Vec<Diagnostic>> {
+        build_settings::scalar_completion::prepare(
             self.program.artifact(),
             self.proposal
                 .as_ref()
@@ -104,8 +104,7 @@ impl ProducedTerminalProduct {
             self.proposal.as_slice(),
             &mut selection.source_completion_accounting,
         )
-        .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
-        Ok(())
+        .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])
     }
 }
 

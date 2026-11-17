@@ -32,8 +32,17 @@ use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 use terminal_codec::CanonicalTerminalArtifact;
 
+/// The Product phase's completed scalar work and its unchanged provider inputs.
+/// Native completion adds application roots and demanded values to this owner.
+/// It is never encoded in saved native inputs.
+pub struct ProductScalarCompletion {
+    pub completed: build_time_evaluation::ScalarApplicationCompletion,
+    pub proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+}
+
 pub struct PendingNativeProduct {
     pub terminal: RetainedTerminalArtifact,
+    pub scalar_completion: ProductScalarCompletion,
     pub retained_native_inputs: Option<Vec<u8>>, // optional bytes from checked producer, not a saved native admission
     pub components: Result<Vec<SelectedIndependentComponent>, String>,
     pub accepted_package_permissions: TerminalAuthorityPermissionPolicy,

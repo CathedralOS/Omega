@@ -116,6 +116,11 @@ libc = { version = "0.2.186", features = ["extra_traits"] }
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
+# Product's completed scalar conditions extend through native and Psi execution.
+[[test]]
+name = "scalar_completion_handoff"
+path = "tests/scalar_completion_handoff.rs"
+
 # Direct and stored byte views execute after independent artifact admission.
 [[test]]
 name = "byte_view_arrivals"
