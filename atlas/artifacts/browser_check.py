@@ -39,13 +39,19 @@ def main():
                 items = [manifest['pages'][0]] if args.screens_only else manifest['pages']
                 for item in items:
                     page.goto(address(item['page']), wait_until='load')
-                    page.evaluate('document.fonts.ready')
+                    # Probe every bundled face, including weights a compact
+                    # overview does not otherwise need to render.
+                    page.evaluate('''async () => {
+                      await Promise.all(['300','400','500'].map(w => document.fonts.load(w + ' 16px "Omega Serif"')));
+                      await document.fonts.ready;
+                    }''')
                     result = page.evaluate('''() => ({
                       width: innerWidth, document: document.documentElement.scrollWidth,
                       fonts: [...document.fonts].filter(f => f.family === 'Omega Serif' && f.status === 'loaded').map(f => f.weight),
                       captions: [...document.querySelectorAll('figure.diagram')].every(f => f.querySelector('svg').getAttribute('aria-label') === f.querySelector('figcaption').textContent),
                       overflowLabels: [...document.querySelectorAll('svg .node')].flatMap(n => {
-                        const box=n.querySelector('polygon,path,ellipse').getBBox();
+                        if (!n.getBoundingClientRect().width) return [];
+                        const box=n.querySelector('rect,polygon,path,ellipse').getBBox();
                         return [...n.querySelectorAll('text')].filter(t => {const b=t.getBBox(); return b.x<box.x-1 || b.x+b.width>box.x+box.width+1 || b.y<box.y-1 || b.y+b.height>box.y+box.height+1;}).map(t=>t.textContent);
                       })
                     })''')
@@ -59,6 +65,8 @@ def main():
                         page.screenshot(path=str(output/f'landing-{theme}-{width}.png'))
                     if not args.screens_only and width == 1440:
                         for number, figure in enumerate(page.locator('.diagram').all(), 1):
+                            if not figure.is_visible():
+                                continue
                             frame = figure.locator('.diagram-frame')
                             name = f'{Path(item["page"]).stem}-{number}-{theme}'
                             figure.screenshot(path=str(output/f'{name}-start.png'))

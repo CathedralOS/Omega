@@ -18,6 +18,7 @@ import subprocess
 import textwrap
 from urllib.parse import quote, unquote, urlsplit
 import xml.etree.ElementTree as ET
+from artifacts.explorer import render_explorer
 
 
 ATLAS = Path(__file__).resolve().parent
@@ -135,7 +136,14 @@ def mermaid_svg(source: str, diagram_id: str, spec: dict) -> str:
     svg.insert(0, defs)
     for group in svg.iter("g"):
         classes = group.get("class", "").split()
+        title = group.find("title")
+        if "node" in classes and title is not None:
+            group.set("data-node", title.text)
         if "edge" in classes:
+            if title is not None:
+                start, end = title.text.split("->", 1)
+                group.set("data-from", start)
+                group.set("data-to", end)
             kind = next(k for k in ("handoff", "checked", "bypass") if k in classes)
             for path in group.findall("path"):
                 path.set("marker-end", f"url(#{diagram_id}-arrow-{kind})")
@@ -255,11 +263,12 @@ def build_all(content_revision: str | None, site: Path) -> Path:
     manifest_path = ATLAS / "evidence/data/manifest.json"
     manifest = json.loads(manifest_path.read_text())
     counts = json.loads((ATLAS / "evidence/data/counts.json").read_text())
+    graph = json.loads((ATLAS / "evidence/data/graph.json").read_text())
     specs = json.loads((HERE / "diagrams.json").read_text())
     revision = manifest["source_revision"]
     template = (HERE / "page_template.html").read_text()
     style = (HERE / "style.css").read_text()
-    script = (HERE / "page.js").read_text()
+    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text()
     pages = site / "pages"
     pages.mkdir(parents=True, exist_ok=True)
     built = []
@@ -269,6 +278,7 @@ def build_all(content_revision: str | None, site: Path) -> Path:
         ("realization", "realization · all Rust lines"))]
     glance = '<div class="glance">' + "".join(
         f'<div><b>{value:,}</b><span>{html.escape(label)}</span></div>' for value, label in values) + "</div>"
+    glance = '<details class="measurement"><summary>Snapshot measurements and counting rules</summary>' + glance + '<p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>'
     landing = ("landing", "Omega atlas", "README.md", "Explore the codebase, inspect the evidence, and distinguish today's implementation from proposed changes.", "Codebase and planning pages")
     for number, (page_id, title, source_name, description, status) in enumerate([landing, *PAGES]):
         output = site / "index.html" if page_id == "landing" else pages / f"{page_id}.html"
@@ -280,13 +290,18 @@ def build_all(content_revision: str | None, site: Path) -> Path:
         else:
             body, toc, diagrams = render_markdown(source, page_id, content_revision, output, specs)
         prefix = "" if page_id == "landing" else "../"
+        explorer, extra_diagrams = render_explorer(revision, graph, "pages/" if page_id == "landing" else "") if page_id in ("landing", "repository") else ("", 0)
+        diagrams += extra_diagrams
+        if explorer:
+            body = glance + body
         publication = "Uncommitted draft preview" if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas"><code>{content_revision[:12]}</code></a>'
         replacements = {
             "TITLE": html.escape(title), "DESCRIPTION": html.escape(description), "STYLE": style,
             "SCRIPT": script, "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
             "PAGE_COUNT": str(len(PAGES)), "REVISION": revision[:12], "PUBLICATION": publication,
             "REVISION_URL": f"{GITHUB}/tree/{revision}", "MANIFEST_URL": source_url(manifest_path, content_revision, output),
-            "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("landing", "repository", "pipeline-map", "foundation-backend-plan") else "",
+            "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-map", "foundation-backend-plan") else "",
+            "EXPLORER": explorer, "PAGE_CLASS": "overview-page" if explorer else "",
             "NAV": navigation(page_id, "pages/" if page_id == "landing" else ""),
             "TOC": ('<details class="contents"><summary>On this page</summary>' + toc + '</details>') if toc else "",
             "BODY": body, "README_URL": source_url(ATLAS / "README.md", content_revision, output),
