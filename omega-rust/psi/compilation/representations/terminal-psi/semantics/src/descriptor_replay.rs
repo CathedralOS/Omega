@@ -1036,6 +1036,7 @@ pub(crate) mod analysis {
                 slots: slots?,
                 unknown_contents: contents,
                 unresolved_slots: unknown,
+                case_facts: summary.result_cases,
             })
         }
 
@@ -1701,6 +1702,15 @@ pub(crate) mod analysis {
                         .unknown_contents_type(machine, &destination)
                         .ok_or_else(incomplete_step)?;
                     step.definitions.push(destination.clone());
+                    if packet.origins.is_empty() {
+                        if !summary
+                            .result_cases
+                            .excludes_payload(result_type, &packet.path)
+                        {
+                            return Err(incomplete_step());
+                        }
+                        continue;
+                    }
                     for origin in &packet.origins {
                         let DescriptorStoredOrigin::IncomingSlot {
                             position: parameter,
@@ -2667,6 +2677,7 @@ pub(crate) mod case_flow {
 
         #[derive(Clone, Default)]
         pub(crate) struct ResultCases {
+            root_type: Option<StructuralTypeId>,
             facts: BTreeMap<Vec<DescriptorPathSegment>, BTreeSet<StructuralCaseId>>,
         }
 
@@ -2681,6 +2692,7 @@ pub(crate) mod case_flow {
                     return Self::default();
                 };
                 Self {
+                    root_type: machine.place_types.get(&returned.root).copied(),
                     facts: state
                         .cases
                         .facts
@@ -2699,6 +2711,11 @@ pub(crate) mod case_flow {
             }
 
             pub(crate) fn join(&mut self, other: &Self) {
+                if self.root_type != other.root_type {
+                    self.root_type = None;
+                    self.facts.clear();
+                    return;
+                }
                 self.facts.retain(|path, cases| {
                     let Some(other) = other.facts.get(path) else {
                         return false;
@@ -2706,6 +2723,24 @@ pub(crate) mod case_flow {
                     cases.extend(other);
                     true
                 });
+            }
+
+            pub(crate) fn excludes_payload(
+                &self,
+                root_type: StructuralTypeId,
+                path: &[DescriptorPathSegment],
+            ) -> bool {
+                if self.root_type != Some(root_type) {
+                    return false;
+                }
+                path.iter().enumerate().any(|(position, segment)| {
+                    let DescriptorPathSegment::Case(case) = segment else {
+                        return false;
+                    };
+                    self.facts
+                        .get(&path[..position])
+                        .is_some_and(|active| !active.is_empty() && !active.contains(case))
+                })
             }
 
             pub(crate) fn install(
@@ -2717,6 +2752,9 @@ pub(crate) mod case_flow {
             ) -> Option<()> {
                 if self.facts.is_empty() {
                     return Some(());
+                }
+                if machine.place_types.get(&result.root).copied() != self.root_type {
+                    return None;
                 }
                 let storage = replay.canonical_storage(machine, state, result, None)?;
                 for (path, active) in &self.facts {
@@ -6675,10 +6713,19 @@ pub(crate) mod engine {
                         );
                     }
                     if origins.is_empty() {
-                        return None;
+                        if !summary
+                            .result_cases
+                            .excludes_payload(result_type, &packet.path)
+                        {
+                            return None;
+                        }
+                        // Absence supplies no contents or access. The result's
+                        // case facts below keep this payload unreachable.
+                        replacements.insert(DescriptorPayloadTarget::current(destination), None);
+                    } else {
+                        replacements
+                            .insert(DescriptorPayloadTarget::current(destination), Some(origins));
                     }
-                    replacements
-                        .insert(DescriptorPayloadTarget::current(destination), Some(origins));
                 }
                 let unknown = if summary.result.is_unobserved() {
                     self.slot_kind
@@ -7814,11 +7861,6 @@ pub(crate) mod engine {
                     let structural_type = *machine.place_types.get(&location.root)?;
                     let cases =
                         super::case_flow::ResultCases::capture(self, machine, state, location);
-                    if let Some(accumulated) = &mut result_cases {
-                        accumulated.join(&cases);
-                    } else {
-                        result_cases = Some(cases);
-                    }
                     if result_type.is_some_and(|previous| previous != structural_type) {
                         return None;
                     }
@@ -7848,6 +7890,9 @@ pub(crate) mod engine {
                             return None;
                         }
                         self.unknown_contents_type(machine, &returned.location)?;
+                        if cases.excludes_payload(structural_type, &packet.path) {
+                            continue;
+                        }
                         let origins = self.read(machine, state, &returned.location)?;
                         if origins.is_empty() {
                             return None;
@@ -7900,6 +7945,21 @@ pub(crate) mod engine {
                             )?)?;
                         }
                     }
+                    if let Some(accumulated) = &mut result_cases {
+                        accumulated.join(&cases);
+                    } else {
+                        result_cases = Some(cases);
+                    }
+                }
+                if result_contents.as_ref().is_some_and(|packets| {
+                    packets.iter().any(|packet| {
+                        packet.origins.is_empty()
+                            && !result_type
+                                .zip(result_cases.as_ref())
+                                .is_some_and(|(ty, cases)| cases.excludes_payload(ty, &packet.path))
+                    })
+                }) {
+                    return None;
                 }
                 let mut slots = slots?;
                 slots.retain(|slot| !unknown_results.contains(&slot.path));
@@ -8015,13 +8075,15 @@ pub(crate) mod engine {
                     .get(position)
                     .is_some_and(|state| state.contents_invalidated)
             });
+            let result_cases = result_cases.unwrap_or_default();
+            let contents = result_contents.unwrap_or_default();
             let summary = Summary {
                 result: ResultObservations::Observed {
                     slots: result,
-                    contents: result_contents.unwrap_or_default(),
+                    contents,
                     unknown: unknown_results,
                 },
-                result_cases: result_cases.unwrap_or_default(),
+                result_cases,
                 effects: EffectObservations::Observed(effects),
                 invalidates_contents,
                 storage_frame: StorageFrame::default(),
@@ -10826,6 +10888,7 @@ pub struct DescriptorResultContents {
     /// The flow retains all possible input loans for these descriptors.
     /// This lifetime account supplies no unique spatial origin.
     pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+    pub(crate) case_facts: case_flow::ResultCases,
 }
 
 #[derive(Clone)]

@@ -87,8 +87,8 @@ pub(crate) mod source_review {
     /// machine share this context instead of copying its complete call history.
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeScope {
+        pub parent: Option<std::sync::Arc<SourceTypeScope>>,
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
-        pub scope_starts: Vec<usize>,
         pub rigid_parameters: Vec<SymbolHandle>,
     }
 

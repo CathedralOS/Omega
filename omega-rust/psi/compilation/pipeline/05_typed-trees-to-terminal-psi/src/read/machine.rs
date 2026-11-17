@@ -1752,13 +1752,11 @@ impl<'t> Program<'t> {
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
             let mut source = (*self.source_scope).clone();
-            for (binder, value) in &self.scope {
-                if self.logical_parameter(*value).is_some()
-                    && !source.rigid_parameters.contains(binder)
-                {
-                    source.rigid_parameters.push(*binder);
-                }
-            }
+            source
+                .rigid_parameters
+                .extend(self.scope.iter().filter_map(|(binder, value)| {
+                    self.logical_parameter(*value).is_some().then_some(*binder)
+                }));
             self.source_scope = std::sync::Arc::new(source);
         }
         if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {

@@ -3386,10 +3386,12 @@ pub mod descriptor_results {
             value_type: StructuralTypeId,
             removes_source: bool,
         ) -> Option<Vec<DescriptorContentsTransfer>> {
-            let slots = slot_kind.owned_slots(types, source.root, value_type)?;
-            if slots.is_empty() {
+            let inventory = slot_kind.owned_inventory(types, source.root, value_type)?;
+            if inventory.slots.is_empty() && inventory.unknown_contents.is_empty() {
                 return Some(Vec::new());
             }
+            let source_type = source.root_type;
+            let destination_type = destination.root_type;
             let source = descriptor_contents_query(
                 types,
                 source.root,
@@ -3404,8 +3406,27 @@ pub mod descriptor_results {
                 destination.path,
                 destination.field,
             )?;
+            if !inventory.unknown_contents.is_empty() {
+                // The ordinary value derivation carries every descendant
+                // packet. Require the same exact carrier at both locations;
+                // an unknown payload cannot supply a descriptor-slot query
+                // or justify a transfer through an unresolved address.
+                let source_location = source.exact_location()?;
+                let destination_location = destination.exact_location()?;
+                if inventory.unknown_contents.iter().any(|packet| {
+                    packet.kind != super::UnknownContentsKind::Value
+                        || packet.location.path.last()
+                            != Some(&DescriptorPathSegment::UnknownContents)
+                }) || descriptor_location_type(types, source_type, &source_location.path)
+                    != Some(value_type)
+                    || descriptor_location_type(types, destination_type, &destination_location.path)
+                        != Some(value_type)
+                {
+                    return None;
+                }
+            }
             let mut transfers = Vec::new();
-            for slot in slots {
+            for slot in inventory.slots {
                 let mut source = source.clone();
                 let mut destination = destination.clone();
                 let suffix = slot.path.into_iter().map(DescriptorContentsStep::Address);
@@ -3418,6 +3439,56 @@ pub mod descriptor_results {
                 });
             }
             Some(transfers)
+        }
+
+        #[cfg(test)]
+        #[test]
+        fn unknown_payload_transfers_require_the_same_exact_carrier() {
+            let first = StructuralTypeId::new(1).unwrap();
+            let second = StructuralTypeId::new(2).unwrap();
+            let declaration = |id| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                id,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                owns_linear_claim: true,
+                no_code_affine_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::TypeParameter,
+                scalar_restriction: None,
+            };
+            let types = [declaration(first), declaration(second)];
+            let operand = |root, root_type| DescriptorContentsOperand {
+                root: PlaceId::new(root).unwrap(),
+                root_type,
+                path: &[],
+                field: None,
+            };
+            assert!(
+                descriptor_contents_transfers(
+                    &types,
+                    DescriptorSlotKind::BorrowedStorage,
+                    operand(1, first),
+                    operand(2, first),
+                    first,
+                    false
+                )
+                .is_some()
+            );
+            assert!(
+                descriptor_contents_transfers(
+                    &types,
+                    DescriptorSlotKind::BorrowedStorage,
+                    operand(1, first),
+                    operand(2, second),
+                    first,
+                    false
+                )
+                .is_none()
+            );
         }
 
         impl DescriptorContentsQuery {

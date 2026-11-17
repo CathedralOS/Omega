@@ -285,16 +285,7 @@ fn source_application_in_scope(
             // Ordinary nominal identities erase regions. Do not let a new
             // byte/reference reader turn that storage key into lifetime
             // correspondence until this same application owner retains it.
-            if typed
-                .region_free_scoped_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest {
-                        substitutions: &scope.substitutions,
-                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(*argument)
-                    },
-                    &scope.scope_starts,
-                )
-                .is_none()
-            {
+            if scope.region_free_type_identity(typed, *argument).is_none() {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
                 ));

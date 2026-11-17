@@ -29,10 +29,11 @@ impl Program<'_> {
         if bindings.is_empty() {
             return self.source_scope.clone();
         }
-        let mut scope = (*self.source_scope).clone();
-        scope.scope_starts.push(scope.substitutions.len());
-        scope.substitutions.extend(bindings);
-        std::sync::Arc::new(scope)
+        std::sync::Arc::new(typed_trees::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: bindings,
+            rigid_parameters: Vec::new(),
+        })
     }
 
     pub(super) fn parameter_storage(

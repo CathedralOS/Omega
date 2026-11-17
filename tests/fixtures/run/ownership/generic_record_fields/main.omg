@@ -9,6 +9,7 @@ machine relay<T>(value: Envelope<T>) -> Envelope<T> { keep<T>(move value) }
 machine inspect<U>(value: &Envelope<U>) -> bool {
     value.before == 19u32 && value.after == 23u32
 }
+machine observe_record<T>(value: &Envelope<T>) {}
 machine main() crashes Trap {
     let envelope: Envelope<Ticket> = wrap<Ticket>(Ticket { number: 29u64 });
     let wrapped: Envelope<Ticket> = relay<Ticket>(move envelope);
