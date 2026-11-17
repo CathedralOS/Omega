@@ -18,7 +18,7 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Tools](subsystems/tools.md) | Repository commands and verification. |
 | [Library](subsystems/library.md) | Bundled declarations and target providers. |
 | [Original map](artifacts/pipeline-map/original.html) | Preserved authored presentation, clearly labeled historical. |
-| [Interactive architecture](artifacts/architecture.md) | Separate whole-system canvas with pan, zoom and source links. |
+| [Interactive architecture](artifacts/architecture.md) | Readable layers, source links and an optional whole-system canvas. |
 | [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
 | [Questions](questions.md) | Open decisions and recommendations. |
@@ -32,15 +32,15 @@ contracts and deletions. [Questions](questions.md) remain open;
 
 ## Pages and publication status
 
-The [atlas index](index.html) restores Claude's original authored pipeline map
-as the primary presentation. Its established [map URL](pages/pipeline-map.html)
-keeps the same drawing, layout and colors. A small historical label links the
-[reviewed current account](pages/pipeline-current.html), the separate
-[interactive architecture](pages/architecture.html), and all 15 subject pages,
-including the
-[plan](pages/foundation-backend-plan.html), questions and rulings. Navigation
-and page numbers come from one registry; counts come from generated evidence.
-The two established page URLs remain unchanged.
+The [atlas index](index.html) keeps Claude's original pipeline map,
+also at the [map URL](pages/pipeline-map.html). The
+[interactive architecture](pages/architecture.html) maps current
+implementation with the same boxes, arrows and colors. Psi forms
+are outlined, native forms filled, checker acceptance green and extra paths red.
+Select boxes for stages and evidence; open the full relationship map.
+Navigation groups 15 subject pages, including the
+[reviewed current account](pages/pipeline-current.html) and
+[plan](pages/foundation-backend-plan.html). Counts come from generated evidence.
 
 The publishing workflow copies only `index.html`, `pages/` and `design/` to
 <https://cathedralos.github.io/Omega/atlas/>. A branch build or draft PR is a
@@ -159,17 +159,20 @@ templates and build entrypoints have been removed.
 
 ## Explore locally
 
-The separate [interactive architecture page](pages/architecture.html) contains
-one full current architecture canvas. It joins the numbered source and native stages with Build, providers,
-runtimes, library, construction and supporting owners. Family color identifies
-ownership; the separate edge legend identifies data, invocation, dependency,
-construction, validation and normative relationships. Select a box for its
-handoffs and pinned evidence. Drag, scroll or use arrow keys to pan; Ctrl/Meta-scroll zooms. Fit all shows
-the overview; Reset returns to readable natural-scale labels. A minimap shows
-the viewport within the whole architecture and moves it on click. Fullscreen
-keeps the current camera. A grouped jump control makes every
-owner reachable without dragging. The map never starts motion automatically.
-Its complete text outline remains available without JavaScript.
+The [interactive architecture page](pages/architecture.html) shows the compiler
+diagram. Build, source checking and provider selection lead to
+native and interpreter routes. Red paths expose repeated source work, retained
+earlier data and late code generation. Select boxes for stages and evidence.
+Support sits outside execution. SVG works without JavaScript.
+
+Open the canvas for every relationship. Color identifies ownership;
+edge styles identify data, invocation, dependency,
+construction, validation and normative relationships. Select boxes for handoffs
+and evidence. Drag, scroll or use arrow keys to pan; Ctrl/Meta-scroll
+zooms. Fit all shows the overview; Reset restores natural-scale labels. The
+minimap navigates the map. Expansion keeps the camera. A grouped jump
+control reaches every owner. The map starts still; its text outline
+works without JavaScript.
 
 The immutable original HTML is `artifacts/pipeline-map/original.html`, copied
 from the recorded #3899 publication. The builder preserves every SVG byte and
