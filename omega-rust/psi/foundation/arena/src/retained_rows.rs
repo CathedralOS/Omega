@@ -35,27 +35,34 @@ impl<T> Clone for RetainedRows<T> {
 }
 
 impl<T> RetainedRows<T> {
+    #[inline]
     pub fn len(&self) -> usize {
         self.order.len()
     }
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.order.is_empty()
     }
+    #[inline]
     fn row(&self, handle: Row<T>) -> &T {
         self.records
             .get(handle)
             .as_ref()
             .expect("retained row roster names an empty record")
     }
+    #[inline]
     pub fn get(&self, position: usize) -> Option<&T> {
         self.order.get(position).map(|handle| self.row(*handle))
     }
+    #[inline]
     pub fn first(&self) -> Option<&T> {
         self.get(0)
     }
+    #[inline]
     pub fn last(&self) -> Option<&T> {
         self.order.last().map(|handle| self.row(*handle))
     }
+    #[inline]
     pub fn iter(&self) -> RetainedRowsIter<'_, T> {
         RetainedRowsIter {
             owner: self,
@@ -74,10 +81,12 @@ impl<T> RetainedRows<T> {
         let row = self.records.insert(Some(value));
         Arc::make_mut(&mut self.order).insert(position, row);
     }
+    #[inline]
     pub fn partition_point(&self, mut predicate: impl FnMut(&T) -> bool) -> usize {
         self.order
             .partition_point(|handle| predicate(self.row(*handle)))
     }
+    #[inline]
     pub fn binary_search_by_key<K: Ord>(
         &self,
         key: &K,
@@ -86,12 +95,14 @@ impl<T> RetainedRows<T> {
         self.order
             .binary_search_by_key(key, |handle| read(self.row(*handle)))
     }
+    #[inline]
     pub fn contains(&self, value: &T) -> bool
     where
         T: PartialEq,
     {
         self.iter().any(|row| row == value)
     }
+    #[inline]
     pub fn starts_with(&self, prefix: &Self) -> bool
     where
         T: PartialEq,
@@ -164,6 +175,7 @@ impl<T: Clone> RetainedRows<T> {
 
 impl<T> Index<usize> for RetainedRows<T> {
     type Output = T;
+    #[inline]
     fn index(&self, position: usize) -> &T {
         self.get(position)
             .expect("retained row index is out of range")
@@ -214,6 +226,7 @@ impl<T: fmt::Debug> fmt::Debug for RetainedRows<T> {
     }
 }
 impl<T: PartialEq> PartialEq for RetainedRows<T> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len() && self.iter().eq(other.iter())
     }
@@ -226,17 +239,21 @@ pub struct RetainedRowsIter<'a, T> {
 }
 impl<'a, T> Iterator for RetainedRowsIter<'a, T> {
     type Item = &'a T;
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.positions.next().map(|handle| self.owner.row(*handle))
     }
+    #[inline]
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.positions.nth(n).map(|handle| self.owner.row(*handle))
     }
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.positions.size_hint()
     }
 }
 impl<T> DoubleEndedIterator for RetainedRowsIter<'_, T> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         self.positions
             .next_back()
@@ -248,6 +265,7 @@ impl<T> std::iter::FusedIterator for RetainedRowsIter<'_, T> {}
 impl<'a, T> IntoIterator for &'a RetainedRows<T> {
     type Item = &'a T;
     type IntoIter = RetainedRowsIter<'a, T>;
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
