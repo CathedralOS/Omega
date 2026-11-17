@@ -1,5 +1,4 @@
 use crate::statements::parse::parse_statement_handles;
-use crate::syntax_storage::tables::{items_of, stmts_of};
 use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -11,7 +10,7 @@ pub(crate) fn parse_statements<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
     requires_result: bool,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
-    let mut statements = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut statements = arena::HandleSpan::empty();
     while (requires_result && input.at_identifier_then_contextual("machine"))
         || !crate::machine_bodies::states::starts_machine_member(input)
     {
@@ -21,22 +20,24 @@ pub(crate) fn parse_statements<'tokens, 'source>(
             ));
         }
         let (parsed, rest) = parse_statement_handles(syntax_trees, input)?;
-        let completes_body = items_of(syntax_trees)
-            .statements(parsed)
-            .last()
-            .is_some_and(|statement| {
-                matches!(
-                    stmts_of(syntax_trees).statement(*statement),
-                    syntax_trees::statement::StatementNode::Transition(_)
-                        | syntax_trees::statement::StatementNode::Expression(_)
-                )
-            })
-            && crate::declarations::items::starts_machine_declaration(rest);
-        statements.push_span(parsed);
+        let completes_body =
+            syntax_trees
+                .items
+                .statements(parsed)
+                .last()
+                .is_some_and(|statement| {
+                    matches!(
+                        syntax_trees.statements.statement(*statement),
+                        syntax_trees::statement::StatementNode::Transition(_)
+                            | syntax_trees::statement::StatementNode::Expression(_)
+                    )
+                })
+                && crate::declarations::items::starts_machine_declaration(rest);
+        statements.extend_contiguous(parsed);
         input = rest;
         if completes_body {
             break;
         }
     }
-    Ok((statements.finish(), input))
+    Ok((statements, input))
 }

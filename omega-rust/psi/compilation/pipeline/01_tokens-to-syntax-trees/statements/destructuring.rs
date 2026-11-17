@@ -1,6 +1,5 @@
 use crate::errors::parse_error::ParseError;
 use crate::expressions::parse::parse_expression_handle;
-use crate::syntax_storage::tables::{exprs, exprs_of, items, stmts};
 use crate::token_input::cursor::Input;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -71,7 +70,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
     fn is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-        match exprs_of(syntax_trees).expression(expression) {
+        match syntax_trees.expressions.expression(expression) {
             ExpressionNode::Name { .. } => true,
             ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
             _ => false,
@@ -98,7 +97,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             },
         })
         .collect::<Vec<_>>();
-    let pattern_fields = exprs(syntax_trees).insert_match_fields(roster);
+    let pattern_fields = syntax_trees.expressions.insert_match_fields(roster);
     let marker = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
@@ -110,20 +109,23 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             relevance: language_core::BindingRelevance::Relevant,
             pattern_fields,
         }));
-    let marker = items(syntax_trees).append_statement_handle(marker);
-    let mut statements = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
-    statements.push(marker);
+    let marker = syntax_trees.items.append_statement_handle(marker);
+    let mut statements = arena::HandleSpan::empty();
+    statements.push_contiguous(marker);
 
     for (field, binding) in fields {
         let Some(binding) = binding else {
             continue;
         };
-        let member = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: value,
-            access_source_span: Default::default(),
-            member: field,
-            case_variant: None,
-        }));
+        let member =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: value,
+                    access_source_span: Default::default(),
+                    member: field,
+                    case_variant: None,
+                }));
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(TableLocalData {
@@ -135,10 +137,10 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 relevance: language_core::BindingRelevance::Relevant,
                 pattern_fields: Default::default(),
             }));
-        statements.push(items(syntax_trees).append_statement_handle(statement));
+        statements.push_contiguous(syntax_trees.items.append_statement_handle(statement));
     }
 
-    Some((statements.finish(), rest))
+    Some((statements, rest))
 }
 
 pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
@@ -191,7 +193,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
     let (call, next) = parse_expression_handle(syntax_trees, rest).ok()?;
     if !matches!(
-        exprs_of(syntax_trees).expression(call),
+        syntax_trees.expressions.expression(call),
         ExpressionNode::Call(_)
     ) {
         return None;
@@ -199,13 +201,15 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = next
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
-    let statement = stmts(syntax_trees).insert(StatementNode::ProofOutputBindingStatement(
-        TableProofOutputBindingStatement {
-            bindings: bindings.into_boxed_slice(),
-            call,
-        },
-    ));
-    let statement = items(syntax_trees).append_statement_handle(statement);
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::ProofOutputBindingStatement(
+            TableProofOutputBindingStatement {
+                bindings: bindings.into_boxed_slice(),
+                call,
+            },
+        ));
+    let statement = syntax_trees.items.append_statement_handle(statement);
     Some((HandleSpan::from_parts(statement, 1), rest))
 }
 

@@ -33,11 +33,11 @@ pub(crate) fn parse_operator_definition<'tokens, 'source>(
     let (parameters, input) = parse_optional_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
-    let mut contracts = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = arena::HandleSpan::empty();
     loop {
         if is_operator_contract_start(&input) {
             let contract = parse_operator_contract(syntax_trees, &mut input)?;
-            contracts.push(syntax_trees.items.append_capability_contract(contract));
+            contracts.push_contiguous(syntax_trees.items.append_capability_contract(contract));
             continue;
         }
         break;
@@ -55,7 +55,7 @@ pub(crate) fn parse_operator_definition<'tokens, 'source>(
             type_parameters,
             parameters,
             return_type,
-            contracts: contracts.finish(),
+            contracts,
             spelling,
             token_count,
         },

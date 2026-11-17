@@ -244,11 +244,6 @@ fn parse_recorded_source(
     })
 }
 
-mod syntax_storage {
-    pub(crate) mod handle_spans;
-    pub(crate) mod statement_paths;
-    pub(crate) mod tables;
-}
 mod machine_bodies {
     pub(crate) mod defaults;
     pub(crate) mod states;
@@ -323,7 +318,6 @@ mod errors {
 mod token_input {
     pub(crate) mod cursor;
     pub(crate) mod delimiters;
-    pub(crate) mod paths;
 }
 mod literals {
     pub(crate) mod numbers;

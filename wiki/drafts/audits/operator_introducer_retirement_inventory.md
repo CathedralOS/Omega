@@ -32,9 +32,9 @@ Recount on each landing.
   requirements already refuse it (`parse_trait_definition`); their
   sources use `machine + name(...)`.
 - **Representation.** `Item::Operator(OperatorDefinition)` in
-  `representations/syntax-trees/src/declarations.rs`, with the
-  consumers that must follow it out: `syntax-trees/src/copies.rs`,
-  `syntax-trees/src/inspection.rs`, and in
+  `representations/syntax-trees/declarations/items.rs`, with the
+  consumers that must follow it out: `syntax-trees/copying/items.rs`,
+  `syntax-trees/inspection/items.rs`, and in
   `02_syntax-trees-to-symbol-resolved-trees/src/` `lowering.rs` and
   `preparation_const_evaluation.rs`.
 - **Resolution.** `token_bindings` in

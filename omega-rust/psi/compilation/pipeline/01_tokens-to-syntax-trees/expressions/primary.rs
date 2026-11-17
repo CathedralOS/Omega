@@ -1,4 +1,3 @@
-use crate::syntax_storage::tables::exprs;
 use crate::token_input::cursor::Input;
 use crate::types::references::parse_type_reference_handle;
 use source::SourceSpan;
@@ -40,7 +39,9 @@ pub(crate) fn try_uninvoked_application<'tokens, 'source>(
         }
         let mut members = arena::HandleSpan::empty();
         for member in selection.path {
-            exprs(syntax).append_identifier_path_member_to_span(&mut members, member);
+            syntax
+                .expressions
+                .append_identifier_path_member_to_span(&mut members, member);
         }
         Some((
             ExpressionNode::Name {
@@ -61,8 +62,10 @@ pub(crate) fn spanned(
     node: ExpressionNode,
     source_span: SourceSpan,
 ) -> ExpressionHandle {
-    let expression = exprs(syntax_trees).insert(node);
-    exprs(syntax_trees).set_source_span(expression, source_span);
+    let expression = syntax_trees.expressions.insert(node);
+    syntax_trees
+        .expressions
+        .set_source_span(expression, source_span);
     expression
 }
 

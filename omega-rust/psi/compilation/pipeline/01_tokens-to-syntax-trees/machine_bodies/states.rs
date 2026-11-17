@@ -108,14 +108,14 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let mut nested_machines = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut nested_machines = arena::HandleSpan::empty();
     for child in children {
-        nested_machines.push(syntax_trees.items.append_item(child));
+        nested_machines.push_contiguous(syntax_trees.items.append_item(child));
     }
     Ok((
         ParsedMachineBody {
             states,
-            nested_machines: nested_machines.finish(),
+            nested_machines,
             bodyless: false,
         },
         input,

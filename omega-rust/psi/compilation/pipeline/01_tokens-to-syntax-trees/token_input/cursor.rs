@@ -564,17 +564,17 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     mut append_member: impl FnMut(Identifier) -> Handle<Identifier>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
-    let mut path = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
-    path.push(append_member(first));
+    let mut path = arena::HandleSpan::empty();
+    path.push_contiguous(append_member(first));
 
     while rest.at_punctuation(PunctuationKind::ColonColon) {
         rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, next) = rest.take_identifier()?;
-        path.push(append_member(member));
+        path.push_contiguous(append_member(member));
         rest = next;
     }
 
-    Ok((path.finish(), rest))
+    Ok((path, rest))
 }
 
 impl syntax_trees::SyntaxTextContext for Input<'_, '_> {

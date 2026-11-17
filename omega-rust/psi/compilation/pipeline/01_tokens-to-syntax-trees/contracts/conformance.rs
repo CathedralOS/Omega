@@ -1,6 +1,5 @@
 use crate::errors::parse_error::ParseError;
 use crate::expressions::parse::parse_expression_handle;
-use crate::syntax_storage::tables::{items, type_refs};
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::types::references::parse_static_argument_reference;
 use arena::HandleSpan;
@@ -19,7 +18,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
     }
 
     input = input.take_contextual("satisfies")?;
-    let mut clauses = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut clauses = arena::HandleSpan::empty();
 
     loop {
         let ((trait_name, lifetime_arguments, arguments), mut rest) =
@@ -67,7 +66,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             }
         }
 
-        let handle = items(syntax_trees).append_satisfies_clause(SatisfiesClause {
+        let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
             trait_name,
             lifetime_arguments,
             arguments,
@@ -77,7 +76,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             via_expression,
             via_keyword_source_span,
         });
-        clauses.push(handle);
+        clauses.push_contiguous(handle);
         input = rest;
         let Some(next) = input.take_comma()? else {
             break;
@@ -85,7 +84,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         input = next;
     }
 
-    Ok((clauses.finish(), input))
+    Ok((clauses, input))
 }
 
 pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
@@ -110,7 +109,9 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
 
         let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
         return Ok((
-            type_refs(syntax_trees).insert_type_reference_handles(arguments),
+            syntax_trees
+                .type_references
+                .insert_type_reference_handles(arguments),
             input,
         ));
     }
@@ -160,7 +161,9 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
             rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
             break;
         }
-        type_refs(syntax_trees).insert_type_reference_handles(arguments)
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(arguments)
     } else {
         HandleSpan::empty()
     };

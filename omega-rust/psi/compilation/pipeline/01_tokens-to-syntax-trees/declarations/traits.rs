@@ -8,7 +8,6 @@ use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;
 use crate::parameters::requirements::parse_machine_parameter_contracts;
 use crate::parameters::requirements::validate_machine_parameter_contracts;
-use crate::syntax_storage::tables::{items, items_of, type_refs, type_refs_of};
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::types::references::parse_type_reference_handle;
 use arena::HandleSpan;
@@ -63,8 +62,8 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
     input = next;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut requires = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
-    let mut machines = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut requires = arena::HandleSpan::empty();
+    let mut machines = arena::HandleSpan::empty();
     let mut refinement_clauses = Vec::new();
 
     if refines.is_some() {
@@ -117,7 +116,7 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_identifier_path_member(required_trait);
-            requires.push(handle);
+            requires.push_contiguous(handle);
             input = rest;
             continue;
         }
@@ -199,9 +198,9 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
             )
         };
         signature.default_body = default_body;
-        let handle = items(syntax_trees).insert_state_signature(&signature);
-        let handle = items(syntax_trees).append_state_signature_handle(handle);
-        machines.push(handle);
+        let handle = syntax_trees.items.insert_state_signature(&signature);
+        let handle = syntax_trees.items.append_state_signature_handle(handle);
+        machines.push_contiguous(handle);
         input = next;
     }
 
@@ -215,8 +214,8 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
             type_parameters,
             conformance_bounds,
             parents,
-            requires: requires.finish(),
-            machines: machines.finish(),
+            requires,
+            machines,
             refines,
             refinement_clauses,
         },
@@ -248,7 +247,7 @@ fn parse_refinement_clause<'tokens, 'source>(
         if !qualifier.is_empty() {
             let base_name =
                 refines.and_then(
-                    |base| match type_refs_of(syntax_trees).type_reference(base) {
+                    |base| match syntax_trees.type_references.type_reference(base) {
                         TypeReferenceNode::Named(name) => Some(name.clone()),
                         TypeReferenceNode::Generic { base_name, .. } => Some(base_name.clone()),
                         _ => None,
@@ -331,7 +330,7 @@ fn parse_refinement_clause<'tokens, 'source>(
                 &mut installation_bound,
                 refinement_reaches_clause_boundary,
             )?;
-            signature.service_reaches = items(syntax_trees).insert_identifier_path_members(reaches);
+            signature.service_reaches = syntax_trees.items.insert_identifier_path_members(reaches);
             continue;
         }
         if input.at_contextual("suspends") {
@@ -416,7 +415,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
                 name.as_str(syntax_trees),
             )));
         };
-        match &items_of(syntax_trees).type_parameters(type_parameters)[parameter_index].kind {
+        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
             syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
             syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
@@ -434,7 +433,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         }
         let (parameters, rest) = parse_optional_parameters(syntax_trees, after_name)?;
         let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        items(syntax_trees).type_parameters_mut(type_parameters)[parameter_index].kind =
+        syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index].kind =
             syntax_trees::item::TypeParameterKind::Proposition {
                 contract: Some(PropositionParameterSignature { name, parameters }),
             };
@@ -481,7 +480,9 @@ fn parse_trait_parents<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::Plus, "+")?;
     }
     Ok((
-        type_refs(syntax_trees).insert_type_reference_handles(parents),
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(parents),
         input,
     ))
 }
@@ -533,7 +534,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut parameters = arena::HandleSpan::empty();
     let mut native_callback_parameters = Vec::new();
     let mut native_ordinal = 0u32;
 
@@ -562,8 +563,8 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
             input = rest;
         } else {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
-            let handle = items(syntax_trees).append_state_parameter_handle(parameter);
-            parameters.push(handle);
+            let handle = syntax_trees.items.append_state_parameter_handle(parameter);
+            parameters.push_contiguous(handle);
             input = rest;
         }
         native_ordinal = native_ordinal
@@ -578,7 +579,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = parameters.finish();
+    let parameters = parameters;
     Ok(((parameters, native_callback_parameters), input))
 }
 

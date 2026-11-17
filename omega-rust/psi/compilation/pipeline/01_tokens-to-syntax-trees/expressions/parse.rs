@@ -35,7 +35,6 @@ use crate::expressions::primary::{
 };
 use crate::patterns::bindings::{DestructureBinding, rewrite_destructure_guard_expression};
 use crate::patterns::fields::DestructureFields;
-use crate::syntax_storage::tables::{exprs, exprs_of};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::types::references::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
@@ -473,11 +472,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 end_inclusive,
             } => {
                 let range =
-                    exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
-                        start,
-                        end: value,
-                        end_inclusive,
-                    }));
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Range(TableRangeExpression {
+                            start,
+                            end: value,
+                            end_inclusive,
+                        }));
                 self.finish_index(syntax_trees, site, range, input)
             }
             Frame::LoadOrdering(frame) => {
@@ -499,7 +500,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     )));
                 }
                 let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-                let expression = exprs(syntax_trees).insert(ExpressionNode::Atomic(
+                let expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
                     syntax_trees::expression::TableAtomicExpression {
                         value: receiver,
                         result: ExpressionHandle::invalid(),
@@ -774,11 +775,14 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     "inclusive range `..=` requires an end expression",
                 ));
             }
-            let range = exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
-                start,
-                end: ExpressionHandle::invalid(),
-                end_inclusive,
-            }));
+            let range =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Range(TableRangeExpression {
+                        start,
+                        end: ExpressionHandle::invalid(),
+                        end_inclusive,
+                    }));
             return self.finish_index(syntax_trees, site, range, input);
         }
         self.frames.push(Frame::IndexEnd {
@@ -801,11 +805,15 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
     ) -> StepResult<'tokens, 'source> {
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
         let expression =
-            exprs(syntax_trees).insert(ExpressionNode::Indexed(TableIndexedExpression {
-                collection: site.collection,
-                index,
-            }));
-        exprs(syntax_trees).set_source_span(expression, site.operator_span);
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection: site.collection,
+                    index,
+                }));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, site.operator_span);
         self.suffixes(
             syntax_trees,
             site.context,
@@ -873,17 +881,20 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 target,
                 machine_arguments,
             } => {
-                let call = exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
-                    callee: ExpressionHandle::invalid(),
-                    receiver,
-                    target,
-                    target_is_static: true,
-                    machine_arguments,
-                    arguments,
-                    evidence_arguments,
-                    operational_acknowledgement: Default::default(),
-                }));
-                exprs(syntax_trees).set_source_span(call, source);
+                let call =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            callee: ExpressionHandle::invalid(),
+                            receiver,
+                            target,
+                            target_is_static: true,
+                            machine_arguments,
+                            arguments,
+                            evidence_arguments,
+                            operational_acknowledgement: Default::default(),
+                        }));
+                syntax_trees.expressions.set_source_span(call, source);
                 Ok(Step::Value(call, input))
             }
         }
@@ -976,7 +987,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 let rest = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
                 return Ok(Step::Value(
-                    exprs(syntax_trees).insert(ExpressionNode::ZeroValue(type_reference)),
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::ZeroValue(type_reference)),
                     rest,
                 ));
             }
@@ -1017,16 +1030,18 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             let units: Vec<_> = value
                 .encode_utf16()
                 .map(|unit| {
-                    exprs(syntax_trees).insert(ExpressionNode::Integer(IntegerLiteral::from_value(
-                        i64::from(unit),
-                    )))
+                    syntax_trees.expressions.insert(ExpressionNode::Integer(
+                        IntegerLiteral::from_value(i64::from(unit)),
+                    ))
                 })
                 .collect();
-            let units = exprs(syntax_trees).insert_expression_handles(units);
+            let units = syntax_trees.expressions.insert_expression_handles(units);
             let expression = syntax_trees
                 .expressions
                 .insert(ExpressionNode::ArrayLiteral(units));
-            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, start.source_span_until(input));
             return Ok(Step::Value(expression, input));
         }
 
@@ -1037,7 +1052,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         {
             let (value, input) = input.take_string_bytes()?;
             return Ok(Step::Value(
-                exprs(syntax_trees).insert(ExpressionNode::String(value)),
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::String(value)),
                 input,
             ));
         }
@@ -1055,7 +1072,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let expression = syntax_trees
                     .expressions
                     .insert(ExpressionNode::TypeExpression(type_reference));
-                exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
+                syntax_trees
+                    .expressions
+                    .set_source_span(expression, start.source_span_until(input));
                 return Ok(Step::Value(expression, input));
             }
             let start = input;
@@ -1090,15 +1109,19 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             if let Some((path, rest)) =
                 try_uninvoked_application(syntax_trees, start, context.allows_type_expression())
             {
-                let expression = exprs(syntax_trees).insert(path);
-                exprs(syntax_trees).set_source_span(expression, start.source_span_until(rest));
+                let expression = syntax_trees.expressions.insert(path);
+                syntax_trees
+                    .expressions
+                    .set_source_span(expression, start.source_span_until(rest));
                 return Ok(Step::Value(expression, rest));
             }
             if let Some((application, rest)) = try_applied_requirement_head(syntax_trees, start) {
                 let receiver = syntax_trees
                     .expressions
                     .insert(ExpressionNode::TypeExpression(application));
-                exprs(syntax_trees).set_source_span(receiver, start.source_span_until(rest));
+                syntax_trees
+                    .expressions
+                    .set_source_span(receiver, start.source_span_until(rest));
                 let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
                 let (target, rest) = rest.take_identifier()?;
                 let (machine_arguments, rest) =
@@ -1120,7 +1143,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 );
             }
             let (path, input) = parse_path_handle_span(input, |member| {
-                exprs(syntax_trees).append_identifier_path_member(member)
+                syntax_trees
+                    .expressions
+                    .append_identifier_path_member(member)
             })?;
 
             if context.allows_type_expression()
@@ -1131,12 +1156,14 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let expression = syntax_trees
                     .expressions
                     .insert(ExpressionNode::TypeExpression(type_reference));
-                exprs(syntax_trees).set_source_span(expression, start.source_span_until(rest));
+                syntax_trees
+                    .expressions
+                    .set_source_span(expression, start.source_span_until(rest));
                 return Ok(Step::Value(expression, rest));
             }
 
             if context.allows_struct_literal() && input.at_punctuation(PunctuationKind::LeftBrace) {
-                let members = exprs_of(syntax_trees).identifier_path_members(path);
+                let members = syntax_trees.expressions.identifier_path_members(path);
                 let first = members.first().expect("constructor path has a head");
                 let last = members.last().expect("constructor path has a tail");
                 let mut source_span = first.source_span();
@@ -1162,11 +1189,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 );
             }
 
-            let expression = exprs(syntax_trees).insert(ExpressionNode::Name {
+            let expression = syntax_trees.expressions.insert(ExpressionNode::Name {
                 members: path,
                 application: None,
             });
-            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, start.source_span_until(input));
             return Ok(Step::Value(expression, input));
         }
 
@@ -1214,7 +1243,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         } = *frame;
         let type_name_span = constructor_name.source_span();
         let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-        let fields = exprs(syntax_trees).insert_struct_fields(fields);
+        let fields = syntax_trees.expressions.insert_struct_fields(fields);
         let expression = syntax_trees
             .expressions
             .insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -1225,7 +1254,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }));
         let literal_tail_span = start.source_span_until(input);
         debug_assert_eq!(type_name_span.source_id, literal_tail_span.source_id);
-        exprs(syntax_trees).set_source_span(
+        syntax_trees.expressions.set_source_span(
             expression,
             SourceSpan::new(
                 type_name_span.source_id,
@@ -1252,7 +1281,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let head = value;
                 if !input.at_punctuation(PunctuationKind::LeftBrace)
                     || !matches!(
-                        exprs_of(syntax_trees).expression(head),
+                        syntax_trees.expressions.expression(head),
                         ExpressionNode::Name { .. }
                     )
                 {
@@ -1306,7 +1335,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         if arms.is_empty() {
             return Err(input.error_here("match expression must have at least one arm"));
         }
-        let arms = exprs(syntax_trees).insert_match_arms(arms);
+        let arms = syntax_trees.expressions.insert_match_arms(arms);
         let expression =
             syntax_trees
                 .expressions
@@ -1315,7 +1344,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     capture,
                     arms,
                 }));
-        exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(input));
         Ok(Step::Value(expression, input))
     }
 
@@ -1331,7 +1362,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         else {
             unreachable!("destructure fields return to a pattern head");
         };
-        let fields_span = exprs(syntax_trees).insert_match_fields(fields.fields);
+        let fields_span = syntax_trees.expressions.insert_match_fields(fields.fields);
         let proof_selectors = syntax_trees
             .statements
             .insert_outcome_proof_selectors(fields.proof_selectors);
@@ -1382,7 +1413,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         let subject = state.subject;
         if let MatchPattern::Destructure(destructure) = &mut pattern {
             if !state.capture.is_valid() {
-                state.capture = exprs(syntax_trees).insert_match_subject(subject);
+                state.capture = syntax_trees.expressions.insert_match_subject(subject);
             }
             let capture = state.capture;
             let bindings = syntax_trees
@@ -1426,8 +1457,8 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     capture,
                     pattern_head: destructure.head,
                 }));
-            let source_span = exprs_of(syntax_trees).source_span(subject);
-            exprs(syntax_trees).set_source_span(saved, source_span);
+            let source_span = syntax_trees.expressions.source_span(subject);
+            syntax_trees.expressions.set_source_span(saved, source_span);
             value = rewrite_destructure_guard_expression(syntax_trees, value, saved, &bindings);
             if destructure.guard.is_valid() {
                 destructure.guard = rewrite_destructure_guard_expression(
@@ -1598,11 +1629,13 @@ fn finish_array_literal<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> StepResult<'tokens, 'source> {
     let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-    let values = exprs(syntax_trees).insert_expression_handles(values);
+    let values = syntax_trees.expressions.insert_expression_handles(values);
     let expression = syntax_trees
         .expressions
         .insert(ExpressionNode::ArrayLiteral(values));
-    exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
+    syntax_trees
+        .expressions
+        .set_source_span(expression, start.source_span_until(input));
     Ok(Step::Value(expression, input))
 }
 

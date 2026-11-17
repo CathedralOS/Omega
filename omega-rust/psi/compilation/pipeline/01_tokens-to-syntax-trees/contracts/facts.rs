@@ -3,7 +3,6 @@ use crate::errors::parse_error::ParseError;
 use crate::expressions::parse::parse_expression_handle_without_struct_literals_or_membership;
 use crate::expressions::parse::parse_logical_proof_fact_expression_handle;
 use crate::expressions::parse::parse_proof_fact_expression_handle;
-use crate::syntax_storage::tables::{exprs, items};
 use crate::token_input::cursor::{Input, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -20,7 +19,7 @@ fn copy_item_path_to_expression_path(
     syntax_trees: &mut SyntaxTrees,
     span: HandleSpan<Identifier>,
 ) -> HandleSpan<Identifier> {
-    let mut copy = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut copy = arena::HandleSpan::empty();
     let members = syntax_trees
         .tables
         .items
@@ -28,7 +27,7 @@ fn copy_item_path_to_expression_path(
         .to_vec();
 
     for member in members {
-        copy.push(
+        copy.push_contiguous(
             syntax_trees
                 .tables
                 .expressions
@@ -36,7 +35,7 @@ fn copy_item_path_to_expression_path(
         );
     }
 
-    copy.finish()
+    copy
 }
 
 type MembershipDomain = (HandleSpan<Identifier>, HandleSpan<TypeReferenceHandle>);
@@ -62,12 +61,17 @@ fn expand_carry_portable_item_paths(
 
         for permission in language_core::CarryPermission::ALL {
             let mut parts = permission.name().split("::");
-            let namespace = items(syntax_trees).append_identifier_path_member(
-                Identifier::generated(parts.next().expect("carry permission has a namespace")),
-            );
-            let member = items(syntax_trees).append_identifier_path_member(Identifier::generated(
-                parts.next().expect("carry permission has a member"),
-            ));
+            let namespace =
+                syntax_trees
+                    .items
+                    .append_identifier_path_member(Identifier::generated(
+                        parts.next().expect("carry permission has a namespace"),
+                    ));
+            let member = syntax_trees
+                .items
+                .append_identifier_path_member(Identifier::generated(
+                    parts.next().expect("carry permission has a member"),
+                ));
             debug_assert_eq!(member.arena_index(), namespace.arena_index() + 1);
             expanded.push((HandleSpan::from_parts(namespace, 2), HandleSpan::empty()));
         }
@@ -133,7 +137,7 @@ fn parse_fact_list<'tokens, 'source>(
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
-    let mut facts = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut facts = arena::HandleSpan::empty();
 
     while (requires_first_fact && facts.is_empty()) || !is_terminator(input) {
         if input.tokens.is_empty() {
@@ -153,7 +157,7 @@ fn parse_fact_list<'tokens, 'source>(
             input = input.take_contextual("in")?;
             if input.at_name_like() {
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
-                    items(syntax_trees).append_identifier_path_member(member)
+                    syntax_trees.items.append_identifier_path_member(member)
                 })?;
                 let argument_start = rest;
                 let (first_arguments, rest) =
@@ -163,7 +167,7 @@ fn parse_fact_list<'tokens, 'source>(
 
                 let first_expression_domain =
                     copy_item_path_to_expression_path(syntax_trees, first_domain);
-                let first_membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
+                let first_membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
                     TableMembershipExpression {
                         value,
                         domain: first_expression_domain,
@@ -190,7 +194,7 @@ fn parse_fact_list<'tokens, 'source>(
                         )
                     };
                     let (domain, rest) = parse_path_handle_span(rest, |member| {
-                        items(syntax_trees).append_identifier_path_member(member)
+                        syntax_trees.items.append_identifier_path_member(member)
                     })?;
                     let argument_start = rest;
                     let (domain_arguments, rest) =
@@ -201,19 +205,20 @@ fn parse_fact_list<'tokens, 'source>(
                     input = rest;
                     membership_domains.push((domain, domain_arguments));
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
-                    let membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
+                    let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
                         TableMembershipExpression {
                             value,
                             domain: expression_domain,
                         },
                     ));
-                    chain_expression =
-                        exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                    chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
+                        TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: chain_expression,
                             operator,
                             right: membership,
-                        }));
+                        },
+                    ));
                 }
 
                 if saw_pipe {
@@ -226,12 +231,12 @@ fn parse_fact_list<'tokens, 'source>(
                         .items
                         .append_proof_fact(ProofFact::Expression(chain_expression));
                     authored_fact_handles.push(handle);
-                    facts.push(handle);
+                    facts.push_contiguous(handle);
                 } else {
                     for (domain, domain_arguments) in
                         expand_carry_portable_item_paths(syntax_trees, membership_domains)
                     {
-                        let handle = items(syntax_trees).append_proof_fact(ProofFact::Membership(
+                        let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
                             ProofMembershipFact {
                                 value,
                                 domain,
@@ -239,7 +244,7 @@ fn parse_fact_list<'tokens, 'source>(
                             },
                         ));
                         authored_fact_handles.push(handle);
-                        facts.push(handle);
+                        facts.push_contiguous(handle);
                     }
                 }
             } else {
@@ -268,7 +273,7 @@ fn parse_fact_list<'tokens, 'source>(
                     .items
                     .append_proof_fact(ProofFact::Expression(range_fact));
                 authored_fact_handles.push(handle);
-                facts.push(handle);
+                facts.push_contiguous(handle);
             }
         } else {
             let expression = if input.at_name_like()
@@ -277,16 +282,18 @@ fn parse_fact_list<'tokens, 'source>(
             {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
-                exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
-                    callee: ExpressionHandle::invalid(),
-                    target_is_static: false,
-                    receiver: value,
-                    target: predicate,
-                    machine_arguments: Box::default(),
-                    arguments: HandleSpan::empty(),
-                    evidence_arguments: Box::default(),
-                    operational_acknowledgement: Default::default(),
-                }))
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        callee: ExpressionHandle::invalid(),
+                        target_is_static: false,
+                        receiver: value,
+                        target: predicate,
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                        evidence_arguments: Box::default(),
+                        operational_acknowledgement: Default::default(),
+                    }))
             } else {
                 value
             };
@@ -294,12 +301,14 @@ fn parse_fact_list<'tokens, 'source>(
                 .items
                 .append_proof_fact(ProofFact::Expression(expression));
             authored_fact_handles.push(handle);
-            facts.push(handle);
+            facts.push_contiguous(handle);
         }
 
         let authored_source_span = fact_input.source_span_until(input);
         for handle in authored_fact_handles {
-            items(syntax_trees).set_proof_fact_source_span(handle, authored_source_span);
+            syntax_trees
+                .items
+                .set_proof_fact_source_span(handle, authored_source_span);
         }
 
         if is_terminator(input) {
@@ -323,7 +332,7 @@ fn parse_fact_list<'tokens, 'source>(
 
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());
 
-    Ok(((facts.finish(), token_count), input))
+    Ok(((facts, token_count), input))
 }
 
 fn range_membership_expression(
@@ -353,12 +362,14 @@ fn range_membership_expression(
             },
             right: end,
         }));
-    exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-        policy: numerics::arithmetic::ArithmeticDomain::Exact,
-        left: lower,
-        operator: BinaryOperator::And,
-        right: upper,
-    }))
+    syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            left: lower,
+            operator: BinaryOperator::And,
+            right: upper,
+        }))
 }
 
 fn parse_proof_fact_domain_arguments<'tokens, 'source>(

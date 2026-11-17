@@ -1,4 +1,3 @@
-use crate::syntax_storage::tables::{exprs, exprs_of, stmts_of};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -35,19 +34,19 @@ fn rewrite_expression(
     fields: &[DestructureBinding],
     captures: &mut SubjectCopies,
 ) -> ExpressionHandle {
-    let rewritten = match exprs_of(syntax_trees).expression(expression).clone() {
+    let rewritten = match syntax_trees.expressions.expression(expression).clone() {
         ExpressionNode::Match(dispatch) => {
             let saved_subject =
                 rewrite_expression(syntax_trees, dispatch.subject, subject, fields, captures);
             let outer_captures = captures.len();
             let capture = if dispatch.capture.is_valid() {
-                let copied = exprs(syntax_trees).insert_match_subject(saved_subject);
+                let copied = syntax_trees.expressions.insert_match_subject(saved_subject);
                 captures.push((dispatch.capture, copied));
                 copied
             } else {
                 Handle::invalid()
             };
-            let mut arms = exprs_of(syntax_trees).match_arms(dispatch.arms).to_vec();
+            let mut arms = syntax_trees.expressions.match_arms(dispatch.arms).to_vec();
             for arm in &mut arms {
                 use syntax_trees::expression::{MatchFieldAction, MatchPattern};
                 let visible_fields = match &mut arm.pattern {
@@ -63,7 +62,7 @@ fn rewrite_expression(
                             .to_vec();
                         let visible = fields.iter().filter(|outer| {
                             !pattern_fields.iter().any(|inner| matches!(&inner.action, MatchFieldAction::Bind(binding) if binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees)))
-                                && !stmts_of(syntax_trees).outcome_proof_selectors(pattern.proof_selectors).iter().any(|selector| selector.binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
+                                && !syntax_trees.statements.outcome_proof_selectors(pattern.proof_selectors).iter().any(|selector| selector.binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
                         }).cloned().collect::<Vec<_>>();
                         for field in &mut pattern_fields {
                             if let MatchFieldAction::Equal(value) = &mut field.action {
@@ -76,7 +75,8 @@ fn rewrite_expression(
                                 );
                             }
                         }
-                        pattern.fields = exprs(syntax_trees).insert_match_fields(pattern_fields);
+                        pattern.fields =
+                            syntax_trees.expressions.insert_match_fields(pattern_fields);
                         pattern.guard = rewrite_optional_expression(
                             syntax_trees,
                             pattern.guard,
@@ -92,7 +92,7 @@ fn rewrite_expression(
                     rewrite_expression(syntax_trees, arm.value, subject, &visible_fields, captures);
             }
             captures.truncate(outer_captures);
-            let arms = exprs(syntax_trees).insert_match_arms(arms);
+            let arms = syntax_trees.expressions.insert_match_arms(arms);
             ExpressionNode::Match(syntax_trees::expression::TableMatchExpression {
                 subject: saved_subject,
                 arms,
@@ -119,12 +119,12 @@ fn rewrite_expression(
             result_custody: atomic.result_custody,
         }),
         ExpressionNode::ArrayLiteral(values) => {
-            let source_values = exprs_of(syntax_trees).expression_handles(values).to_vec();
+            let source_values = syntax_trees.expressions.expression_handles(values).to_vec();
             let values = source_values
                 .iter()
                 .map(|value| rewrite_expression(syntax_trees, *value, subject, fields, captures))
                 .collect::<Vec<_>>();
-            ExpressionNode::ArrayLiteral(exprs(syntax_trees).insert_expression_handles(values))
+            ExpressionNode::ArrayLiteral(syntax_trees.expressions.insert_expression_handles(values))
         }
         ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
             policy: binary.policy,
@@ -212,7 +212,7 @@ fn rewrite_expression(
                     // This is another view of the dispatch's saved value,
                     // never a field read or another evaluation of its source.
                     let ExpressionNode::SavedSubject(mut saved) =
-                        *exprs_of(syntax_trees).expression(subject)
+                        *syntax_trees.expressions.expression(subject)
                     else {
                         unreachable!("destructure aliases are produced from a saved subject")
                     };
@@ -260,7 +260,7 @@ fn rewrite_expression(
                 zero_omitted_fields: struct_literal.zero_omitted_fields,
                 application_type: struct_literal.application_type,
                 constructor_name: struct_literal.constructor_name,
-                fields: exprs(syntax_trees).insert_struct_fields(struct_fields),
+                fields: syntax_trees.expressions.insert_struct_fields(struct_fields),
             })
         }
         ExpressionNode::Unary(unary) => ExpressionNode::Unary(TableUnaryExpression {
@@ -273,12 +273,14 @@ fn rewrite_expression(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::TypeExpression(_)
-        | ExpressionNode::ZeroValue(_) => exprs_of(syntax_trees).expression(expression).clone(),
+        | ExpressionNode::ZeroValue(_) => syntax_trees.expressions.expression(expression).clone(),
     };
 
-    let source_span = exprs_of(syntax_trees).source_span(expression);
-    let rewritten = exprs(syntax_trees).insert(rewritten);
-    exprs(syntax_trees).set_source_span(rewritten, source_span);
+    let source_span = syntax_trees.expressions.source_span(expression);
+    let rewritten = syntax_trees.expressions.insert(rewritten);
+    syntax_trees
+        .expressions
+        .set_source_span(rewritten, source_span);
     rewritten
 }
 
@@ -311,7 +313,9 @@ fn rewrite_expression_span(
         .iter()
         .map(|expression| rewrite_expression(syntax_trees, *expression, subject, fields, captures))
         .collect::<Vec<_>>();
-    exprs(syntax_trees).insert_expression_handles(expressions)
+    syntax_trees
+        .expressions
+        .insert_expression_handles(expressions)
 }
 
 fn single_destructured_field_name(
@@ -323,7 +327,7 @@ fn single_destructured_field_name(
     Option<Identifier>,
     language_core::PatternComponent,
 )> {
-    let members = exprs_of(syntax_trees).identifier_path_members(path);
+    let members = syntax_trees.expressions.identifier_path_members(path);
     let [member] = members else {
         return None;
     };

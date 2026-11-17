@@ -5,7 +5,6 @@ use crate::expressions::parse::{
 };
 use crate::parameters::callable::parse_optional_return_type;
 use crate::parameters::requirements::parse_machine_parameter_contracts;
-use crate::syntax_storage::tables::{exprs, items};
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -361,7 +360,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             service_reaches: syntax_trees
                 .items
                 .insert_identifier_path_members(service_reaches),
-            invokes: items(syntax_trees).insert_identifier_path_members(invokes),
+            invokes: syntax_trees.items.insert_identifier_path_members(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
@@ -468,7 +467,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
     keyword_source_span: Option<source::SourceSpan>,
 ) -> ParseResult<'tokens, 'source, (Vec<CapabilityContract>, String)> {
     let (result_case, rest) = parse_path_handle_span(input, |member| {
-        items(syntax_trees).append_identifier_path_member(member)
+        syntax_trees.items.append_identifier_path_member(member)
     })?;
     let group_name = syntax_trees
         .items
@@ -564,14 +563,14 @@ fn parse_ranked_subjects<'tokens, 'source>(
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         (vec![expression], rest)
     };
-    let ranking_subjects = exprs(syntax_trees).insert_expression_handles(subjects);
+    let ranking_subjects = syntax_trees.expressions.insert_expression_handles(subjects);
     let mut ranking_view = HandleSpan::empty();
     let mut ranking_view_arguments = HandleSpan::empty();
 
     if rest.at_punctuation(PunctuationKind::Arrow) {
         rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
         let (order, next) = parse_path_handle_span(rest, |member| {
-            items(syntax_trees).append_identifier_path_member(member)
+            syntax_trees.items.append_identifier_path_member(member)
         })?;
         ranking_view = order;
         rest = next;
@@ -622,11 +621,14 @@ fn parse_ranked_subjects<'tokens, 'source>(
             syntax_trees,
             after_separator,
         )?;
-        ranking_range = exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
-            start,
-            end,
-            end_inclusive,
-        }));
+        ranking_range =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                }));
         rest = next;
     }
 

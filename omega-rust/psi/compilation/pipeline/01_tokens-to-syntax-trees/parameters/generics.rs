@@ -31,14 +31,14 @@ pub(crate) enum GenericParameterSyntax {
 fn close_generic_parameter_list<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     lifetime_parameters: Vec<Identifier>,
-    type_parameters: crate::syntax_storage::handle_spans::HandleSpanBuilder<TypeParameter>,
+    type_parameters: HandleSpan<TypeParameter>,
     conformance_bounds: Vec<syntax_trees::item::GenericConformanceBound>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
     Ok((
         ParsedGenericParameters {
             lifetime_parameters,
-            type_parameters: type_parameters.finish(),
+            type_parameters,
             conformance_bounds,
         },
         input,
@@ -80,7 +80,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
-    let mut type_parameters = crate::syntax_storage::handle_spans::HandleSpanBuilder::new();
+    let mut type_parameters = arena::HandleSpan::empty();
     let mut lifetime_parameters = Vec::new();
     let mut conformance_bounds = Vec::new();
     let mut declared_names = Vec::<String>::new();
@@ -219,7 +219,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     kind: TypeParameterKind::Implementation,
                     bounds: DataProperties::default(),
                 });
-                type_parameters.push(handle);
+                type_parameters.push_contiguous(handle);
             }
             input = rest;
 
@@ -299,7 +299,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         let handle = syntax_trees
             .items
             .append_type_parameter(TypeParameter { name, kind, bounds });
-        type_parameters.push(handle);
+        type_parameters.push_contiguous(handle);
 
         let Some(next) = input.take_comma()? else {
             break;

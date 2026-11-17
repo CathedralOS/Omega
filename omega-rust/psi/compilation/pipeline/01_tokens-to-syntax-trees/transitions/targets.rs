@@ -3,11 +3,6 @@ use crate::expressions::context::ExpressionContext;
 use crate::expressions::operators::has_unary_expression_prefix;
 use crate::expressions::parse::parse_expression_handle;
 use crate::expressions::postfix::parse_postfix_expression_handle;
-use crate::syntax_storage::statement_paths::{
-    append_identifier_path_member_to_statement_table, copy_expression_handles_to_statement_table,
-    copy_expression_to_statement_identifier_path,
-};
-use crate::syntax_storage::tables::{exprs, exprs_of, stmts};
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::transitions::guards::{DestructureBindings, rewrite_destructure_guard_expression};
 use arena::HandleSpan;
@@ -80,7 +75,7 @@ fn classify_transition_target_handle(
     expression: ExpressionHandle,
     target_shaped: bool,
 ) -> Result<TransitionTargetHandle, ParseError> {
-    let node = exprs_of(syntax_trees).expression(expression).clone();
+    let node = syntax_trees.expressions.expression(expression).clone();
     let target = match node {
         ExpressionNode::Call(call)
             if target_shaped && call.target_is_static && call.machine_arguments.is_empty() =>
@@ -90,7 +85,7 @@ fn classify_transition_target_handle(
         _ => TransitionTargetNode::Value(expression),
     };
 
-    Ok(stmts(syntax_trees).insert_transition_target(target))
+    Ok(syntax_trees.statements.insert_transition_target(target))
 }
 
 fn classify_call_target_handle(
@@ -104,22 +99,19 @@ fn classify_call_target_handle(
     };
     let Some(receiver_depth) = receiver_depth else {
         return Ok(TransitionTargetNode::Value(
-            exprs(syntax_trees).insert(ExpressionNode::Call(call)),
+            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
         ));
     };
     if receiver_depth > 1 {
         return Ok(TransitionTargetNode::Value(
-            exprs(syntax_trees).insert(ExpressionNode::Call(call)),
+            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
         ));
     }
     let path = if call.receiver.is_valid() {
-        let receiver = copy_expression_to_statement_identifier_path(syntax_trees, call.receiver)
+        let receiver = syntax_trees
+            .copy_expression_to_statement_identifier_path(call.receiver)
             .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
-        append_identifier_path_member_to_statement_table(
-            syntax_trees,
-            receiver,
-            call.target.clone(),
-        )
+        syntax_trees.append_identifier_path_member_to_statement_table(receiver, call.target.clone())
     } else {
         let handle = syntax_trees
             .statements
@@ -127,7 +119,7 @@ fn classify_call_target_handle(
         HandleSpan::from_parts(handle, 1)
     };
 
-    let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
+    let arguments = syntax_trees.copy_expression_handles_to_statement_table(call.arguments);
     Ok(TransitionTargetNode::Named {
         operational_acknowledgement: call.operational_acknowledgement,
         path,
@@ -141,12 +133,13 @@ fn expression_handle_identifier_depth(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    match exprs_of(syntax_trees).expression(expression) {
+    match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Name {
             members: path,
             application: path_application,
         } if path_application.is_none() => Some(
-            exprs_of(syntax_trees)
+            syntax_trees
+                .expressions
                 .identifier_path_members(path.to_owned())
                 .len(),
         ),
