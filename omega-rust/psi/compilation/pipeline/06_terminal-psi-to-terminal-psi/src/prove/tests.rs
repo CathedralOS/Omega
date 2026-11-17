@@ -344,6 +344,80 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
             .prove(&goal)
             .is_err()
     );
+    // A headroom proof may genuinely require both alternatives. Keep that
+    // search, and refuse it when one actual alternative permits wrapping.
+    for (alternative, valid) in [
+        (
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(5)),
+            true,
+        ),
+        (
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(254)),
+            false,
+        ),
+    ] {
+        let assumptions = [Proposition::Disjunction(vec![
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(3)),
+            alternative,
+        ])];
+        let proof =
+            Prover::new(&context, &assumptions, &axioms, &values, &mut activity).prove(&goal);
+        if valid {
+            let proof = proof.unwrap();
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        } else {
+            assert!(proof.is_err(), "254 + 2 may produce zero");
+        }
+    }
+}
+
+#[test]
+fn case_search_does_not_materialize_exhausted_or_active_cuts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let input = ScalarTerm::value(id, scalar_type);
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let cut = Proposition::Disjunction(vec![
+        Proposition::LessThan(input.clone(), literal(10)),
+        Proposition::LessOrEqual(literal(20), input),
+    ]);
+    let context = PropositionContext::from_value_types([(id, scalar_type)]).unwrap();
+    let assumptions = [cut.clone()];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    prover.remaining_case_branches = 2;
+    let proof = prover.split(&Proposition::Truth).unwrap();
+    assert_eq!(prover.remaining_case_branches, 0);
+    proof_admission::accept_certificate(&context, &Proposition::Truth, &assumptions, &[], &proof)
+        .unwrap();
+    assert_eq!(prover.activity.disjunction_materializations, 1);
+    assert_eq!(prover.activity.started, 3);
+
+    let mut activity = ProofSearchActivity::default();
+    let mut exhausted = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    exhausted.remaining_case_branches = 0;
+    assert!(exhausted.split(&Proposition::Truth).is_none());
+    assert_eq!(exhausted.activity.disjunction_materializations, 0);
+    assert_eq!(exhausted.activity.started, 1);
+
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    active.active_cuts.push(cut);
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.activity.disjunction_materializations, 0);
+    assert_eq!(active.activity.started, 1);
+    let mut activity = ProofSearchActivity::default();
+    let mut failed = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
+    assert!(failed.split(&unknown).is_none());
+    assert_eq!(failed.activity.disjunction_materializations, 0);
 }
 
 #[test]

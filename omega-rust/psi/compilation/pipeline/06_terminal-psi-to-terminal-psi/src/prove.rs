@@ -314,6 +314,8 @@ pub struct ProofSearchActivity {
     contradiction_searches: usize,
     #[cfg(test)]
     in_progress_bound_reuses: usize,
+    #[cfg(test)]
+    disjunction_materializations: usize,
 }
 
 impl ProofSearchActivity {
@@ -332,6 +334,9 @@ impl ProofSearchActivity {
             self.in_progress_bound_reuses = self
                 .in_progress_bound_reuses
                 .saturating_add(other.in_progress_bound_reuses);
+            self.disjunction_materializations = self
+                .disjunction_materializations
+                .saturating_add(other.disjunction_materializations);
         }
     }
 }
@@ -1127,19 +1132,22 @@ impl<'a> Prover<'a> {
     /// `v < k or k < v`): each alternative either proves the goal as a local
     /// assumption or contradicts what is already known.
     fn split(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        let disjunctions: Vec<(Vec<Proposition>, ProofNode)> = self
-            .facts
-            .iter()
-            .filter_map(|fact| match &fact.proposition {
-                Proposition::Disjunction(parts) => Some((parts.clone(), fact.proof(&self.facts))),
-                _ => None,
-            })
-            .collect();
-        for (parts, proof) in disjunctions {
-            if self.active_cuts.contains(&proof.conclusion) {
+        for index in 0..self.facts.len() {
+            // No branch can start once the shared budget is exhausted. An
+            // active cut likewise supplies no new information. Check both
+            // before expanding its owned proof tree or cloning alternatives.
+            if self.remaining_case_branches == 0 {
+                return None;
+            }
+            let fact = &self.facts[index];
+            let Proposition::Disjunction(parts) = &fact.proposition else {
+                continue;
+            };
+            if self.active_cuts.contains(&fact.proposition) {
                 continue;
             }
-            self.active_cuts.push(proof.conclusion.clone());
+            let parts = parts.clone();
+            self.active_cuts.push(fact.proposition.clone());
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
@@ -1150,6 +1158,14 @@ impl<'a> Prover<'a> {
             self.active_cuts.pop();
             if branches.len() != parts.len() {
                 continue;
+            }
+            // Failed cuts need no owned derivation of the disjunction. Facts
+            // stay fixed while branches are checked, so expand this exact
+            // selected source only after every alternative has proved the goal.
+            let proof = self.facts[index].proof(&self.facts);
+            #[cfg(test)]
+            {
+                self.activity.disjunction_materializations += 1;
             }
             return Some(node(
                 goal.clone(),
