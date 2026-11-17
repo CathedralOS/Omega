@@ -28,9 +28,10 @@ pub use product::{
     provider_declarations, test_groups,
 };
 pub use scalar_applications::{
-    AdmittedImportRealizations, InvocationTarget, ScalarScopeEvaluation, TargetImportRealizations,
-    complete_invocation_scalar_applications, complete_scalar_applications,
-    evaluate_scalar_applications, evaluate_scalar_applications_with_address_model,
+    AdmittedImportRealizations, InvocationTarget, ScalarApplicationCompletion,
+    ScalarScopeEvaluation, TargetImportRealizations, complete_invocation_scalar_applications,
+    complete_scalar_applications, evaluate_scalar_applications,
+    evaluate_scalar_applications_with_address_model, prepare_scalar_applications,
 };
 pub use source_frontier::{
     AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeInvocationCustody,
