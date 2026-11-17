@@ -12,6 +12,11 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
+The proposed route fills five columns. Read down to the last output in a
+column, then follow its arrow up the gutter to the next stage. Desktop opens
+with the whole route in view. On a phone, Start frames the first column
+and Fit whole compiler shows all five.
+
 Follow the bold route from START, top to bottom. Numbered stages show the
 compilation order and phase frames group related work. In Current, dashed
 connections show the observed supporting calls and returns; each shared component

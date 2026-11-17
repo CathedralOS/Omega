@@ -41,6 +41,8 @@
       current=event.transform;scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
       root.dataset.camera=`${current.x},${current.y},${current.k}`;
+      root.dataset.whole=String(current.x>=-1 && current.y>=-1 &&
+        current.x+model.width*current.k<=viewport.clientWidth+1 && current.y+model.height*current.k<=viewport.clientHeight+1);
       miniWindow.setAttribute('x',-current.x/current.k);miniWindow.setAttribute('y',-current.y/current.k);
       miniWindow.setAttribute('width',viewport.clientWidth/current.k);miniWindow.setAttribute('height',viewport.clientHeight/current.k);
     });
@@ -135,7 +137,12 @@
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
-    if(action==='expand'){expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);control.textContent=expanded?'Collapse':'Expand';}
+    if(action==='expand'){
+      const fitted=view==='proposed' && root.dataset.whole==='true';
+      expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
+      control.textContent=expanded?'Collapse':'Expand';
+      if(fitted)start();
+    }
   }));
   viewport.addEventListener('keydown',event=>{
     if(event.target!==viewport)return;
@@ -159,6 +166,18 @@
     svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);
     const t=responsiveCamera(current,cameraWidth);cameraWidth=viewport.clientWidth;move(t.x,t.y,t.k);
   }).observe(viewport);
-  function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
+  function start(){
+    if(view==='proposed'){
+      if(viewport.clientWidth>=680){
+        const k=Math.min((viewport.clientWidth-12)/model.width,(viewport.clientHeight-12)/model.height);
+        move((viewport.clientWidth-model.width*k)/2,6,k);
+      }else{
+        move(6,8,Math.min(1,(viewport.clientWidth-12)/318));
+      }
+      return;
+    }
+    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+  }
   start();
+  if(location.hash==='#proposed')switchView('proposed');
 })();

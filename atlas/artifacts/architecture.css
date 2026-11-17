@@ -94,6 +94,25 @@
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
 .overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
+.proposed-scene .overview-node .column-title { font:500 17px var(--font-serif); }
+.proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
+.proposed-scene .overview-node rect { stroke-width:1; stroke-dasharray:none; }
+.proposed-scene .overview-node.owner rect { fill:var(--ink); stroke:var(--ink); }
+.proposed-scene .overview-node.owner text { fill:var(--ground); }
+#compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
+#compiler-overview[data-view="proposed"][data-whole="true"] .connected-minimap { display:none; }
+@media(min-width:800px){
+  #compiler-overview[data-view="proposed"] .connected-views,
+  #compiler-overview[data-view="proposed"] .connected-tools { display:inline-flex; vertical-align:middle; margin:0 12px 6px 0; padding:0; }
+  #compiler-overview[data-view="proposed"] .connected-intro { margin:0 0 6px; }
+  #compiler-overview[data-view="proposed"] { display:grid; grid-template-columns:auto 1fr; column-gap:8px; }
+  #compiler-overview[data-view="proposed"] > * { grid-column:1/-1; }
+  #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
+  #compiler-overview[data-view="proposed"] [data-legend="proposed"] { display:none; }
+  .architecture.is-expanded #compiler-overview[data-view="proposed"] .connected-viewport { height:calc(100dvh - 170px); min-height:300px; }
+}
 .proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }

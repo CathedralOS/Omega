@@ -34,9 +34,14 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
             if edge['start'] in positions and edge['end'] in positions:
                 self.assertEqual(positions[edge['end']],positions[edge['start']]+1)
         nodes={n['id']:n for n in self.layout['nodes']}
+        self.assertGreater(self.layout['width'],self.layout['height'])
         for a,b in zip(spine,spine[1:]):
-            self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
-            self.assertEqual(nodes[a]['x'],nodes[b]['x'])
+            if nodes[a]['x']==nodes[b]['x']:
+                self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            else:
+                self.assertGreater(nodes[b]['x'],nodes[a]['x']+nodes[a]['width'])
+                self.assertEqual(nodes[a]['role'],'artifact')
+                self.assertEqual(nodes[b]['role'],'owner')
 
     def test_side_services_and_extra_dependencies_are_rejected(self):
         for mutation in ('node','edge','return','skip'):

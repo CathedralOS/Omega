@@ -239,6 +239,9 @@ def overview_model(architecture):
 
 
 def layout_model(model):
+    if model.get('view')=='proposed':
+        from .stage_columns import layout_columns
+        return layout_columns(model)
     result = subprocess.run(['node', str(Path(__file__).with_name('layout.mjs'))],
                             input=json.dumps(model), text=True, encoding='utf-8',
                             capture_output=True)
@@ -286,6 +289,13 @@ def render_scene(model):
             for label in n['labels']:
                 for i,line in enumerate(label['lines']):
                     parts.append(f'<text class="overview-action" x="{label["x"]+4}" y="{label["y"]+20+26*i}">{esc(line)}</text>')
+        elif model.get('view')=='proposed':
+            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
+            parts.append(f'<text class="column-title" x="{x+9}" y="{y+20}">{esc(n["title"])}</text>')
+            for i,line in enumerate(n.get('notes',[])):
+                parts.append(f'<text class="overview-step-note" x="{x+9}" y="{y+35+i*15}">{esc(line)}</text>')
+            if n['reference']:
+                parts.append(f'<text class="overview-step-note" x="{x+w-7}" y="{y+35}" text-anchor="end">{esc(n["reference"])}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             lines=textwrap.wrap(n['title'],21 if model.get('view')=='proposed' else 23,break_long_words=False,break_on_hyphens=False)
