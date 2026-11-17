@@ -1913,6 +1913,12 @@ impl<'a> Storage<'a> {
                     )
                 })?;
                 retained.live.extend(lifetime.live.iter().copied());
+                retained.live.extend(
+                    lifetime
+                        .surviving
+                        .iter()
+                        .filter_map(|(at, names)| (!names.is_empty()).then_some(*at)),
+                );
             }
             children[parent] -= 1;
             if children[parent] == 0 {
@@ -2452,6 +2458,48 @@ impl<'a> Storage<'a> {
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
         let mut formed = self.formed(references, module, tables)?;
+        let addresses =
+            terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
+                .map_err(|error| match error {
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                    self.foreign(Construct::Machine, detail)
+                }
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    self.unsupported(Construct::Machine, detail)
+                }
+            })?;
+        for loan in &mut formed {
+            let Some(lifetime) = &mut loan.lifetime else {
+                continue;
+            };
+            // A non-owning block header retains an address, not a descriptor
+            // cell whose disposal must be emitted. Its future uses and every
+            // child debt remain live independently of that temporary spelling.
+            // Plain-affine verification still requires complete restoration.
+            for positions in [&mut lifetime.authorized, &mut lifetime.surviving] {
+                for (at, names) in positions {
+                    let mut missing = false;
+                    names.retain(|name| {
+                        if !name.path.is_empty() || !addresses.is_address_header(name.root) {
+                            return true;
+                        }
+                        match addresses.is_live(name.root, *at) {
+                            Some(live) => live,
+                            None => {
+                                missing = true;
+                                true
+                            }
+                        }
+                    });
+                    if missing {
+                        return Err(self.foreign(
+                            Construct::Obligation(loan.obligation),
+                            "borrowed address retirement lost its actual control-flow cut",
+                        ));
+                    }
+                }
+            }
+        }
         self.parents(references, module, &formed)?;
         self.successor_borrows(references, &formed)?;
         self.reference_completions(references, module, &formed)?;

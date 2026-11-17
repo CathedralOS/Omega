@@ -1725,6 +1725,29 @@ machine entry() -> u32 {
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
         "the indexed write uses the actual retained descriptor permission: {verdict:?}"
     );
+    let repeated = r#"
+data Cell [copy] { before: u32; value: u32; after: u32; }
+machine write(cells: &mut [Cell], index: u64, steps: u64) -> u32
+terminates by steps
+requires index < cells.len && steps > 0u64
+{
+    cells[index].value = 9u32;
+    cells[index].after = 10u32;
+    transition steps > 1u64 {
+        true -> write(cells, index, steps - 1u64)
+        false -> cells[index].value
+    }
+}
+machine entry() -> u32 {
+    let mut cells: [Cell; 2] = [Cell { before: 11, value: 12, after: 13 }, Cell { before: 21, value: 22, after: 23 }];
+    write(&mut cells[..], 1u64, 2u64)
+}
+"#;
+    let verdict = check(repeated);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "each field write retires only its actual temporary record address: {verdict:?}"
+    );
     let bypass = writing.replace("view[index].value = 9u32;", "cells[index].value = 9u32;");
     let verdict = check(&bypass);
     assert!(

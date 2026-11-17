@@ -1328,6 +1328,21 @@ mod id_table {
             self.words.get(word).is_some_and(|bits| bits & mask != 0)
         }
 
+        /// Visit present identities in increasing order without scanning absent bits.
+        pub fn iter(&self) -> impl Iterator<Item = Id> + '_ {
+            self.words.iter().enumerate().flat_map(|(position, &word)| {
+                let mut remaining = word;
+                std::iter::from_fn(move || {
+                    if remaining == 0 {
+                        return None;
+                    }
+                    let bit = remaining.trailing_zeros();
+                    remaining &= remaining - 1;
+                    Id::new(position as u64 * 64 + u64::from(bit) + 1)
+                })
+            })
+        }
+
         pub fn insert(&mut self, identity: Id) -> bool {
             let (word, mask) = Self::coordinate(identity);
             if word >= self.words.len() {
@@ -1387,6 +1402,9 @@ mod id_table {
             assert!(left.contains(id(65)));
             assert!(!left.contains(id(64)));
             assert!(!right.contains(id(2)));
+            assert_eq!(left.iter().collect::<Vec<_>>(), [id(2), id(65)]);
+            assert_eq!(right.iter().collect::<Vec<_>>(), [id(65)]);
+            assert_eq!(IdSet::<StructuralTypeId>::new().iter().count(), 0);
             left.union_with(&IdSet::new());
             assert!(left.contains(id(65)));
         }

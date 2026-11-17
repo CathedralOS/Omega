@@ -609,74 +609,14 @@ fn live_entries(
     loop {
         let mut changed = false;
         for block in machine.blocks.iter().rev() {
-            let mut before = IdSet::new();
-            for target in block.terminator.successor_targets() {
-                before.union_with(
-                    live.get(index(target.get())?)
-                        .ok_or(Error::malformed("edge target is outside the machine"))?,
-                );
-            }
-            let valid = |place: PlaceId| -> Result<PlaceId, Error> {
-                if index(place.get())? < machine.structural_places.len() {
-                    Ok(place)
-                } else {
-                    Err(Error::malformed("live place is outside the machine"))
-                }
-            };
-            for root in terminator_roots(&block.terminator) {
-                before.insert(valid(root)?);
-            }
-            let end = u32::try_from(block.operations.len())
-                .map_err(|_| Error::malformed("reference observation position overflows"))?;
-            if let Some(backing) = reference_backing.get(&(block.id, end)) {
-                before.union_with(backing);
-            }
-            for (position, operation) in block.operations.iter().enumerate().rev() {
-                if let Some(result) = operation.result.as_structural() {
-                    before.remove(valid(result.place)?);
-                }
-                for used in operation
-                    .kind
-                    .storage_uses()
-                    .into_iter()
-                    .filter_map(|(storage, _)| storage_root(storage))
-                {
-                    before.insert(valid(used)?);
-                }
-                // A planned release is a real future use of its owned
-                // descriptor home. Keep that home until the planner can emit
-                // it; otherwise edge cleanup could close a parent while its
-                // child still runs. The final verifier reads emitted uses.
-                let position = u32::try_from(position)
-                    .map_err(|_| Error::malformed("reference end position overflows"))?;
-                if let Some(backing) = reference_backing.get(&(block.id, position)) {
-                    before.union_with(backing);
-                }
-                for candidate in reference_candidates
-                    .and_then(|candidates| candidates.get(&(block.id, position)))
-                    .into_iter()
-                    .flatten()
-                {
-                    before.insert(valid(candidate.argument.place)?);
-                }
-            }
-            for parameter in &block.structural_parameters {
-                if parameter.access != StructuralAccess::Owned
-                    && before.contains(parameter.place)
-                    && !crate::descriptor_results::is_descriptor(
-                        types.iter(),
-                        parameter.structural_type,
-                    )
-                {
-                    // The new name still borrows the captured home. Keep its
-                    // original owners until the last use of that name.
-                    let captures = crate::storage_names(machine, block.id, parameter.place);
-                    for root in captures.captured_roots() {
-                        before.insert(valid(root)?);
-                    }
-                }
-                before.remove(valid(parameter.place)?);
-            }
+            let before = block_live_places(
+                machine,
+                types,
+                block,
+                &live,
+                reference_candidates,
+                reference_backing,
+            )?;
             let old = live
                 .get_mut(index(block.id.get())?)
                 .ok_or(Error::malformed("block is outside the machine"))?;
@@ -689,6 +629,208 @@ fn live_entries(
             return Ok(live);
         }
     }
+}
+
+fn block_live_places(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    block: &terminal_psi::Block,
+    live: &[IdSet<PlaceId>],
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
+    reference_backing: &std::collections::BTreeMap<
+        crate::descriptor_lifetimes::DescriptorPosition,
+        IdSet<PlaceId>,
+    >,
+) -> Result<IdSet<PlaceId>, Error> {
+    let mut before = IdSet::new();
+    for target in block.terminator.successor_targets() {
+        before.union_with(
+            live.get(index(target.get())?)
+                .ok_or(Error::malformed("edge target is outside the machine"))?,
+        );
+    }
+    let valid = |place: PlaceId| -> Result<PlaceId, Error> {
+        if index(place.get())? < machine.structural_places.len() {
+            Ok(place)
+        } else {
+            Err(Error::malformed("live place is outside the machine"))
+        }
+    };
+    for root in terminator_roots(&block.terminator) {
+        before.insert(valid(root)?);
+    }
+    let end = u32::try_from(block.operations.len())
+        .map_err(|_| Error::malformed("reference observation position overflows"))?;
+    if let Some(backing) = reference_backing.get(&(block.id, end)) {
+        before.union_with(backing);
+    }
+    for (position, operation) in block.operations.iter().enumerate().rev() {
+        if let Some(result) = operation.result.as_structural() {
+            before.remove(valid(result.place)?);
+        }
+        for used in operation
+            .kind
+            .storage_uses()
+            .into_iter()
+            .filter_map(|(storage, _)| storage_root(storage))
+        {
+            before.insert(valid(used)?);
+        }
+        // A planned release is a real future use of its owned
+        // descriptor home. Keep that home until the planner can emit
+        // it; otherwise edge cleanup could close a parent while its
+        // child still runs. The final verifier reads emitted uses.
+        let position = u32::try_from(position)
+            .map_err(|_| Error::malformed("reference end position overflows"))?;
+        if let Some(backing) = reference_backing.get(&(block.id, position)) {
+            before.union_with(backing);
+        }
+        for candidate in reference_candidates
+            .and_then(|candidates| candidates.get(&(block.id, position)))
+            .into_iter()
+            .flatten()
+        {
+            before.insert(valid(candidate.argument.place)?);
+        }
+    }
+    for parameter in &block.structural_parameters {
+        if parameter.access != StructuralAccess::Owned
+            && before.contains(parameter.place)
+            && !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+        {
+            // The new name still borrows the captured home. Keep its
+            // original owners until the last use of that name.
+            let captures = crate::storage_names(machine, block.id, parameter.place);
+            for root in captures.captured_roots() {
+                before.insert(valid(root)?);
+            }
+        }
+        before.remove(valid(parameter.place)?);
+    }
+    Ok(before)
+}
+
+/// Future uses of non-owning headers with no contained permission cells.
+/// Each block retains the last actual use, rather than a set at every operation.
+pub struct BorrowedAddressLiveness {
+    headers: IdSet<PlaceId>,
+    blocks: Vec<Option<BorrowedAddressUses>>,
+}
+
+struct BorrowedAddressUses {
+    end: u32,
+    last_uses: Vec<(PlaceId, u32)>,
+}
+
+impl BorrowedAddressLiveness {
+    pub fn is_address_header(&self, place: PlaceId) -> bool {
+        self.headers.contains(place)
+    }
+
+    pub fn is_live(
+        &self,
+        place: PlaceId,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+    ) -> Option<bool> {
+        let block = self.blocks.get(index(at.0.get()).ok()?)?.as_ref()?;
+        if at.1 > block.end {
+            return None;
+        }
+        Some(
+            block
+                .last_uses
+                .binary_search_by_key(&place, |(place, _)| *place)
+                .is_ok_and(|position| at.1 <= block.last_uses[position].1),
+        )
+    }
+}
+
+pub fn borrowed_address_liveness(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+) -> Result<BorrowedAddressLiveness, Error> {
+    let mut headers = IdSet::new();
+    let mut has_headers = false;
+    for parameter in machine.block_structural_parameters() {
+        if parameter.access == StructuralAccess::Owned {
+            continue;
+        }
+        crate::structural_declaration(types.iter(), parameter.structural_type).ok_or(
+            Error::malformed("borrowed address header lost its declared carrier"),
+        )?;
+        if !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+            && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
+                .owned_slots(types, parameter.place, parameter.structural_type)
+                .is_some_and(|slots| slots.is_empty())
+        {
+            headers.insert(parameter.place);
+            has_headers = true;
+        }
+    }
+    let mut result = BorrowedAddressLiveness {
+        headers,
+        blocks: (0..machine.blocks.len()).map(|_| None).collect(),
+    };
+    if !has_headers {
+        return Ok(result);
+    }
+    let backing = Default::default();
+    let live = live_entries(machine, types, None, &backing)?;
+    for block in &machine.blocks {
+        let end = u32::try_from(block.operations.len())
+            .map_err(|_| Error::malformed("reference observation position overflows"))?;
+        let mut last_uses = Vec::new();
+        let mut retain = |place, at| {
+            if result.headers.contains(place) {
+                last_uses.push((place, at));
+            }
+        };
+        for target in block.terminator.successor_targets() {
+            for place in live
+                .get(index(target.get())?)
+                .ok_or(Error::malformed("edge target is outside the machine"))?
+                .iter()
+            {
+                retain(place, end);
+            }
+        }
+        for place in terminator_roots(&block.terminator) {
+            retain(place, end);
+        }
+        for (position, operation) in block.operations.iter().enumerate() {
+            // A block parameter cannot be defined again by an operation.
+            if operation
+                .result
+                .as_structural()
+                .is_some_and(|result_place| result.headers.contains(result_place.place))
+            {
+                return Err(Error::malformed(
+                    "borrowed address header is redefined inside its block",
+                ));
+            }
+            let position = u32::try_from(position)
+                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            for place in operation
+                .kind
+                .storage_uses()
+                .into_iter()
+                .filter_map(|(storage, _)| storage_root(storage))
+            {
+                retain(place, position);
+            }
+        }
+        last_uses.sort_unstable_by_key(|(place, position)| (*place, std::cmp::Reverse(*position)));
+        last_uses.dedup_by_key(|(place, _)| *place);
+        let row = result
+            .blocks
+            .get_mut(index(block.id.get())?)
+            .ok_or(Error::malformed("block is outside the machine"))?;
+        if row.is_some() {
+            return Err(Error::malformed("borrowed address block is repeated"));
+        }
+        *row = Some(BorrowedAddressUses { end, last_uses });
+    }
+    Ok(result)
 }
 
 /// Plans only no-code affine storage, including each receiving region's store
@@ -4665,6 +4807,59 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn borrowed_address_names_end_at_last_use_but_descriptor_cells_do_not() {
+        use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
+        let mut types = reconvergence_types();
+        let mut machine = borrowed_backedge(StructuralAccess::MutableBorrow);
+        machine.blocks[1].operations.push(Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::MutableBorrow,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ));
+        let forwarding = machine.blocks[1].terminator.clone();
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        let names = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(names.is_address_header(id(2)));
+        assert_eq!(names.is_live(id(2), (id(2), 0)), Some(true));
+        assert_eq!(names.is_live(id(2), (id(2), 1)), Some(false));
+        assert_eq!(names.is_live(id(2), (id(99), 0)), None);
+        assert_eq!(names.is_live(id(2), (id(2), 2)), None);
+        assert!(borrowed_address_liveness(&machine, &types[..2]).is_err());
+        machine.blocks[1].terminator = forwarding;
+        let names = borrowed_address_liveness(&machine, &types).unwrap();
+        assert_eq!(names.is_live(id(2), (id(2), 1)), Some(true));
+        types[2].shape = StructuralTypeShape::Reference {
+            referent: id(2),
+            access: StructuralAccess::SharedBorrow,
+        };
+        let cells = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(!cells.is_address_header(id(2)));
+        types[2].shape = types[0].shape.clone();
+        types[1].shape = StructuralTypeShape::Reference {
+            referent: id(1),
+            access: StructuralAccess::SharedBorrow,
+        };
+        types[1].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+        let contained = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(!contained.is_address_header(id(2)));
     }
 
     #[test]
