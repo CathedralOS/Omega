@@ -557,6 +557,9 @@ fn declaration(
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
     let contract = declaration_contract_commitment(
+        typed,
+        sources,
+        identities,
         &callable,
         formals,
         &parameter_types,
@@ -570,7 +573,7 @@ fn declaration(
         &machine.contract.crash_routes,
         signature,
         published,
-    );
+    )?;
 
     Ok((
         CheckedMachineDeclaration {
@@ -1684,6 +1687,9 @@ fn top_level_boundary(
         .collect::<Result<Vec<_>, _>>()?;
     let result_type = type_text(return_type)?;
     let contract = declaration_contract_commitment(
+        typed,
+        &sources,
+        identities,
         &callable,
         formals,
         &parameter_types,
@@ -1695,7 +1701,8 @@ fn top_level_boundary(
             .ok_or_else(|| Diagnostic::error("primitive has no crash ceiling"))?,
         signature,
         published,
-    );
+    )
+    .map_err(Diagnostic::error)?;
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
         state: NominalDeclarationIdentity::new(
@@ -1769,6 +1776,9 @@ pub(crate) fn trait_requirement(
         return Err("boundary requirement has no canonical callable identity");
     }
     let contract = declaration_contract_commitment(
+        typed,
+        sources,
+        identities,
         &callable,
         formals,
         &parameter_types,
@@ -1778,7 +1788,7 @@ pub(crate) fn trait_requirement(
         signature.declared_crash_routes().unwrap_or_default(),
         signature,
         published,
-    );
+    )?;
     let (specialization, method_arguments) =
         match typed.closed_requirement_application(requirement.symbol) {
             Some(closed) => {
@@ -1966,8 +1976,54 @@ impl RequirementApplicationSource {
     }
 }
 
+fn commit_result_memberships(
+    typed: Option<&TypedTrees>,
+    sources: &[(source::SourceId, [u8; 32])],
+    signature: &Signature,
+    identities: &mut TerminalIdentityTableBuilder,
+    commitment: &mut Commitment,
+) -> Result<(), &'static str> {
+    if signature.membership_ensures.is_empty() {
+        return Ok(());
+    }
+    let typed =
+        typed.ok_or("normal-result membership lost its exact source declaration context")?;
+    b"normal-result-memberships.v1".hash(commitment);
+    signature.membership_ensures.len().hash(commitment);
+    for membership in &signature.membership_ensures {
+        use crate::body::RuntimeMembershipSubject;
+        let identity =
+            crate::qualifications::domain_identity(typed, sources, membership.domain, identities)?;
+        identities
+            .text(identity)
+            .ok_or("normal-result membership lost its canonical domain application")?
+            .hash(commitment);
+        match &membership.subject {
+            RuntimeMembershipSubject::Scalar(subject) => {
+                0u8.hash(commitment);
+                subject.hash(commitment);
+            }
+            RuntimeMembershipSubject::Structural {
+                root,
+                path,
+                version,
+                ..
+            } => {
+                1u8.hash(commitment);
+                root.hash(commitment);
+                path.hash(commitment);
+                version.hash(commitment);
+            }
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn declaration_contract_commitment<'a>(
+    typed: &TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    identities: &mut TerminalIdentityTableBuilder,
     callable: &str,
     formals: arena::RootRows<'_, typed_trees::signature::StateParameter>,
     parameter_types: &[String],
@@ -1977,7 +2033,7 @@ fn declaration_contract_commitment<'a>(
     crash_routes: &[terminal_psi::CrashRouteBucket],
     signature: &Signature,
     published: Published<'_>,
-) -> [u8; 32] {
+) -> Result<[u8; 32], &'static str> {
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     callable.hash(&mut commitment);
     for (formal, type_text) in formals.iter().zip(parameter_types) {
@@ -1994,6 +2050,7 @@ fn declaration_contract_commitment<'a>(
     for proposition in ensures {
         proposition.hash(&mut commitment);
     }
+    commit_result_memberships(Some(typed), sources, signature, identities, &mut commitment)?;
     crash_routes.hash(&mut commitment);
     // A caller relies on the promise, never on how it is discharged:
     // termination.md, "Ranking subjects, view, rank range, cyclic-component
@@ -2020,7 +2077,7 @@ fn declaration_contract_commitment<'a>(
         ("synchronous entries", published.entries).hash(&mut commitment);
     }
     published.operational.hash(&mut commitment);
-    commitment.0.finish()
+    Ok(commitment.0.finish())
 }
 
 /// The identities of the rows a declaration publishes on the two ceiling
@@ -2279,11 +2336,12 @@ pub(crate) fn boundary_source(
 }
 
 pub(crate) fn boundary_declaration(
+    typed: Option<&TypedTrees>,
     source: &BoundaryDeclarationSource,
     signature: &Signature,
     proof: &terminal_psi::MachineContract,
     identities: &mut TerminalIdentityTableBuilder,
-) -> CheckedMachineDeclaration {
+) -> Result<CheckedMachineDeclaration, &'static str> {
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     source.callable.hash(&mut commitment);
     for (mode, type_text) in source.parameter_modes.iter().zip(&source.parameter_types) {
@@ -2294,6 +2352,18 @@ pub(crate) fn boundary_declaration(
     for clause in &proof.ensures {
         clause.proposition.hash(&mut commitment);
     }
+    let sources = if signature.membership_ensures.is_empty() {
+        Vec::new()
+    } else {
+        source::source_identity::toolchain_source_identities(
+            typed
+                .ok_or("normal-result membership lost its source context")?
+                .symbols
+                .source_files(),
+        )
+        .map_err(|_| "normal-result membership lost its toolchain source identity")?
+    };
+    commit_result_memberships(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
     let specialization = source.application.as_ref().map(|source| {
@@ -2303,7 +2373,7 @@ pub(crate) fn boundary_declaration(
             .application
             .publish_specialization(template, semantic, identities)
     });
-    CheckedMachineDeclaration {
+    Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
         state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
         semantic_declaration: identities.intern(&source.semantic),
@@ -2318,12 +2388,13 @@ pub(crate) fn boundary_declaration(
         published_may_suspend: source.may_suspend,
         published_may_block: source.may_block,
         specialization,
-    }
+    })
 }
 
 /// A bodyless callable commits to its complete retained operational ceiling.
 /// Service identities are portable declaration identities, never module slots.
 pub(crate) fn provider_declaration(
+    typed: Option<&TypedTrees>,
     source: &BoundaryDeclarationSource,
     signature: &Signature,
     proof: &terminal_psi::MachineContract,
@@ -2331,7 +2402,7 @@ pub(crate) fn provider_declaration(
     services: &crate::reach::ServiceMap,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
-    let mut declaration = boundary_declaration(source, signature, proof, identities);
+    let mut declaration = boundary_declaration(typed, source, signature, proof, identities)?;
     declaration.published_may_suspend = envelope.suspends;
     declaration.published_may_block = envelope.blocks;
     let mut commitment = Commitment(DomainDigestEncoder::new(

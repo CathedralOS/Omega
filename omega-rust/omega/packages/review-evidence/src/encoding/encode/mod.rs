@@ -59,3 +59,6 @@ pub(in crate::encoding::encode) fn type_identity_in_scope(
     encoder.observe_type_identity(identity.canonical(), declared_lifetimes)?;
     encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
 }
+
+#[cfg(test)]
+pub(super) use values::contracts::encode_contract_fact;

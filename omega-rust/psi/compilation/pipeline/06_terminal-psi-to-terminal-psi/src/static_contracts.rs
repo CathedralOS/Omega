@@ -551,6 +551,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                     .iter()
                     .map(|clause| clause.proposition.clone())
                     .collect::<Vec<_>>()
+            || boundary.membership_ensures != question.required.proof.membership_ensures
             || boundary.crash_routes != question.required.proof.crash_routes
             || question.required.crash_policy != CallableCrashPolicy::Closed
             || !match (&boundary.result, &question.required.result) {

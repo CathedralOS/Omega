@@ -300,6 +300,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     let mut signatures = IdTable::default();
     for requires in [vec![at_least(1, 1)], Vec::new()] {
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
@@ -354,6 +355,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         let mut signatures = IdTable::default();
         for requires in [entry_requires, Vec::new()] {
             signatures.push(Signature {
+                membership_ensures: Vec::new(),
                 operational: Default::default(),
                 parameters: vec![u32_type().into()],
                 erased: Vec::new(),

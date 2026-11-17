@@ -14,9 +14,10 @@ use language_semantics::DomainPredicatePresence;
 use language_semantics::declaration_selection::CompositionMode;
 use language_semantics::service_surface::identities::{ProviderIdentityId, ProviderIdentityTable};
 use language_semantics::service_surface::{
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceReceiverApplication, ServiceResultClaim, ServiceSurface,
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceNormalResultMembership,
+    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceReceiverApplication, ServiceResultClaim,
+    ServiceResultProjection, ServiceSurface,
 };
 use std::sync::Arc;
 use terminal_psi::{
@@ -97,6 +98,11 @@ wire_enum! {
         1 => CheckedRequirement,
         2 => BoundaryRequirement,
     }
+    ResultProjection: ServiceResultProjection, "ServiceResultProjection" {
+        1 => Field(name: Text),
+        2 => Case(name: Text),
+        3 => FixedIndex(index: crate::wire_fields::U64),
+    }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -119,6 +125,7 @@ wire_record! {
         effective_carry: Carry,
         authority_flow: AuthorityFlow,
     }
+    NormalMembership: ServiceNormalResultMembership { path: List<ResultProjection>, domain: Text }
     ResultClaim: ServiceResultClaim {
         domain: Text,
         effective_carry: Carry,
@@ -146,6 +153,7 @@ wire_record! {
         has_result: Flag,
         result_type_identity: ProviderIdentity,
         result_claims: List<ResultClaim>,
+        normal_result_memberships: List<NormalMembership>,
         service_reach: List<Text>,
         synchronous_invocations: List<Text>,
         may_suspend: Flag,

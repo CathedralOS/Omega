@@ -296,6 +296,23 @@ pub mod types {
         macro_rules! requirement_queries {
             ($declaration:ty, $id:ty) => {
                 impl $declaration {
+            pub fn authorizes_boundary_requirement(
+                &self,
+                requirement: crate::TerminalIdentityIndex,
+                declaration: Option<crate::TerminalIdentityIndex>,
+            ) -> bool {
+                self.establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|route| {
+                        matches!(route, crate::StructuralEstablishmentRoute::BoundaryRequirement {
+                        requirement_identity: authorized,
+                        declaration: owner,
+                    } if *authorized == requirement && Some(owner.identity()) == declaration)
+                    })
+            }
+
                     pub fn has_no_required_memberships(&self) -> bool {
                         self.required().is_some_and(<[DomainSemanticId]>::is_empty)
                     }
@@ -430,23 +447,6 @@ pub mod types {
                             && plan.writers.is_empty()
                             && plan.observations.is_empty()
                             && plan.reach.services().len() == 0
-                    })
-            }
-
-            pub fn authorizes_boundary_requirement(
-                &self,
-                requirement: TerminalIdentityIndex,
-                declaration: Option<TerminalIdentityIndex>,
-            ) -> bool {
-                self.establishment_routes
-                    .as_deref()
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|route| {
-                        matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
-                        requirement_identity: authorized,
-                        declaration: owner,
-                    } if *authorized == requirement && Some(owner.identity()) == declaration)
                     })
             }
 

@@ -1,6 +1,6 @@
 /*
     We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 18). Sequences are `u64` length-prefixed, byte strings are framed,
+    version 19). Sequences are `u64` length-prefixed, byte strings are framed,
     every enum uses a checked tag, and the provider identity table is serialized
     ahead of every service-schema field that indexes into it so recovery
     re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
@@ -21,6 +21,7 @@ use effects::provider_plan::{
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use language_semantics::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use language_semantics::{CarryPolicy, DomainPredicatePresence};
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::native_output_codec::{decode, encode};
@@ -39,7 +40,7 @@ use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 18;
+const RECORD_VERSION: u16 = 19;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -296,6 +297,27 @@ fn encode_service_method(
         encode_string(&claim.domain, out);
         encode_carry(&claim.effective_carry, out);
     }
+    push_count_u64(out, method.normal_result_memberships.len());
+    for membership in &method.normal_result_memberships {
+        push_count_u64(out, membership.path.len());
+        for step in &membership.path {
+            match step {
+                ServiceResultProjection::Field(identity) => {
+                    out.push(1);
+                    encode_string(identity, out);
+                }
+                ServiceResultProjection::Case(identity) => {
+                    out.push(2);
+                    encode_string(identity, out);
+                }
+                ServiceResultProjection::FixedIndex(index) => {
+                    out.push(3);
+                    push_encoded(out, index.to_le_bytes());
+                }
+            }
+        }
+        encode_string(&membership.domain, out);
+    }
     push_count_u64(out, method.service_reach.len());
     for reach in &method.service_reach {
         encode_string(reach, out);
@@ -433,6 +455,27 @@ fn recover_service_method(
             effective_carry: recover_carry(cursor)?,
         })
     })?;
+    let normal_result_memberships = cursor_vec(cursor, |cursor| {
+        let path = cursor_vec(cursor, |cursor| {
+            Some(match cursor.u8()? {
+                1 => ServiceResultProjection::Field(cursor_string(cursor)?.to_owned()),
+                2 => ServiceResultProjection::Case(cursor_string(cursor)?.to_owned()),
+                3 => ServiceResultProjection::FixedIndex(cursor.u64()?),
+                _ => return None,
+            })
+        })?;
+        let row = ServiceNormalResultMembership {
+            path,
+            domain: cursor_string(cursor)?.to_owned(),
+        };
+        row.has_exact_identity().then_some(row)
+    })?;
+    if normal_result_memberships
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return None;
+    }
     let service_reach = cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
     let synchronous_invocations =
         cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
@@ -491,6 +534,7 @@ fn recover_service_method(
             has_result,
             result_type_identity,
             result_claims,
+            normal_result_memberships,
             service_reach,
             synchronous_invocations,
             may_suspend,
@@ -946,6 +990,40 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
 mod tests {
     use super::*;
     use effects::provider_plan::ServiceSurface;
+
+    #[test]
+    fn cached_service_keeps_exact_normal_membership_applications() {
+        let mut identities = ProviderIdentityTable::default();
+        let result = identities.intern("u64");
+        let requirement = identities.intern("Service::get");
+        let method = ServiceMethod {
+            name: "get".into(),
+            requirement_owner: "Service".into(),
+            requirement_identity: requirement,
+            has_result: true,
+            result_type_identity: result,
+            normal_result_memberships: vec![
+                ServiceNormalResultMembership {
+                    path: Vec::new(),
+                    domain: "exact-domain<1>".into(),
+                },
+                ServiceNormalResultMembership {
+                    path: Vec::new(),
+                    domain: "exact-domain<2>".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        let mut bytes = Vec::new();
+        encode_service_method(&method, &identities, Vec::new(), &mut bytes);
+        let mut recovered_identities = identities.clone();
+        let mut cursor = ObservationCursor::new(&bytes);
+        let (recovered, calling) =
+            recover_service_method(&mut cursor, &mut recovered_identities).unwrap();
+        assert_eq!(recovered, method);
+        assert!(calling.is_empty());
+        assert!(cursor.exhausted());
+    }
 
     #[test]
     fn consumed_source_codec_preserves_contract_role_and_existing_tags() {

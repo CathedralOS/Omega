@@ -1375,6 +1375,7 @@ fn validate_change(
     source: &StructuralArgument,
     destination: &Memberships,
     target: BlockId,
+    facts: &crate::membership_facts::MembershipFacts,
 ) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -1479,7 +1480,8 @@ fn validate_change(
         let missing = declared
             .missing_membership_requirements(&module.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
-        if missing {
+        let forwarded = facts.structural_on_edge(module, change, *referent, *id);
+        if missing && !forwarded {
             return malformed(
                 machine,
                 "a structural cast adds a domain without its required memberships",
@@ -1491,10 +1493,11 @@ fn validate_change(
             (None, Some(_)) => {
                 return malformed(machine, "a structural cast names a route its domain lacks");
             }
+            (Some(_), None) if forwarded => {}
             (Some(_), None) => {
                 return malformed(
                     machine,
-                    "a structural cast adds a routed domain without its issuer route",
+                    "a structural cast lacks both an existing membership and an authorized issuer route",
                 );
             }
             (Some(routes), Some(row)) => {
@@ -1547,6 +1550,26 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
+    byte_change_judgment(module, places, change, source, destination)
+}
+
+fn byte_change_judgment(
+    module: &TerminalModule,
+    places: &Declared<'_>,
+    change: &StructuralQualificationChange,
+    source: &StructuralArgument,
+    destination: &Memberships,
+) -> Judged<Option<bool>> {
+    let machine = places.machine();
+    if !source.path.is_empty() || change.source != source.place {
+        return malformed(machine, "a byte qualification change names another source");
+    }
+    let (held, _) = displayed(&places.argument(source));
+    let (shown, _) = displayed(destination);
+    let added = shown
+        .into_iter()
+        .filter(|domain| !held.contains(domain))
+        .collect::<Vec<_>>();
     let mut byte_domain = false;
     let mut established = true;
     for (id, referent) in &added {
@@ -1607,6 +1630,7 @@ fn validate_change(
 fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    facts: &crate::membership_facts::MembershipFacts,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
@@ -1663,6 +1687,7 @@ fn validate_machine(
                             argument,
                             &expected,
                             target.id,
+                            facts,
                         )? {
                             byte_establishments.push((edge, established));
                         }
@@ -3369,9 +3394,26 @@ fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
 /// Check the exact membership transfers, domain theories and issuer routes.
 /// Byte predicate truth is a separate establishment judgment at each cast edge.
 pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
+    let bodies = module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    validate_shape_for_bodies(module, &bodies)
+}
+
+/// Check the complete vocabulary and prove returned memberships for the exact
+/// checked bodies. Artifact ingress uses every module body through validate_shape.
+pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) -> Judged<()> {
     validate_access_policies(module)?;
+    let facts = crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
+        StructuralQualificationError {
+            machine: error.machine,
+            detail: error.detail,
+        }
+    })?;
     for machine in &module.machines {
-        validate_machine(module, machine)?;
+        validate_machine(module, machine, &facts)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
@@ -3398,14 +3440,90 @@ pub fn byte_qualification_change_judgments(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Judged<Vec<(EdgeId, bool)>> {
-    validate_machine(module, machine)
+    let places = Declared::new(machine)?;
+    let mut changes = std::collections::BTreeMap::new();
+    for change in module
+        .structural_qualification_changes
+        .iter()
+        .filter(|change| change.machine == machine.id)
+    {
+        if changes
+            .insert((change.edge, change.argument_ordinal), change)
+            .is_some()
+        {
+            return malformed(
+                Some(machine.id),
+                "byte qualification change repeats an exact successor argument",
+            );
+        }
+    }
+    let mut used = std::collections::BTreeSet::new();
+    let mut judgments = Vec::new();
+    for block in &machine.blocks {
+        let edges = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        if edges.len() != arguments.len() {
+            return malformed(
+                Some(machine.id),
+                "byte qualification successor lost its edge",
+            );
+        }
+        for ((edge, target), arguments) in edges.into_iter().zip(arguments) {
+            let target = machine.block(&target).ok_or(StructuralQualificationError {
+                machine: Some(machine.id),
+                detail: "byte qualification successor names an absent block",
+            })?;
+            for (ordinal, source) in arguments.iter().enumerate() {
+                let ordinal = u32::try_from(ordinal).map_err(|_| StructuralQualificationError {
+                    machine: Some(machine.id),
+                    detail: "byte qualification argument ordinal overflow",
+                })?;
+                let Some(change) = changes.get(&(edge, ordinal)) else {
+                    continue;
+                };
+                let parameter = target
+                    .structural_parameters
+                    .get(ordinal as usize)
+                    .filter(|parameter| parameter.place == change.destination)
+                    .ok_or(StructuralQualificationError {
+                        machine: Some(machine.id),
+                        detail: "byte qualification change names another destination",
+                    })?;
+                used.insert((edge, ordinal));
+                if let Some(established) = byte_change_judgment(
+                    module,
+                    &places,
+                    change,
+                    source,
+                    &Memberships::of(
+                        &parameter.qualifications,
+                        &parameter.projected_qualifications,
+                    ),
+                )? {
+                    judgments.push((edge, established));
+                }
+            }
+        }
+    }
+    if used.len() != changes.len() {
+        return malformed(
+            Some(machine.id),
+            "byte qualification change names no successor argument",
+        );
+    }
+    Ok(judgments)
 }
 
 /// The complete structural membership judgment required at artifact ingress.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
+    let facts =
+        crate::membership_facts::analyze(module).map_err(|error| StructuralQualificationError {
+            machine: error.machine,
+            detail: error.detail,
+        })?;
     for machine in &module.machines {
-        if byte_qualification_change_judgments(module, machine)?
+        if validate_machine(module, machine, &facts)?
             .iter()
             .any(|(_, established)| !established)
         {

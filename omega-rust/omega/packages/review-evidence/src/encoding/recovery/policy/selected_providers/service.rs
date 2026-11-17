@@ -9,6 +9,7 @@ use effects::provider_plan::{
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim,
 };
+use language_semantics::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
 };
@@ -48,6 +49,18 @@ pub(in crate::encoding::recovery) fn method(
         }),
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
+        normal_result_memberships: reader.sequence(16, |reader| {
+            Ok(ServiceNormalResultMembership {
+                path: reader.sequence(9, |reader| {
+                    Ok(super::super::tag!(reader => {
+                        1 => ServiceResultProjection::Field(reader.string()?),
+                        2 => ServiceResultProjection::Case(reader.string()?),
+                        3 => ServiceResultProjection::FixedIndex(reader.u64()?),
+                    }))
+                })?,
+                domain: reader.string()?,
+            })
+        })?,
         result_claims: reader.sequence(12, |reader| {
             Ok(ServiceResultClaim {
                 domain: reader.string()?,

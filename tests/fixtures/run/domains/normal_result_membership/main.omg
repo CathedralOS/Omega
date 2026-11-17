@@ -1,0 +1,74 @@
+// Expected exit: 0
+
+data Ticket { number: u32; }
+domain Ticket::Stamped requires self.number > 0u32 established by stamp;
+machine stamp(ticket: Ticket) -> Ticket
+requires ticket.number > 0u32
+ensures result in Stamped {
+    let tagged: Ticket in Stamped = Ticket { number: ticket.number } as +Stamped;
+    tagged as -Stamped
+}
+machine record_value(number: u32) -> u32 requires number > 0u32 {
+    let plain: Ticket = stamp(Ticket { number: number });
+    let tagged: Ticket in Stamped = plain as +Stamped;
+    tagged.number
+}
+machine other(ticket: Ticket) -> Ticket { ticket }
+domain u32::WordStamped established by stamp_word;
+machine stamp_word(number: u32) -> u32 ensures result in WordStamped {
+    let tagged: u32 in WordStamped = number as +WordStamped;
+    tagged as -WordStamped
+}
+machine scalar_value(number: u32) -> u32 {
+    let plain: u32 = stamp_word(number);
+    let tagged: u32 in WordStamped = plain as +WordStamped;
+    tagged as -WordStamped
+}
+machine entry() -> u32 crashes Trap {
+    let first: u32 = record_value(7u32);
+    let second: u32 = record_value(11u32);
+    let first_word: u32 = scalar_value(7u32);
+    let second_word: u32 = scalar_value(11u32);
+    transition first == 7u32 && second == 11u32 && first_word == 7u32 && second_word == 11u32 {
+        true -> 0u32
+        false -> wrong()
+    }
+    machine wrong() -> u32 crashes Trap { crash Trap; }
+}
+
+domain u64::Ticked established by tick_source;
+machine tick_source(value: u64) -> u64 ensures result in Ticked {
+    let tagged: u64 in Ticked = value as +Ticked;
+    tagged as -Ticked
+}
+boundary trait Service {
+    machine tick() -> u64 reaches none ensures result in Ticked crashes none;
+}
+Selected satisfies Service { machine tick() -> u64 reaches none crashes none { tick_source(29u64) } }
+Unselected satisfies Service { machine tick() -> u64 reaches none crashes none { tick_source(37u64) } }
+domain addr::Allocated established by NativeAllocation::allocate;
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr
+    reaches NativeAllocation requires count == 1
+    ensures result == 0 || no_wrap(result, width)
+    ensures result in Allocated crashes none;
+    machine other(count: u64, width: u64) -> addr
+    reaches NativeAllocation requires count == 1
+    ensures result == 0 || no_wrap(result, width) crashes none;
+}
+machine main() crashes Trap {
+    let ordinary: u32 = entry();
+    let returned: u64 = Service::tick();
+    let proven: u64 in Ticked = returned as +Ticked;
+    let observed: u64 = proven as -Ticked;
+    // The process owns this small allocation until normal termination.
+    let address: addr = NativeAllocation::allocate(1u64, 8u64);
+    let tagged: addr in Allocated = address as +Allocated;
+    let plain: addr = tagged as -Allocated;
+    transition ordinary == 0u32 && observed == 29u64 && plain != 0 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
